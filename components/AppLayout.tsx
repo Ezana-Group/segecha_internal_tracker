@@ -84,7 +84,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     <div className="flex flex-col h-full">
       <div className="p-4 border-b border-slate-200 dark:border-slate-800">
         <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center text-white text-lg flex-shrink-0">🚛</div>
+          <div className="w-10 h-10 flex-shrink-0 flex items-center justify-center">
+            <img src="/logo.png" alt="Segecha Group Logo" className="object-contain w-full h-full" />
+          </div>
           <div>
             <div className="font-extrabold text-sm text-slate-900 dark:text-white">Segecha Group</div>
             <div className="text-[10px] text-slate-400">Fleet ERP · Nairobi</div>
@@ -98,7 +100,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           return (
             <Link key={n.href} href={n.href} onClick={() => setSideOpen(false)}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${active ? 'bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 border-l-2 border-orange-500'
-                  : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'}`}>
+                : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'}`}>
               <span className="text-base w-5 text-center">{n.icon}</span><span>{n.label}</span>
             </Link>
           )

@@ -33,8 +33,8 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         {/* Logo / Brand */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-orange-500 to-red-600 text-white text-3xl mb-4 shadow-xl">
-            🚛
+          <div className="inline-flex items-center justify-center w-28 h-28 mb-4">
+            <img src="/logo.png" alt="Segecha Group Logo" className="object-contain w-full h-full filter drop-shadow-xl" />
           </div>
           <h1 className="text-3xl font-extrabold text-white tracking-tight">Segecha Group</h1>
           <p className="text-slate-400 mt-1 text-sm">Fleet Operations Management</p>
