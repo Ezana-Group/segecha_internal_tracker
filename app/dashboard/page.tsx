@@ -1,155 +1,193 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import React from 'react'
 import AppLayout from '@/components/AppLayout'
-import { getDashboardSummary, getTrucks, getInvoices } from '@/lib/api'
+import { useErpContext, fmt, fmtN } from '@/lib/ErpContext'
+import { SC, TYRE_WARN_KM } from '@/lib/seed-data'
+import { supabase } from '@/lib/supabase'
 
-const fmt = (n: number) => `KES ${Number(n || 0).toLocaleString('en-KE', { minimumFractionDigits: 0 })}`
+export default function Dashboard() {
+    const { S } = useErpContext()
+    const [data, setData] = React.useState<any>(null)
+    const [loading, setLoading] = React.useState(true)
 
-export default function DashboardPage() {
-  const [summary, setSummary] = useState<any>(null)
-  const [trucks, setTrucks] = useState<any[]>([])
-  const [invoices, setInvoices] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
+    React.useEffect(() => {
+        async function load() {
+            setLoading(true)
+            const [
+                { data: trucks }, { data: journeys },
+                { data: fuel }, { data: expenses },
+                { data: invoices }, { data: payroll }, { data: drivers }
+            ] = await Promise.all([
+                supabase.from('trucks').select('*'),
+                supabase.from('journeys').select('*'),
+                supabase.from('fuel').select('*'),
+                supabase.from('expenses').select('*'),
+                supabase.from('invoices').select('*'),
+                supabase.from('payroll').select('*'),
+                supabase.from('drivers').select('*')
+            ])
+            setData({
+                trucks: trucks || [], journeys: journeys || [],
+                fuel: fuel || [], expenses: expenses || [],
+                invoices: invoices || [], payroll: payroll || [],
+                drivers: drivers || []
+            })
+            setLoading(false)
+        }
+        load()
+    }, [])
 
-  useEffect(() => {
-    Promise.all([getDashboardSummary(), getTrucks(), getInvoices()]).then(([s, t, i]) => {
-      setSummary(s)
-      setTrucks(t.data ?? [])
-      setInvoices((i.data ?? []).slice(0, 5))
-      setLoading(false)
-    })
-  }, [])
+    const truckStats = (tid: string) => {
+        const jrns = data?.journeys.filter((j: any) => j.truck === tid) || []
+        const rev = jrns.filter((j: any) => j.status === "Completed").reduce((s: any, j: any) => s + +j.revenue, 0)
+        const fuelEntries = data?.fuel.filter((f: any) => f.truck === tid) || []
+        const fuelCost = fuelEntries.reduce((s: any, f: any) => s + (f.litres * f.pricePerL), 0)
+        const totalLitres = fuelEntries.reduce((s: any, f: any) => s + f.litres, 0)
+        const totalKm = jrns.filter((j: any) => j.status === "Completed").reduce((s: any, j: any) => s + +j.distance, 0)
+        const kmPerL = totalLitres > 0 ? totalKm / totalLitres : 0
+        const otherExp = data?.expenses.filter((e: any) => e.truck === tid).reduce((s: any, e: any) => s + +e.amount, 0) || 0
+        const exp = fuelCost + otherExp
+        return { rev, exp, profit: rev - exp, trips: jrns.length, totalKm, totalLitres, fuelCost, kmPerL }
+    }
 
-  if (loading) return (
-    <AppLayout>
-      <div className="flex items-center justify-center h-64 text-slate-400">Loading dashboard…</div>
-    </AppLayout>
-  )
+    const tyreStatus = (truck: any) => {
+        const kmSinceChange = truck.odom - truck.tyreOdom
+        const remaining = truck.tyreLimit - kmSinceChange
+        const pct = (kmSinceChange / truck.tyreLimit) * 100
+        const status = remaining <= 0 ? "Overdue" : remaining <= TYRE_WARN_KM ? "Due Soon" : "OK"
+        return { kmSinceChange, remaining, pct, status }
+    }
 
-  const margin = summary.totalRevenue > 0 ? (summary.netProfit / summary.totalRevenue * 100).toFixed(1) : '0.0'
-  const overdueInvoices = invoices.filter(i => i.status === 'Overdue')
+    if (loading || !data) return <AppLayout><div style={S.ph}>Loading Dashboard...</div></AppLayout>
 
-  const kpis = [
-    { label: 'Net Profit', value: fmt(summary.netProfit), sub: `${margin}% margin`, color: summary.netProfit >= 0 ? 'text-blue-500' : 'text-red-500', border: summary.netProfit >= 0 ? 'border-t-blue-500' : 'border-t-red-500' },
-    { label: 'Revenue Collected', value: fmt(summary.invoicesPaid), sub: `${fmt(summary.invoicesPending)} outstanding`, color: 'text-emerald-500', border: 'border-t-emerald-500' },
-    { label: 'Payroll Due', value: fmt(summary.payrollPending), sub: 'Unpaid this month', color: 'text-amber-500', border: 'border-t-amber-500' },
-    { label: 'Fleet Efficiency', value: `${summary.kmPerL.toFixed(2)} km/L`, sub: `${summary.totalLitres.toLocaleString()}L fuel used`, color: 'text-purple-500', border: 'border-t-purple-500' },
-    { label: 'Active Trucks', value: `${summary.activeTrucks}/${summary.totalTrucks}`, sub: 'Vehicles on road', color: 'text-orange-500', border: 'border-t-orange-500' },
-    { label: 'Total Distance', value: `${summary.totalKm.toLocaleString()} km`, sub: `${summary.completedTrips} completed trips`, color: 'text-sky-500', border: 'border-t-sky-500' },
-  ]
+    const totalRevenue = data.journeys.filter((j: any) => j.status === "Completed").reduce((s: any, j: any) => s + +j.revenue, 0)
+    const totalFuelCost = data.fuel.reduce((s: any, f: any) => s + (f.litres * f.pricePerL), 0)
+    const totalOtherExp = data.expenses.reduce((s: any, e: any) => s + +e.amount, 0)
+    const totalExpenses = totalFuelCost + totalOtherExp
+    const netProfit = totalRevenue - totalExpenses
+    const invoicesPaid = data.invoices.filter((i: any) => i.status === "Paid").reduce((s: any, i: any) => s + +i.amount, 0)
+    const invoicesPending = data.invoices.filter((i: any) => i.status !== "Paid").reduce((s: any, i: any) => s + +i.amount, 0)
+    const payrollPending = data.payroll.filter((p: any) => p.status === "Pending").reduce((s: any, p: any) => s + +p.baseSalary + +p.allowance - +p.deductions, 0)
 
-  return (
-    <AppLayout>
-      <div className="space-y-6 max-w-7xl mx-auto">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight">Operations Dashboard</h1>
-            <p className="text-sm text-slate-500 mt-0.5">Welcome to Segecha Group Fleet ERP</p>
-          </div>
-          <span className="text-xs bg-orange-100 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 px-3 py-1 rounded-full font-semibold border border-orange-200 dark:border-orange-500/20">
-            {new Date().toLocaleDateString('en-KE', { month: 'long', year: 'numeric' })}
-          </span>
-        </div>
+    const tyreAlerts = data.trucks.filter((t: any) => { const ts = tyreStatus(t); return ts.status !== "OK"; })
+    const overdueInv = data.invoices.filter((i: any) => i.status === "Overdue")
+    const margin = totalRevenue > 0 ? (netProfit / totalRevenue * 100).toFixed(1) : 0
+    const totalLitres = data.fuel.reduce((s: any, f: any) => s + f.litres, 0)
+    const totalKm = data.journeys.filter((j: any) => j.status === "Completed").reduce((s: any, j: any) => s + +j.distance, 0)
+    const overallKmPerL = totalLitres > 0 ? (totalKm / totalLitres).toFixed(2) : 0
 
-        {/* Alerts */}
-        {overdueInvoices.length > 0 && (
-          <div className="space-y-2">
-            {overdueInvoices.map(inv => (
-              <div key={inv.id} className="flex items-center gap-3 p-3 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 text-sm">
-                <span className="text-red-500 text-lg">⚠️</span>
-                <div>
-                  <span className="font-semibold text-red-700 dark:text-red-400">Overdue Invoice: {inv.id}</span>
-                  <span className="text-red-500 dark:text-red-400 ml-2">{inv.client} · {fmt(inv.amount)} · Due {inv.due}</span>
+    return (
+        <AppLayout>
+            <div style={S.ph}>◈ Operations Dashboard <span style={S.pill()}>March 2025</span></div>
+
+            {(tyreAlerts.length > 0 || overdueInv.length > 0) && (
+                <div style={{ marginBottom: 20 }}>
+                    {tyreAlerts.map((t: any) => {
+                        const ts = tyreStatus(t)
+                        return (
+                            <div key={t.id} style={S.alertBox(ts.status === "Overdue" ? "#ef4444" : "#f97316")}>
+                                <span style={{ fontSize: 18 }}>🔴</span>
+                                <div>
+                                    <div style={{ fontWeight: 700, color: S.mtitle.color, fontSize: 13 }}>Tyre Alert — {t.reg}</div>
+                                    <div style={{ fontSize: 12, color: S.sub.color }}>
+                                        {ts.status === "Overdue" ? `Tyres overdue by ${Math.abs(ts.remaining).toLocaleString()} km` : `Tyres due in ${ts.remaining.toLocaleString()} km`}
+                                    </div>
+                                </div>
+                            </div>
+                        )
+                    })}
+                    {overdueInv.map((i: any) => (
+                        <div key={i.id} style={S.alertBox("#ef4444")}>
+                            <span style={{ fontSize: 18 }}>💰</span>
+                            <div>
+                                <div style={{ fontWeight: 700, color: S.mtitle.color, fontSize: 13 }}>Overdue Invoice — {i.id}</div>
+                                <div style={{ fontSize: 12, color: S.sub.color }}>{i.client} · {fmt(i.amount)} · Due {i.due}</div>
+                            </div>
+                        </div>
+                    ))}
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
+            )}
 
-        {/* KPI Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
-          {kpis.map((k, i) => (
-            <div key={i} className={`bg-white dark:bg-slate-900 rounded-xl p-4 border border-slate-200 dark:border-slate-800 border-t-4 ${k.border} shadow-sm`}>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">{k.label}</p>
-              <p className={`text-xl font-extrabold ${k.color} leading-tight`}>{k.value}</p>
-              <p className="text-xs text-slate-400 mt-1">{k.sub}</p>
+            <div style={S.grid(4, 3, 1)}>
+                {[
+                    { l: "Net Profit", v: fmt(netProfit), c: netProfit >= 0 ? "#3b82f6" : "#ef4444", s: `${margin}% margin` },
+                    { l: "Revenue Collected", v: fmt(invoicesPaid), c: "#10b981", s: `${fmt(invoicesPending)} outstanding` },
+                    { l: "Payroll Due", v: fmt(payrollPending), c: "#f59e0b", s: "Unpaid this month" },
+                    { l: "Fleet Efficiency", v: `${overallKmPerL} km/L`, c: "#a78bfa", s: `${totalLitres.toLocaleString()}L used` },
+                ].map((k, i) => (
+                    <div key={i} style={S.card(k.c)}>
+                        <div style={S.kpi}>{k.l}</div>
+                        <div style={S.val(k.c)}>{k.v}</div>
+                        <div style={S.sub}>{k.s}</div>
+                    </div>
+                ))}
             </div>
-          ))}
-        </div>
 
-        {/* Truck summary table */}
-        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-          <div className="p-4 border-b border-slate-200 dark:border-slate-800">
-            <h2 className="font-bold text-slate-900 dark:text-white">Fleet Overview</h2>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-slate-50 dark:bg-slate-800/50">
-                  {['Registration', 'Make', 'Type', 'Capacity', 'Odometer', 'Status'].map(h => (
-                    <th key={h} className="px-4 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {trucks.map((t, i) => (
-                  <tr key={t.id} className={i % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50 dark:bg-slate-800/30'}>
-                    <td className="px-4 py-3 font-bold text-orange-600 dark:text-orange-400">{t.reg}</td>
-                    <td className="px-4 py-3 text-slate-600 dark:text-slate-400">{t.make}</td>
-                    <td className="px-4 py-3 text-slate-600 dark:text-slate-400">{t.type}</td>
-                    <td className="px-4 py-3 text-slate-600 dark:text-slate-400">{t.capacity}T</td>
-                    <td className="px-4 py-3 text-slate-600 dark:text-slate-400 font-mono text-xs">{(t.odom || 0).toLocaleString()} km</td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                        t.status === 'Active' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400' :
-                        t.status === 'Maintenance' ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400' :
-                        'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400'
-                      }`}>{t.status}</span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+            <div style={S.grid(2, 1, 1)}>
+                <div style={S.card()}>
+                    <div style={{ fontWeight: 700, marginBottom: 16, color: S.mtitle.color, fontSize: 14 }}>🚛 Per-Truck Summary</div>
+                    {data.trucks.map((t: any) => {
+                        const st = truckStats(t.id)
+                        const ts = tyreStatus(t)
+                        const margin = st.rev > 0 ? (st.profit / st.rev * 100).toFixed(1) : 0
+                        return (
+                            <div key={t.id} style={{ padding: "12px 0", borderBottom: `1px solid ${S.td.borderBottom.split(' ')[2]}` }}>
+                                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                                        <span style={{ fontWeight: 700, color: S.mtitle.color }}>{t.reg}</span>
+                                        {ts.status !== "OK" && <span style={S.pill(SC[ts.status as keyof typeof SC])}>🔴 Tyres</span>}
+                                    </div>
+                                    <span style={S.badge(t.status)}>{t.status}</span>
+                                </div>
+                                <div style={{ display: "flex", gap: 16, fontSize: 11, color: S.kpi.color, marginBottom: 8 }}>
+                                    <span>Rev: <b style={{ color: "#10b981" }}>{fmt(st.rev)}</b></span>
+                                    <span>Exp: <b style={{ color: "#f59e0b" }}>{fmt(st.exp)}</b></span>
+                                    <span>Net: <b style={{ color: st.profit >= 0 ? "#3b82f6" : "#ef4444" }}>{fmt(st.profit)}</b></span>
+                                    <span>{fmtN(st.kmPerL, 2)} km/L</span>
+                                </div>
+                                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                                    <div style={S.bar()}><div style={S.barFill(Math.max(0, +margin), +margin >= 0 ? "#10b981" : "#ef4444")} /></div>
+                                    <span style={{ fontSize: 10, color: S.kpi.color, whiteSpace: "nowrap" }}>{margin}% margin</span>
+                                </div>
+                            </div>
+                        )
+                    })}
+                </div>
 
-        {/* Recent invoices */}
-        <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-          <div className="p-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
-            <h2 className="font-bold text-slate-900 dark:text-white">Recent Invoices</h2>
-            <a href="/invoices" className="text-xs text-orange-500 hover:underline font-semibold">View all →</a>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-slate-50 dark:bg-slate-800/50">
-                  {['Invoice', 'Client', 'Amount', 'Due', 'Status'].map(h => (
-                    <th key={h} className="px-4 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {invoices.map((inv, i) => (
-                  <tr key={inv.id} className={i % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50 dark:bg-slate-800/30'}>
-                    <td className="px-4 py-3 font-mono text-xs text-sky-600 dark:text-sky-400">{inv.id}</td>
-                    <td className="px-4 py-3 font-semibold text-slate-700 dark:text-slate-300">{inv.client}</td>
-                    <td className="px-4 py-3 font-bold text-emerald-600 dark:text-emerald-400">{fmt(inv.amount)}</td>
-                    <td className="px-4 py-3 text-slate-500 dark:text-slate-400">{inv.due}</td>
-                    <td className="px-4 py-3">
-                      <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                        inv.status === 'Paid' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400' :
-                        inv.status === 'Overdue' ? 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400' :
-                        'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400'
-                      }`}>{inv.status}</span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    </AppLayout>
-  )
+                <div style={S.card()}>
+                    <div style={{ fontWeight: 700, marginBottom: 16, color: S.mtitle.color, fontSize: 14 }}>📋 Invoice & Payroll Status</div>
+                    <div style={{ marginBottom: 16 }}>
+                        <div style={{ fontSize: 12, color: S.kpi.color, marginBottom: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>Invoices</div>
+                        {["Paid", "Pending", "Overdue"].map((s: string) => {
+                            const total = data.invoices.filter((i: any) => i.status === s).reduce((sum: any, i: any) => sum + +i.amount, 0)
+                            const count = data.invoices.filter((i: any) => i.status === s).length
+                            return (
+                                <div key={s} style={{ display: "flex", justifyContent: "space-between", padding: "7px 0", borderBottom: `1px solid ${S.td.borderBottom.split(' ')[2]}`, fontSize: 12 }}>
+                                    <span style={{ display: "flex", gap: 8, alignItems: "center" }}><span style={S.badge(s)}>{s}</span><span style={{ color: S.kpi.color }}>({count})</span></span>
+                                    <span style={{ fontWeight: 700, color: SC[s as keyof typeof SC] }}>{fmt(total)}</span>
+                                </div>
+                            )
+                        })}
+                    </div>
+                    <div>
+                        <div style={{ fontSize: 12, color: S.kpi.color, marginBottom: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>Payroll — March 2025</div>
+                        {data.drivers.map((d: any) => {
+                            const paySlip = data.payroll.find((p: any) => p.driver === d.id && p.month === "2025-03")
+                            const net = paySlip ? +paySlip.baseSalary + +paySlip.allowance - +paySlip.deductions : 0
+                            return (
+                                <div key={d.id} style={{ display: "flex", justifyContent: "space-between", padding: "7px 0", borderBottom: `1px solid ${S.td.borderBottom.split(' ')[2]}`, fontSize: 12 }}>
+                                    <span style={{ color: S.wrap.color }}>{d.name}</span>
+                                    <span style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                                        <span style={{ fontWeight: 700, color: "#f59e0b" }}>{fmt(net)}</span>
+                                        {paySlip && <span style={S.badge(paySlip.status)}>{paySlip.status}</span>}
+                                    </span>
+                                </div>
+                            )
+                        })}
+                    </div>
+                </div>
+            </div>
+        </AppLayout>
+    )
 }

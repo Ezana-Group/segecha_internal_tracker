@@ -20,9 +20,10 @@ export async function middleware(request: NextRequest) {
   const hasSession = request.cookies.has('sb-access-token') ||
     [...request.cookies.getAll()].some(c => c.name.includes('supabase') || c.name.includes('sb-'))
 
-  if (!hasSession) {
-    return NextResponse.redirect(new URL('/login', request.url))
-  }
+  // We disable middleware redirect for now because Auth is handled in the AppLayout Client Wrapper
+  // if (!hasSession) {
+  //   return NextResponse.redirect(new URL('/login', request.url))
+  // }
 
   return NextResponse.next()
 }

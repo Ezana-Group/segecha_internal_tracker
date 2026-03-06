@@ -1,9 +1,147 @@
-export default function FuelPage() {
+'use client'
+
+import React, { useState, useEffect } from 'react'
+import AppLayout from '@/components/AppLayout'
+import { useErpContext, fmt, fmtN, today } from '@/lib/ErpContext'
+import { ErpModal, F } from '@/components/ErpShared'
+import { supabase } from '@/lib/supabase'
+import toast from 'react-hot-toast'
+
+export default function FuelLog() {
+    const { S, dark } = useErpContext()
+    const [data, setData] = useState<any>(null)
+    const [loading, setLoading] = useState(true)
+    const [filterTruck, setFilterTruck] = useState("ALL")
+    const [modal, setModal] = useState<string | null>(null)
+    const [form, setForm] = useState<any>({})
+
+    const loadData = async () => {
+        setLoading(true)
+        const [{ data: fuel }, { data: trucks }, { data: journeys }, { data: expenses }] = await Promise.all([
+            supabase.from('fuel').select('*').order('date', { ascending: false }),
+            supabase.from('trucks').select('*'),
+            supabase.from('journeys').select('*'),
+            supabase.from('expenses').select('*')
+        ])
+        setData({ fuel: fuel || [], trucks: trucks || [], journeys: journeys || [], expenses: expenses || [] })
+        setLoading(false)
+    }
+
+    useEffect(() => { loadData() }, [])
+
+    const truckReg = (id: string) => data?.trucks.find((t: any) => t.id === id)?.reg || "—"
+
+    // Duplicated from Dashboard/old Context but isolated here so this module doesn't depend on Context globals
+    const truckStats = (tid: string) => {
+        const jrns = data?.journeys.filter((j: any) => j.truck === tid) || []
+        const fuelEntries = data?.fuel.filter((f: any) => f.truck === tid) || []
+        const fuelCost = fuelEntries.reduce((s: any, f: any) => s + (f.litres * f.pricePerL), 0)
+        const totalLitres = fuelEntries.reduce((s: any, f: any) => s + f.litres, 0)
+        const totalKm = jrns.filter((j: any) => j.status === "Completed").reduce((s: any, j: any) => s + +j.distance, 0)
+        const kmPerL = totalLitres > 0 ? totalKm / totalLitres : 0
+        return { totalKm, totalLitres, fuelCost, kmPerL }
+    }
+
+    const openModal = (type: string, item: any = {}) => { setModal(type); setForm({ ...item }) }
+    const closeModal = () => { setModal(null); setForm({}) }
+
+    const saveFuel = async () => {
+        if (!form.truck || !form.litres || !form.pricePerL) return toast.error("Truck, Litres, and Price are required")
+        const payload = { ...form }
+        // Clean foreign keys
+        if (!payload.journey) payload.journey = null
+        if (!payload.id) {
+            payload.id = "F" + Date.now().toString().slice(-6)
+            const { error } = await supabase.from('fuel').insert(payload)
+            if (error) return toast.error(error.message)
+            toast.success("Fuel logged")
+        } else {
+            const { error } = await supabase.from('fuel').update(payload).eq('id', payload.id)
+            if (error) return toast.error(error.message)
+            toast.success("Fuel updated")
+        }
+        closeModal()
+        loadData()
+    }
+
+    const delFuel = async (id: string) => {
+        if (!confirm("Are you sure you want to remove this fuel record?")) return
+        const { error } = await supabase.from('fuel').delete().eq('id', id)
+        if (error) return toast.error(error.message)
+        toast.success("Fuel removed")
+        loadData()
+    }
+
+    if (loading || !data) return <AppLayout><div style={S.ph}>Loading Fuel...</div></AppLayout>
+
+    const totalL = data.fuel.reduce((s: any, f: any) => s + f.litres, 0)
+    const totalCost = data.fuel.reduce((s: any, f: any) => s + (f.litres * f.pricePerL), 0)
+    const avgPrice = totalL > 0 ? (totalCost / totalL).toFixed(1) : 0
+    const filtered = filterTruck === "ALL" ? data.fuel : data.fuel.filter((f: any) => f.truck === filterTruck)
+
     return (
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-8 shadow-sm text-center min-h-[50vh] flex flex-col items-center justify-center">
-            <div className="w-16 h-16 bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400 rounded-2xl flex items-center justify-center text-3xl mb-4">⛽</div>
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Fuel Logs</h1>
-            <p className="text-slate-500 dark:text-slate-400 max-w-md">This module is under construction. Fuel consumption analytics, receipts, and efficiency monitoring will be available here.</p>
-        </div>
+        <AppLayout>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+                <div style={S.ph}>⬡ Fuel Log</div>
+                <div style={{ display: "flex", gap: 10 }}>
+                    <select style={{ ...S.inp, width: 160 }} value={filterTruck} onChange={e => setFilterTruck(e.target.value)}>
+                        <option value="ALL">All Trucks</option>
+                        {data.trucks.map((t: any) => <option key={t.id} value={t.id}>{t.reg}</option>)}
+                    </select>
+                    <button style={S.btn()} onClick={() => openModal("fuel", { date: today() })}>+ Fuel Entry</button>
+                </div>
+            </div>
+            <div style={S.grid(4, 3, 1)}>
+                {[{ l: "Total Fuel Cost", v: fmt(totalCost), c: "#f97316" }, { l: "Total Litres", v: `${totalL.toLocaleString()} L`, c: "#f59e0b" }, { l: "Avg Price/Litre", v: `KES ${avgPrice}`, c: "#a78bfa" }, { l: "Fill-ups", v: data.fuel.length, c: "#38bdf8" }].map((k, i) => <div key={i} style={S.card(k.c)}><div style={S.kpi}>{k.l}</div><div style={S.val(k.c)}>{k.v}</div></div>)}
+            </div>
+            <div style={S.grid(3, 2, 1)}>
+                {data.trucks.map((t: any) => {
+                    const st = truckStats(t.id)
+                    return (
+                        <div key={t.id} style={S.card("#f97316")}>
+                            <div style={{ fontWeight: 700, color: S.mtitle.color, marginBottom: 10 }}>{t.reg}</div>
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                                {[{ l: "Fuel Cost", v: fmt(st.fuelCost), c: "#f97316" }, { l: "Litres", v: `${st.totalLitres.toLocaleString()} L`, c: "#f59e0b" }, { l: "Km Covered", v: `${st.totalKm.toLocaleString()} km`, c: "#38bdf8" }, { l: "Efficiency", v: `${fmtN(st.kmPerL, 2)} km/L`, c: "#10b981" }].map(s => (
+                                    <div key={s.l} style={{ background: dark ? S.wrap.background : '#f8fafc', borderRadius: 7, padding: 10, border: `1px solid ${S.border}` }}>
+                                        <div style={{ fontSize: 9, color: S.kpi.color, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 3 }}>{s.l}</div>
+                                        <div style={{ fontSize: 13, fontWeight: 800, color: s.c }}>{s.v}</div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )
+                })}
+            </div>
+            <div style={{ ...S.card(), overflowX: "auto" as any }}>
+                <table style={{ ...S.tbl, minWidth: 600 }}>
+                    <thead><tr>{["Date", "Truck", "Station", "Litres", "Price/L", "Total Cost", "Odometer", ""].map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
+                    <tbody>
+                        {filtered.map((f: any) => (
+                            <tr key={f.id}>
+                                <td style={S.td}>{f.date}</td>
+                                <td style={{ ...S.td, color: "#f97316", fontWeight: 700 }}>{truckReg(f.truck)}</td>
+                                <td style={S.td}>{f.station}</td>
+                                <td style={{ ...S.td, color: "#f59e0b", fontWeight: 700 }}>{f.litres} L</td>
+                                <td style={S.td}>KES {f.pricePerL}</td>
+                                <td style={{ ...S.td, color: "#f97316", fontWeight: 700 }}>{fmt(f.litres * f.pricePerL)}</td>
+                                <td style={{ ...S.td, fontFamily: "monospace", fontSize: 11 }}>{(f.odom || 0).toLocaleString()} km</td>
+                                <td style={S.td}><div style={{ display: "flex", gap: 6 }}><button style={S.btn("sm")} onClick={() => openModal("fuel", f)}>Edit</button><button style={S.btn("del")} onClick={() => delFuel(f.id)}>✕</button></div></td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+            {modal === "fuel" && (
+                <ErpModal title={form.id ? "Edit Fuel Entry" : "Log Fuel Fill-up"} onClose={closeModal} onSave={saveFuel}>
+                    <div style={S.fgg(2)}>
+                        <F label="Truck" k="truck" options={[{ v: "", l: "-- Select Truck --" }, ...data.trucks.map((t: any) => ({ v: t.id, l: t.reg }))]} form={form} setForm={setForm} />
+                        <F label="Date" k="date" type="date" form={form} setForm={setForm} />
+                        <F label="Litres" k="litres" type="number" form={form} setForm={setForm} /><F label="Price per Litre (KES)" k="pricePerL" type="number" form={form} setForm={setForm} />
+                        <F label="Station Name" k="station" form={form} setForm={setForm} /><F label="Odometer Reading (km)" k="odom" type="number" form={form} setForm={setForm} />
+                        <F label="Linked Journey" k="journey" options={[{ v: "", l: "-- None --" }, ...data.journeys.map((j: any) => ({ v: j.id, l: `${j.origin}→${j.dest} (${j.date})` }))]} full form={form} setForm={setForm} />
+                    </div>
+                </ErpModal>
+            )}
+        </AppLayout>
     )
 }

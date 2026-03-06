@@ -1,9 +1,101 @@
-export default function DriversPage() {
+'use client'
+
+import React, { useState, useEffect } from 'react'
+import AppLayout from '@/components/AppLayout'
+import { useErpContext, fmt, today } from '@/lib/ErpContext'
+import { ErpModal, F } from '@/components/ErpShared'
+import { supabase } from '@/lib/supabase'
+import toast from 'react-hot-toast'
+
+export default function Drivers() {
+    const { S } = useErpContext()
+    const [data, setData] = useState<any>(null)
+    const [loading, setLoading] = useState(true)
+    const [modal, setModal] = useState<string | null>(null)
+    const [form, setForm] = useState<any>({})
+
+    const loadData = async () => {
+        setLoading(true)
+        const [{ data: drivers }, { data: trucks }] = await Promise.all([
+            supabase.from('drivers').select('*').order('name'),
+            supabase.from('trucks').select('*')
+        ])
+        setData({ drivers: drivers || [], trucks: trucks || [] })
+        setLoading(false)
+    }
+
+    useEffect(() => { loadData() }, [])
+
+    const truckReg = (id: string) => data?.trucks.find((t: any) => t.id === id)?.reg || "—"
+
+    const openModal = (type: string, item: any = {}) => { setModal(type); setForm({ ...item }) }
+    const closeModal = () => { setModal(null); setForm({}) }
+
+    const saveDriver = async () => {
+        if (!form.name) return toast.error("Name is required")
+        const payload = { ...form }
+        // Clean empty strings to null for foreign keys
+        if (!payload.truck) payload.truck = null
+        if (!payload.id) {
+            payload.id = "D" + Date.now().toString().slice(-6)
+            const { error } = await supabase.from('drivers').insert(payload)
+            if (error) return toast.error(error.message)
+            toast.success("Driver added")
+        } else {
+            const { error } = await supabase.from('drivers').update(payload).eq('id', payload.id)
+            if (error) return toast.error(error.message)
+            toast.success("Driver updated")
+        }
+        closeModal()
+        loadData()
+    }
+
+    const delDriver = async (id: string) => {
+        if (!confirm("Are you sure you want to remove this driver?")) return
+        const { error } = await supabase.from('drivers').delete().eq('id', id)
+        if (error) return toast.error(error.message)
+        toast.success("Driver removed")
+        loadData()
+    }
+
+    if (loading || !data) return <AppLayout><div style={S.ph}>Loading Drivers...</div></AppLayout>
+
     return (
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-8 shadow-sm text-center min-h-[50vh] flex flex-col items-center justify-center">
-            <div className="w-16 h-16 bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 rounded-2xl flex items-center justify-center text-3xl mb-4">👤</div>
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Drivers Directory</h1>
-            <p className="text-slate-500 dark:text-slate-400 max-w-md">This module is under construction. Future updates will include driver profiles, compliance tracking, and performance logs.</p>
-        </div>
+        <AppLayout>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+                <div style={S.ph}>◎ Driver Management</div>
+                <button style={S.btn()} onClick={() => openModal("driver", { status: "Active", joined: today() })}>+ Add Driver</button>
+            </div>
+            <div style={{ ...S.card(), overflowX: "auto" as any }}>
+                <table style={{ ...S.tbl, minWidth: 600 }}>
+                    <thead><tr>{["Driver", "Phone / M-Pesa", "License", "Class", "Truck", "Salary", "Status", ""].map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
+                    <tbody>
+                        {data.drivers.map((d: any) => (
+                            <tr key={d.id}>
+                                <td style={{ ...S.td, fontWeight: 700, color: S.mtitle.color }}>{d.name}</td>
+                                <td style={S.td}><div>{d.phone}</div><div style={{ fontSize: 10, color: S.kpi.color }}>💚 {d.mpesa}</div></td>
+                                <td style={{ ...S.td, fontFamily: "monospace", fontSize: 11 }}>{d.license}</td>
+                                <td style={S.td}>{d.class}</td>
+                                <td style={{ ...S.td, color: "#f97316", fontWeight: 700 }}>{truckReg(d.truck)}</td>
+                                <td style={{ ...S.td, color: "#10b981", fontWeight: 700 }}>{fmt(d.salary)}/mo</td>
+                                <td style={S.td}><span style={S.badge(d.status)}>{d.status}</span></td>
+                                <td style={S.td}><div style={{ display: "flex", gap: 6 }}><button style={S.btn("sm")} onClick={() => openModal("driver", d)}>Edit</button><button style={S.btn("del")} onClick={() => delDriver(d.id)}>✕</button></div></td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+            {modal === "driver" && (
+                <ErpModal title={form.id ? "Edit Driver" : "Add Driver"} onClose={closeModal} onSave={saveDriver}>
+                    <div style={S.fgg(2)}>
+                        <F label="Full Name" k="name" full form={form} setForm={setForm} /><F label="Phone" k="phone" form={form} setForm={setForm} /><F label="M-Pesa Number" k="mpesa" placeholder="07XXXXXXXX" form={form} setForm={setForm} />
+                        <F label="License No." k="license" form={form} setForm={setForm} /><F label="License Class" k="class" options={["Class G", "Class CE", "Class C", "Class B"]} form={form} setForm={setForm} />
+                        <F label="Monthly Salary (KES)" k="salary" type="number" form={form} setForm={setForm} /><F label="Date Joined" k="joined" type="date" form={form} setForm={setForm} />
+                        <F label="Assigned Truck" k="truck" options={[{ v: "", l: "-- None --" }, ...data.trucks.map((t: any) => ({ v: t.id, l: t.reg }))]} form={form} setForm={setForm} />
+                        <F label="Status" k="status" options={["Active", "Inactive", "Suspended"]} form={form} setForm={setForm} />
+                    </div>
+                </ErpModal>
+            )}
+        </AppLayout>
     )
 }

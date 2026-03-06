@@ -3,29 +3,24 @@
 import { useState, useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
-import { createClient } from '@supabase/supabase-js'
+import { supabase } from '@/lib/supabase'
 import toast from 'react-hot-toast'
 
-const getSupabase = () => createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
-
 const NAV = [
-  { href: '/dashboard',   icon: '◈',  label: 'Dashboard'    },
-  { href: '/fleet',       icon: '🚛', label: 'Fleet'        },
-  { href: '/drivers',     icon: '👤', label: 'Drivers'      },
-  { href: '/journeys',    icon: '🗺️', label: 'Journeys'     },
-  { href: '/fuel',        icon: '⛽', label: 'Fuel Log'     },
-  { href: '/expenses',    icon: '💸', label: 'Expenses'     },
-  { href: '/invoices',    icon: '📄', label: 'Invoices'     },
-  { href: '/payroll',     icon: '💰', label: 'Payroll'      },
-  { href: '/tyres',       icon: '🔵', label: 'Tyre Monitor' },
-  { href: '/pnl',         icon: '📈', label: 'P&L Report'   },
+  { href: '/dashboard', icon: '◈', label: 'Dashboard' },
+  { href: '/fleet', icon: '🚛', label: 'Fleet' },
+  { href: '/drivers', icon: '👤', label: 'Drivers' },
+  { href: '/journeys', icon: '🗺️', label: 'Journeys' },
+  { href: '/fuel', icon: '⛽', label: 'Fuel Log' },
+  { href: '/expenses', icon: '💸', label: 'Expenses' },
+  { href: '/invoices', icon: '📄', label: 'Invoices' },
+  { href: '/payroll', icon: '💰', label: 'Payroll' },
+  { href: '/tyres', icon: '🔵', label: 'Tyre Monitor' },
+  { href: '/pnl', icon: '📈', label: 'P&L Report' },
 ]
 const ADMIN_NAV = [{ href: '/admin/users', icon: '⚙️', label: 'Manage Users' }]
 
-interface AppUser { id: string; email: string; name: string; role: 'admin'|'director'|'viewer' }
+interface AppUser { id: string; email: string; name: string; role: 'admin' | 'director' | 'viewer' }
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
@@ -36,7 +31,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [dark, setDark] = useState(false)
 
   useEffect(() => {
-    const supabase = getSupabase()
     const loadUser = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession()
@@ -74,17 +68,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }
 
   const handleSignOut = async () => {
-    const supabase = getSupabase()
     await supabase.auth.signOut()
     toast.success('Signed out')
     router.replace('/login')
   }
 
-  const roleColor: Record<string,string> = { admin:'bg-red-500', director:'bg-orange-500', viewer:'bg-blue-500' }
-  const roleBadge: Record<string,string> = {
-    admin:    'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400',
+  const roleColor: Record<string, string> = { admin: 'bg-red-500', director: 'bg-orange-500', viewer: 'bg-blue-500' }
+  const roleBadge: Record<string, string> = {
+    admin: 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400',
     director: 'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-400',
-    viewer:   'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400',
+    viewer: 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400',
   }
 
   const SidebarContent = () => (
@@ -104,9 +97,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           const active = pathname === n.href
           return (
             <Link key={n.href} href={n.href} onClick={() => setSideOpen(false)}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
-                active ? 'bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 border-l-2 border-orange-500'
-                       : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'}`}>
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${active ? 'bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 border-l-2 border-orange-500'
+                  : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'}`}>
               <span className="text-base w-5 text-center">{n.icon}</span><span>{n.label}</span>
             </Link>
           )
@@ -126,7 +118,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <div className="p-3 border-t border-slate-200 dark:border-slate-800 space-y-2">
         {user && (
           <div className="flex items-center gap-2.5 px-1">
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold ${roleColor[user.role]||'bg-slate-500'}`}>
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold ${roleColor[user.role] || 'bg-slate-500'}`}>
               {user.name.charAt(0).toUpperCase()}
             </div>
             <div className="min-w-0">
@@ -150,7 +142,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   )
 
   return (
-    <div className={`flex h-screen overflow-hidden w-full bg-slate-50 dark:bg-slate-950 ${dark?'dark':''}`}>
+    <div className={`flex h-screen overflow-hidden w-full bg-slate-50 dark:bg-slate-950 ${dark ? 'dark' : ''}`}>
       <aside className="hidden lg:flex flex-col w-56 flex-shrink-0 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800">
         <SidebarContent />
       </aside>
@@ -167,11 +159,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <div className="flex items-center gap-3">
             <button className="lg:hidden p-2 rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800" onClick={() => setSideOpen(true)}>
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16"/>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             </button>
             <span className="hidden sm:block text-xs text-slate-400 font-medium">
-              📍 Nairobi, KE · {new Date().toLocaleDateString('en-KE',{weekday:'short',day:'numeric',month:'short',year:'numeric'})}
+              📍 Nairobi, KE · {new Date().toLocaleDateString('en-KE', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}
             </span>
           </div>
           <div className="flex items-center gap-2">
