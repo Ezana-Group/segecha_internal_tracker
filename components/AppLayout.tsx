@@ -8,16 +8,16 @@ import type { AppUser } from '@/lib/supabase'
 import toast from 'react-hot-toast'
 
 const NAV = [
-  { href: '/dashboard',  icon: '◈', label: 'Dashboard'     },
-  { href: '/fleet',      icon: '🚛', label: 'Fleet'         },
-  { href: '/drivers',    icon: '👤', label: 'Drivers'       },
-  { href: '/journeys',   icon: '🗺️', label: 'Journeys'      },
-  { href: '/fuel',       icon: '⛽', label: 'Fuel Log'      },
-  { href: '/expenses',   icon: '💸', label: 'Expenses'      },
-  { href: '/invoices',   icon: '📄', label: 'Invoices'      },
-  { href: '/payroll',    icon: '💰', label: 'Payroll'       },
-  { href: '/tyres',      icon: '🔵', label: 'Tyre Monitor'  },
-  { href: '/pnl',        icon: '📈', label: 'P&L Report'    },
+  { href: '/dashboard', icon: '◈', label: 'Dashboard' },
+  { href: '/fleet', icon: '🚛', label: 'Fleet' },
+  { href: '/drivers', icon: '👤', label: 'Drivers' },
+  { href: '/journeys', icon: '🗺️', label: 'Journeys' },
+  { href: '/fuel', icon: '⛽', label: 'Fuel Log' },
+  { href: '/expenses', icon: '💸', label: 'Expenses' },
+  { href: '/invoices', icon: '📄', label: 'Invoices' },
+  { href: '/payroll', icon: '💰', label: 'Payroll' },
+  { href: '/tyres', icon: '🔵', label: 'Tyre Monitor' },
+  { href: '/pnl', icon: '📈', label: 'P&L Report' },
 ]
 
 const ADMIN_NAV = [
@@ -34,8 +34,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user: u } }) => {
       if (!u) { router.push('/login'); return }
-      supabase.from('users').select('*').eq('id', u.id).single().then(({ data }) => {
-        if (data) setUser(data as AppUser)
+      supabase.from('users').select('*').eq('id', u.id).single().then(({ data, error }) => {
+        if (error || !data) {
+          toast.error('Profile not found. Please contact admin.')
+          supabase.auth.signOut().then(() => router.push('/login'))
+          return
+        }
+        setUser(data as AppUser)
       })
     })
     // Restore dark mode preference
@@ -79,11 +84,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           return (
             <Link key={n.href} href={n.href}
               onClick={() => setSideOpen(false)}
-              className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                active
+              className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${active
                   ? 'bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 border-l-2 border-orange-500'
                   : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
-              }`}
+                }`}
             >
               <span className="text-base w-5 text-center">{n.icon}</span>
               <span>{n.label}</span>
@@ -157,7 +161,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               onClick={() => setSideOpen(true)}
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16"/>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             </button>
             <span className="text-sm font-semibold text-slate-500 dark:text-slate-400 hidden sm:block">
