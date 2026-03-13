@@ -36,6 +36,95 @@ export function serializeLicenseClasses(classes: string[]): string {
     return classes.length ? JSON.stringify(classes) : ''
 }
 
+/** True if this record was flagged during import (user should fix and clear the note/desc) */
+export function hasImportFlag(text: string | null | undefined): boolean {
+    return typeof text === 'string' && text.includes('[Import')
+}
+
+/** Badge for table rows that need import review — visible in main ERP */
+export function ImportReviewBadge({ notesOrDesc }: { notesOrDesc: string | null | undefined }) {
+    const { S } = useErpContext()
+    if (!hasImportFlag(notesOrDesc)) return null
+    return (
+        <span
+            style={{
+                ...S.badge('Pending'),
+                background: '#fef3c7',
+                color: '#92400e',
+                border: '1px solid #f59e0b',
+                fontSize: 10,
+                padding: '2px 8px',
+            }}
+            title="Imported with warning — fix in notes/description and remove this flag"
+        >
+            Needs review
+        </span>
+    )
+}
+
+/** Search box for table pages — placeholder and value controlled by parent */
+export function TableSearch({ value, onChange, placeholder = "Search..." }: { value: string; onChange: (v: string) => void; placeholder?: string }) {
+    const { S } = useErpContext()
+    return (
+        <input
+            type="text"
+            placeholder={placeholder}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            style={{ ...S.inp, width: 200, minWidth: 160 }}
+        />
+    )
+}
+
+/** Compare two values for table sort: numbers, ISO dates, then strings. Use with sortCompare(a, b, sortDir). */
+export function sortCompare(a: unknown, b: unknown, dir: 'asc' | 'desc'): number {
+    const na = a == null || a === ''
+    const nb = b == null || b === ''
+    if (na && nb) return 0
+    if (na) return dir === 'asc' ? 1 : -1
+    if (nb) return dir === 'asc' ? -1 : 1
+    const numA = typeof a === 'number' ? a : Number(a)
+    const numB = typeof b === 'number' ? b : Number(b)
+    if (!Number.isNaN(numA) && !Number.isNaN(numB) && (typeof a === 'number' || typeof b === 'number' || (typeof a === 'string' && typeof b === 'string' && /^\d/.test(String(a)) && /^\d/.test(String(b))))) {
+        const out = numA < numB ? -1 : numA > numB ? 1 : 0
+        return dir === 'asc' ? out : -out
+    }
+    const sa = String(a).toLowerCase()
+    const sb = String(b).toLowerCase()
+    const out = sa < sb ? -1 : sa > sb ? 1 : 0
+    return dir === 'asc' ? out : -out
+}
+
+/** Sortable table header — click to sort by this column (toggles asc/desc if already selected). */
+export function SortableTh({
+    label,
+    sortKey,
+    currentSortKey,
+    currentSortDir,
+    onSort,
+    style = {},
+}: {
+    label: string
+    sortKey: string
+    currentSortKey: string | null
+    currentSortDir: 'asc' | 'desc'
+    onSort: (key: string) => void
+    style?: React.CSSProperties
+}) {
+    const { S } = useErpContext()
+    const active = currentSortKey === sortKey
+    return (
+        <th
+            style={{ ...S.th, cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap', ...style }}
+            onClick={() => onSort(sortKey)}
+            title={`Sort by ${label}`}
+        >
+            {label}
+            {active && <span style={{ marginLeft: 4, opacity: 0.9 }}>{currentSortDir === 'asc' ? '↑' : '↓'}</span>}
+        </th>
+    )
+}
+
 export function ErpModal({ title, onSave, onClose, children, wide }: any) {
     const { S } = useErpContext()
     return (

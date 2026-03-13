@@ -275,8 +275,17 @@ async function insertJourneysFuelExpenses(
     }
 
     const status = Number.isNaN(Number(r['Net Income'])) || r['Net Income'] === '' ? 'In Transit' : 'Completed'
+    const importFlags: string[] = []
+    if (!dateVal(rawDate) && hasOrigin) importFlags.push('Date estimated (no date in source).')
+    if (totalExp > 0 && num(r['Total Expense']) === 0 && (fuelCost || driverMillage || turnBoy || roadUsers || otherExp)) importFlags.push('Total expense was blank – calculated from components.')
+    if (i + 3 === 26 && fuelL > 0 && fuelL < 400) importFlags.push('Unusually low fuel – verify.')
+    if (Math.abs(fuelL * pricePerL - fuelCost) > 5) importFlags.push(`Fuel cost mismatch: Fuel(L)×Price=${fuelL * pricePerL} vs sheet=${fuelCost} – verify.`)
+    if (totalExp > 0 && Math.abs(totalExp - (fuelCost + driverMillage + turnBoy + roadUsers + otherExp)) > 5) importFlags.push('Total expense ≠ sum of components – verify.')
+    if (netIncome !== 0 && Math.abs(netIncome - (grossIncome - totalExp)) > 5) importFlags.push('Net income ≠ Gross − Total expense – verify.')
+
     let notes: string | null = null
     if (depositReceived > 0) notes = `Deposit: KES ${depositReceived}`
+    if (importFlags.length) notes = (notes ? notes + '\n\n' : '') + '[Import – fix and clear when done]: ' + importFlags.join(' ')
 
     let journeyId: string
     if (useOldSchema) {
@@ -395,7 +404,10 @@ async function insertMaintenanceExpenses(truckKdrId: string, truckZhId: string, 
     const truckId = regToId[String(vehicleReg || 'KDR 381K').trim()] ?? truckKdrId
     const task = String(r['Task'] ?? '')
     const notes = String(r['Notes'] ?? '')
-    const desc = (task + (notes ? ': ' + notes : '')).slice(0, 200)
+    let desc = (task + (notes ? ': ' + notes : '')).slice(0, 180)
+    if (vehicleReg === undefined || vehicleReg === null || String(vehicleReg).trim() === '') {
+      desc = (desc + ' [Import: Vehicle not in source – assigned KDR 381K. Fix if wrong.]').slice(0, 200)
+    }
     const dateUndertaken = dateVal(r['Date Undertaken'])
     if (!dateUndertaken) continue
     const category = /tyre/i.test(task) ? 'Tyre' : 'Maintenance'

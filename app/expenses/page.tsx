@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import AppLayout from '@/components/AppLayout'
 import { useErpContext, fmt, today } from '@/lib/ErpContext'
-import { ErpModal, F } from '@/components/ErpShared'
+import { ErpModal, F, TableSearch, ImportReviewBadge, hasImportFlag, SortableTh, sortCompare } from '@/components/ErpShared'
 import { CATS } from '@/lib/seed-data'
 import { supabase } from '@/lib/supabase'
 import toast from 'react-hot-toast'
@@ -13,6 +13,9 @@ export default function Expenses() {
     const [data, setData] = useState<any>(null)
     const [loading, setLoading] = useState(true)
     const [filterTruck, setFilterTruck] = useState("ALL")
+    const [searchQuery, setSearchQuery] = useState("")
+    const [filterNeedsReview, setFilterNeedsReview] = useState<"ALL" | "YES">("ALL")
+    const [sort, setSort] = useState<{ key: string; dir: 'asc' | 'desc' }>({ key: 'date', dir: 'desc' })
     const [modal, setModal] = useState<string | null>(null)
     const [form, setForm] = useState<any>({})
 
@@ -28,8 +31,6 @@ export default function Expenses() {
     }
 
     useEffect(() => { loadData() }, [])
-
-    const truckReg = (id: string) => data?.trucks.find((t: any) => t.id === id)?.reg || "—"
 
     const openModal = (type: string, item: any = {}) => { setModal(type); setForm({ ...item }) }
     const closeModal = () => { setModal(null); setForm({}) }
@@ -63,16 +64,45 @@ export default function Expenses() {
 
     if (loading || !data) return <AppLayout><div style={S.ph}>Loading Expenses...</div></AppLayout>
 
-    const filtered = filterTruck === "ALL" ? data.expenses : data.expenses.filter((e: any) => e.truck === filterTruck)
+    const truckReg = (id: string) => data?.trucks.find((t: any) => t.id === id)?.reg || "—"
+    const q = searchQuery.trim().toLowerCase()
+    const filtered = data.expenses.filter((e: any) => {
+        if (filterTruck !== "ALL" && e.truck !== filterTruck) return false
+        if (filterNeedsReview === "YES" && !hasImportFlag(e.desc)) return false
+        if (!q) return true
+        const cat = (e.cat || "").toLowerCase()
+        const desc = (e.desc || "").toLowerCase()
+        const date = (e.date || "").toLowerCase()
+        const truck = truckReg(e.truck).toLowerCase()
+        return cat.includes(q) || desc.includes(q) || date.includes(q) || truck.includes(q)
+    })
+    const needsReviewCount = data.expenses.filter((e: any) => hasImportFlag(e.desc)).length
+    const getSortVal = (e: any, key: string) => {
+        switch (key) {
+            case 'date': return e.date || ''
+            case 'truck': return truckReg(e.truck)
+            case 'cat': return (e.cat || '').toString()
+            case 'desc': return (e.desc || '').toString()
+            case 'amount': return Number(e.amount) || 0
+            default: return ''
+        }
+    }
+    const handleSort = (key: string) => setSort(prev => ({ key, dir: prev.key === key ? (prev.dir === 'asc' ? 'desc' : 'asc') : 'desc' }))
+    const sorted = [...filtered].sort((a, b) => sortCompare(getSortVal(a, sort.key), getSortVal(b, sort.key), sort.dir))
 
     return (
         <AppLayout>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
                 <div style={S.ph}>◇ Expense Tracker</div>
-                <div style={{ display: "flex", gap: 10 }}>
-                    <select style={{ ...S.inp, width: 160 }} value={filterTruck} onChange={e => setFilterTruck(e.target.value)}>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
+                    <TableSearch value={searchQuery} onChange={setSearchQuery} placeholder="Search category, description, date, truck..." />
+                    <select style={{ ...S.inp, width: 140 }} value={filterTruck} onChange={e => setFilterTruck(e.target.value)}>
                         <option value="ALL">All Trucks</option>
                         {data.trucks.map((t: any) => <option key={t.id} value={t.id}>{t.reg}</option>)}
+                    </select>
+                    <select style={{ ...S.inp, width: 140 }} value={filterNeedsReview} onChange={e => setFilterNeedsReview(e.target.value as "ALL" | "YES")}>
+                        <option value="ALL">All</option>
+                        <option value="YES">Needs review ({needsReviewCount})</option>
                     </select>
                     <button style={S.btn()} onClick={() => openModal("expense", { date: today() })}>+ Add Expense</button>
                 </div>
@@ -85,15 +115,26 @@ export default function Expenses() {
             </div>
             <div style={{ ...S.card(), overflowX: "auto" as any }}>
                 <table style={{ ...S.tbl, minWidth: 600 }}>
-                    <thead><tr>{["Date", "Truck", "Category", "Description", "Amount", ""].map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
+                    <thead>
+                        <tr>
+                            <SortableTh label="Date" sortKey="date" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
+                            <SortableTh label="Truck" sortKey="truck" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
+                            <SortableTh label="Category" sortKey="cat" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
+                            <SortableTh label="Description" sortKey="desc" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
+                            <SortableTh label="Amount" sortKey="amount" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
+                            <th style={S.th}></th>
+                            <th style={S.th}></th>
+                        </tr>
+                    </thead>
                     <tbody>
-                        {filtered.map((e: any) => (
+                        {sorted.map((e: any) => (
                             <tr key={e.id}>
                                 <td style={S.td}>{e.date}</td>
                                 <td style={{ ...S.td, color: "#f97316", fontWeight: 700 }}>{truckReg(e.truck)}</td>
                                 <td style={S.td}><span style={S.badge("Loading")}>{e.cat}</span></td>
                                 <td style={S.td}>{e.desc}</td>
                                 <td style={{ ...S.td, color: "#f59e0b", fontWeight: 700 }}>{fmt(e.amount)}</td>
+                                <td style={S.td}><ImportReviewBadge notesOrDesc={e.desc} /></td>
                                 <td style={S.td}><div style={{ display: "flex", gap: 6 }}><button style={S.btn("sm")} onClick={() => openModal("expense", e)}>Edit</button><button style={S.btn("del")} onClick={() => delExpense(e.id)}>✕</button></div></td>
                             </tr>
                         ))}

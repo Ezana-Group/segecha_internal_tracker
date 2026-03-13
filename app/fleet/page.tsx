@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import AppLayout from '@/components/AppLayout'
 import { useErpContext, fmt, fmtN } from '@/lib/ErpContext'
-import { ErpModal, F } from '@/components/ErpShared'
+import { ErpModal, F, TableSearch, sortCompare } from '@/components/ErpShared'
 import { SC, TRUCK_TYPES, STATUSES_TRUCK, TYRE_WARN_KM } from '@/lib/seed-data'
 import { supabase } from '@/lib/supabase'
 import toast from 'react-hot-toast'
@@ -12,6 +12,8 @@ export default function Fleet() {
     const { S } = useErpContext()
     const [data, setData] = useState<any>(null)
     const [loading, setLoading] = useState(true)
+    const [searchQuery, setSearchQuery] = useState("")
+    const [sort, setSort] = useState<{ key: string; dir: 'asc' | 'desc' }>({ key: 'reg', dir: 'asc' })
     const [modal, setModal] = useState<string | null>(null)
     const [form, setForm] = useState<any>({})
 
@@ -90,14 +92,47 @@ export default function Fleet() {
 
     if (loading || !data) return <AppLayout><div style={S.ph}>Loading Fleet...</div></AppLayout>
 
+    const q = searchQuery.trim().toLowerCase()
+    const filteredTrucks = !q ? data.trucks : data.trucks.filter((t: any) => {
+        const reg = (t.reg || "").toLowerCase()
+        const make = (t.make || "").toLowerCase()
+        const type = (t.type || "").toLowerCase()
+        return reg.includes(q) || make.includes(q) || type.includes(q)
+    })
+    const getSortVal = (t: any, key: string) => {
+        switch (key) {
+            case 'reg': return (t.reg || '').toString()
+            case 'make': return (t.make || '').toString()
+            case 'type': return (t.type || '').toString()
+            case 'status': return (t.status || '').toString()
+            case 'odom': return Number(t.odom) || 0
+            default: return ''
+        }
+    }
+    const sortedTrucks = [...filteredTrucks].sort((a, b) => sortCompare(getSortVal(a, sort.key), getSortVal(b, sort.key), sort.dir))
+
     return (
         <AppLayout>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
                 <div style={S.ph}>◉ Fleet Management</div>
-                <button style={S.btn()} onClick={() => openModal("truck", { status: "Active", tyreLimit: 60000 })}>+ Add Truck</button>
+                <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                    <TableSearch value={searchQuery} onChange={setSearchQuery} placeholder="Search reg, make, type..." />
+                    <select style={{ ...S.inp, width: 140 }} value={sort.key} onChange={e => setSort(prev => ({ ...prev, key: e.target.value }))} title="Sort by">
+                        <option value="reg">Sort: Registration</option>
+                        <option value="make">Sort: Make</option>
+                        <option value="type">Sort: Type</option>
+                        <option value="status">Sort: Status</option>
+                        <option value="odom">Sort: Odometer</option>
+                    </select>
+                    <select style={{ ...S.inp, width: 100 }} value={sort.dir} onChange={e => setSort(prev => ({ ...prev, dir: e.target.value as 'asc' | 'desc' }))}>
+                        <option value="asc">↑ A–Z</option>
+                        <option value="desc">↓ Z–A</option>
+                    </select>
+                    <button style={S.btn()} onClick={() => openModal("truck", { status: "Active", tyreLimit: 60000 })}>+ Add Truck</button>
+                </div>
             </div>
             <div style={S.grid(3, 2, 1)}>
-                {data.trucks.map((t: any) => {
+                {sortedTrucks.map((t: any) => {
                     const st = truckStats(t.id)
                     const ts = tyreStatus(t)
                     const drv = data.drivers.find((d: any) => d.id === t.driver)

@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import AppLayout from '@/components/AppLayout'
 import { useErpContext, fmt, today } from '@/lib/ErpContext'
-import { ErpModal, F } from '@/components/ErpShared'
+import { ErpModal, F, TableSearch, SortableTh, sortCompare } from '@/components/ErpShared'
 import { supabase } from '@/lib/supabase'
 import toast from 'react-hot-toast'
 
@@ -76,14 +76,40 @@ export default function Payroll() {
 
 function PayrollContent({ S, data, months, firstMonth, monthLabel, openModal, closeModal, savePayroll, delPayroll, markPayrollPaid, form, setForm, modal }: any) {
     const [selMonth, setSelMonth] = useState(firstMonth)
+    const [searchQuery, setSearchQuery] = useState("")
+    const [sort, setSort] = useState<{ key: string; dir: 'asc' | 'desc' }>({ key: 'name', dir: 'asc' })
     const monthPayroll = data.payroll.filter((p: any) => p.month === selMonth)
+    const q = searchQuery.trim().toLowerCase()
+    const filteredPayroll = !q ? monthPayroll : monthPayroll.filter((p: any) => {
+        const drv = data.drivers.find((d: any) => d.id === p.driver)
+        const name = (drv?.name || p.driver || "").toLowerCase()
+        const status = (p.status || "").toLowerCase()
+        const mpesaRef = (p.mpesaRef || "").toLowerCase()
+        const month = (p.month || "").toLowerCase()
+        return name.includes(q) || status.includes(q) || mpesaRef.includes(q) || month.includes(q)
+    })
+    const getSortVal = (p: any, key: string) => {
+        const drv = data.drivers.find((d: any) => d.id === p.driver)
+        switch (key) {
+            case 'name': return (drv?.name || p.driver || '').toString()
+            case 'baseSalary': return Number(p.baseSalary) || 0
+            case 'allowance': return Number(p.allowance) || 0
+            case 'deductions': return Number(p.deductions) || 0
+            case 'net': return +p.baseSalary + +p.allowance - +p.deductions
+            case 'status': return (p.status || '').toString()
+            default: return ''
+        }
+    }
+    const handleSort = (key: string) => setSort(prev => ({ key, dir: prev.key === key ? (prev.dir === 'asc' ? 'desc' : 'asc') : 'asc' }))
+    const sortedPayroll = [...filteredPayroll].sort((a, b) => sortCompare(getSortVal(a, sort.key), getSortVal(b, sort.key), sort.dir))
     const totalNet = monthPayroll.reduce((s: any, p: any) => s + +p.baseSalary + +p.allowance - +p.deductions, 0)
 
     return (
         <AppLayout>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
                 <div style={S.ph}>◑ Driver Payroll</div>
-                <div style={{ display: "flex", gap: 10 }}>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
+                    <TableSearch value={searchQuery} onChange={setSearchQuery} placeholder="Search driver, status, month..." />
                     <select style={{ ...S.inp, width: 180 }} value={selMonth} onChange={e => setSelMonth(e.target.value)}>
                         {months.map((m: any) => <option key={m} value={m}>{monthLabel(m)}</option>)}
                     </select>
@@ -100,9 +126,21 @@ function PayrollContent({ S, data, months, firstMonth, monthLabel, openModal, cl
             </div>
             <div style={{ ...S.card(), overflowX: "auto" as any }}>
                 <table style={{ ...S.tbl, minWidth: 800 }}>
-                    <thead><tr>{["Driver", "M-Pesa No.", "Base Salary", "Allowances", "Deductions", "Net Pay", "M-Pesa Ref", "Status", ""].map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
+                    <thead>
+                        <tr>
+                            <SortableTh label="Driver" sortKey="name" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
+                            <th style={S.th}>M-Pesa No.</th>
+                            <SortableTh label="Base Salary" sortKey="baseSalary" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
+                            <SortableTh label="Allowances" sortKey="allowance" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
+                            <SortableTh label="Deductions" sortKey="deductions" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
+                            <SortableTh label="Net Pay" sortKey="net" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
+                            <th style={S.th}>M-Pesa Ref</th>
+                            <SortableTh label="Status" sortKey="status" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
+                            <th style={S.th}></th>
+                        </tr>
+                    </thead>
                     <tbody>
-                        {monthPayroll.map((p: any) => {
+                        {sortedPayroll.map((p: any) => {
                             const drv = data.drivers.find((d: any) => d.id === p.driver)
                             const net = +p.baseSalary + +p.allowance - +p.deductions
                             return (

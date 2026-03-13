@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import AppLayout from '@/components/AppLayout'
 import { useErpContext, fmt, today } from '@/lib/ErpContext'
-import { ErpModal, F, FMultiSelect, KENYA_LICENSE_CLASSES, parseLicenseClasses, serializeLicenseClasses } from '@/components/ErpShared'
+import { ErpModal, F, FMultiSelect, KENYA_LICENSE_CLASSES, parseLicenseClasses, serializeLicenseClasses, TableSearch, SortableTh, sortCompare } from '@/components/ErpShared'
 import { supabase } from '@/lib/supabase'
 import toast from 'react-hot-toast'
 
@@ -11,6 +11,8 @@ export default function Drivers() {
     const { S } = useErpContext()
     const [data, setData] = useState<any>(null)
     const [loading, setLoading] = useState(true)
+    const [searchQuery, setSearchQuery] = useState("")
+    const [sort, setSort] = useState<{ key: string; dir: 'asc' | 'desc' }>({ key: 'name', dir: 'asc' })
     const [modal, setModal] = useState<string | null>(null)
     const [form, setForm] = useState<any>({})
 
@@ -65,17 +67,55 @@ export default function Drivers() {
 
     if (loading || !data) return <AppLayout><div style={S.ph}>Loading Drivers...</div></AppLayout>
 
+    const q = searchQuery.trim().toLowerCase()
+    const filtered = !q ? data.drivers : data.drivers.filter((d: any) => {
+        const name = (d.name || "").toLowerCase()
+        const phone = (d.phone || "").toLowerCase()
+        const mpesa = (d.mpesa || "").toLowerCase()
+        const license = (d.license || "").toLowerCase()
+        const truck = truckReg(d.truck).toLowerCase()
+        const classes = (d.class ?? d.license_class ?? "").toString().toLowerCase()
+        return name.includes(q) || phone.includes(q) || mpesa.includes(q) || license.includes(q) || truck.includes(q) || classes.includes(q)
+    })
+    const getSortVal = (d: any, key: string) => {
+        switch (key) {
+            case 'name': return (d.name || '').toString()
+            case 'phone': return (d.phone || '').toString()
+            case 'license': return (d.license || '').toString()
+            case 'truck': return truckReg(d.truck)
+            case 'salary': return Number(d.salary) || 0
+            case 'status': return (d.status || '').toString()
+            default: return ''
+        }
+    }
+    const handleSort = (key: string) => setSort(prev => ({ key, dir: prev.key === key ? (prev.dir === 'asc' ? 'desc' : 'asc') : 'asc' }))
+    const sorted = [...filtered].sort((a, b) => sortCompare(getSortVal(a, sort.key), getSortVal(b, sort.key), sort.dir))
+
     return (
         <AppLayout>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
                 <div style={S.ph}>◎ Driver Management</div>
-                <button style={S.btn()} onClick={() => openModal("driver", { status: "Active", joined: today() })}>+ Add Driver</button>
+                <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                    <TableSearch value={searchQuery} onChange={setSearchQuery} placeholder="Search name, phone, M-Pesa, license, truck..." />
+                    <button style={S.btn()} onClick={() => openModal("driver", { status: "Active", joined: today() })}>+ Add Driver</button>
+                </div>
             </div>
             <div style={{ ...S.card(), overflowX: "auto" as any }}>
                 <table style={{ ...S.tbl, minWidth: 600 }}>
-                    <thead><tr>{["Driver", "Phone / M-Pesa", "License", "Class", "Truck", "Salary", "Status", ""].map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
+                    <thead>
+                        <tr>
+                            <SortableTh label="Driver" sortKey="name" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
+                            <SortableTh label="Phone / M-Pesa" sortKey="phone" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
+                            <SortableTh label="License" sortKey="license" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
+                            <th style={S.th}>Class</th>
+                            <SortableTh label="Truck" sortKey="truck" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
+                            <SortableTh label="Salary" sortKey="salary" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
+                            <SortableTh label="Status" sortKey="status" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
+                            <th style={S.th}></th>
+                        </tr>
+                    </thead>
                     <tbody>
-                        {data.drivers.map((d: any) => (
+                        {sorted.map((d: any) => (
                             <tr key={d.id}>
                                 <td style={{ ...S.td, fontWeight: 700, color: S.mtitle.color }}>{d.name}</td>
                                 <td style={S.td}><div>{d.phone}</div><div style={{ fontSize: 10, color: S.kpi.color }}>💚 {d.mpesa}</div></td>

@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import AppLayout from '@/components/AppLayout'
 import { useErpContext, fmt, fmtN, today } from '@/lib/ErpContext'
-import { ErpModal, F } from '@/components/ErpShared'
+import { ErpModal, F, TableSearch, SortableTh, sortCompare } from '@/components/ErpShared'
 import { supabase } from '@/lib/supabase'
 import toast from 'react-hot-toast'
 
@@ -12,6 +12,8 @@ export default function FuelLog() {
     const [data, setData] = useState<any>(null)
     const [loading, setLoading] = useState(true)
     const [filterTruck, setFilterTruck] = useState("ALL")
+    const [searchQuery, setSearchQuery] = useState("")
+    const [sort, setSort] = useState<{ key: string; dir: 'asc' | 'desc' }>({ key: 'date', dir: 'desc' })
     const [modal, setModal] = useState<string | null>(null)
     const [form, setForm] = useState<any>({})
 
@@ -77,13 +79,35 @@ export default function FuelLog() {
     const totalL = data.fuel.reduce((s: any, f: any) => s + f.litres, 0)
     const totalCost = data.fuel.reduce((s: any, f: any) => s + (f.litres * f.pricePerL), 0)
     const avgPrice = totalL > 0 ? (totalCost / totalL).toFixed(1) : 0
-    const filtered = filterTruck === "ALL" ? data.fuel : data.fuel.filter((f: any) => f.truck === filterTruck)
+    const q = searchQuery.trim().toLowerCase()
+    const byTruck = filterTruck === "ALL" ? data.fuel : data.fuel.filter((f: any) => f.truck === filterTruck)
+    const filtered = !q ? byTruck : byTruck.filter((f: any) => {
+        const truck = truckReg(f.truck).toLowerCase()
+        const station = (f.station || "").toLowerCase()
+        const date = (f.date || "").toLowerCase()
+        return truck.includes(q) || station.includes(q) || date.includes(q)
+    })
+    const getSortVal = (f: any, key: string) => {
+        switch (key) {
+            case 'date': return f.date || ''
+            case 'truck': return truckReg(f.truck)
+            case 'station': return (f.station || '').toString()
+            case 'litres': return Number(f.litres) || 0
+            case 'pricePerL': return Number(f.pricePerL) || 0
+            case 'total': return (Number(f.litres) || 0) * (Number(f.pricePerL) || 0)
+            case 'odom': return Number(f.odom) || 0
+            default: return ''
+        }
+    }
+    const handleSort = (key: string) => setSort(prev => ({ key, dir: prev.key === key ? (prev.dir === 'asc' ? 'desc' : 'asc') : 'desc' }))
+    const sorted = [...filtered].sort((a, b) => sortCompare(getSortVal(a, sort.key), getSortVal(b, sort.key), sort.dir))
 
     return (
         <AppLayout>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
                 <div style={S.ph}>⬡ Fuel Log</div>
-                <div style={{ display: "flex", gap: 10 }}>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
+                    <TableSearch value={searchQuery} onChange={setSearchQuery} placeholder="Search truck, station, date..." />
                     <select style={{ ...S.inp, width: 160 }} value={filterTruck} onChange={e => setFilterTruck(e.target.value)}>
                         <option value="ALL">All Trucks</option>
                         {data.trucks.map((t: any) => <option key={t.id} value={t.id}>{t.reg}</option>)}
@@ -114,9 +138,20 @@ export default function FuelLog() {
             </div>
             <div style={{ ...S.card(), overflowX: "auto" as any }}>
                 <table style={{ ...S.tbl, minWidth: 600 }}>
-                    <thead><tr>{["Date", "Truck", "Station", "Litres", "Price/L", "Total Cost", "Odometer", ""].map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
+                    <thead>
+                        <tr>
+                            <SortableTh label="Date" sortKey="date" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
+                            <SortableTh label="Truck" sortKey="truck" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
+                            <SortableTh label="Station" sortKey="station" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
+                            <SortableTh label="Litres" sortKey="litres" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
+                            <SortableTh label="Price/L" sortKey="pricePerL" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
+                            <SortableTh label="Total Cost" sortKey="total" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
+                            <SortableTh label="Odometer" sortKey="odom" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
+                            <th style={S.th}></th>
+                        </tr>
+                    </thead>
                     <tbody>
-                        {filtered.map((f: any) => (
+                        {sorted.map((f: any) => (
                             <tr key={f.id}>
                                 <td style={S.td}>{f.date}</td>
                                 <td style={{ ...S.td, color: "#f97316", fontWeight: 700 }}>{truckReg(f.truck)}</td>

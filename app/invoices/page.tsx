@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import AppLayout from '@/components/AppLayout'
 import { useErpContext, fmt, today, uid } from '@/lib/ErpContext'
-import { ErpModal, F } from '@/components/ErpShared'
+import { ErpModal, F, TableSearch, SortableTh, sortCompare } from '@/components/ErpShared'
 import { supabase } from '@/lib/supabase'
 import toast from 'react-hot-toast'
 
@@ -93,6 +93,8 @@ export default function Invoices() {
     const { S } = useErpContext()
     const [data, setData] = useState<any>(null)
     const [loading, setLoading] = useState(true)
+    const [searchQuery, setSearchQuery] = useState("")
+    const [sort, setSort] = useState<{ key: string; dir: 'asc' | 'desc' }>({ key: 'issued', dir: 'desc' })
     const [modal, setModal] = useState<string | null>(null)
     const [form, setForm] = useState<any>({})
     const [invoicePreview, setInvoicePreview] = useState<any>(null)
@@ -152,12 +154,41 @@ export default function Invoices() {
     if (loading || !data) return <AppLayout><div style={S.ph}>Loading Invoices...</div></AppLayout>
 
     const invoicesPaid = data.invoices.filter((i: any) => i.status === "Paid").reduce((s: any, i: any) => s + +i.amount, 0)
+    const q = searchQuery.trim().toLowerCase()
+    const getRoute = (inv: any) => {
+        const j = data.journeys.find((j: any) => j.id === inv.journey)
+        return j ? `${j.origin}→${j.dest}` : ""
+    }
+    const filtered = !q ? data.invoices : data.invoices.filter((inv: any) => {
+        const id = (inv.id || "").toLowerCase()
+        const client = (inv.client || "").toLowerCase()
+        const status = (inv.status || "").toLowerCase()
+        const route = getRoute(inv).toLowerCase()
+        return id.includes(q) || client.includes(q) || status.includes(q) || route.includes(q)
+    })
+    const getSortVal = (inv: any, key: string) => {
+        switch (key) {
+            case 'id': return (inv.id || '').toString()
+            case 'client': return (inv.client || '').toString()
+            case 'route': return getRoute(inv)
+            case 'issued': return inv.issued || ''
+            case 'due': return inv.due || ''
+            case 'amount': return Number(inv.amount) || 0
+            case 'status': return (inv.status || '').toString()
+            default: return ''
+        }
+    }
+    const handleSort = (key: string) => setSort(prev => ({ key, dir: prev.key === key ? (prev.dir === 'asc' ? 'desc' : 'asc') : 'desc' }))
+    const sorted = [...filtered].sort((a, b) => sortCompare(getSortVal(a, sort.key), getSortVal(b, sort.key), sort.dir))
 
     return (
         <AppLayout>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
                 <div style={S.ph}>◆ M-Pesa Invoices</div>
-                <button style={S.btn()} onClick={() => openModal("invoice", { issued: today(), due: today(), status: "Pending" })}>+ New Invoice</button>
+                <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                    <TableSearch value={searchQuery} onChange={setSearchQuery} placeholder="Search invoice, client, status..." />
+                    <button style={S.btn()} onClick={() => openModal("invoice", { issued: today(), due: today(), status: "Pending" })}>+ New Invoice</button>
+                </div>
             </div>
             <div style={S.grid(4, 3, 1)}>
                 {[
@@ -169,13 +200,25 @@ export default function Invoices() {
             </div>
             <div style={{ ...S.card(), overflowX: "auto" as any }}>
                 <table style={{ ...S.tbl, minWidth: 800 }}>
-                    <thead><tr>{["Invoice", "Client", "Route", "Issued", "Due", "Amount", "M-Pesa Ref", "Status", ""].map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
+                    <thead>
+                        <tr>
+                            <SortableTh label="Invoice" sortKey="id" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
+                            <SortableTh label="Client" sortKey="client" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
+                            <SortableTh label="Route" sortKey="route" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
+                            <SortableTh label="Issued" sortKey="issued" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
+                            <SortableTh label="Due" sortKey="due" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
+                            <SortableTh label="Amount" sortKey="amount" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
+                            <th style={S.th}>M-Pesa Ref</th>
+                            <SortableTh label="Status" sortKey="status" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
+                            <th style={S.th}></th>
+                        </tr>
+                    </thead>
                     <tbody>
-                        {data.invoices.map((inv: any) => (
+                        {sorted.map((inv: any) => (
                             <tr key={inv.id}>
                                 <td style={{ ...S.td, fontFamily: "monospace", color: "#38bdf8" }}>{inv.id}</td>
                                 <td style={{ ...S.td, fontWeight: 700, color: S.mtitle.color }}>{inv.client}</td>
-                                <td style={S.td}>{inv.journey ? Object.assign(data.journeys.find((j: any) => j.id === inv.journey) || { origin: "?", dest: "?" }, {}).origin + "→" + Object.assign(data.journeys.find((j: any) => j.id === inv.journey) || { origin: "?", dest: "?" }, {}).dest : "—"}</td>
+                                <td style={S.td}>{getRoute(inv) || "—"}</td>
                                 <td style={S.td}>{inv.issued}</td>
                                 <td style={S.td}>{inv.due}</td>
                                 <td style={{ ...S.td, color: "#10b981", fontWeight: 700 }}>{fmt(inv.amount)}</td>
