@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
 import { Toaster } from 'react-hot-toast'
+import { SpeedInsights } from '@vercel/speed-insights/next'
 import { ErpProvider } from '@/lib/ErpContext'
 
 const inter = Inter({ subsets: ['latin'] })
@@ -25,6 +26,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               style: { background: '#1e293b', color: '#f1f5f9', border: '1px solid #334155' },
             }}
           />
+          <SpeedInsights />
         </ErpProvider>
       </body>
     </html>
