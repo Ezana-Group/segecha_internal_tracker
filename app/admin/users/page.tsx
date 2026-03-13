@@ -7,6 +7,7 @@ import toast from 'react-hot-toast'
 
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<any[]>([])
+  const [drivers, setDrivers] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [showInvite, setShowInvite] = useState(false)
   const [inviteEmail, setInviteEmail] = useState('')
@@ -15,8 +16,12 @@ export default function AdminUsersPage() {
   const [inviting, setInviting] = useState(false)
 
   const loadUsers = async () => {
-    const { data } = await supabase.from('users').select('*').order('created_at')
-    setUsers(data ?? [])
+    const [{ data: uData }, { data: dData }] = await Promise.all([
+      supabase.from('users').select('*').order('created_at'),
+      supabase.from('drivers').select('id, name').order('name')
+    ])
+    setUsers(uData ?? [])
+    setDrivers(dData ?? [])
     setLoading(false)
   }
 
@@ -26,6 +31,12 @@ export default function AdminUsersPage() {
     const { error } = await supabase.from('users').update({ role }).eq('id', id)
     if (error) toast.error('Failed to update role')
     else { toast.success('Role updated'); loadUsers() }
+  }
+
+  const updateDriver = async (userId: string, driverId: string) => {
+    const { error } = await supabase.from('users').update({ driver_id: driverId || null }).eq('id', userId)
+    if (error) toast.error('Failed to update driver')
+    else { toast.success(driverId ? 'User linked to driver' : 'Driver link removed'); loadUsers() }
   }
 
   const inviteUser = async () => {
@@ -97,7 +108,7 @@ export default function AdminUsersPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-slate-50 dark:bg-slate-800/50">
-                  {['User', 'Email', 'Role', 'Last Login', 'Change Role'].map(h => (
+                  {['User', 'Email', 'Role', 'Driver', 'Last Login', 'Change Role'].map(h => (
                     <th key={h} className="px-4 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">{h}</th>
                   ))}
                 </tr>
@@ -116,6 +127,19 @@ export default function AdminUsersPage() {
                     <td className="px-4 py-3 text-slate-500 dark:text-slate-400">{u.email}</td>
                     <td className="px-4 py-3">
                       <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${roleColors[u.role]}`}>{u.role}</span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <select
+                        value={u.driver_id ?? ''}
+                        onChange={e => updateDriver(u.id, e.target.value)}
+                        className="text-xs bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1.5 text-slate-700 dark:text-slate-300 cursor-pointer focus:outline-none focus:ring-1 focus:ring-orange-500"
+                        title="Link to driver for Driver portal"
+                      >
+                        <option value="">— None —</option>
+                        {drivers.map(d => (
+                          <option key={d.id} value={d.id}>{d.name} ({d.id})</option>
+                        ))}
+                      </select>
                     </td>
                     <td className="px-4 py-3 text-slate-500 dark:text-slate-400 text-xs">
                       {u.last_login ? new Date(u.last_login).toLocaleDateString('en-KE') : 'Never'}

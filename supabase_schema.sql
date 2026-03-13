@@ -38,6 +38,9 @@ create table if not exists public.drivers (
   mpesa text
 );
 
+-- 2b. Link user to driver for driver portal (after drivers table exists)
+alter table public.users add column if not exists driver_id text references public.drivers(id) on delete set null;
+
 -- 3. Trucks
 create table if not exists public.trucks (
   id text primary key,
@@ -54,6 +57,7 @@ create table if not exists public.trucks (
 );
 
 -- 4. Journeys (truck = tractor/prime mover; trailer = optional skeletal/trailer unit being pulled)
+-- odometerStart/End and photos filled when admin approves driver submission
 create table if not exists public.journeys (
   id text primary key,
   truck text references public.trucks(id) on delete cascade,
@@ -68,7 +72,11 @@ create table if not exists public.journeys (
   cargo text,
   weight numeric,
   status text,
-  notes text
+  notes text,
+  "odometerStart" numeric,
+  "odometerEnd" numeric,
+  "odometerStartPhoto" text,
+  "odometerEndPhoto" text
 );
 
 -- 5. Fuel
@@ -122,6 +130,20 @@ create table if not exists public.payroll (
   "paidDate" date
 );
 
+-- 8b. Truck maintenance schedule (oil, brakes, COF, insurance, etc. – due by km or date)
+create table if not exists public.maintenance (
+  id text primary key,
+  truck text not null references public.trucks(id) on delete cascade,
+  type text not null,
+  "lastDoneOdom" numeric,
+  "lastDoneDate" date,
+  "intervalKm" numeric,
+  "intervalMonths" int,
+  notes text
+);
+create index if not exists idx_maintenance_truck on public.maintenance(truck);
+create index if not exists idx_maintenance_type on public.maintenance(type);
+
 -- Disable Row Level Security (RLS) temporarily to allow easy migration and testing.
 -- You can enable and configure these policies later via the Supabase Dashboard.
 alter table public.users disable row level security;
@@ -132,6 +154,7 @@ alter table public.fuel disable row level security;
 alter table public.expenses disable row level security;
 alter table public.invoices disable row level security;
 alter table public.payroll disable row level security;
+alter table public.maintenance disable row level security;
 
 -- 9. Settings (key-value: Paybill/Till display for M-Pesa)
 create table if not exists public.settings (
@@ -162,8 +185,27 @@ create index if not exists idx_mpesa_transactions_invoice on public.mpesa_transa
 create index if not exists idx_mpesa_transactions_payroll on public.mpesa_transactions("payrollId");
 create index if not exists idx_mpesa_transactions_created on public.mpesa_transactions("createdAt" desc);
 
+-- 11. Driver submissions (pending admin approval; then applied to journeys/fuel/expenses)
+create table if not exists public.driver_submissions (
+  id text primary key,
+  type text not null check (type in ('journey_start', 'journey_end', 'fuel', 'expense')),
+  "referenceId" text,
+  "driverId" text not null references public.drivers(id) on delete cascade,
+  payload jsonb not null default '{}',
+  "photoUrls" jsonb default '[]',
+  status text not null default 'pending' check (status in ('pending', 'approved', 'rejected')),
+  "rejectionReason" text,
+  "reviewedBy" uuid references auth.users(id) on delete set null,
+  "reviewedAt" timestamptz,
+  "createdAt" timestamptz default now()
+);
+create index if not exists idx_driver_submissions_driver on public.driver_submissions("driverId");
+create index if not exists idx_driver_submissions_status on public.driver_submissions(status);
+create index if not exists idx_driver_submissions_created on public.driver_submissions("createdAt" desc);
+
 alter table public.settings disable row level security;
 alter table public.mpesa_transactions disable row level security;
+alter table public.driver_submissions disable row level security;
 
 -- (Optional) If you want to force enable it, you could just add permissive policies for now:
 -- create policy "Allow all access" on public.trucks for all using (true) with check (true);

@@ -17,14 +17,17 @@ const NAV = [
   { href: '/transactions', icon: '💳', label: 'M-Pesa' },
   { href: '/payroll', icon: '💰', label: 'Payroll' },
   { href: '/tyres', icon: '🔵', label: 'Tyre Monitor' },
+  { href: '/maintenance', icon: '🔧', label: 'Maintenance' },
   { href: '/pnl', icon: '📈', label: 'P&L Report' },
+  { href: '/driver', icon: '🚚', label: 'Driver' },
 ]
 const ADMIN_NAV = [
   { href: '/admin/users', icon: '👥', label: 'Manage Users' },
   { href: '/admin/settings', icon: '⚙️', label: 'Settings (M-Pesa)' },
+  { href: '/admin/driver-submissions', icon: '✅', label: 'Driver approvals' },
 ]
 
-interface AppUser { id: string; email: string; name: string; role: 'admin' | 'director' | 'viewer' }
+interface AppUser { id: string; email: string; name: string; role: 'admin' | 'director' | 'viewer'; driver_id?: string | null }
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
@@ -41,14 +44,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         if (!session) { router.replace('/login'); return }
 
         const { data: profile } = await supabase
-          .from('users').select('id,email,name,role').eq('id', session.user.id).single()
+          .from('users').select('id,email,name,role,driver_id').eq('id', session.user.id).single()
 
         if (!profile) {
           // Auto-create profile if missing
           const name = session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'User'
           const { data: np } = await supabase.from('users')
             .upsert({ id: session.user.id, email: session.user.email, name, role: 'admin' })
-            .select('id,email,name,role').single()
+            .select('id,email,name,role,driver_id').single()
           setUser(np as AppUser)
         } else {
           setUser(profile as AppUser)

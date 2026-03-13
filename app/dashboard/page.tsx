@@ -17,7 +17,8 @@ export default function Dashboard() {
             const [
                 { data: trucks }, { data: journeys },
                 { data: fuel }, { data: expenses },
-                { data: invoices }, { data: payroll }, { data: drivers }
+                { data: invoices }, { data: payroll }, { data: drivers },
+                { data: maintenance }
             ] = await Promise.all([
                 supabase.from('trucks').select('*'),
                 supabase.from('journeys').select('*'),
@@ -25,13 +26,14 @@ export default function Dashboard() {
                 supabase.from('expenses').select('*'),
                 supabase.from('invoices').select('*'),
                 supabase.from('payroll').select('*'),
-                supabase.from('drivers').select('*')
+                supabase.from('drivers').select('*'),
+                supabase.from('maintenance').select('*')
             ])
             setData({
                 trucks: trucks || [], journeys: journeys || [],
                 fuel: fuel || [], expenses: expenses || [],
                 invoices: invoices || [], payroll: payroll || [],
-                drivers: drivers || []
+                drivers: drivers || [], maintenance: maintenance || []
             })
             setLoading(false)
         }
@@ -72,6 +74,21 @@ export default function Dashboard() {
 
     const tyreAlerts = data.trucks.filter((t: any) => { const ts = tyreStatus(t); return ts.status !== "OK"; })
     const overdueInv = data.invoices.filter((i: any) => i.status === "Overdue")
+    const todayStr = new Date().toISOString().split('T')[0]
+    const addMonths = (d: string, months: number) => { const x = new Date(d); x.setMonth(x.getMonth() + months); return x.toISOString().split('T')[0] }
+    const maintenanceAlerts = (data.maintenance || []).filter((m: any) => {
+        const t = data.trucks.find((x: any) => x.id === m.truck)
+        const odom = t && typeof t.odom === 'number' ? t.odom : null
+        let nextDueKm: number | null = null
+        let nextDueDate: string | null = null
+        if (m.intervalKm != null && m.lastDoneOdom != null) nextDueKm = Number(m.lastDoneOdom) + Number(m.intervalKm)
+        if (m.intervalMonths != null && m.lastDoneDate) nextDueDate = addMonths(m.lastDoneDate, m.intervalMonths)
+        if (nextDueKm != null && odom != null && odom >= nextDueKm) return true
+        if (nextDueDate && todayStr >= nextDueDate) return true
+        if (nextDueKm != null && odom != null && (nextDueKm - odom) <= 2000) return true
+        if (nextDueDate) { const daysLeft = Math.floor((new Date(nextDueDate).getTime() - new Date(todayStr).getTime()) / (24 * 60 * 60 * 1000)); if (daysLeft <= 30) return true }
+        return false
+    })
     const margin = totalRevenue > 0 ? (netProfit / totalRevenue * 100).toFixed(1) : 0
     const totalLitres = data.fuel.reduce((s: any, f: any) => s + f.litres, 0)
     const totalKm = data.journeys.filter((j: any) => j.status === "Completed").reduce((s: any, j: any) => s + +j.distance, 0)
@@ -81,7 +98,7 @@ export default function Dashboard() {
         <AppLayout>
             <div style={S.ph}>◈ Operations Dashboard <span style={S.pill()}>March 2025</span></div>
 
-            {(tyreAlerts.length > 0 || overdueInv.length > 0) && (
+            {(tyreAlerts.length > 0 || overdueInv.length > 0 || maintenanceAlerts.length > 0) && (
                 <div style={{ marginBottom: 20 }}>
                     {tyreAlerts.map((t: any) => {
                         const ts = tyreStatus(t)
@@ -93,6 +110,18 @@ export default function Dashboard() {
                                     <div style={{ fontSize: 12, color: S.sub.color }}>
                                         {ts.status === "Overdue" ? `Tyres overdue by ${Math.abs(ts.remaining).toLocaleString()} km` : `Tyres due in ${ts.remaining.toLocaleString()} km`}
                                     </div>
+                                </div>
+                            </div>
+                        )
+                    })}
+                    {maintenanceAlerts.map((m: any) => {
+                        const t = data.trucks.find((x: any) => x.id === m.truck)
+                        return (
+                            <div key={m.id} style={S.alertBox('#f59e0b')}>
+                                <span style={{ fontSize: 18 }}>🔧</span>
+                                <div>
+                                    <div style={{ fontWeight: 700, color: S.mtitle.color, fontSize: 13 }}>Maintenance — {t?.reg ?? m.truck}: {m.type}</div>
+                                    <div style={{ fontSize: 12, color: S.sub.color }}>Due or due soon. <a href="/maintenance" style={{ color: '#f97316', fontWeight: 600 }}>Open Maintenance →</a></div>
                                 </div>
                             </div>
                         )

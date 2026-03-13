@@ -9,23 +9,32 @@ import toast from 'react-hot-toast'
 
 function InvoiceView({ inv, onClose, data, settings, onStkPush, stkPushing }: any) {
     const { S, dark } = useErpContext()
-    const journey = data.journeys.find((j: any) => j.id === inv.journey)
+    if (!inv || !data) return null
+    const journeyRef = inv.journey ?? inv.journey_id
+    const journeys = data.journeys ?? []
+    const journey = journeyRef ? journeys.find((j: any) => j.id === journeyRef) : null
     const paybill = settings?.paybill_display || settings?.till_display || '—'
     const accountPrefix = (settings?.account_prefix || 'INV').trim()
-    const accountNumber = (accountPrefix && !String(inv.id).startsWith(accountPrefix)) ? `${accountPrefix}-${inv.id}` : inv.id
-    const truck = journey ? data.trucks.find((t: any) => t.id === journey.truck) : null
-    const driver = journey ? data.drivers.find((d: any) => d.id === journey.driver) : null
-    const vat = Math.round(inv.amount * 0.16)
-    const subtotal = inv.amount - vat
+    const accountNumber = (accountPrefix && !String(inv.id || '').startsWith(accountPrefix)) ? `${accountPrefix}-${inv.id}` : (inv.id ?? '')
+    const trucks = data.trucks ?? []
+    const drivers = data.drivers ?? []
+    const truck = journey ? trucks.find((t: any) => t.id === (journey.truck ?? journey.truck_id)) : null
+    const driver = journey ? drivers.find((d: any) => d.id === (journey.driver ?? journey.driver_id)) : null
+    const amount = Number(inv.amount ?? 0)
+    const vat = Math.round(amount * 0.16)
+    const subtotal = amount - vat
+    const mpesaRef = inv.mpesaRef ?? inv.mpesa_ref
+    const paidDate = inv.paidDate ?? inv.paid_date
+    const surfaceBg = (S?.surface && typeof S.surface === 'string') ? S.surface.split(' ')[0] : (dark ? '#10141f' : '#ffffff')
 
     return (
         <div style={S.ovl} onClick={onClose}>
             <div style={{ maxWidth: 720, width: "95vw", maxHeight: "90vh", overflowY: "auto" }} onClick={e => e.stopPropagation()}>
-                <div style={{ background: S.surface.split(' ')[0], color: S.text, padding: 40, borderRadius: 12, fontFamily: "Arial, sans-serif", minWidth: 0, width: "100%" }}>
+                <div style={{ background: surfaceBg, color: S.text, padding: 40, borderRadius: 12, fontFamily: "Arial, sans-serif", minWidth: 0, width: "100%" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 32 }}>
                         <div>
                             <div style={{ fontSize: 28, fontWeight: 900, color: "#e85d04" }}>INVOICE</div>
-                            <div style={{ fontSize: 13, color: "#666", marginTop: 4 }}>{inv.id}</div>
+                            <div style={{ fontSize: 13, color: "#666", marginTop: 4 }}>{inv.id ?? '—'}</div>
                         </div>
                         <div style={{ textAlign: "right" }}>
                             <div style={{ fontWeight: 800, fontSize: 18, color: S.text }}>Segecha Group Ltd</div>
@@ -36,14 +45,14 @@ function InvoiceView({ inv, onClose, data, settings, onStkPush, stkPushing }: an
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginBottom: 28, background: dark ? "#ffffff0a" : "#f9f9f9", padding: 20, borderRadius: 8 }}>
                         <div>
                             <div style={{ fontSize: 11, color: "#999", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>Billed To</div>
-                            <div style={{ fontWeight: 700, fontSize: 15, color: S.text }}>{inv.client}</div>
-                            <div style={{ fontSize: 13, color: "#555" }}>📞 {inv.phone}</div>
+                            <div style={{ fontWeight: 700, fontSize: 15, color: S.text }}>{inv.client ?? '—'}</div>
+                            <div style={{ fontSize: 13, color: "#555" }}>📞 {inv.phone ?? '—'}</div>
                         </div>
                         <div style={{ textAlign: "right" }}>
-                            <div style={{ fontSize: 12, color: "#666" }}>Date Issued: <b>{inv.issued}</b></div>
-                            <div style={{ fontSize: 12, color: "#666" }}>Due Date: <b>{inv.due}</b></div>
+                            <div style={{ fontSize: 12, color: "#666" }}>Date Issued: <b>{inv.issued ?? '—'}</b></div>
+                            <div style={{ fontSize: 12, color: "#666" }}>Due Date: <b>{inv.due ?? '—'}</b></div>
                             <div style={{ marginTop: 8 }}>
-                                <span style={{ background: inv.status === "Paid" ? "#d1fae5" : inv.status === "Overdue" ? "#fee2e2" : "#fef3c7", color: inv.status === "Paid" ? "#065f46" : inv.status === "Overdue" ? "#991b1b" : "#92400e", padding: "4px 12px", borderRadius: 20, fontSize: 12, fontWeight: 700 }}>{inv.status}</span>
+                                <span style={{ background: inv.status === "Paid" ? "#d1fae5" : inv.status === "Overdue" ? "#fee2e2" : "#fef3c7", color: inv.status === "Paid" ? "#065f46" : inv.status === "Overdue" ? "#991b1b" : "#92400e", padding: "4px 12px", borderRadius: 20, fontSize: 12, fontWeight: 700 }}>{inv.status ?? 'Pending'}</span>
                             </div>
                         </div>
                     </div>
@@ -56,8 +65,8 @@ function InvoiceView({ inv, onClose, data, settings, onStkPush, stkPushing }: an
                             </thead>
                             <tbody>
                                 <tr style={{ borderBottom: `1px solid ${S.border}` }}>
-                                    <td style={{ padding: "12px 14px", fontSize: 13 }}>Freight Services — {journey.cargo}</td>
-                                    <td style={{ padding: "12px 14px", fontSize: 13 }}>{journey.origin} → {journey.dest}</td>
+                                    <td style={{ padding: "12px 14px", fontSize: 13 }}>Freight Services — {journey.cargo ?? journey.cargo_type ?? '—'}</td>
+                                    <td style={{ padding: "12px 14px", fontSize: 13 }}>{journey.origin ?? '—'} → {journey.dest ?? journey.destination ?? '—'}</td>
                                     <td style={{ padding: "12px 14px", fontSize: 13 }}>{truck?.reg || "—"}</td>
                                     <td style={{ padding: "12px 14px", fontSize: 13 }}>{driver?.name || "—"}</td>
                                     <td style={{ padding: "12px 14px", fontSize: 13, fontWeight: 700 }}>KES {subtotal.toLocaleString()}</td>
@@ -68,29 +77,29 @@ function InvoiceView({ inv, onClose, data, settings, onStkPush, stkPushing }: an
                                 </tr>
                                 <tr style={{ background: "#f97316", color: "#fff" }}>
                                     <td colSpan={4} style={{ padding: "12px 14px", fontSize: 14, fontWeight: 800, textAlign: "right" }}>TOTAL DUE</td>
-                                    <td style={{ padding: "12px 14px", fontSize: 14, fontWeight: 800 }}>KES {Number(inv.amount).toLocaleString()}</td>
+                                    <td style={{ padding: "12px 14px", fontSize: 14, fontWeight: 800 }}>KES {amount.toLocaleString()}</td>
                                 </tr>
                             </tbody>
                         </table>
                     )}
-                    {inv.status === "Paid" && inv.mpesaRef && (
+                    {inv.status === "Paid" && mpesaRef && (
                         <div style={{ background: dark ? "#10b98120" : "#d1fae5", border: "1px solid #6ee7b7", borderRadius: 8, padding: 14, marginBottom: 16 }}>
                             <div style={{ fontWeight: 700, color: "#065f46", fontSize: 13 }}>✅ Payment Received via M-Pesa</div>
-                            <div style={{ fontSize: 12, color: "#047857" }}>Reference: {inv.mpesaRef} · Date: {inv.paidDate}</div>
+                            <div style={{ fontSize: 12, color: "#047857" }}>Reference: {mpesaRef} · Date: {paidDate ?? '—'}</div>
                         </div>
                     )}
                     <div style={{ marginBottom: 16, padding: 14, background: dark ? "#ffffff08" : "#f8fafc", borderRadius: 8, border: `1px solid ${S.border}` }}>
                         <div style={{ fontSize: 11, color: S.textDim, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>Pay via M-Pesa</div>
                         <div style={{ fontSize: 14, fontWeight: 700, color: S.text }}>Paybill: <span style={{ fontFamily: "monospace" }}>{paybill}</span></div>
                         <div style={{ fontSize: 14, fontWeight: 700, color: S.text, marginTop: 4 }}>Account: <span style={{ fontFamily: "monospace" }}>{accountNumber}</span></div>
-                        <div style={{ fontSize: 13, color: S.textDim, marginTop: 4 }}>Amount: KES {Number(inv.amount).toLocaleString()}</div>
+                        <div style={{ fontSize: 13, color: S.textDim, marginTop: 4 }}>Amount: KES {amount.toLocaleString()}</div>
                     </div>
                     <div style={{ fontSize: 11, color: S.textDim, textAlign: "center", borderTop: `1px solid ${S.border}`, paddingTop: 16 }}>
                         Payment via M-Pesa Paybill · Bank Transfer · Cheque · Thank you for your business!
                     </div>
                 </div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 12 }}>
-                    {inv.status !== "Paid" && inv.phone && (
+                    {inv.status !== "Paid" && (inv.phone ?? inv.phone_number) && (
                         <button style={S.btn("green")} onClick={() => onStkPush(inv)} disabled={stkPushing}>
                             {stkPushing ? 'Sending...' : '📱 Request payment (STK Push)'}
                         </button>
@@ -193,8 +202,9 @@ export default function Invoices() {
     const invoicesPaid = data.invoices.filter((i: any) => i.status === "Paid").reduce((s: any, i: any) => s + +i.amount, 0)
     const q = searchQuery.trim().toLowerCase()
     const getRoute = (inv: any) => {
-        const j = data.journeys.find((j: any) => j.id === inv.journey)
-        return j ? `${j.origin}→${j.dest}` : ""
+        const jId = inv.journey ?? inv.journey_id
+        const j = jId ? data.journeys.find((j: any) => j.id === jId) : null
+        return j ? `${j.origin ?? ''}→${j.dest ?? ''}` : ""
     }
     const filtered = data.invoices.filter((inv: any) => {
         if (filterStatus !== "ALL" && (inv.status || "") !== filterStatus) return false
