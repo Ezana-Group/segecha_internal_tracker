@@ -49,7 +49,7 @@ export const SEED = {
 };
 
 export const CATS = ["Fuel", "Maintenance", "Toll", "Permit", "Tyre", "Allowance", "Salary", "Insurance", "Other"];
-export const TRUCK_TYPES = ["Rigid", "Semi-Trailer", "Tipper", "Flatbed", "Tanker", "Box Body"];
+export const TRUCK_TYPES = ["Rigid", "Semi-Trailer", "Tipper", "Flatbed", "Tanker", "Box Body", "Trailer", "Skeletal Trailer"];
 export const STATUSES_JOURNEY = ["Loading", "In Transit", "Completed", "Cancelled"];
 export const STATUSES_TRUCK = ["Active", "Maintenance", "Off Road"];
 export const TYRE_WARN_KM = 5000;

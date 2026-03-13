@@ -1,7 +1,9 @@
--- Run this script in your Supabase SQL Editor to wipe all dummy testing data before going live.
+-- Run this script in your Supabase SQL Editor to wipe all dummy/testing data.
+-- Use for: production before go-live, or local/dev before loading real data.
 -- This will delete all generated records but maintain the table structures.
 -- We use CASCADE to handle any foreign key constraints.
 
+-- Use 'fuel' if your app uses supabase_schema.sql; use 'fuel_log' if you use supabase-schema.sql
 TRUNCATE TABLE 
   payroll, 
   invoices, 

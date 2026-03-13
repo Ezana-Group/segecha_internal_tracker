@@ -53,10 +53,11 @@ create table if not exists public.trucks (
   "tyreLimit" numeric
 );
 
--- 4. Journeys
+-- 4. Journeys (truck = tractor/prime mover; trailer = optional skeletal/trailer unit being pulled)
 create table if not exists public.journeys (
   id text primary key,
   truck text references public.trucks(id) on delete cascade,
+  trailer text references public.trucks(id) on delete set null,
   driver text references public.drivers(id) on delete set null,
   origin text,
   dest text,

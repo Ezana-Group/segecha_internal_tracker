@@ -31,12 +31,15 @@ export default function Journeys() {
 
     const truckReg = (id: string) => data?.trucks.find((t: any) => t.id === id)?.reg || "—"
     const driverName = (id: string) => data?.drivers.find((d: any) => d.id === id)?.name || "—"
+    const tractors = (data?.trucks || []).filter((t: any) => t.type && !["Trailer", "Skeletal Trailer"].includes(t.type))
+    const trailers = (data?.trucks || []).filter((t: any) => t.type && ["Trailer", "Skeletal Trailer"].includes(t.type))
 
     const openModal = (type: string, item: any = {}) => { setModal(type); setForm({ ...item }) }
     const closeModal = () => { setModal(null); setForm({}) }
 
     const saveJourney = async () => {
         if (!form.truck || !form.origin || !form.dest) return toast.error("Truck, Origin, and Destination are required")
+        if (!form.trailer) return toast.error("Trailer is required — every trip/job must have a trailer assigned")
         const payload = { ...form }
         // Clean foreign keys
         if (!payload.driver) payload.driver = null
@@ -75,7 +78,7 @@ export default function Journeys() {
                 <div style={{ display: "flex", gap: 10 }}>
                     <select style={{ ...S.inp, width: 160 }} value={filterTruck} onChange={e => setFilterTruck(e.target.value)}>
                         <option value="ALL">All Trucks</option>
-                        {data.trucks.map((t: any) => <option key={t.id} value={t.id}>{t.reg}</option>)}
+                        {tractors.map((t: any) => <option key={t.id} value={t.id}>{t.reg}</option>)}
                     </select>
                     <button style={S.btn()} onClick={() => openModal("journey", { date: today(), status: "Loading" })}>+ Log Journey</button>
                 </div>
@@ -85,12 +88,13 @@ export default function Journeys() {
             </div>
             <div style={{ ...S.card(), overflowX: "auto" as any }}>
                 <table style={{ ...S.tbl, minWidth: 800 }}>
-                    <thead><tr>{["Route", "Truck", "Driver", "Date", "Cargo", "Weight", "Distance", "Revenue", "Status", ""].map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
+                    <thead><tr>{["Route", "Truck", "Trailer", "Driver", "Date", "Cargo", "Weight", "Distance", "Revenue", "Status", ""].map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
                     <tbody>
                         {filtered.map((j: any) => (
                             <tr key={j.id}>
                                 <td style={{ ...S.td, fontWeight: 700, color: S.mtitle.color }}>{j.origin} → {j.dest}</td>
                                 <td style={{ ...S.td, color: "#f97316", fontWeight: 700 }}>{truckReg(j.truck)}</td>
+                                <td style={{ ...S.td, color: "#94a3b8", fontSize: 12 }}>{j.trailer ? truckReg(j.trailer) : "—"}</td>
                                 <td style={S.td}>{driverName(j.driver)}</td>
                                 <td style={S.td}>{j.date}</td>
                                 <td style={S.td}>{j.cargo || "—"}</td>
@@ -108,7 +112,8 @@ export default function Journeys() {
                 <ErpModal title={form.id ? "Edit Journey" : "Log Journey"} onClose={closeModal} onSave={saveJourney}>
                     <div style={S.fgg(2)}>
                         <F label="Origin" k="origin" form={form} setForm={setForm} /><F label="Destination" k="dest" form={form} setForm={setForm} />
-                        <F label="Truck" k="truck" options={[{ v: "", l: "-- Select Truck --" }, ...data.trucks.map((t: any) => ({ v: t.id, l: t.reg }))]} form={form} setForm={setForm} />
+                        <F label="Truck (tractor)" k="truck" options={[{ v: "", l: "-- Select Truck --" }, ...tractors.map((t: any) => ({ v: t.id, l: `${t.reg} · ${t.type || ""}` }))]} form={form} setForm={setForm} />
+                        <F label="Trailer" k="trailer" options={[{ v: "", l: "-- Select Trailer --" }, ...trailers.map((t: any) => ({ v: t.id, l: `${t.reg} · ${t.type || ""}` }))]} form={form} setForm={setForm} />
                         <F label="Driver" k="driver" options={[{ v: "", l: "-- Select Driver --" }, ...data.drivers.map((d: any) => ({ v: d.id, l: d.name }))]} form={form} setForm={setForm} />
                         <F label="Departure Date" k="date" type="date" form={form} setForm={setForm} /><F label="Arrival Date" k="endDate" type="date" form={form} setForm={setForm} />
                         <F label="Distance (km)" k="distance" type="number" form={form} setForm={setForm} /><F label="Revenue (KES)" k="revenue" type="number" form={form} setForm={setForm} />

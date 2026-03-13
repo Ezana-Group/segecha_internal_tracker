@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import AppLayout from '@/components/AppLayout'
 import { useErpContext, fmt, today } from '@/lib/ErpContext'
-import { ErpModal, F } from '@/components/ErpShared'
+import { ErpModal, F, FMultiSelect, KENYA_LICENSE_CLASSES, parseLicenseClasses, serializeLicenseClasses } from '@/components/ErpShared'
 import { supabase } from '@/lib/supabase'
 import toast from 'react-hot-toast'
 
@@ -28,12 +28,17 @@ export default function Drivers() {
 
     const truckReg = (id: string) => data?.trucks.find((t: any) => t.id === id)?.reg || "—"
 
-    const openModal = (type: string, item: any = {}) => { setModal(type); setForm({ ...item }) }
+    const openModal = (type: string, item: any = {}) => {
+        setModal(type)
+        const raw = item.class ?? item.license_class
+        setForm({ ...item, class: parseLicenseClasses(raw) })
+    }
     const closeModal = () => { setModal(null); setForm({}) }
 
     const saveDriver = async () => {
         if (!form.name) return toast.error("Name is required")
         const payload = { ...form }
+        if (Array.isArray(payload.class)) payload.class = serializeLicenseClasses(payload.class)
         // Clean empty strings to null for foreign keys
         if (!payload.truck) payload.truck = null
         if (!payload.id) {
@@ -75,7 +80,14 @@ export default function Drivers() {
                                 <td style={{ ...S.td, fontWeight: 700, color: S.mtitle.color }}>{d.name}</td>
                                 <td style={S.td}><div>{d.phone}</div><div style={{ fontSize: 10, color: S.kpi.color }}>💚 {d.mpesa}</div></td>
                                 <td style={{ ...S.td, fontFamily: "monospace", fontSize: 11 }}>{d.license}</td>
-                                <td style={S.td}>{d.class}</td>
+                                <td style={S.td}>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                                        {(() => {
+                                            const classes = parseLicenseClasses(d.class ?? d.license_class)
+                                            return classes.length ? classes.map((c) => <span key={c} style={S.pill('#f97316')}>{c}</span>) : '—'
+                                        })()}
+                                    </div>
+                                </td>
                                 <td style={{ ...S.td, color: "#f97316", fontWeight: 700 }}>{truckReg(d.truck)}</td>
                                 <td style={{ ...S.td, color: "#10b981", fontWeight: 700 }}>{fmt(d.salary)}/mo</td>
                                 <td style={S.td}><span style={S.badge(d.status)}>{d.status}</span></td>
@@ -86,10 +98,11 @@ export default function Drivers() {
                 </table>
             </div>
             {modal === "driver" && (
-                <ErpModal title={form.id ? "Edit Driver" : "Add Driver"} onClose={closeModal} onSave={saveDriver}>
+                <ErpModal title={form.id ? "Edit Driver" : "Add Driver"} onClose={closeModal} onSave={saveDriver} wide>
                     <div style={S.fgg(2)}>
                         <F label="Full Name" k="name" full form={form} setForm={setForm} /><F label="Phone" k="phone" form={form} setForm={setForm} /><F label="M-Pesa Number" k="mpesa" placeholder="07XXXXXXXX" form={form} setForm={setForm} />
-                        <F label="License No." k="license" form={form} setForm={setForm} /><F label="License Class" k="class" options={["Class G", "Class CE", "Class C", "Class B"]} form={form} setForm={setForm} />
+                        <F label="License No." k="license" form={form} setForm={setForm} />
+                        <FMultiSelect label="License classes (Kenya)" k="class" options={KENYA_LICENSE_CLASSES} form={form} setForm={setForm} full />
                         <F label="Monthly Salary (KES)" k="salary" type="number" form={form} setForm={setForm} /><F label="Date Joined" k="joined" type="date" form={form} setForm={setForm} />
                         <F label="Assigned Truck" k="truck" options={[{ v: "", l: "-- None --" }, ...data.trucks.map((t: any) => ({ v: t.id, l: t.reg }))]} form={form} setForm={setForm} />
                         <F label="Status" k="status" options={["Active", "Inactive", "Suspended"]} form={form} setForm={setForm} />

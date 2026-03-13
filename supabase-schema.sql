@@ -49,10 +49,11 @@ CREATE TABLE drivers (
   updated_at   TIMESTAMPTZ DEFAULT NOW()
 );
 
--- ── JOURNEYS ──────────────────────────────────────────────────────
+-- ── JOURNEYS (truck_id = tractor/prime mover; trailer_id = optional trailer being pulled) ──
 CREATE TABLE journeys (
   id           UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   truck_id     UUID REFERENCES trucks(id) ON DELETE SET NULL,
+  trailer_id    UUID REFERENCES trucks(id) ON DELETE SET NULL,
   driver_id    UUID REFERENCES drivers(id) ON DELETE SET NULL,
   origin       TEXT NOT NULL,
   destination  TEXT NOT NULL,

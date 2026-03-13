@@ -108,9 +108,12 @@ export default function Fleet() {
                                     <div style={{ fontWeight: 800, fontSize: 18, color: S.mtitle.color }}>{t.reg}</div>
                                     <div style={{ fontSize: 12, color: S.kpi.color }}>{t.make} · {t.year} · {t.type}</div>
                                 </div>
-                                <span style={S.badge(t.status)}>{t.status}</span>
+                                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                    {["Trailer", "Skeletal Trailer"].includes(t.type) && <span style={{ ...S.badge("Active"), background: "#64748b22", color: "#64748b" }}>Trailer</span>}
+                                    <span style={S.badge(t.status)}>{t.status}</span>
+                                </div>
                             </div>
-                            <div style={{ fontSize: 12, color: S.kpi.color, marginBottom: 4 }}>👤 {drv?.name || "No driver"}</div>
+                            <div style={{ fontSize: 12, color: S.kpi.color, marginBottom: 4 }}>👤 {["Trailer", "Skeletal Trailer"].includes(t.type) ? "—" : (drv?.name || "No driver")}</div>
                             <div style={{ fontSize: 12, color: S.kpi.color, marginBottom: 10 }}>⚖️ {t.capacity}T · 🛣️ {(t.odom || 0).toLocaleString()} km</div>
                             <div style={{ fontSize: 11, color: ts.status === "OK" ? "#10b981" : SC[ts.status as keyof typeof SC], marginBottom: 10, fontWeight: 600 }}>
                                 🔵 Tyres: {ts.status === "Overdue" ? `Overdue ${Math.abs(ts.remaining).toLocaleString()}km` : ts.status === "Due Soon" ? `Due in ${ts.remaining.toLocaleString()}km` : `OK — ${ts.remaining.toLocaleString()}km left`}
