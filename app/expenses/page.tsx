@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import AppLayout from '@/components/AppLayout'
 import { useErpContext, fmt, today } from '@/lib/ErpContext'
-import { ErpModal, F, TableSearch, ImportReviewBadge, hasImportFlag, SortableTh, sortCompare } from '@/components/ErpShared'
+import { ErpModal, F, TableSearch, ImportReviewBadge, hasImportFlag, SortableTh, sortCompare, DateRangeFilter, ClearFiltersButton } from '@/components/ErpShared'
 import { CATS } from '@/lib/seed-data'
 import { supabase } from '@/lib/supabase'
 import toast from 'react-hot-toast'
@@ -15,6 +15,9 @@ export default function Expenses() {
     const [filterTruck, setFilterTruck] = useState("ALL")
     const [searchQuery, setSearchQuery] = useState("")
     const [filterNeedsReview, setFilterNeedsReview] = useState<"ALL" | "YES">("ALL")
+    const [filterCategory, setFilterCategory] = useState("ALL")
+    const [dateFrom, setDateFrom] = useState("")
+    const [dateTo, setDateTo] = useState("")
     const [sort, setSort] = useState<{ key: string; dir: 'asc' | 'desc' }>({ key: 'date', dir: 'desc' })
     const [modal, setModal] = useState<string | null>(null)
     const [form, setForm] = useState<any>({})
@@ -69,6 +72,9 @@ export default function Expenses() {
     const filtered = data.expenses.filter((e: any) => {
         if (filterTruck !== "ALL" && e.truck !== filterTruck) return false
         if (filterNeedsReview === "YES" && !hasImportFlag(e.desc)) return false
+        if (filterCategory !== "ALL" && e.cat !== filterCategory) return false
+        if (dateFrom && (e.date || "") < dateFrom) return false
+        if (dateTo && (e.date || "") > dateTo) return false
         if (!q) return true
         const cat = (e.cat || "").toLowerCase()
         const desc = (e.desc || "").toLowerCase()
@@ -77,6 +83,8 @@ export default function Expenses() {
         return cat.includes(q) || desc.includes(q) || date.includes(q) || truck.includes(q)
     })
     const needsReviewCount = data.expenses.filter((e: any) => hasImportFlag(e.desc)).length
+    const hasActiveFilters = searchQuery.trim() !== "" || filterTruck !== "ALL" || filterNeedsReview !== "ALL" || filterCategory !== "ALL" || dateFrom !== "" || dateTo !== ""
+    const clearFilters = () => { setSearchQuery(""); setFilterTruck("ALL"); setFilterNeedsReview("ALL"); setFilterCategory("ALL"); setDateFrom(""); setDateTo("") }
     const getSortVal = (e: any, key: string) => {
         switch (key) {
             case 'date': return e.date || ''
@@ -100,10 +108,16 @@ export default function Expenses() {
                         <option value="ALL">All Trucks</option>
                         {data.trucks.map((t: any) => <option key={t.id} value={t.id}>{t.reg}</option>)}
                     </select>
-                    <select style={{ ...S.inp, width: 140 }} value={filterNeedsReview} onChange={e => setFilterNeedsReview(e.target.value as "ALL" | "YES")}>
+                    <select style={{ ...S.inp, width: 120 }} value={filterCategory} onChange={e => setFilterCategory(e.target.value)}>
+                        <option value="ALL">All Categories</option>
+                        {CATS.map((c: string) => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                    <select style={{ ...S.inp, width: 120 }} value={filterNeedsReview} onChange={e => setFilterNeedsReview(e.target.value as "ALL" | "YES")}>
                         <option value="ALL">All</option>
                         <option value="YES">Needs review ({needsReviewCount})</option>
                     </select>
+                    <DateRangeFilter from={dateFrom} to={dateTo} onFromChange={setDateFrom} onToChange={setDateTo} />
+                    <ClearFiltersButton hasActiveFilters={hasActiveFilters} onClear={clearFilters} />
                     <button style={S.btn()} onClick={() => openModal("expense", { date: today() })}>+ Add Expense</button>
                 </div>
             </div>

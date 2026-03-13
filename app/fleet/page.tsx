@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import AppLayout from '@/components/AppLayout'
 import { useErpContext, fmt, fmtN } from '@/lib/ErpContext'
-import { ErpModal, F, TableSearch, sortCompare } from '@/components/ErpShared'
+import { ErpModal, F, TableSearch, sortCompare, ClearFiltersButton } from '@/components/ErpShared'
 import { SC, TRUCK_TYPES, STATUSES_TRUCK, TYRE_WARN_KM } from '@/lib/seed-data'
 import { supabase } from '@/lib/supabase'
 import toast from 'react-hot-toast'
@@ -13,6 +13,8 @@ export default function Fleet() {
     const [data, setData] = useState<any>(null)
     const [loading, setLoading] = useState(true)
     const [searchQuery, setSearchQuery] = useState("")
+    const [filterType, setFilterType] = useState("ALL")
+    const [filterStatus, setFilterStatus] = useState("ALL")
     const [sort, setSort] = useState<{ key: string; dir: 'asc' | 'desc' }>({ key: 'reg', dir: 'asc' })
     const [modal, setModal] = useState<string | null>(null)
     const [form, setForm] = useState<any>({})
@@ -93,12 +95,17 @@ export default function Fleet() {
     if (loading || !data) return <AppLayout><div style={S.ph}>Loading Fleet...</div></AppLayout>
 
     const q = searchQuery.trim().toLowerCase()
-    const filteredTrucks = !q ? data.trucks : data.trucks.filter((t: any) => {
+    const filteredTrucks = data.trucks.filter((t: any) => {
+        if (filterType !== "ALL" && (t.type || "") !== filterType) return false
+        if (filterStatus !== "ALL" && (t.status || "") !== filterStatus) return false
+        if (!q) return true
         const reg = (t.reg || "").toLowerCase()
         const make = (t.make || "").toLowerCase()
         const type = (t.type || "").toLowerCase()
         return reg.includes(q) || make.includes(q) || type.includes(q)
     })
+    const hasActiveFilters = searchQuery.trim() !== "" || filterType !== "ALL" || filterStatus !== "ALL"
+    const clearFilters = () => { setSearchQuery(""); setFilterType("ALL"); setFilterStatus("ALL") }
     const getSortVal = (t: any, key: string) => {
         switch (key) {
             case 'reg': return (t.reg || '').toString()
@@ -115,8 +122,16 @@ export default function Fleet() {
         <AppLayout>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
                 <div style={S.ph}>◉ Fleet Management</div>
-                <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
                     <TableSearch value={searchQuery} onChange={setSearchQuery} placeholder="Search reg, make, type..." />
+                    <select style={{ ...S.inp, width: 130 }} value={filterType} onChange={e => setFilterType(e.target.value)}>
+                        <option value="ALL">All Types</option>
+                        {TRUCK_TYPES.map((ty: string) => <option key={ty} value={ty}>{ty}</option>)}
+                    </select>
+                    <select style={{ ...S.inp, width: 120 }} value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
+                        <option value="ALL">All Status</option>
+                        {STATUSES_TRUCK.map((s: string) => <option key={s} value={s}>{s}</option>)}
+                    </select>
                     <select style={{ ...S.inp, width: 140 }} value={sort.key} onChange={e => setSort(prev => ({ ...prev, key: e.target.value }))} title="Sort by">
                         <option value="reg">Sort: Registration</option>
                         <option value="make">Sort: Make</option>
@@ -128,6 +143,7 @@ export default function Fleet() {
                         <option value="asc">↑ A–Z</option>
                         <option value="desc">↓ Z–A</option>
                     </select>
+                    <ClearFiltersButton hasActiveFilters={hasActiveFilters} onClear={clearFilters} />
                     <button style={S.btn()} onClick={() => openModal("truck", { status: "Active", tyreLimit: 60000 })}>+ Add Truck</button>
                 </div>
             </div>

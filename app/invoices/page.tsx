@@ -3,13 +3,16 @@
 import React, { useState, useEffect } from 'react'
 import AppLayout from '@/components/AppLayout'
 import { useErpContext, fmt, today, uid } from '@/lib/ErpContext'
-import { ErpModal, F, TableSearch, SortableTh, sortCompare } from '@/components/ErpShared'
+import { ErpModal, F, TableSearch, SortableTh, sortCompare, DateRangeFilter, ClearFiltersButton } from '@/components/ErpShared'
 import { supabase } from '@/lib/supabase'
 import toast from 'react-hot-toast'
 
-function InvoiceView({ inv, onClose, data }: any) {
+function InvoiceView({ inv, onClose, data, settings, onStkPush, stkPushing }: any) {
     const { S, dark } = useErpContext()
     const journey = data.journeys.find((j: any) => j.id === inv.journey)
+    const paybill = settings?.paybill_display || settings?.till_display || '—'
+    const accountPrefix = (settings?.account_prefix || 'INV').trim()
+    const accountNumber = (accountPrefix && !String(inv.id).startsWith(accountPrefix)) ? `${accountPrefix}-${inv.id}` : inv.id
     const truck = journey ? data.trucks.find((t: any) => t.id === journey.truck) : null
     const driver = journey ? data.drivers.find((d: any) => d.id === journey.driver) : null
     const vat = Math.round(inv.amount * 0.16)
@@ -76,11 +79,22 @@ function InvoiceView({ inv, onClose, data }: any) {
                             <div style={{ fontSize: 12, color: "#047857" }}>Reference: {inv.mpesaRef} · Date: {inv.paidDate}</div>
                         </div>
                     )}
+                    <div style={{ marginBottom: 16, padding: 14, background: dark ? "#ffffff08" : "#f8fafc", borderRadius: 8, border: `1px solid ${S.border}` }}>
+                        <div style={{ fontSize: 11, color: S.textDim, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>Pay via M-Pesa</div>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: S.text }}>Paybill: <span style={{ fontFamily: "monospace" }}>{paybill}</span></div>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: S.text, marginTop: 4 }}>Account: <span style={{ fontFamily: "monospace" }}>{accountNumber}</span></div>
+                        <div style={{ fontSize: 13, color: S.textDim, marginTop: 4 }}>Amount: KES {Number(inv.amount).toLocaleString()}</div>
+                    </div>
                     <div style={{ fontSize: 11, color: S.textDim, textAlign: "center", borderTop: `1px solid ${S.border}`, paddingTop: 16 }}>
                         Payment via M-Pesa Paybill · Bank Transfer · Cheque · Thank you for your business!
                     </div>
                 </div>
-                <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginTop: 12 }}>
+                    {inv.status !== "Paid" && inv.phone && (
+                        <button style={S.btn("green")} onClick={() => onStkPush(inv)} disabled={stkPushing}>
+                            {stkPushing ? 'Sending...' : '📱 Request payment (STK Push)'}
+                        </button>
+                    )}
                     <button style={S.btn()} onClick={() => window.print()}>🖨️ Print / Save PDF</button>
                     <button style={S.btn("ghost")} onClick={onClose}>Close</button>
                 </div>
@@ -94,21 +108,44 @@ export default function Invoices() {
     const [data, setData] = useState<any>(null)
     const [loading, setLoading] = useState(true)
     const [searchQuery, setSearchQuery] = useState("")
+    const [filterStatus, setFilterStatus] = useState("ALL")
+    const [dateFrom, setDateFrom] = useState("")
+    const [dateTo, setDateTo] = useState("")
     const [sort, setSort] = useState<{ key: string; dir: 'asc' | 'desc' }>({ key: 'issued', dir: 'desc' })
     const [modal, setModal] = useState<string | null>(null)
     const [form, setForm] = useState<any>({})
     const [invoicePreview, setInvoicePreview] = useState<any>(null)
+    const [settings, setSettings] = useState<Record<string, string>>({})
+    const [stkPushing, setStkPushing] = useState(false)
 
     const loadData = async () => {
         setLoading(true)
-        const [{ data: invoices }, { data: trucks }, { data: journeys }, { data: drivers }] = await Promise.all([
+        const [{ data: invoices }, { data: trucks }, { data: journeys }, { data: drivers }, { data: settingsRows }] = await Promise.all([
             supabase.from('invoices').select('*').order('issued', { ascending: false }),
             supabase.from('trucks').select('*'),
             supabase.from('journeys').select('*'),
-            supabase.from('drivers').select('*')
+            supabase.from('drivers').select('*'),
+            supabase.from('settings').select('key, value')
         ])
+        const settingsMap: Record<string, string> = {}
+        ;(settingsRows || []).forEach((r: any) => { settingsMap[r.key] = r.value ?? '' })
+        setSettings(settingsMap)
         setData({ invoices: invoices || [], trucks: trucks || [], journeys: journeys || [], drivers: drivers || [] })
         setLoading(false)
+    }
+
+    const handleStkPush = async (inv: any) => {
+        setStkPushing(true)
+        try {
+            const res = await fetch('/api/mpesa/stk-push', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ invoiceId: inv.id }) })
+            const json = await res.json()
+            if (!res.ok) throw new Error(json.error || 'Request failed')
+            toast.success('Payment request sent to customer phone. They will receive an M-Pesa prompt.')
+        } catch (e: any) {
+            toast.error(e.message || 'STK Push failed')
+        } finally {
+            setStkPushing(false)
+        }
     }
 
     useEffect(() => { loadData() }, [])
@@ -159,13 +196,19 @@ export default function Invoices() {
         const j = data.journeys.find((j: any) => j.id === inv.journey)
         return j ? `${j.origin}→${j.dest}` : ""
     }
-    const filtered = !q ? data.invoices : data.invoices.filter((inv: any) => {
+    const filtered = data.invoices.filter((inv: any) => {
+        if (filterStatus !== "ALL" && (inv.status || "") !== filterStatus) return false
+        if (dateFrom && (inv.issued || "") < dateFrom) return false
+        if (dateTo && (inv.issued || "") > dateTo) return false
+        if (!q) return true
         const id = (inv.id || "").toLowerCase()
         const client = (inv.client || "").toLowerCase()
         const status = (inv.status || "").toLowerCase()
         const route = getRoute(inv).toLowerCase()
         return id.includes(q) || client.includes(q) || status.includes(q) || route.includes(q)
     })
+    const hasActiveFilters = searchQuery.trim() !== "" || filterStatus !== "ALL" || dateFrom !== "" || dateTo !== ""
+    const clearFilters = () => { setSearchQuery(""); setFilterStatus("ALL"); setDateFrom(""); setDateTo("") }
     const getSortVal = (inv: any, key: string) => {
         switch (key) {
             case 'id': return (inv.id || '').toString()
@@ -185,8 +228,16 @@ export default function Invoices() {
         <AppLayout>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
                 <div style={S.ph}>◆ M-Pesa Invoices</div>
-                <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
                     <TableSearch value={searchQuery} onChange={setSearchQuery} placeholder="Search invoice, client, status..." />
+                    <select style={{ ...S.inp, width: 120 }} value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
+                        <option value="ALL">All Status</option>
+                        <option value="Pending">Pending</option>
+                        <option value="Paid">Paid</option>
+                        <option value="Overdue">Overdue</option>
+                    </select>
+                    <DateRangeFilter from={dateFrom} to={dateTo} onFromChange={setDateFrom} onToChange={setDateTo} />
+                    <ClearFiltersButton hasActiveFilters={hasActiveFilters} onClear={clearFilters} />
                     <button style={S.btn()} onClick={() => openModal("invoice", { issued: today(), due: today(), status: "Pending" })}>+ New Invoice</button>
                 </div>
             </div>
@@ -237,7 +288,7 @@ export default function Invoices() {
                     </tbody>
                 </table>
             </div>
-            {invoicePreview && <InvoiceView inv={invoicePreview} onClose={() => setInvoicePreview(null)} data={data} />}
+            {invoicePreview && <InvoiceView inv={invoicePreview} onClose={() => setInvoicePreview(null)} data={data} settings={settings} onStkPush={handleStkPush} stkPushing={stkPushing} />}
             {modal === "invoice" && (
                 <ErpModal title={form.id ? "Edit Invoice" : "New Invoice"} onClose={closeModal} onSave={saveInvoice}>
                     <div style={S.fgg(2)}>

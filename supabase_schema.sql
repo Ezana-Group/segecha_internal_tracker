@@ -133,5 +133,37 @@ alter table public.expenses disable row level security;
 alter table public.invoices disable row level security;
 alter table public.payroll disable row level security;
 
+-- 9. Settings (key-value: Paybill/Till display for M-Pesa)
+create table if not exists public.settings (
+  key text primary key,
+  value text
+);
+insert into public.settings (key, value) values ('paybill_display', ''), ('till_display', ''), ('account_prefix', 'INV')
+  on conflict (key) do nothing;
+
+-- 10. M-Pesa transactions (from Daraja callbacks: STK Push, B2C)
+create table if not exists public.mpesa_transactions (
+  id text primary key,
+  "transactionId" text,
+  "receiptNumber" text,
+  phone text,
+  amount numeric not null,
+  "transactionDate" text,
+  "accountReference" text,
+  "resultCode" int,
+  "resultDescription" text,
+  "invoiceId" text references public.invoices(id) on delete set null,
+  "payrollId" text references public.payroll(id) on delete set null,
+  status text default 'completed',
+  "rawPayload" jsonb,
+  "createdAt" timestamptz default now()
+);
+create index if not exists idx_mpesa_transactions_invoice on public.mpesa_transactions("invoiceId");
+create index if not exists idx_mpesa_transactions_payroll on public.mpesa_transactions("payrollId");
+create index if not exists idx_mpesa_transactions_created on public.mpesa_transactions("createdAt" desc);
+
+alter table public.settings disable row level security;
+alter table public.mpesa_transactions disable row level security;
+
 -- (Optional) If you want to force enable it, you could just add permissive policies for now:
 -- create policy "Allow all access" on public.trucks for all using (true) with check (true);

@@ -76,6 +76,29 @@ export function TableSearch({ value, onChange, placeholder = "Search..." }: { va
     )
 }
 
+/** Date range filter — From / To; empty string = no filter on that side */
+export function DateRangeFilter({ from, to, onFromChange, onToChange, style = {} }: { from: string; to: string; onFromChange: (v: string) => void; onToChange: (v: string) => void; style?: React.CSSProperties }) {
+    const { S } = useErpContext()
+    return (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, ...style }}>
+            <input type="date" value={from} onChange={e => onFromChange(e.target.value)} style={{ ...S.inp, width: 130 }} title="From date" />
+            <span style={{ color: S.kpi?.color || '#64748b', fontSize: 12 }}>→</span>
+            <input type="date" value={to} onChange={e => onToChange(e.target.value)} style={{ ...S.inp, width: 130 }} title="To date" />
+        </span>
+    )
+}
+
+/** Clear all filters button — show when hasActiveFilters, call onClear to reset */
+export function ClearFiltersButton({ onClear, hasActiveFilters }: { onClear: () => void; hasActiveFilters: boolean }) {
+    const { S } = useErpContext()
+    if (!hasActiveFilters) return null
+    return (
+        <button type="button" onClick={onClear} style={{ ...S.btn('ghost'), fontSize: 12, padding: '6px 10px' }} title="Clear all filters and search">
+            Clear filters
+        </button>
+    )
+}
+
 /** Compare two values for table sort: numbers, ISO dates, then strings. Use with sortCompare(a, b, sortDir). */
 export function sortCompare(a: unknown, b: unknown, dir: 'asc' | 'desc'): number {
     const na = a == null || a === ''

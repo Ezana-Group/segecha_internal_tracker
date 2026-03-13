@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import AppLayout from '@/components/AppLayout'
 import { useErpContext, fmt, fmtN, today } from '@/lib/ErpContext'
-import { ErpModal, F, TableSearch, SortableTh, sortCompare } from '@/components/ErpShared'
+import { ErpModal, F, TableSearch, SortableTh, sortCompare, DateRangeFilter, ClearFiltersButton } from '@/components/ErpShared'
 import { supabase } from '@/lib/supabase'
 import toast from 'react-hot-toast'
 
@@ -13,6 +13,8 @@ export default function FuelLog() {
     const [loading, setLoading] = useState(true)
     const [filterTruck, setFilterTruck] = useState("ALL")
     const [searchQuery, setSearchQuery] = useState("")
+    const [dateFrom, setDateFrom] = useState("")
+    const [dateTo, setDateTo] = useState("")
     const [sort, setSort] = useState<{ key: string; dir: 'asc' | 'desc' }>({ key: 'date', dir: 'desc' })
     const [modal, setModal] = useState<string | null>(null)
     const [form, setForm] = useState<any>({})
@@ -81,12 +83,19 @@ export default function FuelLog() {
     const avgPrice = totalL > 0 ? (totalCost / totalL).toFixed(1) : 0
     const q = searchQuery.trim().toLowerCase()
     const byTruck = filterTruck === "ALL" ? data.fuel : data.fuel.filter((f: any) => f.truck === filterTruck)
-    const filtered = !q ? byTruck : byTruck.filter((f: any) => {
+    const byDate = byTruck.filter((f: any) => {
+        if (dateFrom && (f.date || "") < dateFrom) return false
+        if (dateTo && (f.date || "") > dateTo) return false
+        return true
+    })
+    const filtered = !q ? byDate : byDate.filter((f: any) => {
         const truck = truckReg(f.truck).toLowerCase()
         const station = (f.station || "").toLowerCase()
         const date = (f.date || "").toLowerCase()
         return truck.includes(q) || station.includes(q) || date.includes(q)
     })
+    const hasActiveFilters = searchQuery.trim() !== "" || filterTruck !== "ALL" || dateFrom !== "" || dateTo !== ""
+    const clearFilters = () => { setSearchQuery(""); setFilterTruck("ALL"); setDateFrom(""); setDateTo("") }
     const getSortVal = (f: any, key: string) => {
         switch (key) {
             case 'date': return f.date || ''
@@ -112,6 +121,8 @@ export default function FuelLog() {
                         <option value="ALL">All Trucks</option>
                         {data.trucks.map((t: any) => <option key={t.id} value={t.id}>{t.reg}</option>)}
                     </select>
+                    <DateRangeFilter from={dateFrom} to={dateTo} onFromChange={setDateFrom} onToChange={setDateTo} />
+                    <ClearFiltersButton hasActiveFilters={hasActiveFilters} onClear={clearFilters} />
                     <button style={S.btn()} onClick={() => openModal("fuel", { date: today() })}>+ Fuel Entry</button>
                 </div>
             </div>

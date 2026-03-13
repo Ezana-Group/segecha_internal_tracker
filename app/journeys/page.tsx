@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import AppLayout from '@/components/AppLayout'
 import { useErpContext, fmt, today } from '@/lib/ErpContext'
-import { ErpModal, F, TableSearch, ImportReviewBadge, hasImportFlag, SortableTh, sortCompare } from '@/components/ErpShared'
+import { ErpModal, F, TableSearch, ImportReviewBadge, hasImportFlag, SortableTh, sortCompare, DateRangeFilter, ClearFiltersButton } from '@/components/ErpShared'
 import { STATUSES_JOURNEY } from '@/lib/seed-data'
 import { supabase } from '@/lib/supabase'
 import toast from 'react-hot-toast'
@@ -15,6 +15,9 @@ export default function Journeys() {
     const [filterTruck, setFilterTruck] = useState("ALL")
     const [searchQuery, setSearchQuery] = useState("")
     const [filterNeedsReview, setFilterNeedsReview] = useState<"ALL" | "YES">("ALL")
+    const [filterStatus, setFilterStatus] = useState("ALL")
+    const [dateFrom, setDateFrom] = useState("")
+    const [dateTo, setDateTo] = useState("")
     const [sort, setSort] = useState<{ key: string; dir: 'asc' | 'desc' }>({ key: 'date', dir: 'desc' })
     const [modal, setModal] = useState<string | null>(null)
     const [form, setForm] = useState<any>({})
@@ -75,6 +78,9 @@ export default function Journeys() {
     const filtered = data.journeys.filter((j: any) => {
         if (filterTruck !== "ALL" && j.truck !== filterTruck) return false
         if (filterNeedsReview === "YES" && !hasImportFlag(j.notes)) return false
+        if (filterStatus !== "ALL" && j.status !== filterStatus) return false
+        if (dateFrom && (j.date || "") < dateFrom) return false
+        if (dateTo && (j.date || "") > dateTo) return false
         if (!q) return true
         const route = `${j.origin} ${j.dest}`.toLowerCase()
         const truck = truckReg(j.truck).toLowerCase()
@@ -83,6 +89,8 @@ export default function Journeys() {
         const status = (j.status || "").toLowerCase()
         return route.includes(q) || truck.includes(q) || driver.includes(q) || cargo.includes(q) || status.includes(q)
     })
+    const hasActiveFilters = searchQuery.trim() !== "" || filterTruck !== "ALL" || filterNeedsReview !== "ALL" || filterStatus !== "ALL" || dateFrom !== "" || dateTo !== ""
+    const clearFilters = () => { setSearchQuery(""); setFilterTruck("ALL"); setFilterNeedsReview("ALL"); setFilterStatus("ALL"); setDateFrom(""); setDateTo("") }
     const totalKm = data.journeys.filter((j: any) => j.status === "Completed").reduce((s: any, j: any) => s + +j.distance, 0)
     const needsReviewCount = data.journeys.filter((j: any) => hasImportFlag(j.notes)).length
 
@@ -112,14 +120,20 @@ export default function Journeys() {
                 <div style={S.ph}>◐ Journey Log</div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
                     <TableSearch value={searchQuery} onChange={setSearchQuery} placeholder="Search route, truck, driver, cargo..." />
-                    <select style={{ ...S.inp, width: 140 }} value={filterTruck} onChange={e => setFilterTruck(e.target.value)}>
+                    <select style={{ ...S.inp, width: 130 }} value={filterTruck} onChange={e => setFilterTruck(e.target.value)}>
                         <option value="ALL">All Trucks</option>
                         {tractors.map((t: any) => <option key={t.id} value={t.id}>{t.reg}</option>)}
                     </select>
-                    <select style={{ ...S.inp, width: 140 }} value={filterNeedsReview} onChange={e => setFilterNeedsReview(e.target.value as "ALL" | "YES")}>
+                    <select style={{ ...S.inp, width: 120 }} value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
+                        <option value="ALL">All Status</option>
+                        {STATUSES_JOURNEY.map((s: string) => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                    <select style={{ ...S.inp, width: 120 }} value={filterNeedsReview} onChange={e => setFilterNeedsReview(e.target.value as "ALL" | "YES")}>
                         <option value="ALL">All</option>
                         <option value="YES">Needs review ({needsReviewCount})</option>
                     </select>
+                    <DateRangeFilter from={dateFrom} to={dateTo} onFromChange={setDateFrom} onToChange={setDateTo} />
+                    <ClearFiltersButton hasActiveFilters={hasActiveFilters} onClear={clearFilters} />
                     <button style={S.btn()} onClick={() => openModal("journey", { date: today(), status: "Loading" })}>+ Log Journey</button>
                 </div>
             </div>

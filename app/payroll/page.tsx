@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import AppLayout from '@/components/AppLayout'
 import { useErpContext, fmt, today } from '@/lib/ErpContext'
-import { ErpModal, F, TableSearch, SortableTh, sortCompare } from '@/components/ErpShared'
+import { ErpModal, F, TableSearch, SortableTh, sortCompare, ClearFiltersButton } from '@/components/ErpShared'
 import { supabase } from '@/lib/supabase'
 import toast from 'react-hot-toast'
 
@@ -77,10 +77,12 @@ export default function Payroll() {
 function PayrollContent({ S, data, months, firstMonth, monthLabel, openModal, closeModal, savePayroll, delPayroll, markPayrollPaid, form, setForm, modal }: any) {
     const [selMonth, setSelMonth] = useState(firstMonth)
     const [searchQuery, setSearchQuery] = useState("")
+    const [filterStatus, setFilterStatus] = useState("ALL")
     const [sort, setSort] = useState<{ key: string; dir: 'asc' | 'desc' }>({ key: 'name', dir: 'asc' })
     const monthPayroll = data.payroll.filter((p: any) => p.month === selMonth)
+    const byStatus = filterStatus === "ALL" ? monthPayroll : monthPayroll.filter((p: any) => (p.status || "") === filterStatus)
     const q = searchQuery.trim().toLowerCase()
-    const filteredPayroll = !q ? monthPayroll : monthPayroll.filter((p: any) => {
+    const filteredPayroll = !q ? byStatus : byStatus.filter((p: any) => {
         const drv = data.drivers.find((d: any) => d.id === p.driver)
         const name = (drv?.name || p.driver || "").toLowerCase()
         const status = (p.status || "").toLowerCase()
@@ -88,6 +90,8 @@ function PayrollContent({ S, data, months, firstMonth, monthLabel, openModal, cl
         const month = (p.month || "").toLowerCase()
         return name.includes(q) || status.includes(q) || mpesaRef.includes(q) || month.includes(q)
     })
+    const hasActiveFilters = searchQuery.trim() !== "" || filterStatus !== "ALL"
+    const clearFilters = () => { setSearchQuery(""); setFilterStatus("ALL") }
     const getSortVal = (p: any, key: string) => {
         const drv = data.drivers.find((d: any) => d.id === p.driver)
         switch (key) {
@@ -113,6 +117,12 @@ function PayrollContent({ S, data, months, firstMonth, monthLabel, openModal, cl
                     <select style={{ ...S.inp, width: 180 }} value={selMonth} onChange={e => setSelMonth(e.target.value)}>
                         {months.map((m: any) => <option key={m} value={m}>{monthLabel(m)}</option>)}
                     </select>
+                    <select style={{ ...S.inp, width: 120 }} value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
+                        <option value="ALL">All Status</option>
+                        <option value="Pending">Pending</option>
+                        <option value="Paid">Paid</option>
+                    </select>
+                    <ClearFiltersButton hasActiveFilters={hasActiveFilters} onClear={clearFilters} />
                     <button style={S.btn()} onClick={() => openModal("payroll", { month: selMonth, status: "Pending", baseSalary: 0, allowance: 0, deductions: 0 })}>+ Add Pay Record</button>
                 </div>
             </div>

@@ -14,11 +14,15 @@ const NAV = [
   { href: '/fuel', icon: '⛽', label: 'Fuel Log' },
   { href: '/expenses', icon: '💸', label: 'Expenses' },
   { href: '/invoices', icon: '📄', label: 'Invoices' },
+  { href: '/transactions', icon: '💳', label: 'M-Pesa' },
   { href: '/payroll', icon: '💰', label: 'Payroll' },
   { href: '/tyres', icon: '🔵', label: 'Tyre Monitor' },
   { href: '/pnl', icon: '📈', label: 'P&L Report' },
 ]
-const ADMIN_NAV = [{ href: '/admin/users', icon: '⚙️', label: 'Manage Users' }]
+const ADMIN_NAV = [
+  { href: '/admin/users', icon: '👥', label: 'Manage Users' },
+  { href: '/admin/settings', icon: '⚙️', label: 'Settings (M-Pesa)' },
+]
 
 interface AppUser { id: string; email: string; name: string; role: 'admin' | 'director' | 'viewer' }
 

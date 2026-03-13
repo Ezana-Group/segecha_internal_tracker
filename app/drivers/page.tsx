@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import AppLayout from '@/components/AppLayout'
 import { useErpContext, fmt, today } from '@/lib/ErpContext'
-import { ErpModal, F, FMultiSelect, KENYA_LICENSE_CLASSES, parseLicenseClasses, serializeLicenseClasses, TableSearch, SortableTh, sortCompare } from '@/components/ErpShared'
+import { ErpModal, F, FMultiSelect, KENYA_LICENSE_CLASSES, parseLicenseClasses, serializeLicenseClasses, TableSearch, SortableTh, sortCompare, ClearFiltersButton } from '@/components/ErpShared'
 import { supabase } from '@/lib/supabase'
 import toast from 'react-hot-toast'
 
@@ -12,6 +12,8 @@ export default function Drivers() {
     const [data, setData] = useState<any>(null)
     const [loading, setLoading] = useState(true)
     const [searchQuery, setSearchQuery] = useState("")
+    const [filterStatus, setFilterStatus] = useState("ALL")
+    const [filterTruck, setFilterTruck] = useState("ALL")
     const [sort, setSort] = useState<{ key: string; dir: 'asc' | 'desc' }>({ key: 'name', dir: 'asc' })
     const [modal, setModal] = useState<string | null>(null)
     const [form, setForm] = useState<any>({})
@@ -68,7 +70,11 @@ export default function Drivers() {
     if (loading || !data) return <AppLayout><div style={S.ph}>Loading Drivers...</div></AppLayout>
 
     const q = searchQuery.trim().toLowerCase()
-    const filtered = !q ? data.drivers : data.drivers.filter((d: any) => {
+    const filtered = data.drivers.filter((d: any) => {
+        if (filterStatus !== "ALL" && (d.status || "") !== filterStatus) return false
+        if (filterTruck === "UNASSIGNED" && (d.truck != null && d.truck !== "")) return false
+        if (filterTruck !== "ALL" && filterTruck !== "UNASSIGNED" && d.truck !== filterTruck) return false
+        if (!q) return true
         const name = (d.name || "").toLowerCase()
         const phone = (d.phone || "").toLowerCase()
         const mpesa = (d.mpesa || "").toLowerCase()
@@ -77,6 +83,8 @@ export default function Drivers() {
         const classes = (d.class ?? d.license_class ?? "").toString().toLowerCase()
         return name.includes(q) || phone.includes(q) || mpesa.includes(q) || license.includes(q) || truck.includes(q) || classes.includes(q)
     })
+    const hasActiveFilters = searchQuery.trim() !== "" || filterStatus !== "ALL" || filterTruck !== "ALL"
+    const clearFilters = () => { setSearchQuery(""); setFilterStatus("ALL"); setFilterTruck("ALL") }
     const getSortVal = (d: any, key: string) => {
         switch (key) {
             case 'name': return (d.name || '').toString()
@@ -95,8 +103,20 @@ export default function Drivers() {
         <AppLayout>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
                 <div style={S.ph}>◎ Driver Management</div>
-                <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
                     <TableSearch value={searchQuery} onChange={setSearchQuery} placeholder="Search name, phone, M-Pesa, license, truck..." />
+                    <select style={{ ...S.inp, width: 120 }} value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
+                        <option value="ALL">All Status</option>
+                        <option value="Active">Active</option>
+                        <option value="Inactive">Inactive</option>
+                        <option value="Suspended">Suspended</option>
+                    </select>
+                    <select style={{ ...S.inp, width: 140 }} value={filterTruck} onChange={e => setFilterTruck(e.target.value)}>
+                        <option value="ALL">All Trucks</option>
+                        <option value="UNASSIGNED">Unassigned</option>
+                        {data.trucks.map((t: any) => <option key={t.id} value={t.id}>{t.reg}</option>)}
+                    </select>
+                    <ClearFiltersButton hasActiveFilters={hasActiveFilters} onClear={clearFilters} />
                     <button style={S.btn()} onClick={() => openModal("driver", { status: "Active", joined: today() })}>+ Add Driver</button>
                 </div>
             </div>
