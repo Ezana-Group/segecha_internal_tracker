@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import AppLayout from '@/components/AppLayout'
-import { supabase, supabaseAdmin } from '@/lib/supabase'
+import { supabase } from '@/lib/supabase'
 import toast from 'react-hot-toast'
 
 export default function AdminUsersPage() {
@@ -14,6 +14,13 @@ export default function AdminUsersPage() {
   const [inviteName, setInviteName] = useState('')
   const [inviteRole, setInviteRole] = useState('director')
   const [inviting, setInviting] = useState(false)
+  const [showCreateDriver, setShowCreateDriver] = useState(false)
+  const [driverForm, setDriverForm] = useState({ name: '', phone: '', mpesa: '', license: '', status: 'Active' })
+  const [creatingDriver, setCreatingDriver] = useState(false)
+  const [resetUser, setResetUser] = useState<{ id: string; name: string; email: string } | null>(null)
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [resetting, setResetting] = useState(false)
 
   const loadUsers = async () => {
     const [{ data: uData }, { data: dData }] = await Promise.all([
@@ -61,6 +68,56 @@ export default function AdminUsersPage() {
     }
   }
 
+  const createDriver = async () => {
+    if (!driverForm.name?.trim()) return toast.error('Driver name is required')
+    setCreatingDriver(true)
+    try {
+      const id = 'D' + Date.now().toString().slice(-6)
+      const { error } = await supabase.from('drivers').insert({
+        id,
+        name: driverForm.name.trim(),
+        phone: driverForm.phone.trim() || null,
+        mpesa: driverForm.mpesa.trim() || null,
+        license: driverForm.license.trim() || null,
+        status: driverForm.status || 'Active',
+      })
+      if (error) throw error
+      toast.success(`Driver "${driverForm.name.trim()}" created (${id})`)
+      setShowCreateDriver(false)
+      setDriverForm({ name: '', phone: '', mpesa: '', license: '', status: 'Active' })
+      loadUsers()
+    } catch (e: any) {
+      toast.error(e.message)
+    } finally {
+      setCreatingDriver(false)
+    }
+  }
+
+  const resetPassword = async () => {
+    if (!resetUser) return
+    if (!newPassword || newPassword.length < 6) return toast.error('Password must be at least 6 characters')
+    if (newPassword !== confirmPassword) return toast.error('Passwords do not match')
+    setResetting(true)
+    try {
+      const res = await fetch('/api/admin/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: resetUser.id, newPassword }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Failed to reset password')
+      toast.success(`Password reset for ${resetUser.name}. They must sign in with the new password.`)
+      setResetUser(null)
+      setNewPassword('')
+      setConfirmPassword('')
+      loadUsers()
+    } catch (e: any) {
+      toast.error(e.message)
+    } finally {
+      setResetting(false)
+    }
+  }
+
   const roleColors: Record<string, string> = {
     admin: 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400',
     director: 'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-400',
@@ -75,12 +132,20 @@ export default function AdminUsersPage() {
             <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white">User Management</h1>
             <p className="text-sm text-slate-500 mt-0.5">Manage who has access to the Segecha Group ERP</p>
           </div>
-          <button
-            onClick={() => setShowInvite(true)}
-            className="bg-gradient-to-r from-orange-500 to-red-600 text-white font-bold px-4 py-2 rounded-lg text-sm hover:opacity-90 transition"
-          >
-            + Invite User
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowCreateDriver(true)}
+              className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold px-4 py-2 rounded-lg text-sm hover:bg-slate-200 dark:hover:bg-slate-700 transition border border-slate-200 dark:border-slate-700"
+            >
+              + Create Driver
+            </button>
+            <button
+              onClick={() => setShowInvite(true)}
+              className="bg-gradient-to-r from-orange-500 to-red-600 text-white font-bold px-4 py-2 rounded-lg text-sm hover:opacity-90 transition"
+            >
+              + Invite User
+            </button>
+          </div>
         </div>
 
         {/* Roles explanation */}
@@ -108,7 +173,7 @@ export default function AdminUsersPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-slate-50 dark:bg-slate-800/50">
-                  {['User', 'Email', 'Role', 'Driver', 'Last Login', 'Change Role'].map(h => (
+                  {['User', 'Email', 'Role', 'Driver', 'Last Login', 'Change Role', 'Actions'].map(h => (
                     <th key={h} className="px-4 py-3 text-left text-[10px] font-bold text-slate-400 uppercase tracking-wider">{h}</th>
                   ))}
                 </tr>
@@ -155,12 +220,144 @@ export default function AdminUsersPage() {
                         <option value="admin">Admin</option>
                       </select>
                     </td>
+                    <td className="px-4 py-3">
+                      <button
+                        type="button"
+                        onClick={() => setResetUser({ id: u.id, name: u.name, email: u.email })}
+                        className="text-xs text-orange-600 dark:text-orange-400 hover:underline font-medium"
+                        title="Set a new password for this user"
+                      >
+                        Reset password
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           )}
         </div>
+
+        {/* Create driver modal */}
+        {showCreateDriver && (
+          <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 w-full max-w-md border border-slate-200 dark:border-slate-700 shadow-2xl">
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">Create Driver Profile</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">Add a new driver. You can link them to a user and set salary/truck from the Drivers page later.</p>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Full Name *</label>
+                  <input
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-orange-500"
+                    placeholder="e.g. John Kamau"
+                    value={driverForm.name}
+                    onChange={e => setDriverForm(f => ({ ...f, name: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Phone</label>
+                  <input
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-orange-500"
+                    placeholder="07XXXXXXXX"
+                    value={driverForm.phone}
+                    onChange={e => setDriverForm(f => ({ ...f, phone: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">M-Pesa Number</label>
+                  <input
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-orange-500"
+                    placeholder="07XXXXXXXX"
+                    value={driverForm.mpesa}
+                    onChange={e => setDriverForm(f => ({ ...f, mpesa: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">License No.</label>
+                  <input
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-orange-500"
+                    placeholder="Optional"
+                    value={driverForm.license}
+                    onChange={e => setDriverForm(f => ({ ...f, license: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Status</label>
+                  <select
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-orange-500"
+                    value={driverForm.status}
+                    onChange={e => setDriverForm(f => ({ ...f, status: e.target.value }))}
+                  >
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
+                    <option value="Suspended">Suspended</option>
+                  </select>
+                </div>
+              </div>
+              <div className="flex gap-3 mt-5">
+                <button
+                  onClick={createDriver}
+                  disabled={creatingDriver}
+                  className="flex-1 bg-gradient-to-r from-orange-500 to-red-600 text-white font-bold py-2 rounded-lg text-sm hover:opacity-90 disabled:opacity-60 transition"
+                >
+                  {creatingDriver ? 'Creating…' : 'Create Driver'}
+                </button>
+                <button
+                  onClick={() => setShowCreateDriver(false)}
+                  className="flex-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-semibold py-2 rounded-lg text-sm hover:bg-slate-200 dark:hover:bg-slate-700 transition"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Reset password modal */}
+        {resetUser && (
+          <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 w-full max-w-md border border-slate-200 dark:border-slate-700 shadow-2xl">
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">Reset Password</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">Set a new password for <strong>{resetUser.name}</strong> ({resetUser.email}). They will need to sign in again with this password.</p>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">New Password</label>
+                  <input
+                    type="password"
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-orange-500"
+                    placeholder="Min 6 characters"
+                    value={newPassword}
+                    onChange={e => setNewPassword(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Confirm Password</label>
+                  <input
+                    type="password"
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-orange-500"
+                    placeholder="Same as above"
+                    value={confirmPassword}
+                    onChange={e => setConfirmPassword(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="flex gap-3 mt-5">
+                <button
+                  onClick={resetPassword}
+                  disabled={resetting || newPassword.length < 6 || newPassword !== confirmPassword}
+                  className="flex-1 bg-gradient-to-r from-orange-500 to-red-600 text-white font-bold py-2 rounded-lg text-sm hover:opacity-90 disabled:opacity-60 transition"
+                >
+                  {resetting ? 'Resetting…' : 'Set New Password'}
+                </button>
+                <button
+                  onClick={() => { setResetUser(null); setNewPassword(''); setConfirmPassword('') }}
+                  className="flex-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-semibold py-2 rounded-lg text-sm hover:bg-slate-200 dark:hover:bg-slate-700 transition"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Invite modal */}
         {showInvite && (
