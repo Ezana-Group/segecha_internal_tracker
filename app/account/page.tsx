@@ -4,12 +4,14 @@ import React, { useState, useEffect } from 'react'
 import AppLayout from '@/components/AppLayout'
 import { useErpContext } from '@/lib/ErpContext'
 import { supabase } from '@/lib/supabase'
+import toast from 'react-hot-toast'
 
 export default function AccountPage() {
   const { S } = useErpContext()
   const [profile, setProfile] = useState<{ id: string; email: string; name: string; role: string; driver_id?: string | null } | null>(null)
   const [driver, setDriver] = useState<{ id: string; name: string } | null>(null)
   const [loading, setLoading] = useState(true)
+  const [ensuring, setEnsuring] = useState(false)
 
   useEffect(() => {
     const load = async () => {
@@ -35,13 +37,36 @@ export default function AccountPage() {
     load()
   }, [])
 
+  const ensureProfile = async () => {
+    setEnsuring(true)
+    try {
+      const res = await fetch('/api/auth/ensure-profile', { method: 'POST' })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Failed')
+      toast.success('Profile created. Reloading…')
+      window.location.reload()
+    } catch (e: any) {
+      toast.error(e.message)
+    } finally {
+      setEnsuring(false)
+    }
+  }
+
   if (loading) return <AppLayout><div style={S.ph}>Loading account…</div></AppLayout>
   if (!profile) return (
     <AppLayout>
       <div style={S.ph}>Could not load profile.</div>
-      <p style={{ fontSize: 13, color: S.textDim }}>
-        Your login is valid but no user record was found. An admin can add you in <strong>Admin → Manage Users</strong>, or try refreshing the page.
+      <p style={{ fontSize: 13, color: S.textDim, marginBottom: 16 }}>
+        Your login is valid but no user record was found. You can create your admin profile below, or an existing admin can add you in <strong>Admin → Manage Users</strong>.
       </p>
+      <button
+        type="button"
+        onClick={ensureProfile}
+        disabled={ensuring}
+        style={{ ...S.btn(), opacity: ensuring ? 0.7 : 1 }}
+      >
+        {ensuring ? 'Creating…' : 'Create my admin profile'}
+      </button>
     </AppLayout>
   )
 
