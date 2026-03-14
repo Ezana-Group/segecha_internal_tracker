@@ -445,12 +445,13 @@ export default function ImportPage() {
         if (jErr) throw new Error(`Journey insert failed: ${jErr.message}`)
         results.journeys++
 
+        // Fuel: one per journey — deterministic id so re-import updates, no duplicate
         const fuelL = Number(row['Fuel(L)'] ?? 0)
         const fuelPrice = Number(row['Fuel Price (Per Litre)'] ?? 0)
         if (fuelL > 0 && fuelPrice > 0 && journey) {
           await supabase.from('fuel').upsert(
             {
-              id: `F-IMP-${uid()}`,
+              id: `F-${journey.id}`,
               truck: truckId,
               journey: journey.id,
               date: dateStr,
@@ -458,33 +459,38 @@ export default function ImportPage() {
               pricePerL: fuelPrice,
               station: 'Imported from Excel',
             },
-            { onConflict: 'truck,date,journey' }
+            { onConflict: 'id' }
           )
           results.fuel++
         }
 
+        // Expenses: deterministic id per journey + category so re-import updates, no duplicate
         const expenseMap = [
-          { col: 'Driver Millage', cat: 'Allowance', desc: 'Driver mileage allowance' },
-          { col: 'Turn-Boy', cat: 'Allowance', desc: 'Turn-boy allowance' },
-          { col: 'Road Users fee', cat: 'Toll', desc: 'Road users fee' },
-          { col: 'Other Expenses', cat: 'Other', desc: 'Other trip expenses' },
+          { col: 'Driver Millage', slug: 'DriverMillage', cat: 'Allowance', desc: 'Driver mileage allowance' },
+          { col: 'Turn-Boy', slug: 'TurnBoy', cat: 'Allowance', desc: 'Turn-boy allowance' },
+          { col: 'Road Users fee', slug: 'RoadUsers', cat: 'Toll', desc: 'Road users fee' },
+          { col: 'Other Expenses', slug: 'OtherExpenses', cat: 'Other', desc: 'Other trip expenses' },
         ]
-        for (const { col, cat, desc } of expenseMap) {
+        for (const { col, slug, cat, desc } of expenseMap) {
           const amount = Number(row[col] ?? 0)
           if (amount > 0 && journey) {
-            await supabase.from('expenses').insert({
-              id: `E-IMP-${uid()}`,
-              truck: truckId,
-              journey: journey.id,
-              cat,
-              amount,
-              date: dateStr,
-              desc,
-            })
+            await supabase.from('expenses').upsert(
+              {
+                id: `E-${journey.id}-${slug}`,
+                truck: truckId,
+                journey: journey.id,
+                cat,
+                amount,
+                date: dateStr,
+                desc,
+              },
+              { onConflict: 'id' }
+            )
             results.expenses++
           }
         }
 
+        // Invoice: one per journey — deterministic id so re-import updates, no duplicate
         const gross = Number(row['Gross Income'] ?? 0)
         if (gross > 0 && journey) {
           const deposited = Number(row['Money Deposited at Bank'] ?? 0)
@@ -496,7 +502,7 @@ export default function ImportPage() {
             : null
           await supabase.from('invoices').upsert(
             {
-              id: `IMP-${String(row._rowNumber).padStart(4, '0')}`,
+              id: `INV-${journey.id}`,
               journey: journey.id,
               client: dest,
               amount: gross,
@@ -1030,7 +1036,10 @@ export default function ImportPage() {
                 <h3 className="font-bold text-xl text-slate-800 dark:text-white mb-4">Ready to Import</h3>
 
                 <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 mb-4">
-                  <div className="font-semibold text-slate-700 dark:text-slate-300 mb-3">This import will create:</div>
+                  <div className="font-semibold text-slate-700 dark:text-slate-300 mb-3">This import will create or update:</div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
+                    Rows matching an existing trip (same vehicle, date, origin, destination) are updated; only new trips add new records. Re-importing the same file will not create duplicates.
+                  </p>
                   <div className="space-y-2">
                     {[
                       { icon: '🗺️', label: 'Journeys', count: importableRows.length },

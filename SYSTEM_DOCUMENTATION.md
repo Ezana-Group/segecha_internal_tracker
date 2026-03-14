@@ -15,6 +15,7 @@ Complete technical documentation of the system: backend, frontend, database, and
 - **Payroll** — Driver pay, M-Pesa payouts
 - **P&L** — Profit & loss reporting
 - **Auth & roles** — Admin, Director, Viewer, Staff (with limited access by type)
+- **Import Data** — Excel/CSV import (Trucking_2025.xlsx) for historical trips, fuel, expenses, invoices; row-level validation, idempotent upserts
 - **Driver portal** — Trip start/end, odometer photos, submissions for admin approval
 
 ---
@@ -30,7 +31,7 @@ Complete technical documentation of the system: backend, frontend, database, and
 | **Storage** | Supabase Storage (driver-uploads bucket) |
 | **Payments** | Safaricom M-Pesa Daraja API (STK Push, callbacks) |
 | **Charts** | Recharts |
-| **Excel** | xlsx (import script) |
+| **Excel** | xlsx (browser import page + CLI script) |
 
 ### Key dependencies (package.json)
 
@@ -72,6 +73,8 @@ segecha-erp/
 │   │   ├── staff/page.tsx       # Manage staff (invite with staff_type: driver/marketing/office)
 │   │   ├── settings/page.tsx    # M-Pesa Paybill/Till, account prefix
 │   │   └── driver-submissions/page.tsx  # Approve/reject driver submissions
+│   ├── settings/
+│   │   └── import/page.tsx      # Excel/CSV import: upload, validate, fix, import; Import History tab
 │   └── api/                     # API routes
 │       ├── auth/
 │       │   ├── invite/route.ts           # POST: invite user (Supabase Admin invite + users row)
@@ -99,7 +102,9 @@ segecha-erp/
 ├── supabase_schema.sql          # Full DB schema
 ├── .env.local.example           # Env template
 └── scripts/
-    └── import-excel.ts          # Excel import (e.g. drivers/trucks)
+    ├── import-excel.ts          # CLI Excel import (e.g. drivers/trucks)
+    └── migrations/
+        └── 007_import_sessions.sql  # import_sessions, import_log; journeys/fuel unique for upsert
 ```
 
 ---
@@ -125,6 +130,10 @@ Schema is defined in **supabase_schema.sql**. All tables live in `public`; RLS i
 | **settings** | Key-value config | `key`, `value` (e.g. paybill_display, till_display, account_prefix) |
 | **mpesa_transactions** | M-Pesa callback data | `id`, `transactionId`, `receiptNumber`, `phone`, `amount`, `transactionDate`, `accountReference`, `invoiceId`, `payrollId`, `status`, `rawPayload`, `createdAt` |
 | **driver_submissions** | Driver-submitted data (pending approval) | `id`, `type` (journey_start/end, fuel, expense), `referenceId`, `driverId`, `payload`, `photoUrls`, `status`, `rejectionReason`, `reviewedBy`, `reviewedAt`, `createdAt` |
+| **import_sessions** | Excel/CSV import runs (see migration 007) | `id` (UUID), `filename`, `sheet_name`, `imported_by` (FK → users), `imported_by_name`, `total_rows`, `passed_rows`, `failed_rows`, `warning_rows`, `status`, `summary` (JSONB), `created_at`, `completed_at` |
+| **import_log** | Per-row import outcome (see migration 007) | `id`, `session_id` (FK → import_sessions), `row_number`, `sheet_name`, `row_data` (JSONB), `status`, `issues[]`, `warnings[]`, `fix_applied`, `created_at` |
+
+**Idempotent import:** Migration 007 adds `UNIQUE (truck, date, origin, dest)` on **journeys** and `UNIQUE (truck, date, journey)` on **fuel** so re-importing the same file updates existing rows instead of creating duplicates. Expenses and invoices use deterministic ids (`E-{journey.id}-{category}`, `INV-{journey.id}`) and upsert on `id`.
 
 ### 4.2 Users and roles
 
@@ -194,7 +203,7 @@ Used for driver photos, odometer photos, avatars (folder e.g. `avatars`, `odomet
   - Loads session via **supabase.auth.getSession()**.
   - Loads profile from **users** (id, email, name, role). If missing, tries client upsert or **POST /api/auth/ensure-profile** with session in body, then refetches.
   - Redirects to `/login` if no session.
-  - Renders sidebar: main nav + Admin nav (if role = admin) + Staff nav (if role = admin).
+  - Renders sidebar: main nav + Admin nav (if role = admin or director) + Staff nav (if role = admin).
   - For **staff** role, filters nav by **STAFF_ALLOWED_ROUTES[staff_type]** and redirects disallowed paths to `/dashboard`.
   - Shows user name/role, dark toggle, sign out.
 - **middleware.ts**: Does not redirect; only checks for Supabase cookies. Auth redirect is handled in AppLayout.
@@ -203,9 +212,10 @@ Used for driver photos, odometer photos, avatars (folder e.g. `avatars`, `odomet
 
 - **/** → redirect to **/login**.
 - **/login**: Email/password via **lib/auth.ts** `signIn()` (Supabase signInWithPassword) → then push to `/dashboard`.
-- All other app routes (dashboard, account, fleet, drivers, journeys, fuel, expenses, invoices, transactions, payroll, tyres, maintenance, pnl, driver, admin/*) are wrapped in **AppLayout** and require a session.
+- All other app routes (dashboard, account, fleet, drivers, journeys, fuel, expenses, invoices, transactions, payroll, tyres, maintenance, pnl, driver, admin/*, settings/import) are wrapped in **AppLayout** and require a session.
 - **Driver** link in sidebar is shown only if `user.driver_id` is set.
-- **Admin** and **Staff** sections are shown only if `user.role === 'admin'`.
+- **Admin** section (Admin Panel, Import Data, SMS Log) is shown if `user.role === 'admin'` or `user.role === 'director'`. **Staff** section only if `user.role === 'admin'`.
+- **/settings/import** is restricted to admin and director; others are redirected to `/dashboard`.
 
 ### 6.3 Data access (client)
 
@@ -303,6 +313,16 @@ Used for driver photos, odometer photos, avatars (folder e.g. `avatars`, `odomet
 1. Frontend sends multipart form to **/api/upload/driver-photo** (file + folder).
 2. API creates bucket **driver-uploads** if needed, uploads file, returns public URL. Used for driver photos, odometer photos, account avatar (folder `avatars`).
 
+### 9.7 Excel/CSV Import (Settings → Import Data)
+
+1. **Access**: Admin or Director only; **Admin → Import Data** (`/settings/import`).
+2. **Upload**: User drops or selects an Excel (.xlsx/.xls) or CSV file (max 10MB). Parsing is **client-side** via **xlsx**; no file is sent to the server.
+3. **Validation**: Rows are validated (required: Vehicle, Date, Origin, Destination, Gross Income; date format; optional calculation checks). Each row gets status: passed, warning, failed, or skipped (empty).
+4. **Preview & fix**: Table shows all rows with colour-coded status. User can fix failed rows inline or via Fix modal, or skip rows. Step 3 summarises failed rows; Step 4 confirms what will be created/updated.
+5. **Import**: For each valid row, the app upserts **journeys** (on truck, date, origin, dest), **fuel** (id = `F-{journey.id}`), **expenses** (id = `E-{journey.id}-{category}`), **invoices** (id = `INV-{journey.id}`). Matching trips are updated; new trips create new records. Re-importing the same file does not create duplicates.
+6. **History**: Import History tab lists past **import_sessions**; “View log” opens a modal of **import_log** rows for that session.
+7. **Database**: Requires migration **007_import_sessions.sql** (import_sessions, import_log, journeys/fuel unique constraints).
+
 ---
 
 ## 10. Security Notes
@@ -329,8 +349,9 @@ Used for driver photos, odometer photos, avatars (folder e.g. `avatars`, `odomet
 
 1. Create a Supabase project and get URL + anon key + service_role key.
 2. In Supabase SQL Editor, run **supabase_schema.sql** (creates tables, indexes, disables RLS).
-3. Add optional columns on **users** if missing: `driver_id`, `staff_type`, `avatar_url` (see section 4.3).
-4. In Supabase Dashboard → Storage: bucket **driver-uploads** is created automatically on first upload via **/api/upload/driver-photo**; or create it manually (public, 10MB limit).
-5. Configure Auth: Email provider enabled; optional custom redirect URLs for invite/reset.
+3. Run migrations in **scripts/migrations/** as needed (e.g. **007_import_sessions.sql** for Import Data: import_sessions, import_log, journeys/fuel unique constraints).
+4. Add optional columns on **users** if missing: `driver_id`, `staff_type`, `avatar_url` (see section 4.3).
+5. In Supabase Dashboard → Storage: bucket **driver-uploads** is created automatically on first upload via **/api/upload/driver-photo**; or create it manually (public, 10MB limit).
+6. Configure Auth: Email provider enabled; optional custom redirect URLs for invite/reset.
 
 This document reflects the codebase as of the last update and should be kept in sync when adding or changing APIs, tables, or env vars.
