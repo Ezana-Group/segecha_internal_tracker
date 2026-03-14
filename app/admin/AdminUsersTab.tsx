@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import toast from 'react-hot-toast'
+import { MoreHorizontal, Pencil, Ban, KeyRound, Trash2, RotateCcw } from 'lucide-react'
 
 export default function AdminUsersTab() {
   const [users, setUsers] = useState<any[]>([])
@@ -24,6 +25,16 @@ export default function AdminUsersTab() {
   const [editUser, setEditUser] = useState<any | null>(null)
   const [editForm, setEditForm] = useState({ name: '', email: '', role: 'viewer', staff_type: '', driver_id: '' })
   const [savingEdit, setSavingEdit] = useState(false)
+  const [openActionsId, setOpenActionsId] = useState<string | null>(null)
+  const actionsRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const close = (e: MouseEvent) => {
+      if (openActionsId && actionsRef.current && !actionsRef.current.contains(e.target as Node)) setOpenActionsId(null)
+    }
+    document.addEventListener('click', close)
+    return () => document.removeEventListener('click', close)
+  }, [openActionsId])
 
   const loadUsers = async () => {
     const [{ data: uData }, { data: dData }] = await Promise.all([
@@ -344,29 +355,62 @@ export default function AdminUsersTab() {
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    <div className="flex items-center gap-1 flex-wrap">
-                      {currentUserId !== u.id && (
-                        <>
-                          {u.role !== 'revoked' && (
-                            <>
-                              <button type="button" onClick={() => openEdit(u)} className="text-xs font-semibold text-slate-500 hover:text-slate-800 dark:hover:text-white">Edit</button>
-                              <span className="text-slate-200 dark:text-slate-700">|</span>
-                            </>
+                    <div className="relative flex items-center justify-end" ref={openActionsId === u.id ? actionsRef : undefined}>
+                      <button
+                        type="button"
+                        onClick={() => setOpenActionsId(openActionsId === u.id ? null : u.id)}
+                        className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 dark:hover:text-slate-300 transition"
+                        aria-label="Actions"
+                      >
+                        <MoreHorizontal className="w-4 h-4" />
+                      </button>
+                      {openActionsId === u.id && (
+                        <div className="absolute right-0 top-full mt-1 z-10 min-w-[180px] py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg">
+                          {currentUserId !== u.id && u.role !== 'revoked' && (
+                            <button
+                              type="button"
+                              onClick={() => { openEdit(u); setOpenActionsId(null) }}
+                              className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                            >
+                              <Pencil className="w-4 h-4 text-slate-500" /> Edit
+                            </button>
                           )}
-                          {u.role === 'revoked' ? (
-                            <button type="button" onClick={() => restoreAccess(u.id, u.staff_type)} className="text-xs font-semibold text-emerald-500 hover:text-emerald-700">Restore</button>
-                          ) : (
-                            <button type="button" onClick={() => revokeAccess(u.id, u.role)} className="text-xs font-semibold text-amber-500 hover:text-amber-700">Revoke</button>
+                          {currentUserId !== u.id && (
+                            u.role === 'revoked' ? (
+                              <button
+                                type="button"
+                                onClick={() => { restoreAccess(u.id, u.staff_type); setOpenActionsId(null) }}
+                                className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20"
+                              >
+                                <RotateCcw className="w-4 h-4" /> Restore
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => { revokeAccess(u.id, u.role); setOpenActionsId(null) }}
+                                className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20"
+                              >
+                                <Ban className="w-4 h-4" /> Revoke
+                              </button>
+                            )
                           )}
-                          <span className="text-slate-200 dark:text-slate-700">|</span>
-                        </>
-                      )}
-                      <button type="button" onClick={() => setResetUser({ id: u.id, name: u.name, email: u.email })} className="text-xs font-semibold text-orange-600 dark:text-orange-400 hover:underline" title="Set a new password for this user">Reset password</button>
-                      {currentUserId !== u.id && (
-                        <>
-                          <span className="text-slate-200 dark:text-slate-700">|</span>
-                          <button type="button" onClick={() => deleteUser(u.id, u.name)} className="text-xs font-semibold text-red-400 hover:text-red-600">Delete</button>
-                        </>
+                          <button
+                            type="button"
+                            onClick={() => { setResetUser({ id: u.id, name: u.name, email: u.email }); setOpenActionsId(null) }}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20"
+                          >
+                            <KeyRound className="w-4 h-4" /> Reset password
+                          </button>
+                          {currentUserId !== u.id && (
+                            <button
+                              type="button"
+                              onClick={() => { deleteUser(u.id, u.name); setOpenActionsId(null) }}
+                              className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
+                            >
+                              <Trash2 className="w-4 h-4" /> Delete
+                            </button>
+                          )}
+                        </div>
                       )}
                     </div>
                   </td>
