@@ -286,13 +286,14 @@ export default function AdminUsersTab() {
         ))}
       </div>
 
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-visible">
         <div className="p-4 border-b border-slate-200 dark:border-slate-800">
           <h3 className="font-bold text-slate-900 dark:text-white">Current Users ({users.length})</h3>
         </div>
         {loading ? (
           <div className="p-8 text-center text-slate-400">Loading users…</div>
         ) : (
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-slate-50 dark:bg-slate-800/50">
@@ -358,14 +359,17 @@ export default function AdminUsersTab() {
                     <div className="relative flex items-center justify-end" ref={openActionsId === u.id ? actionsRef : undefined}>
                       <button
                         type="button"
-                        onClick={() => setOpenActionsId(openActionsId === u.id ? null : u.id)}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setOpenActionsId(openActionsId === u.id ? null : u.id)
+                        }}
                         className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-500 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 dark:hover:text-slate-300 transition"
                         aria-label="Actions"
                       >
                         <MoreHorizontal className="w-4 h-4" />
                       </button>
                       {openActionsId === u.id && (
-                        <div className="absolute right-0 top-full mt-1 z-10 min-w-[180px] py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg">
+                        <div className="absolute right-0 top-full mt-1 z-[100] min-w-[180px] py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl">
                           {currentUserId !== u.id && u.role !== 'revoked' && (
                             <button
                               type="button"
@@ -418,6 +422,7 @@ export default function AdminUsersTab() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 
