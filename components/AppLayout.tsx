@@ -49,15 +49,32 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
         if (profile) {
           setUser(profile as AppUser)
-        } else if (!profileError || profileError.code === 'PGRST116') {
+        } else {
           // No row or not found: try client upsert (may fail with RLS)
           const name = session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'User'
           const { data: np } = await supabase.from('users')
             .upsert({ id: session.user.id, email: session.user.email, name, role: 'admin' })
             .select('id,email,name,role,driver_id').single()
-          setUser(np as AppUser)
+          if (np) {
+            setUser(np as AppUser)
+          } else {
+            // Client upsert failed (e.g. RLS) — auto-call ensure-profile API with session tokens
+            const res = await fetch('/api/auth/ensure-profile', {
+              method: 'POST',
+              credentials: 'include',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                access_token: session.access_token,
+                refresh_token: session.refresh_token,
+              }),
+            })
+            if (res.ok) {
+              const { data: created } = await supabase
+                .from('users').select('id,email,name,role,driver_id').eq('id', session.user.id).single()
+              if (created) setUser(created as AppUser)
+            }
+          }
         }
-        // If users table errors (400/403 etc), leave user null so they can use Account → Create my admin profile
       } catch (e) {
         console.error('Layout auth error:', e)
         router.replace('/login')
