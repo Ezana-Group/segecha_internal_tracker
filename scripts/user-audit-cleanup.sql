@@ -12,9 +12,9 @@
 -- ── STEP 0: Allow 'staff' role (RUN THESE TWO LINES FIRST, THEN RUN STEP 4) ─────
 -- Copy and run these two statements alone in Supabase SQL Editor:
 --   1) ALTER TABLE public.users DROP CONSTRAINT users_role_check;
---   2) ALTER TABLE public.users ADD CONSTRAINT users_role_check CHECK (role IN ('admin', 'director', 'viewer', 'staff'));
+--   2) ALTER TABLE public.users ADD CONSTRAINT users_role_check CHECK (role IN ('admin', 'director', 'viewer', 'staff', 'revoked'));
 ALTER TABLE public.users DROP CONSTRAINT users_role_check;
-ALTER TABLE public.users ADD CONSTRAINT users_role_check CHECK (role IN ('admin', 'director', 'viewer', 'staff'));
+ALTER TABLE public.users ADD CONSTRAINT users_role_check CHECK (role IN ('admin', 'director', 'viewer', 'staff', 'revoked'));
 
 
 -- ── STEP 1: See ALL users in your public.users table ────────────

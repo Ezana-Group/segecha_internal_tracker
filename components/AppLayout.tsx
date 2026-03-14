@@ -32,7 +32,7 @@ const STAFF_ALLOWED_ROUTES: Record<string, string[]> = {
   office: ['/dashboard', '/account', '/journeys', '/fuel', '/expenses', '/invoices', '/payroll', '/tyres', '/maintenance', '/pnl'],
 }
 
-interface AppUser { id: string; email: string; name: string; role: 'admin' | 'director' | 'viewer' | 'staff'; driver_id?: string | null; staff_type?: string | null }
+interface AppUser { id: string; email: string; name: string; role: 'admin' | 'director' | 'viewer' | 'staff' | 'revoked'; driver_id?: string | null; staff_type?: string | null }
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
@@ -73,6 +73,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           .from('users').select('id,email,name,role,driver_id,staff_type').eq('id', session.user.id).single()
 
         if (profile) {
+          if ((profile as { role?: string }).role === 'revoked') {
+            await supabase.auth.signOut()
+            router.replace('/login?revoked=1')
+            return
+          }
           setUser(profile as AppUser)
         } else {
           // No row or not found: try client upsert (may fail with RLS)
@@ -81,6 +86,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             .upsert({ id: session.user.id, email: session.user.email, name, role: 'admin' })
             .select('id,email,name,role,driver_id,staff_type').single()
           if (np) {
+            if ((np as { role?: string }).role === 'revoked') {
+              await supabase.auth.signOut()
+              router.replace('/login?revoked=1')
+              return
+            }
             setUser(np as AppUser)
           } else {
             // Client upsert failed (e.g. RLS) — auto-call ensure-profile API with session tokens
@@ -96,7 +106,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             if (res.ok) {
               const { data: created } = await supabase
                 .from('users').select('id,email,name,role,driver_id,staff_type').eq('id', session.user.id).single()
-              if (created) setUser(created as AppUser)
+              if (created) {
+                if ((created as { role?: string }).role === 'revoked') {
+                  await supabase.auth.signOut()
+                  router.replace('/login?revoked=1')
+                  return
+                }
+                setUser(created as AppUser)
+              }
             }
           }
         }
