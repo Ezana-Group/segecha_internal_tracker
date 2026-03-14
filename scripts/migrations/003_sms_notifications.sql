@@ -37,7 +37,11 @@ INSERT INTO public.notification_settings (key, label, enabled) VALUES
   ('driver_submission',     'Driver submitted fuel/expense for review', true)
 ON CONFLICT (key) DO NOTHING;
 
--- Phones for system alerts (admin/director) — stored in existing settings table
+-- Phones for system alerts (admin/director) — use settings table (create if not present)
+CREATE TABLE IF NOT EXISTS public.settings (
+  key   TEXT PRIMARY KEY,
+  value TEXT
+);
 INSERT INTO public.settings (key, value) VALUES
   ('notification_admin_phone', ''),
   ('notification_director_phone', '')

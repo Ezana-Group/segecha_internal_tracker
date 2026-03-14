@@ -27,6 +27,7 @@ const NAV = [
 ]
 const ADMIN_NAV = [
   { href: '/admin', icon: '⚙️', label: 'Admin Panel' },
+  { href: '/settings/import', icon: '⬆️', label: 'Import Data' },
   { href: '/notifications', icon: '📱', label: 'SMS Log' },
 ]
 
@@ -61,6 +62,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       return
     }
     if (pathname === '/budget' && user.role !== 'admin' && user.role !== 'director') {
+      router.replace('/dashboard')
+      return
+    }
+    if (pathname?.startsWith('/settings/import') && user.role !== 'admin' && user.role !== 'director') {
       router.replace('/dashboard')
       return
     }
@@ -193,7 +198,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </Link>
           )
         })}
-        {user?.role === 'admin' && (
+        {(user?.role === 'admin' || user?.role === 'director') && (
           <>
             <p className="px-3 pt-4 pb-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Admin</p>
             {ADMIN_NAV.map(n => (
