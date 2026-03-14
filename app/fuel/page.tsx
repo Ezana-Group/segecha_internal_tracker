@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import AppLayout from '@/components/AppLayout'
 import { useErpContext, fmt, fmtN, today } from '@/lib/ErpContext'
-import { ErpModal, F, TableSearch, SortableTh, sortCompare, DateRangeFilter, ClearFiltersButton } from '@/components/ErpShared'
+import { ErpModal, F, TableSearch, SortableTh, sortCompare, DateRangeFilter, ClearFiltersButton, ThFilterCell, ThTextFilter, ThSelectFilter, ThDateFilter, ThNumberRangeFilter } from '@/components/ErpShared'
 import { supabase } from '@/lib/supabase'
 import toast from 'react-hot-toast'
 
@@ -11,8 +11,9 @@ export default function FuelLog() {
     const { S, dark } = useErpContext()
     const [data, setData] = useState<any>(null)
     const [loading, setLoading] = useState(true)
-    const [filterTruck, setFilterTruck] = useState("ALL")
+    const [filterTruckId, setFilterTruckId] = useState("")
     const [searchQuery, setSearchQuery] = useState("")
+    const [filterStation, setFilterStation] = useState("")
     const [dateFrom, setDateFrom] = useState("")
     const [dateTo, setDateTo] = useState("")
     const [sort, setSort] = useState<{ key: string; dir: 'asc' | 'desc' }>({ key: 'date', dir: 'desc' })
@@ -82,22 +83,24 @@ export default function FuelLog() {
     const totalCost = data.fuel.reduce((s: any, f: any) => s + (f.litres * f.pricePerL), 0)
     const avgPrice = totalL > 0 ? (totalCost / totalL).toFixed(1) : 0
     const q = searchQuery.trim().toLowerCase()
-    const byTruck = filterTruck === "ALL" ? data.fuel : data.fuel.filter((f: any) => f.truck === filterTruck)
+    const byTruck = filterTruckId === "" ? data.fuel : data.fuel.filter((f: any) => f.truck === filterTruckId)
     const byDate = byTruck.filter((f: any) => {
         if (dateFrom && (f.date || "") < dateFrom) return false
         if (dateTo && (f.date || "") > dateTo) return false
+        if (filterStation !== "" && !(f.station || "").toLowerCase().includes(filterStation.trim().toLowerCase())) return false
         return true
     })
     const filtered = !q ? byDate : byDate.filter((f: any) => {
+        const id = (f.id || "").toLowerCase()
         const truck = truckReg(f.truck).toLowerCase()
         const station = (f.station || "").toLowerCase()
-        const date = (f.date || "").toLowerCase()
-        return truck.includes(q) || station.includes(q) || date.includes(q)
+        return id.includes(q) || truck.includes(q) || station.includes(q)
     })
-    const hasActiveFilters = searchQuery.trim() !== "" || filterTruck !== "ALL" || dateFrom !== "" || dateTo !== ""
-    const clearFilters = () => { setSearchQuery(""); setFilterTruck("ALL"); setDateFrom(""); setDateTo("") }
+    const hasActiveFilters = searchQuery.trim() !== "" || filterTruckId !== "" || filterStation !== "" || dateFrom !== "" || dateTo !== ""
+    const clearFilters = () => { setSearchQuery(""); setFilterTruckId(""); setFilterStation(""); setDateFrom(""); setDateTo("") }
     const getSortVal = (f: any, key: string) => {
         switch (key) {
+            case 'id': return (f.id || '').toString()
             case 'date': return f.date || ''
             case 'truck': return truckReg(f.truck)
             case 'station': return (f.station || '').toString()
@@ -117,8 +120,8 @@ export default function FuelLog() {
                 <div style={S.ph}>⬡ Fuel Log</div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
                     <TableSearch value={searchQuery} onChange={setSearchQuery} placeholder="Search truck, station, date..." />
-                    <select style={{ ...S.inp, width: 160 }} value={filterTruck} onChange={e => setFilterTruck(e.target.value)}>
-                        <option value="ALL">All Trucks</option>
+                    <select style={{ ...S.inp, width: 160 }} value={filterTruckId} onChange={e => setFilterTruckId(e.target.value)}>
+                        <option value="">All Trucks</option>
                         {data.trucks.map((t: any) => <option key={t.id} value={t.id}>{t.reg}</option>)}
                     </select>
                     <DateRangeFilter from={dateFrom} to={dateTo} onFromChange={setDateFrom} onToChange={setDateTo} />
@@ -148,29 +151,42 @@ export default function FuelLog() {
                 })}
             </div>
             <div style={{ ...S.card(), overflowX: "auto" as any }}>
-                <table style={{ ...S.tbl, minWidth: 600 }}>
+                <table style={{ ...S.tbl, minWidth: 700 }}>
                     <thead>
                         <tr>
+                            <SortableTh label="Entry ID" sortKey="id" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
                             <SortableTh label="Date" sortKey="date" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
-                            <SortableTh label="Truck" sortKey="truck" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
+                            <SortableTh label="Truck ID" sortKey="truck" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
                             <SortableTh label="Station" sortKey="station" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
-                            <SortableTh label="Litres" sortKey="litres" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
-                            <SortableTh label="Price/L" sortKey="pricePerL" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
-                            <SortableTh label="Total Cost" sortKey="total" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
-                            <SortableTh label="Odometer" sortKey="odom" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
+                            <SortableTh label="Litres (L)" sortKey="litres" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
+                            <SortableTh label="Price/L (KES)" sortKey="pricePerL" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
+                            <SortableTh label="Total (KES)" sortKey="total" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
+                            <SortableTh label="Odometer (km)" sortKey="odom" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
                             <th style={S.th}></th>
+                        </tr>
+                        <tr>
+                            <ThFilterCell><ThTextFilter value={searchQuery} onChange={setSearchQuery} placeholder="ID..." /></ThFilterCell>
+                            <ThFilterCell><ThDateFilter from={dateFrom} to={dateTo} onFromChange={setDateFrom} onToChange={setDateTo} /></ThFilterCell>
+                            <ThFilterCell><ThSelectFilter value={filterTruckId} onChange={setFilterTruckId} options={data.trucks.map((t: any) => ({ v: t.id, l: t.reg }))} allLabel="All" /></ThFilterCell>
+                            <ThFilterCell><ThTextFilter value={filterStation} onChange={setFilterStation} placeholder="Station" /></ThFilterCell>
+                            <ThFilterCell></ThFilterCell>
+                            <ThFilterCell></ThFilterCell>
+                            <ThFilterCell></ThFilterCell>
+                            <ThFilterCell></ThFilterCell>
+                            <ThFilterCell></ThFilterCell>
                         </tr>
                     </thead>
                     <tbody>
                         {sorted.map((f: any) => (
                             <tr key={f.id}>
+                                <td style={{ ...S.td, fontFamily: "monospace", color: S.mtitle.color }}>{f.id}</td>
                                 <td style={S.td}>{f.date}</td>
                                 <td style={{ ...S.td, color: "#f97316", fontWeight: 700 }}>{truckReg(f.truck)}</td>
-                                <td style={S.td}>{f.station}</td>
-                                <td style={{ ...S.td, color: "#f59e0b", fontWeight: 700 }}>{f.litres} L</td>
-                                <td style={S.td}>KES {f.pricePerL}</td>
-                                <td style={{ ...S.td, color: "#f97316", fontWeight: 700 }}>{fmt(f.litres * f.pricePerL)}</td>
-                                <td style={{ ...S.td, fontFamily: "monospace", fontSize: 11 }}>{(f.odom || 0).toLocaleString()} km</td>
+                                <td style={S.td}>{f.station || "—"}</td>
+                                <td style={{ ...S.td, color: "#f59e0b", fontWeight: 700 }}>{f.litres != null ? f.litres : "—"}</td>
+                                <td style={S.td}>{f.pricePerL != null ? `KES ${f.pricePerL}` : "—"}</td>
+                                <td style={{ ...S.td, color: "#f97316", fontWeight: 700 }}>{fmt((f.litres || 0) * (f.pricePerL || 0))}</td>
+                                <td style={{ ...S.td, fontFamily: "monospace", fontSize: 11 }}>{f.odom != null ? (f.odom).toLocaleString() : "—"}</td>
                                 <td style={S.td}><div style={{ display: "flex", gap: 6 }}><button style={S.btn("sm")} onClick={() => openModal("fuel", f)}>Edit</button><button style={S.btn("del")} onClick={() => delFuel(f.id)}>✕</button></div></td>
                             </tr>
                         ))}

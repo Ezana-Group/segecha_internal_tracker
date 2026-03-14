@@ -87,6 +87,7 @@ export default function Drivers() {
     const clearFilters = () => { setSearchQuery(""); setFilterStatus("ALL"); setFilterTruck("ALL") }
     const getSortVal = (d: any, key: string) => {
         switch (key) {
+            case 'id': return (d.id || '').toString()
             case 'name': return (d.name || '').toString()
             case 'phone': return (d.phone || '').toString()
             case 'license': return (d.license || '').toString()
@@ -124,12 +125,13 @@ export default function Drivers() {
                 <table style={{ ...S.tbl, minWidth: 600 }}>
                     <thead>
                         <tr>
-                            <SortableTh label="Driver" sortKey="name" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
+                            <SortableTh label="Driver ID" sortKey="id" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
+                            <SortableTh label="Name" sortKey="name" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
                             <SortableTh label="Phone / M-Pesa" sortKey="phone" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
                             <SortableTh label="License" sortKey="license" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
                             <th style={S.th}>Class</th>
-                            <SortableTh label="Truck" sortKey="truck" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
-                            <SortableTh label="Salary" sortKey="salary" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
+                            <SortableTh label="Truck ID" sortKey="truck" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
+                            <SortableTh label="Salary (KES)" sortKey="salary" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
                             <SortableTh label="Status" sortKey="status" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
                             <th style={S.th}></th>
                         </tr>
@@ -137,6 +139,7 @@ export default function Drivers() {
                     <tbody>
                         {sorted.map((d: any) => (
                             <tr key={d.id}>
+                                <td style={{ ...S.td, fontFamily: "monospace", color: S.mtitle.color }}>{d.id}</td>
                                 <td style={{ ...S.td, fontWeight: 700, color: S.mtitle.color }}>{d.name}</td>
                                 <td style={S.td}><div>{d.phone}</div><div style={{ fontSize: 10, color: S.kpi.color }}>💚 {d.mpesa}</div></td>
                                 <td style={{ ...S.td, fontFamily: "monospace", fontSize: 11 }}>{d.license}</td>

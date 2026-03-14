@@ -22,18 +22,21 @@ export default function TransactionsPage() {
             { data: txns },
             { data: invoices },
             { data: payroll },
-            { data: drivers }
+            { data: drivers },
+            payRes
         ] = await Promise.all([
             supabase.from('mpesa_transactions').select('*').order('createdAt', { ascending: false }),
             supabase.from('invoices').select('id, client, amount, status'),
             supabase.from('payroll').select('*'),
-            supabase.from('drivers').select('id, name')
+            supabase.from('drivers').select('id, name'),
+            supabase.from('invoice_payments').select('*')
         ])
         setData({
             transactions: txns || [],
             invoices: invoices || [],
             payroll: payroll || [],
-            drivers: drivers || []
+            drivers: drivers || [],
+            invoicePayments: payRes?.data || []
         })
         setLoading(false)
     }
@@ -113,7 +116,7 @@ export default function TransactionsPage() {
                 </div>
             </div>
             <p style={{ fontSize: 13, color: S.kpi?.color, marginBottom: 16 }}>
-                Payments received via STK Push (and B2C results) appear here. Match to an invoice or payroll to confirm payment; use Refund to reverse.
+                All M-Pesa payments appear here: STK Push (callback) and manual entries (when you enter M-Pesa ref and confirm on an invoice). Match unmatched ones to an invoice or payroll; use Refund to reverse.
             </p>
             <div style={{ ...S.card(), overflowX: 'auto' as any }}>
                 <table style={{ ...S.tbl, minWidth: 800 }}>
@@ -121,6 +124,7 @@ export default function TransactionsPage() {
                         <tr>
                             <SortableTh label="Date" sortKey="createdAt" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
                             <SortableTh label="Receipt" sortKey="receiptNumber" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
+                            <th style={S.th}>Source</th>
                             <SortableTh label="Phone" sortKey="phone" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
                             <SortableTh label="Amount" sortKey="amount" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
                             <th style={S.th}>Status</th>
@@ -130,12 +134,13 @@ export default function TransactionsPage() {
                     </thead>
                     <tbody>
                         {sorted.length === 0 ? (
-                            <tr><td colSpan={7} style={{ ...S.td, textAlign: 'center', color: S.textDim }}>No M-Pesa transactions yet. They appear when customers pay via STK Push (callback from Safaricom).</td></tr>
+                            <tr><td colSpan={8} style={{ ...S.td, textAlign: 'center', color: S.textDim }}>No M-Pesa transactions yet. They appear when customers pay via STK Push or when you enter an M-Pesa ref and confirm on an invoice.</td></tr>
                         ) : (
                             sorted.map((t: any) => (
                                 <tr key={t.id}>
                                     <td style={S.td}>{t.createdAt ? new Date(t.createdAt).toLocaleString('en-KE') : '—'}</td>
                                     <td style={{ ...S.td, fontFamily: 'monospace', color: '#10b981' }}>{t.receiptNumber || '—'}</td>
+                                    <td style={S.td}><span style={S.badge((t.id || '').toString().startsWith('MANUAL-') ? 'Manual' : 'STK')}>{(t.id || '').toString().startsWith('MANUAL-') ? 'Manual' : 'STK'}</span></td>
                                     <td style={S.td}>{t.phone || '—'}</td>
                                     <td style={{ ...S.td, fontWeight: 700, color: '#10b981' }}>{fmt(t.amount)}</td>
                                     <td style={S.td}><span style={S.badge(t.status)}>{t.status}</span></td>
@@ -150,7 +155,7 @@ export default function TransactionsPage() {
                                                     <button style={S.btn('sm')} onClick={() => { setMatchModal({ txId: t.id, type: 'payroll' }); setMatchType('payroll') }}>Match payroll</button>
                                                 </>
                                             )}
-                                            {t.status === 'completed' && (
+                                            {t.status === 'completed' && !(t.id || '').toString().startsWith('MANUAL-') && (
                                                 <button style={S.btn('del')} onClick={() => requestRefund(t.id)} title="Request M-Pesa reversal">Refund</button>
                                             )}
                                         </div>
@@ -169,7 +174,11 @@ export default function TransactionsPage() {
                         <p style={{ fontSize: 13, color: S.textDim, marginBottom: 12 }}>Select the invoice this payment is for. Invoice will be marked Paid.</p>
                         <select id="match-inv-select" style={{ ...S.inp, marginBottom: 16 }}>
                             <option value="">— Select invoice —</option>
-                            {data.invoices.filter((i: any) => i.status !== 'Paid').map((i: any) => (
+                            {data.invoices.filter((i: any) => {
+                                const totalPaid = (data?.invoicePayments || []).filter((p: any) => p.invoice_id === i.id).reduce((s: number, p: any) => s + Number(p.amount || 0), 0)
+                                const resolved = (totalPaid != null && totalPaid >= Number(i.amount || 0)) ? 'Paid' : (i.status || 'Pending')
+                                return resolved !== 'Paid'
+                            }).map((i: any) => (
                                 <option key={i.id} value={i.id}>{i.id} — {i.client} — {fmt(i.amount)}</option>
                             ))}
                         </select>

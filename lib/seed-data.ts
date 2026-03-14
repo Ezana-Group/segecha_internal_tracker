@@ -60,4 +60,5 @@ export const SC = {
     "Maintenance": "#f59e0b", "Active": "#10b981", "Off Road": "#ef4444",
     "Cancelled": "#ef4444", "Paid": "#10b981", "Pending": "#f59e0b",
     "Overdue": "#ef4444", "Due Soon": "#f97316",
+    "Manual": "#f59e0b", "STK": "#10b981",
 };

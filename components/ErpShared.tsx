@@ -148,6 +148,67 @@ export function SortableTh({
     )
 }
 
+/** Filter row cell — wraps a filter control so it fits under a column header. */
+export function ThFilterCell({ children, style = {} }: { children?: React.ReactNode; style?: React.CSSProperties }) {
+    const { S } = useErpContext()
+    return (
+        <td style={{ ...S.td, padding: '4px 8px', verticalAlign: 'middle', borderBottom: `1px solid ${S.border}`, background: S.border2 || S.border, ...style }}>
+            {children}
+        </td>
+    )
+}
+
+/** Text filter input for use under a column header. */
+export function ThTextFilter({ value, onChange, placeholder = 'Filter...' }: { value: string; onChange: (v: string) => void; placeholder?: string }) {
+    const { S } = useErpContext()
+    return (
+        <input
+            type="text"
+            placeholder={placeholder}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            style={{ ...S.inp, width: '100%', minWidth: 60, padding: '4px 8px', fontSize: 12 }}
+        />
+    )
+}
+
+/** Dropdown filter for use under a column header. options: [{ v, l }] or string[]. */
+export function ThSelectFilter({ value, onChange, options, allLabel = 'All' }: { value: string; onChange: (v: string) => void; options: { v: string; l: string }[] | string[]; allLabel?: string }) {
+    const { S } = useErpContext()
+    const opts = Array.isArray(options) && options.length > 0
+        ? (typeof options[0] === 'string' ? [{ v: '', l: allLabel }, ...(options as string[]).map((s) => ({ v: s, l: s }))] : [{ v: '', l: allLabel }, ...(options as { v: string; l: string }[])])
+        : [{ v: '', l: allLabel }]
+    return (
+        <select value={value} onChange={(e) => onChange(e.target.value)} style={{ ...S.inp, width: '100%', minWidth: 60, padding: '4px 6px', fontSize: 12 }}>
+            {opts.map((o) => (
+                <option key={o.v} value={o.v}>{o.l}</option>
+            ))}
+        </select>
+    )
+}
+
+/** Date filter (single or range) for use under a column header. */
+export function ThDateFilter({ from, to, onFromChange, onToChange }: { from: string; to: string; onFromChange: (v: string) => void; onToChange: (v: string) => void }) {
+    const { S } = useErpContext()
+    return (
+        <span style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+            <input type="date" value={from} onChange={(e) => onFromChange(e.target.value)} style={{ ...S.inp, width: 100, padding: '4px 6px', fontSize: 11 }} title="From" />
+            <input type="date" value={to} onChange={(e) => onToChange(e.target.value)} style={{ ...S.inp, width: 100, padding: '4px 6px', fontSize: 11 }} title="To" />
+        </span>
+    )
+}
+
+/** Numeric range filter (min / max) for use under a column header. */
+export function ThNumberRangeFilter({ min, max, onMinChange, onMaxChange, placeholderMin = 'Min', placeholderMax = 'Max' }: { min: string; max: string; onMinChange: (v: string) => void; onMaxChange: (v: string) => void; placeholderMin?: string; placeholderMax?: string }) {
+    const { S } = useErpContext()
+    return (
+        <span style={{ display: 'flex', gap: 4 }}>
+            <input type="number" placeholder={placeholderMin} value={min} onChange={(e) => onMinChange(e.target.value)} style={{ ...S.inp, width: 64, padding: '4px 6px', fontSize: 11 }} />
+            <input type="number" placeholder={placeholderMax} value={max} onChange={(e) => onMaxChange(e.target.value)} style={{ ...S.inp, width: 64, padding: '4px 6px', fontSize: 11 }} />
+        </span>
+    )
+}
+
 export function ErpModal({ title, onSave, onClose, children, wide }: any) {
     const { S } = useErpContext()
     return (

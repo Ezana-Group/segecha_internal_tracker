@@ -95,6 +95,7 @@ function PayrollContent({ S, data, months, firstMonth, monthLabel, openModal, cl
     const getSortVal = (p: any, key: string) => {
         const drv = data.drivers.find((d: any) => d.id === p.driver)
         switch (key) {
+            case 'id': return (p.id || '').toString()
             case 'name': return (drv?.name || p.driver || '').toString()
             case 'baseSalary': return Number(p.baseSalary) || 0
             case 'allowance': return Number(p.allowance) || 0
@@ -138,12 +139,13 @@ function PayrollContent({ S, data, months, firstMonth, monthLabel, openModal, cl
                 <table style={{ ...S.tbl, minWidth: 800 }}>
                     <thead>
                         <tr>
+                            <SortableTh label="Record ID" sortKey="id" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
                             <SortableTh label="Driver" sortKey="name" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
                             <th style={S.th}>M-Pesa No.</th>
-                            <SortableTh label="Base Salary" sortKey="baseSalary" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
-                            <SortableTh label="Allowances" sortKey="allowance" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
-                            <SortableTh label="Deductions" sortKey="deductions" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
-                            <SortableTh label="Net Pay" sortKey="net" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
+                            <SortableTh label="Base Salary (KES)" sortKey="baseSalary" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
+                            <SortableTh label="Allowance (KES)" sortKey="allowance" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
+                            <SortableTh label="Deductions (KES)" sortKey="deductions" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
+                            <SortableTh label="Net Pay (KES)" sortKey="net" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
                             <th style={S.th}>M-Pesa Ref</th>
                             <SortableTh label="Status" sortKey="status" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
                             <th style={S.th}></th>
@@ -155,6 +157,7 @@ function PayrollContent({ S, data, months, firstMonth, monthLabel, openModal, cl
                             const net = +p.baseSalary + +p.allowance - +p.deductions
                             return (
                                 <tr key={p.id}>
+                                    <td style={{ ...S.td, fontFamily: "monospace", color: S.mtitle.color }}>{p.id}</td>
                                     <td style={{ ...S.td, fontWeight: 700, color: S.mtitle.color }}>{drv?.name || p.driver}</td>
                                     <td style={{ ...S.td, fontFamily: "monospace", color: "#10b981", fontSize: 11 }}>💚 {drv?.mpesa || "—"}</td>
                                     <td style={S.td}>{fmt(p.baseSalary)}</td>

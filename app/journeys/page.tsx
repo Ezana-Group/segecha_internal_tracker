@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import AppLayout from '@/components/AppLayout'
 import { useErpContext, fmt, today } from '@/lib/ErpContext'
-import { ErpModal, F, TableSearch, ImportReviewBadge, hasImportFlag, SortableTh, sortCompare, DateRangeFilter, ClearFiltersButton } from '@/components/ErpShared'
+import { ErpModal, F, TableSearch, ImportReviewBadge, hasImportFlag, SortableTh, sortCompare, DateRangeFilter, ClearFiltersButton, ThFilterCell, ThTextFilter, ThSelectFilter, ThDateFilter, ThNumberRangeFilter } from '@/components/ErpShared'
 import { STATUSES_JOURNEY } from '@/lib/seed-data'
 import { supabase } from '@/lib/supabase'
 import toast from 'react-hot-toast'
@@ -12,12 +12,22 @@ export default function Journeys() {
     const { S } = useErpContext()
     const [data, setData] = useState<any>(null)
     const [loading, setLoading] = useState(true)
-    const [filterTruck, setFilterTruck] = useState("ALL")
     const [searchQuery, setSearchQuery] = useState("")
+    const [filterOrigin, setFilterOrigin] = useState("")
+    const [filterDest, setFilterDest] = useState("")
+    const [filterTruckId, setFilterTruckId] = useState("")
+    const [filterDriver, setFilterDriver] = useState("")
+    const [filterDateFrom, setFilterDateFrom] = useState("")
+    const [filterDateTo, setFilterDateTo] = useState("")
+    const [filterCargoType, setFilterCargoType] = useState("")
+    const [filterWeightMin, setFilterWeightMin] = useState("")
+    const [filterWeightMax, setFilterWeightMax] = useState("")
+    const [filterDistanceMin, setFilterDistanceMin] = useState("")
+    const [filterDistanceMax, setFilterDistanceMax] = useState("")
+    const [filterRevenueMin, setFilterRevenueMin] = useState("")
+    const [filterRevenueMax, setFilterRevenueMax] = useState("")
+    const [filterStatus, setFilterStatus] = useState("")
     const [filterNeedsReview, setFilterNeedsReview] = useState<"ALL" | "YES">("ALL")
-    const [filterStatus, setFilterStatus] = useState("ALL")
-    const [dateFrom, setDateFrom] = useState("")
-    const [dateTo, setDateTo] = useState("")
     const [sort, setSort] = useState<{ key: string; dir: 'asc' | 'desc' }>({ key: 'date', dir: 'desc' })
     const [modal, setModal] = useState<string | null>(null)
     const [form, setForm] = useState<any>({})
@@ -75,28 +85,46 @@ export default function Journeys() {
     if (loading || !data) return <AppLayout><div style={S.ph}>Loading Journeys...</div></AppLayout>
 
     const q = searchQuery.trim().toLowerCase()
+    const uniqueCargo = [...new Set((data.journeys || []).map((j: any) => j.cargo).filter(Boolean))].sort() as string[]
     const filtered = data.journeys.filter((j: any) => {
-        if (filterTruck !== "ALL" && j.truck !== filterTruck) return false
         if (filterNeedsReview === "YES" && !hasImportFlag(j.notes)) return false
-        if (filterStatus !== "ALL" && j.status !== filterStatus) return false
-        if (dateFrom && (j.date || "") < dateFrom) return false
-        if (dateTo && (j.date || "") > dateTo) return false
+        if (filterOrigin && !(j.origin || "").toLowerCase().includes(filterOrigin.trim().toLowerCase())) return false
+        if (filterDest && !(j.dest || "").toLowerCase().includes(filterDest.trim().toLowerCase())) return false
+        if (filterTruckId !== "" && j.truck !== filterTruckId) return false
+        if (filterDriver && !driverName(j.driver).toLowerCase().includes(filterDriver.trim().toLowerCase())) return false
+        if (filterDateFrom && (j.date || "") < filterDateFrom) return false
+        if (filterDateTo && (j.date || "") > filterDateTo) return false
+        if (filterCargoType !== "" && (j.cargo || "") !== filterCargoType) return false
+        if (filterStatus !== "" && j.status !== filterStatus) return false
+        const w = Number(j.weight)
+        if (filterWeightMin !== "" && !Number.isNaN(Number(filterWeightMin)) && (Number.isNaN(w) || w < Number(filterWeightMin))) return false
+        if (filterWeightMax !== "" && !Number.isNaN(Number(filterWeightMax)) && (Number.isNaN(w) || w > Number(filterWeightMax))) return false
+        const d = Number(j.distance)
+        if (filterDistanceMin !== "" && !Number.isNaN(Number(filterDistanceMin)) && (Number.isNaN(d) || d < Number(filterDistanceMin))) return false
+        if (filterDistanceMax !== "" && !Number.isNaN(Number(filterDistanceMax)) && (Number.isNaN(d) || d > Number(filterDistanceMax))) return false
+        const r = Number(j.revenue)
+        if (filterRevenueMin !== "" && !Number.isNaN(Number(filterRevenueMin)) && (Number.isNaN(r) || r < Number(filterRevenueMin))) return false
+        if (filterRevenueMax !== "" && !Number.isNaN(Number(filterRevenueMax)) && (Number.isNaN(r) || r > Number(filterRevenueMax))) return false
         if (!q) return true
-        const route = `${j.origin} ${j.dest}`.toLowerCase()
+        const id = (j.id || "").toLowerCase()
+        const origin = (j.origin || "").toLowerCase()
+        const dest = (j.dest || "").toLowerCase()
         const truck = truckReg(j.truck).toLowerCase()
         const driver = driverName(j.driver).toLowerCase()
         const cargo = (j.cargo || "").toLowerCase()
         const status = (j.status || "").toLowerCase()
-        return route.includes(q) || truck.includes(q) || driver.includes(q) || cargo.includes(q) || status.includes(q)
+        return id.includes(q) || origin.includes(q) || dest.includes(q) || truck.includes(q) || driver.includes(q) || cargo.includes(q) || status.includes(q)
     })
-    const hasActiveFilters = searchQuery.trim() !== "" || filterTruck !== "ALL" || filterNeedsReview !== "ALL" || filterStatus !== "ALL" || dateFrom !== "" || dateTo !== ""
-    const clearFilters = () => { setSearchQuery(""); setFilterTruck("ALL"); setFilterNeedsReview("ALL"); setFilterStatus("ALL"); setDateFrom(""); setDateTo("") }
+    const hasActiveFilters = searchQuery.trim() !== "" || filterOrigin !== "" || filterDest !== "" || filterTruckId !== "" || filterDriver !== "" || filterDateFrom !== "" || filterDateTo !== "" || filterCargoType !== "" || filterWeightMin !== "" || filterWeightMax !== "" || filterDistanceMin !== "" || filterDistanceMax !== "" || filterRevenueMin !== "" || filterRevenueMax !== "" || filterStatus !== "" || filterNeedsReview !== "ALL"
+    const clearFilters = () => { setSearchQuery(""); setFilterOrigin(""); setFilterDest(""); setFilterTruckId(""); setFilterDriver(""); setFilterDateFrom(""); setFilterDateTo(""); setFilterCargoType(""); setFilterWeightMin(""); setFilterWeightMax(""); setFilterDistanceMin(""); setFilterDistanceMax(""); setFilterRevenueMin(""); setFilterRevenueMax(""); setFilterStatus(""); setFilterNeedsReview("ALL") }
     const totalKm = data.journeys.filter((j: any) => j.status === "Completed").reduce((s: any, j: any) => s + +j.distance, 0)
     const needsReviewCount = data.journeys.filter((j: any) => hasImportFlag(j.notes)).length
 
     const getSortVal = (j: any, key: string) => {
         switch (key) {
-            case 'route': return `${j.origin || ''} ${j.dest || ''}`.trim()
+            case 'id': return (j.id || '').toString()
+            case 'origin': return (j.origin || '').toString()
+            case 'dest': return (j.dest || '').toString()
             case 'truck': return truckReg(j.truck)
             case 'trailer': return j.trailer ? truckReg(j.trailer) : ''
             case 'driver': return driverName(j.driver)
@@ -120,19 +148,19 @@ export default function Journeys() {
                 <div style={S.ph}>◐ Journey Log</div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
                     <TableSearch value={searchQuery} onChange={setSearchQuery} placeholder="Search route, truck, driver, cargo..." />
-                    <select style={{ ...S.inp, width: 130 }} value={filterTruck} onChange={e => setFilterTruck(e.target.value)}>
-                        <option value="ALL">All Trucks</option>
+                    <select style={{ ...S.inp, width: 130 }} value={filterTruckId} onChange={e => setFilterTruckId(e.target.value)}>
+                        <option value="">All Trucks</option>
                         {tractors.map((t: any) => <option key={t.id} value={t.id}>{t.reg}</option>)}
                     </select>
                     <select style={{ ...S.inp, width: 120 }} value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
-                        <option value="ALL">All Status</option>
+                        <option value="">All Status</option>
                         {STATUSES_JOURNEY.map((s: string) => <option key={s} value={s}>{s}</option>)}
                     </select>
                     <select style={{ ...S.inp, width: 120 }} value={filterNeedsReview} onChange={e => setFilterNeedsReview(e.target.value as "ALL" | "YES")}>
                         <option value="ALL">All</option>
                         <option value="YES">Needs review ({needsReviewCount})</option>
                     </select>
-                    <DateRangeFilter from={dateFrom} to={dateTo} onFromChange={setDateFrom} onToChange={setDateTo} />
+                    <DateRangeFilter from={filterDateFrom} to={filterDateTo} onFromChange={setFilterDateFrom} onToChange={setFilterDateTo} />
                     <ClearFiltersButton hasActiveFilters={hasActiveFilters} onClear={clearFilters} />
                     <button style={S.btn()} onClick={() => openModal("journey", { date: today(), status: "Loading" })}>+ Log Journey</button>
                 </div>
@@ -141,35 +169,52 @@ export default function Journeys() {
                 {[{ l: "Total Journeys", v: data.journeys.length, c: "#38bdf8" }, { l: "Completed", v: data.journeys.filter((j: any) => j.status === "Completed").length, c: "#10b981" }, { l: "In Transit", v: data.journeys.filter((j: any) => j.status === "In Transit").length, c: "#3b82f6" }, { l: "Total Distance", v: `${totalKm.toLocaleString()} km`, c: "#a78bfa" }].map((k, i) => <div key={i} style={S.card(k.c)}><div style={S.kpi}>{k.l}</div><div style={S.val(k.c)}>{k.v}</div></div>)}
             </div>
             <div style={{ ...S.card(), overflowX: "auto" as any }}>
-                <table style={{ ...S.tbl, minWidth: 800 }}>
+                <table style={{ ...S.tbl, minWidth: 1000 }}>
                     <thead>
                         <tr>
-                            <SortableTh label="Route" sortKey="route" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
-                            <SortableTh label="Truck" sortKey="truck" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
-                            <SortableTh label="Trailer" sortKey="trailer" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
+                            <SortableTh label="Trip ID" sortKey="id" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
+                            <SortableTh label="Origin" sortKey="origin" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
+                            <SortableTh label="Destination" sortKey="dest" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
+                            <SortableTh label="Truck ID" sortKey="truck" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
                             <SortableTh label="Driver" sortKey="driver" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
-                            <SortableTh label="Date" sortKey="date" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
-                            <SortableTh label="Cargo" sortKey="cargo" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
-                            <SortableTh label="Weight" sortKey="weight" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
-                            <SortableTh label="Distance" sortKey="distance" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
-                            <SortableTh label="Revenue" sortKey="revenue" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
+                            <SortableTh label="Dispatch Date" sortKey="date" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
+                            <SortableTh label="Cargo Type" sortKey="cargo" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
+                            <SortableTh label="Weight (t)" sortKey="weight" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
+                            <SortableTh label="Distance (km)" sortKey="distance" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
+                            <SortableTh label="Revenue (KES)" sortKey="revenue" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
                             <SortableTh label="Status" sortKey="status" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
+                            <th style={S.th}>Notes</th>
                             <th style={S.th}></th>
-                            <th style={S.th}></th>
+                        </tr>
+                        <tr>
+                            <ThFilterCell><ThTextFilter value={searchQuery} onChange={setSearchQuery} placeholder="ID..." /></ThFilterCell>
+                            <ThFilterCell><ThTextFilter value={filterOrigin} onChange={setFilterOrigin} placeholder="Origin" /></ThFilterCell>
+                            <ThFilterCell><ThTextFilter value={filterDest} onChange={setFilterDest} placeholder="Destination" /></ThFilterCell>
+                            <ThFilterCell><ThSelectFilter value={filterTruckId} onChange={setFilterTruckId} options={tractors.map((t: any) => ({ v: t.id, l: t.reg }))} allLabel="All" /></ThFilterCell>
+                            <ThFilterCell><ThTextFilter value={filterDriver} onChange={setFilterDriver} placeholder="Driver" /></ThFilterCell>
+                            <ThFilterCell><ThDateFilter from={filterDateFrom} to={filterDateTo} onFromChange={setFilterDateFrom} onToChange={setFilterDateTo} /></ThFilterCell>
+                            <ThFilterCell><ThSelectFilter value={filterCargoType} onChange={setFilterCargoType} options={uniqueCargo} allLabel="All" /></ThFilterCell>
+                            <ThFilterCell><ThNumberRangeFilter min={filterWeightMin} max={filterWeightMax} onMinChange={setFilterWeightMin} onMaxChange={setFilterWeightMax} placeholderMin="Min" placeholderMax="Max" /></ThFilterCell>
+                            <ThFilterCell><ThNumberRangeFilter min={filterDistanceMin} max={filterDistanceMax} onMinChange={setFilterDistanceMin} onMaxChange={setFilterDistanceMax} placeholderMin="Min" placeholderMax="Max" /></ThFilterCell>
+                            <ThFilterCell><ThNumberRangeFilter min={filterRevenueMin} max={filterRevenueMax} onMinChange={setFilterRevenueMin} onMaxChange={setFilterRevenueMax} placeholderMin="Min" placeholderMax="Max" /></ThFilterCell>
+                            <ThFilterCell><ThSelectFilter value={filterStatus} onChange={setFilterStatus} options={STATUSES_JOURNEY} allLabel="All" /></ThFilterCell>
+                            <ThFilterCell></ThFilterCell>
+                            <ThFilterCell></ThFilterCell>
                         </tr>
                     </thead>
                     <tbody>
                         {sorted.map((j: any) => (
                             <tr key={j.id}>
-                                <td style={{ ...S.td, fontWeight: 700, color: S.mtitle.color }}>{j.origin} → {j.dest}</td>
+                                <td style={{ ...S.td, fontFamily: "monospace", color: S.mtitle.color }}>{j.id}</td>
+                                <td style={{ ...S.td, fontWeight: 600 }}>{j.origin || "—"}</td>
+                                <td style={{ ...S.td, fontWeight: 600 }}>{j.dest || "—"}</td>
                                 <td style={{ ...S.td, color: "#f97316", fontWeight: 700 }}>{truckReg(j.truck)}</td>
-                                <td style={{ ...S.td, color: "#94a3b8", fontSize: 12 }}>{j.trailer ? truckReg(j.trailer) : "—"}</td>
                                 <td style={S.td}>{driverName(j.driver)}</td>
-                                <td style={S.td}>{j.date}</td>
+                                <td style={S.td}>{j.date || "—"}</td>
                                 <td style={S.td}>{j.cargo || "—"}</td>
-                                <td style={S.td}>{j.weight ? `${j.weight}T` : "—"}</td>
-                                <td style={S.td}>{j.distance} km</td>
-                                <td style={{ ...S.td, color: "#10b981", fontWeight: 700 }}>{fmt(j.revenue)}</td>
+                                <td style={S.td}>{j.weight != null ? `${j.weight}` : "—"}</td>
+                                <td style={S.td}>{j.distance != null ? `${j.distance}` : "—"}</td>
+                                <td style={{ ...S.td, color: "#10b981", fontWeight: 700 }}>{j.revenue != null ? fmt(j.revenue) : "—"}</td>
                                 <td style={S.td}><span style={S.badge(j.status)}>{j.status}</span></td>
                                 <td style={S.td}><ImportReviewBadge notesOrDesc={j.notes} /></td>
                                 <td style={S.td}><div style={{ display: "flex", gap: 6 }}><button style={S.btn("sm")} onClick={() => openModal("journey", j)}>Edit</button><button style={S.btn("del")} onClick={() => delJourney(j.id)}>✕</button></div></td>

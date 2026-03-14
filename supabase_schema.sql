@@ -117,6 +117,18 @@ create table if not exists public.invoices (
   notes text
 );
 
+-- 7b. Invoice payments (deposits, partial, final). Invoice is Paid when sum >= amount.
+create table if not exists public.invoice_payments (
+  id text primary key,
+  invoice_id text not null references public.invoices(id) on delete cascade,
+  amount numeric not null,
+  "paidDate" date not null,
+  "mpesaRef" text,
+  "type" text default 'payment' check ("type" in ('deposit', 'partial', 'final', 'payment')),
+  notes text
+);
+create index if not exists idx_invoice_payments_invoice on public.invoice_payments(invoice_id);
+
 -- 8. Payroll
 create table if not exists public.payroll (
   id text primary key,
@@ -153,6 +165,7 @@ alter table public.journeys disable row level security;
 alter table public.fuel disable row level security;
 alter table public.expenses disable row level security;
 alter table public.invoices disable row level security;
+alter table public.invoice_payments disable row level security;
 alter table public.payroll disable row level security;
 alter table public.maintenance disable row level security;
 

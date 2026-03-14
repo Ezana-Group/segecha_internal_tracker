@@ -8,6 +8,7 @@ import toast from 'react-hot-toast'
 
 const NAV = [
   { href: '/dashboard', icon: '◈', label: 'Dashboard' },
+  { href: '/account', icon: '👤', label: 'Account' },
   { href: '/fleet', icon: '🚛', label: 'Fleet' },
   { href: '/drivers', icon: '👤', label: 'Drivers' },
   { href: '/journeys', icon: '🗺️', label: 'Journeys' },
@@ -102,7 +103,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </div>
       <div className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
         <p className="px-3 pt-1 pb-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Main Menu</p>
-        {NAV.map(n => {
+        {(NAV.filter(n => n.href !== '/driver' || user?.driver_id)).map(n => {
           const active = pathname === n.href
           return (
             <Link key={n.href} href={n.href} onClick={() => setSideOpen(false)}
