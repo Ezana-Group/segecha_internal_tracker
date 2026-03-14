@@ -16,12 +16,14 @@ export const supabaseAdmin = typeof window === 'undefined'
   )
   : (null as any)
 
-export type UserRole = 'admin' | 'director' | 'viewer'
+export type UserRole = 'admin' | 'director' | 'viewer' | 'staff'
 
 export interface AppUser {
   id: string
   email: string
   name: string
   role: UserRole
+  staff_type?: string | null
+  driver_id?: string | null
   avatar?: string
 }

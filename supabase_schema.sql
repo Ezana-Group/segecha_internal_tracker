@@ -41,6 +41,12 @@ create table if not exists public.drivers (
 -- 2b. Link user to driver for driver portal (after drivers table exists)
 alter table public.users add column if not exists driver_id text references public.drivers(id) on delete set null;
 
+-- 2c. Staff type when role = 'staff' (e.g. driver, marketing, office) — limits which areas they can access
+alter table public.users add column if not exists staff_type text;
+
+-- 2d. Profile photo URL (e.g. from storage bucket)
+alter table public.users add column if not exists avatar_url text;
+
 -- 3. Trucks
 create table if not exists public.trucks (
   id text primary key,

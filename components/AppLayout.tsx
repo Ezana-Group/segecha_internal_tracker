@@ -27,8 +27,18 @@ const ADMIN_NAV = [
   { href: '/admin/settings', icon: '⚙️', label: 'Settings (M-Pesa)' },
   { href: '/admin/driver-submissions', icon: '✅', label: 'Driver approvals' },
 ]
+const STAFF_NAV = [
+  { href: '/admin/staff', icon: '👤', label: 'Manage Staff' },
+]
 
-interface AppUser { id: string; email: string; name: string; role: 'admin' | 'director' | 'viewer'; driver_id?: string | null }
+// Staff see only these routes by staff_type (others hidden from sidebar and protected)
+const STAFF_ALLOWED_ROUTES: Record<string, string[]> = {
+  driver: ['/dashboard', '/account', '/driver'],
+  marketing: ['/dashboard', '/account', '/invoices', '/transactions'],
+  office: ['/dashboard', '/account', '/journeys', '/fuel', '/expenses', '/invoices', '/payroll', '/tyres', '/maintenance', '/pnl'],
+}
+
+interface AppUser { id: string; email: string; name: string; role: 'admin' | 'director' | 'viewer' | 'staff'; driver_id?: string | null; staff_type?: string | null }
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
@@ -37,6 +47,19 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
   const [sideOpen, setSideOpen] = useState(false)
   const [dark, setDark] = useState(false)
+
+  useEffect(() => {
+    if (user?.role === 'staff' && user?.staff_type && pathname?.startsWith('/admin')) {
+      router.replace('/dashboard')
+      return
+    }
+    if (user?.role === 'staff' && user?.staff_type && !pathname?.startsWith('/api')) {
+      const allowed = STAFF_ALLOWED_ROUTES[user.staff_type]
+      if (allowed && !allowed.includes(pathname || '')) {
+        router.replace('/dashboard')
+      }
+    }
+  }, [user, pathname, router])
 
   useEffect(() => {
     const loadUser = async () => {
@@ -99,12 +122,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     router.replace('/login')
   }
 
-  const roleColor: Record<string, string> = { admin: 'bg-red-500', director: 'bg-orange-500', viewer: 'bg-blue-500' }
+  const roleColor: Record<string, string> = { admin: 'bg-red-500', director: 'bg-orange-500', viewer: 'bg-blue-500', staff: 'bg-emerald-500' }
   const roleBadge: Record<string, string> = {
     admin: 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400',
     director: 'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-400',
     viewer: 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400',
+    staff: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400',
   }
+  const staffType = user?.role === 'staff' ? (user.staff_type ?? '') : ''
+  const navItems = staffType
+    ? NAV.filter(n => STAFF_ALLOWED_ROUTES[staffType]?.includes(n.href) && (n.href !== '/driver' || user?.driver_id))
+    : NAV.filter(n => n.href !== '/driver' || user?.driver_id)
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
@@ -121,7 +149,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </div>
       <div className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
         <p className="px-3 pt-1 pb-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Main Menu</p>
-        {(NAV.filter(n => n.href !== '/driver' || user?.driver_id)).map(n => {
+        {navItems.map(n => {
           const active = pathname === n.href
           return (
             <Link key={n.href} href={n.href} onClick={() => setSideOpen(false)}
@@ -140,6 +168,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 <span className="text-base w-5 text-center">{n.icon}</span><span>{n.label}</span>
               </Link>
             ))}
+            <p className="px-3 pt-4 pb-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Staff</p>
+            {STAFF_NAV.map(n => (
+              <Link key={n.href} href={n.href} onClick={() => setSideOpen(false)}
+                className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition">
+                <span className="text-base w-5 text-center">{n.icon}</span><span>{n.label}</span>
+              </Link>
+            ))}
           </>
         )}
       </div>
@@ -151,7 +186,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </div>
             <div className="min-w-0">
               <div className="text-xs font-semibold text-slate-900 dark:text-white truncate">{user.name}</div>
-              <div className="text-[10px] text-slate-400 capitalize">{user.role}</div>
+              <div className="text-[10px] text-slate-400 capitalize">{user.role}{user.staff_type ? ` · ${user.staff_type}` : ''}</div>
             </div>
           </div>
         )}
@@ -200,7 +235,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </button>
             {user && (
               <span className={`hidden sm:inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold ${roleBadge[user.role]}`}>
-                {user.name.split(' ')[0]} · {user.role}
+                {user.name.split(' ')[0]} · {user.role}{user.staff_type ? ` (${user.staff_type})` : ''}
               </span>
             )}
           </div>
