@@ -6,36 +6,63 @@ import { supabaseAdmin } from '@/lib/supabase'
 
 /**
  * Admin-only: send a password reset email to a user. They reset it themselves via the link.
+ * Auth: cookies first; fallback to access_token + refresh_token in body (so it works when cookies aren't sent).
  */
 export async function POST(req: NextRequest) {
   try {
-    const { userId } = await req.json()
+    const body = await req.json().catch(() => ({} as Record<string, unknown>))
+    const userId = typeof body?.userId === 'string' ? body.userId : null
     if (!userId) {
       return NextResponse.json({ error: 'userId is required' }, { status: 400 })
     }
 
-    const cookieStore = cookies()
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return cookieStore.getAll()
-          },
-          setAll() {},
-        },
-      }
-    )
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    let user: { id: string } | null = null
+    const accessToken = typeof body?.access_token === 'string' ? body.access_token : undefined
+    const refreshToken = typeof body?.refresh_token === 'string' ? body.refresh_token : undefined
+
+    if (accessToken && refreshToken) {
+      const client = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        { auth: { persistSession: false } }
+      )
+      const { data: { user: u }, error } = await client.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken,
+      })
+      if (!error && u) user = u
     }
 
-    const { data: profile } = await supabase
+    if (!user) {
+      const cookieStore = cookies()
+      const supabase = createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        {
+          cookies: {
+            getAll() {
+              return cookieStore.getAll()
+            },
+            setAll(cookiesToSet: { name: string; value: string; options?: { maxAge?: number; path?: string } }[]) {
+              try {
+                cookiesToSet.forEach(({ name, value, options }) =>
+                  cookieStore.set(name, value, options)
+                )
+              } catch {
+                // ignore
+              }
+            },
+          },
+        }
+      )
+      const { data: { user: u }, error: authError } = await supabase.auth.getUser()
+      if (authError || !u) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
+      user = u
+    }
+
+    const { data: profile } = await supabaseAdmin
       .from('users')
       .select('role')
       .eq('id', user.id)

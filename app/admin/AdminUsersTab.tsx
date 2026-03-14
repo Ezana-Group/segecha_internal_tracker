@@ -117,10 +117,17 @@ export default function AdminUsersTab() {
   const sendResetEmail = async (userId: string, userName: string, userEmail: string) => {
     setSendingResetEmailFor(userId)
     try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const body: { userId: string; access_token?: string; refresh_token?: string } = { userId }
+      if (session?.access_token && session?.refresh_token) {
+        body.access_token = session.access_token
+        body.refresh_token = session.refresh_token
+      }
       const res = await fetch('/api/admin/send-reset-email', {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId }),
+        body: JSON.stringify(body),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Failed to send reset email')
