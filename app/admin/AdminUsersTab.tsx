@@ -18,10 +18,7 @@ export default function AdminUsersTab() {
   const [showCreateDriver, setShowCreateDriver] = useState(false)
   const [driverForm, setDriverForm] = useState({ name: '', phone: '', mpesa: '', license: '', status: 'Active' })
   const [creatingDriver, setCreatingDriver] = useState(false)
-  const [resetUser, setResetUser] = useState<{ id: string; name: string; email: string } | null>(null)
-  const [newPassword, setNewPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
-  const [resetting, setResetting] = useState(false)
+  const [sendingResetEmailFor, setSendingResetEmailFor] = useState<string | null>(null)
   const [editUser, setEditUser] = useState<any | null>(null)
   const [editForm, setEditForm] = useState({ name: '', email: '', role: 'viewer', staff_type: '', driver_id: '' })
   const [savingEdit, setSavingEdit] = useState(false)
@@ -117,28 +114,22 @@ export default function AdminUsersTab() {
     }
   }
 
-  const resetPassword = async () => {
-    if (!resetUser) return
-    if (!newPassword || newPassword.length < 6) return toast.error('Password must be at least 6 characters')
-    if (newPassword !== confirmPassword) return toast.error('Passwords do not match')
-    setResetting(true)
+  const sendResetEmail = async (userId: string, userName: string, userEmail: string) => {
+    setSendingResetEmailFor(userId)
     try {
-      const res = await fetch('/api/admin/reset-password', {
+      const res = await fetch('/api/admin/send-reset-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: resetUser.id, newPassword }),
+        body: JSON.stringify({ userId }),
       })
       const json = await res.json()
-      if (!res.ok) throw new Error(json.error || 'Failed to reset password')
-      toast.success(`Password reset for ${resetUser.name}. They must sign in with the new password.`)
-      setResetUser(null)
-      setNewPassword('')
-      setConfirmPassword('')
-      loadUsers()
+      if (!res.ok) throw new Error(json.error || 'Failed to send reset email')
+      toast.success(`Password reset email sent to ${userEmail}. They can set a new password via the link.`)
+      setOpenActionsId(null)
     } catch (e: any) {
       toast.error(e.message)
     } finally {
-      setResetting(false)
+      setSendingResetEmailFor(null)
     }
   }
 
@@ -400,10 +391,11 @@ export default function AdminUsersTab() {
                           )}
                           <button
                             type="button"
-                            onClick={() => { setResetUser({ id: u.id, name: u.name, email: u.email }); setOpenActionsId(null) }}
-                            className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20"
+                            onClick={() => sendResetEmail(u.id, u.name, u.email)}
+                            disabled={sendingResetEmailFor === u.id}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 disabled:opacity-50"
                           >
-                            <KeyRound className="w-4 h-4" /> Reset password
+                            <KeyRound className="w-4 h-4" /> Send reset email
                           </button>
                           {currentUserId !== u.id && (
                             <button
@@ -514,29 +506,6 @@ export default function AdminUsersTab() {
             <div className="flex gap-3 mt-5">
               <button onClick={saveEdit} disabled={savingEdit} className="flex-1 bg-gradient-to-r from-orange-500 to-red-600 text-white font-bold py-2 rounded-lg text-sm hover:opacity-90 disabled:opacity-60">{savingEdit ? 'Saving…' : 'Save'}</button>
               <button onClick={() => setEditUser(null)} className="flex-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-semibold py-2 rounded-lg text-sm">Cancel</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {resetUser && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 w-full max-w-md border border-slate-200 dark:border-slate-700 shadow-2xl">
-            <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">Reset Password</h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">Set a new password for <strong>{resetUser.name}</strong> ({resetUser.email}). They will need to sign in again with this password.</p>
-            <div className="space-y-3">
-              <div>
-                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">New Password</label>
-                <input type="password" className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-orange-500" placeholder="Min 6 characters" value={newPassword} onChange={e => setNewPassword(e.target.value)} />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Confirm Password</label>
-                <input type="password" className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-orange-500" placeholder="Same as above" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} />
-              </div>
-            </div>
-            <div className="flex gap-3 mt-5">
-              <button onClick={resetPassword} disabled={resetting || newPassword.length < 6 || newPassword !== confirmPassword} className="flex-1 bg-gradient-to-r from-orange-500 to-red-600 text-white font-bold py-2 rounded-lg text-sm hover:opacity-90 disabled:opacity-60 transition">{resetting ? 'Resetting…' : 'Set New Password'}</button>
-              <button onClick={() => { setResetUser(null); setNewPassword(''); setConfirmPassword('') }} className="flex-1 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-semibold py-2 rounded-lg text-sm hover:bg-slate-200 dark:hover:bg-slate-700 transition">Cancel</button>
             </div>
           </div>
         </div>
