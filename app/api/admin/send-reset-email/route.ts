@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
     }
 
     const origin = req.nextUrl.origin
-    const redirectTo = `${origin}/account`
+    const redirectTo = `${origin}/reset-password`
 
     const anonClient = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,

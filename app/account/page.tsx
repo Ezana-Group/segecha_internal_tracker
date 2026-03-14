@@ -125,7 +125,7 @@ export default function AccountPage() {
     setSendingReset(true)
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(profile.email, {
-        redirectTo: `${typeof window !== 'undefined' ? window.location.origin : ''}/account`,
+        redirectTo: `${typeof window !== 'undefined' ? window.location.origin : ''}/reset-password`,
       })
       if (error) throw error
       toast.success('Check your email for the password reset link.')

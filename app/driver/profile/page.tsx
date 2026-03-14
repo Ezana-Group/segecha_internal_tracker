@@ -39,7 +39,7 @@ export default function DriverProfilePage() {
     setSendingReset(true)
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
-        redirectTo: `${typeof window !== 'undefined' ? window.location.origin : ''}/driver/profile`,
+        redirectTo: `${typeof window !== 'undefined' ? window.location.origin : ''}/reset-password`,
       })
       if (error) throw error
       toast.success('Password reset email sent.')

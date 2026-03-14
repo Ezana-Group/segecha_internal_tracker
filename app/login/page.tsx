@@ -9,6 +9,7 @@ function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const isRevoked = searchParams.get('revoked') === '1'
+  const resetSuccess = searchParams.get('reset') === 'success'
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -45,6 +46,12 @@ function LoginForm() {
         {/* Card */}
         <div className="bg-slate-800/80 backdrop-blur border border-slate-700 rounded-2xl p-8 shadow-2xl">
           <h2 className="text-lg font-bold text-white mb-6">Sign in to your account</h2>
+
+          {resetSuccess && (
+            <div className="mb-4 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-sm text-center">
+              ✅ Password updated successfully. Please sign in with your new password.
+            </div>
+          )}
 
           {isRevoked && (
             <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm text-center">

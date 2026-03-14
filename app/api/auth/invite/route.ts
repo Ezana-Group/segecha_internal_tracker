@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
     // Invite user via Supabase Auth (sends magic link email)
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
       data: { name, role, staff_type: staffType || null },
-      redirectTo: `${process.env.NEXTAUTH_URL}/dashboard`,
+      redirectTo: `${process.env.NEXTAUTH_URL}/reset-password`,
     })
 
     if (authError) return NextResponse.json({ error: authError.message }, { status: 400 })
