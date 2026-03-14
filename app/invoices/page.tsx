@@ -1,6 +1,8 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import AppLayout from '@/components/AppLayout'
 import { useErpContext, fmt, today, uid } from '@/lib/ErpContext'
 import { ErpModal, F, TableSearch, SortableTh, sortCompare, DateRangeFilter, ClearFiltersButton } from '@/components/ErpShared'
@@ -119,8 +121,277 @@ function InvoiceView({ inv, onClose, data, settings, onStkPush, stkPushing, tota
     )
 }
 
-export default function Invoices() {
+// M-Pesa Transactions tab content (moved from app/transactions/page.tsx)
+function MpesaTransactionsTab() {
     const { S } = useErpContext()
+    const [data, setData] = useState<any>(null)
+    const [loading, setLoading] = useState(true)
+    const [searchQuery, setSearchQuery] = useState('')
+    const [sort, setSort] = useState<{ key: string; dir: 'asc' | 'desc' }>({ key: 'createdAt', dir: 'desc' })
+    const [matchModal, setMatchModal] = useState<any>(null)
+    const [matchType, setMatchType] = useState<'invoice' | 'payroll'>('invoice')
+
+    const loadData = async () => {
+        setLoading(true)
+        const [
+            { data: txns },
+            { data: invoices },
+            { data: payroll },
+            { data: drivers },
+            payRes
+        ] = await Promise.all([
+            supabase.from('mpesa_transactions').select('*').order('createdAt', { ascending: false }),
+            supabase.from('invoices').select('id, client, amount, status'),
+            supabase.from('payroll').select('*'),
+            supabase.from('drivers').select('id, name'),
+            supabase.from('invoice_payments').select('*')
+        ])
+        setData({
+            transactions: txns || [],
+            invoices: invoices || [],
+            payroll: payroll || [],
+            drivers: drivers || [],
+            invoicePayments: payRes?.data || []
+        })
+        setLoading(false)
+    }
+
+    useEffect(() => { loadData() }, [])
+
+    const q = searchQuery.trim().toLowerCase()
+    const filtered = (data?.transactions || []).filter((t: any) => {
+        if (!q) return true
+        const phone = (t.phone || '').toLowerCase()
+        const receipt = (t.receiptNumber || '').toLowerCase()
+        const ref = (t.accountReference || '').toLowerCase()
+        return phone.includes(q) || receipt.includes(q) || ref.includes(q)
+    })
+    const hasActiveFilters = searchQuery.trim() !== ''
+    const clearFilters = () => setSearchQuery('')
+    const getSortVal = (t: any, key: string) => {
+        switch (key) {
+            case 'createdAt': return t.createdAt || ''
+            case 'amount': return Number(t.amount) || 0
+            case 'phone': return (t.phone || '').toString()
+            case 'receiptNumber': return (t.receiptNumber || '').toString()
+            case 'status': return (t.status || '').toString()
+            default: return ''
+        }
+    }
+    const handleSort = (key: string) => setSort(prev => ({ key, dir: prev.key === key ? (prev.dir === 'asc' ? 'desc' : 'asc') : 'desc' }))
+    const sorted = [...filtered].sort((a, b) => sortCompare(getSortVal(a, sort.key), getSortVal(b, sort.key), sort.dir))
+
+    const matchToInvoice = async (txId: string, invoiceId: string) => {
+        const txn = data.transactions.find((t: any) => t.id === txId)
+        const { error: err1 } = await supabase.from('mpesa_transactions').update({ invoiceId }).eq('id', txId)
+        if (err1) return toast.error(err1.message)
+        const { error: err2 } = await supabase.from('invoices').update({ status: 'Paid', mpesaRef: txn?.receiptNumber || null, paidDate: today() }).eq('id', invoiceId)
+        if (err2) return toast.error(err2.message)
+        toast.success('Transaction matched to invoice')
+        setMatchModal(null)
+        loadData()
+    }
+    const matchToPayroll = async (txId: string, payrollId: string) => {
+        const txn = data.transactions.find((t: any) => t.id === txId)
+        const { error: err1 } = await supabase.from('mpesa_transactions').update({ payrollId }).eq('id', txId)
+        if (err1) return toast.error(err1.message)
+        const { error: err2 } = await supabase.from('payroll').update({ status: 'Paid', mpesaRef: txn?.receiptNumber, paidDate: today() }).eq('id', payrollId)
+        if (err2) return toast.error(err2.message)
+        toast.success('Transaction matched to payroll')
+        setMatchModal(null)
+        loadData()
+    }
+    const requestRefund = async (txId: string) => {
+        if (!confirm('Request refund (reversal) for this transaction? This will call the M-Pesa Reversal API.')) return
+        try {
+            const res = await fetch('/api/mpesa/reversal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ transactionId: txId }) })
+            const json = await res.json()
+            if (!res.ok) throw new Error(json.error || 'Reversal failed')
+            toast.success('Reversal requested')
+            loadData()
+        } catch (e: any) {
+            toast.error(e.message || 'Refund failed')
+        }
+    }
+    const driverName = (driverId: string) => (data?.drivers || []).find((d: any) => d.id === driverId)?.name || '—'
+
+    if (loading || !data) return <div style={S.ph}>Loading M-Pesa transactions...</div>
+
+    return (
+        <>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
+                <div style={S.ph}>💳 M-Pesa Transactions</div>
+                <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                    <TableSearch value={searchQuery} onChange={setSearchQuery} placeholder="Search phone, receipt, reference..." />
+                    <ClearFiltersButton hasActiveFilters={hasActiveFilters} onClear={clearFilters} />
+                </div>
+            </div>
+            <p style={{ fontSize: 13, color: S.kpi?.color, marginBottom: 16 }}>
+                All M-Pesa payments appear here: STK Push (callback) and manual entries (when you enter M-Pesa ref and confirm on an invoice). Match unmatched ones to an invoice or payroll; use Refund to reverse.
+            </p>
+            <div style={{ ...S.card(), overflowX: 'auto' as any }}>
+                <table style={{ ...S.tbl, minWidth: 800 }}>
+                    <thead>
+                        <tr>
+                            <SortableTh label="Date" sortKey="createdAt" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
+                            <SortableTh label="Receipt" sortKey="receiptNumber" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
+                            <th style={S.th}>Source</th>
+                            <SortableTh label="Phone" sortKey="phone" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
+                            <SortableTh label="Amount" sortKey="amount" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
+                            <th style={S.th}>Status</th>
+                            <th style={S.th}>Matched to</th>
+                            <th style={S.th}></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {sorted.length === 0 ? (
+                            <tr><td colSpan={8} style={{ ...S.td, textAlign: 'center', color: S.textDim }}>No M-Pesa transactions yet.</td></tr>
+                        ) : (
+                            sorted.map((t: any) => (
+                                <tr key={t.id}>
+                                    <td style={S.td}>{t.createdAt ? new Date(t.createdAt).toLocaleString('en-KE') : '—'}</td>
+                                    <td style={{ ...S.td, fontFamily: 'monospace', color: '#10b981' }}>{t.receiptNumber || '—'}</td>
+                                    <td style={S.td}><span style={S.badge((t.id || '').toString().startsWith('MANUAL-') ? 'Manual' : 'STK')}>{(t.id || '').toString().startsWith('MANUAL-') ? 'Manual' : 'STK'}</span></td>
+                                    <td style={S.td}>{t.phone || '—'}</td>
+                                    <td style={{ ...S.td, fontWeight: 700, color: '#10b981' }}>{fmt(t.amount)}</td>
+                                    <td style={S.td}><span style={S.badge(t.status)}>{t.status}</span></td>
+                                    <td style={S.td}>
+                                        {t.invoiceId ? <span style={{ color: '#38bdf8' }}>Invoice {t.invoiceId}</span> : t.payrollId ? <span style={{ color: '#f59e0b' }}>Payroll</span> : '—'}
+                                    </td>
+                                    <td style={S.td}>
+                                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                            {!t.invoiceId && !t.payrollId && t.status === 'completed' && (
+                                                <>
+                                                    <button style={S.btn('sm')} onClick={() => { setMatchModal({ txId: t.id, type: 'invoice' }); setMatchType('invoice') }}>Match invoice</button>
+                                                    <button style={S.btn('sm')} onClick={() => { setMatchModal({ txId: t.id, type: 'payroll' }); setMatchType('payroll') }}>Match payroll</button>
+                                                </>
+                                            )}
+                                            {t.status === 'completed' && !(t.id || '').toString().startsWith('MANUAL-') && (
+                                                <button style={S.btn('del')} onClick={() => requestRefund(t.id)} title="Request M-Pesa reversal">Refund</button>
+                                            )}
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))
+                        )}
+                    </tbody>
+                </table>
+            </div>
+            {matchModal && matchType === 'invoice' && (
+                <div style={S.ovl} onClick={() => setMatchModal(null)}>
+                    <div style={{ ...S.mbox, maxWidth: 400 }} onClick={e => e.stopPropagation()}>
+                        <div style={S.mtitle}>Match to invoice</div>
+                        <p style={{ fontSize: 13, color: S.textDim, marginBottom: 12 }}>Select the invoice this payment is for. Invoice will be marked Paid.</p>
+                        <select id="match-inv-select" style={{ ...S.inp, marginBottom: 16 }}>
+                            <option value="">— Select invoice —</option>
+                            {data.invoices.filter((i: any) => {
+                                const totalPaid = (data?.invoicePayments || []).filter((p: any) => p.invoice_id === i.id).reduce((s: number, p: any) => s + Number(p.amount || 0), 0)
+                                const resolved = (totalPaid != null && totalPaid >= Number(i.amount || 0)) ? 'Paid' : (i.status || 'Pending')
+                                return resolved !== 'Paid'
+                            }).map((i: any) => (
+                                <option key={i.id} value={i.id}>{i.id} — {i.client} — {fmt(i.amount)}</option>
+                            ))}
+                        </select>
+                        <div style={{ display: 'flex', gap: 10 }}>
+                            <button style={S.btn()} onClick={() => { const sel = (document.getElementById('match-inv-select') as HTMLSelectElement)?.value; if (sel) matchToInvoice(matchModal.txId, sel); }}>Match</button>
+                            <button style={S.btn('ghost')} onClick={() => setMatchModal(null)}>Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {matchModal && matchType === 'payroll' && (
+                <div style={S.ovl} onClick={() => setMatchModal(null)}>
+                    <div style={{ ...S.mbox, maxWidth: 400 }} onClick={e => e.stopPropagation()}>
+                        <div style={S.mtitle}>Match to payroll</div>
+                        <p style={{ fontSize: 13, color: S.textDim, marginBottom: 12 }}>Select the payroll record this payment is for.</p>
+                        <select id="match-pay-select" style={{ ...S.inp, marginBottom: 16 }}>
+                            <option value="">— Select payroll —</option>
+                            {data.payroll.filter((p: any) => p.status !== 'Paid').map((p: any) => (
+                                <option key={p.id} value={p.id}>{driverName(p.driver)} — {p.month} — {fmt(+(p.baseSalary || 0) + +(p.allowance || 0) - +(p.deductions || 0))}</option>
+                            ))}
+                        </select>
+                        <div style={{ display: 'flex', gap: 10 }}>
+                            <button style={S.btn()} onClick={() => { const sel = (document.getElementById('match-pay-select') as HTMLSelectElement)?.value; if (sel) matchToPayroll(matchModal.txId, sel); }}>Match</button>
+                            <button style={S.btn('ghost')} onClick={() => setMatchModal(null)}>Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </>
+    )
+}
+
+const SETTINGS_KEYS = {
+    paybill_display: 'Paybill number (e.g. 123456)',
+    till_display: 'Till / Buy Goods number (optional)',
+    account_prefix: 'Account number prefix (e.g. INV — shown as "Account: INV-12345")',
+} as const
+
+function InvoicesSettingsTab() {
+    const { S } = useErpContext()
+    const [values, setValues] = useState<Record<string, string>>({ paybill_display: '', till_display: '', account_prefix: 'INV' })
+    const [loading, setLoading] = useState(true)
+    const [saving, setSaving] = useState(false)
+
+    const load = async () => {
+        setLoading(true)
+        const { data } = await supabase.from('settings').select('key, value')
+        const map: Record<string, string> = { paybill_display: '', till_display: '', account_prefix: 'INV' }
+        ;(data || []).forEach((r: any) => { map[r.key] = r.value ?? '' })
+        setValues(map)
+        setLoading(false)
+    }
+    useEffect(() => { load() }, [])
+
+    const save = async () => {
+        setSaving(true)
+        try {
+            for (const [key, value] of Object.entries(values)) {
+                await supabase.from('settings').upsert({ key, value }, { onConflict: 'key' })
+            }
+            toast.success('Settings saved')
+        } catch (e) {
+            toast.error('Failed to save')
+        } finally {
+            setSaving(false)
+        }
+    }
+
+    if (loading) return <div style={S.ph}>Loading settings...</div>
+    return (
+        <div style={{ maxWidth: 560 }}>
+            <div style={{ ...S.mtitle, marginBottom: 8 }}>⚙️ Settings</div>
+            <p style={{ fontSize: 13, color: S.kpi?.color || '#64748b', marginBottom: 24 }}>
+                M-Pesa Paybill / Till numbers shown on invoices. API credentials (Consumer Key, Passkey, etc.) are set in environment variables.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {(Object.keys(SETTINGS_KEYS) as (keyof typeof SETTINGS_KEYS)[]).map(key => (
+                    <div key={key} style={S.fg}>
+                        <label style={S.lbl}>{SETTINGS_KEYS[key]}</label>
+                        <input
+                            style={S.inp}
+                            value={values[key] ?? ''}
+                            onChange={e => setValues(prev => ({ ...prev, [key]: e.target.value }))}
+                            placeholder={key === 'account_prefix' ? 'INV' : ''}
+                        />
+                    </div>
+                ))}
+            </div>
+            <div style={{ display: 'flex', gap: 10, marginTop: 24 }}>
+                <button style={S.btn()} onClick={save} disabled={saving}>{saving ? 'Saving...' : 'Save settings'}</button>
+            </div>
+            <div style={{ marginTop: 32, padding: 16, background: S.wrap?.background || '#f8fafc', borderRadius: 8, border: `1px solid ${S.border}`, fontSize: 12, color: S.kpi?.color }}>
+                <strong>On invoices:</strong> Customers will see Paybill (or Till) and Account number so they can pay manually. Use &quot;Request payment&quot; in the app to send an STK Push to the customer&apos;s phone.
+            </div>
+        </div>
+    )
+}
+
+function InvoicesContent() {
+    const { S } = useErpContext()
+    const router = useRouter()
+    const searchParams = useSearchParams()
+    const tab = searchParams.get('tab') || 'invoices'
     const [data, setData] = useState<any>(null)
     const [loading, setLoading] = useState(true)
     const [searchQuery, setSearchQuery] = useState("")
@@ -150,6 +421,7 @@ export default function Invoices() {
         if (!payErr) payments = p || []
         const settingsMap: Record<string, string> = {}
         ;(settingsRows || []).forEach((r: any) => { settingsMap[r.key] = r.value ?? '' })
+        setSettings(settingsMap)
         setData({ invoices: invoices || [], trucks: trucks || [], journeys: journeys || [], drivers: drivers || [], invoicePayments: payments })
         setLoading(false)
     }
@@ -307,6 +579,29 @@ export default function Invoices() {
 
     if (loading || !data) return <AppLayout><div style={S.ph}>Loading Invoices...</div></AppLayout>
 
+    const tabPill = (key: string, label: string) => {
+        const active = tab === key
+        return (
+            <button
+                key={key}
+                type="button"
+                onClick={() => router.replace(`/invoices?tab=${key}`)}
+                style={{
+                    padding: '8px 16px',
+                    borderRadius: 9999,
+                    fontSize: 14,
+                    fontWeight: 600,
+                    border: `1px solid ${active ? (S as any).mtitle?.color || '#f97316' : S.border}`,
+                    background: active ? (S as any).mtitle?.color || '#f97316' : 'transparent',
+                    color: active ? '#fff' : S.text,
+                    cursor: 'pointer',
+                }}
+            >
+                {label}
+            </button>
+        )
+    }
+
     const invoicesPaid = data.invoices.filter((i: any) => i.status === "Paid").reduce((s: any, i: any) => s + +i.amount, 0)
     const q = searchQuery.trim().toLowerCase()
     const getRoute = (inv: any) => {
@@ -344,6 +639,15 @@ export default function Invoices() {
 
     return (
         <AppLayout>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap', alignItems: 'center' }}>
+                {tabPill('invoices', 'Invoices')}
+                {tabPill('transactions', 'M-Pesa Transactions')}
+                {tabPill('settings', 'Settings')}
+            </div>
+            {tab === 'transactions' && <MpesaTransactionsTab />}
+            {tab === 'settings' && <InvoicesSettingsTab />}
+            {tab === 'invoices' && (
+            <>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
                 <div style={S.ph}>◆ M-Pesa Invoices</div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
@@ -412,7 +716,7 @@ export default function Invoices() {
                 </table>
             </div>
             {invoicePreview && <InvoiceView inv={invoicePreview} onClose={() => setInvoicePreview(null)} data={data} settings={settings} onStkPush={handleStkPush} stkPushing={stkPushing} totalPaid={totalPaidForInvoice(invoicePreview)} paymentsList={paymentsForInvoice(invoicePreview.id)} />}
-            {modal === "invoice" && (
+            {modal === 'invoice' && (
                 <ErpModal title={form.id ? "Edit Invoice" : "New Invoice"} onClose={closeModal} onSave={saveInvoice}>
                     <div style={S.fgg(2)}>
                         <F label="Client Name" k="client" full form={form} setForm={setForm} />
@@ -470,6 +774,16 @@ export default function Invoices() {
                     )}
                 </ErpModal>
             )}
+            </>
+            )}
         </AppLayout>
+    )
+}
+
+export default function Invoices() {
+    return (
+        <Suspense fallback={<AppLayout><div style={{ padding: 24, textAlign: 'center', color: '#64748b' }}>Loading…</div></AppLayout>}>
+            <InvoicesContent />
+        </Suspense>
     )
 }

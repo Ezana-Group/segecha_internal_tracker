@@ -6,7 +6,7 @@ import { useErpContext } from '@/lib/ErpContext'
 import { supabase } from '@/lib/supabase'
 import toast from 'react-hot-toast'
 
-type Profile = { id: string; email: string; name: string; role: string; driver_id?: string | null; staff_type?: string | null; avatar_url?: string | null }
+type Profile = { id: string; email: string; name: string; role: string; driver_id?: string | null; staff_type?: string | null; avatar_url?: string | null; phone?: string | null; last_login?: string | null }
 
 export default function AccountPage() {
   const { S } = useErpContext()
@@ -16,17 +16,20 @@ export default function AccountPage() {
   const [ensuring, setEnsuring] = useState(false)
   const [sendingReset, setSendingReset] = useState(false)
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
+  const [editName, setEditName] = useState('')
+  const [editPhone, setEditPhone] = useState('')
+  const [savingProfile, setSavingProfile] = useState(false)
   const ensuredOnce = useRef(false)
 
   const loadProfile = async () => {
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) return null
-    let { data: profileData } = await supabase.from('users').select('id, email, name, role').eq('id', session.user.id).single()
+    let { data: profileData } = await supabase.from('users').select('id, email, name, role, phone, last_login').eq('id', session.user.id).single()
     if (!profileData) {
       const name = session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'User'
       const { data: created } = await supabase.from('users')
         .upsert({ id: session.user.id, email: session.user.email, name, role: 'admin' })
-        .select('id, email, name, role').single()
+        .select('id, email, name, role, phone, last_login').single()
       profileData = created ?? null
     }
     const driverId = (profileData as { driver_id?: string } | null)?.driver_id
@@ -35,6 +38,10 @@ export default function AccountPage() {
       setDriver(driverData ?? null)
     } else setDriver(null)
     setProfile(profileData || null)
+    if (profileData) {
+      setEditName((profileData as Profile).name || '')
+      setEditPhone((profileData as Profile).phone || '')
+    }
     return profileData
   }
 
@@ -129,6 +136,23 @@ export default function AccountPage() {
     }
   }
 
+  const saveProfile = async () => {
+    if (!profile) return
+    setSavingProfile(true)
+    try {
+      const { error } = await supabase.from('users').update({ name: editName.trim() || profile.name, phone: editPhone.trim() || null }).eq('id', profile.id)
+      if (error) throw error
+      setProfile({ ...profile, name: editName.trim() || profile.name, phone: editPhone.trim() || null })
+      toast.success('Profile updated.')
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to update profile')
+    } finally {
+      setSavingProfile(false)
+    }
+  }
+
+  const formatDate = profile?.last_login ? new Date(profile.last_login).toLocaleString('en-KE', { dateStyle: 'medium', timeStyle: 'short' }) : null
+
   const onPhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file || !profile) return
@@ -159,9 +183,10 @@ export default function AccountPage() {
       <p style={{ fontSize: 13, color: S.textDim, marginBottom: 24 }}>
         Your profile, security, and role. Admins also see <strong>Admin</strong> and <strong>Staff</strong> in the sidebar.
       </p>
-      <div style={{ ...S.card(), maxWidth: 520 }}>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24, alignItems: 'flex-start' }}>
-          <div style={{ flexShrink: 0 }}>
+      <div style={{ ...S.card(), maxWidth: 768 }} className="max-w-3xl">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          {/* Left column: Avatar, name, email, role */}
+          <div className="flex flex-col items-start">
             <label className="block cursor-pointer">
               <div style={{ width: 88, height: 88, borderRadius: '50%', overflow: 'hidden', background: S.slot?.background || '#e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid var(--border, #e2e8f0)' }}>
                 {profile.avatar_url ? (
@@ -173,36 +198,43 @@ export default function AccountPage() {
               <input type="file" accept="image/*" className="sr-only" onChange={onPhotoChange} disabled={uploadingPhoto} />
               <div style={{ fontSize: 11, color: S.textDim, marginTop: 6, textAlign: 'center' }}>{uploadingPhoto ? 'Uploading…' : 'Change photo'}</div>
             </label>
-          </div>
-          <div style={{ flex: 1, minWidth: 200 }}>
-            <div style={{ marginBottom: 12 }}>
-              <div style={{ ...S.kpi, marginBottom: 4 }}>Name</div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: S.mtitle.color }}>{profile.name || '—'}</div>
-            </div>
-            <div style={{ marginBottom: 12 }}>
-              <div style={{ ...S.kpi, marginBottom: 4 }}>Email</div>
-              <div style={{ fontSize: 15, color: S.text }}>{profile.email || '—'}</div>
-            </div>
-            <div style={{ marginBottom: 12 }}>
-              <div style={{ ...S.kpi, marginBottom: 4 }}>Role</div>
+            <div style={{ marginTop: 16 }}>
+              <div style={{ fontSize: 22, fontWeight: 800, color: S.mtitle.color, marginBottom: 4 }}>{profile.name || '—'}</div>
+              <div style={{ fontSize: 15, color: S.text, marginBottom: 8 }}>{profile.email || '—'}</div>
               <div><span style={S.badge(profile.role)}>{profile.role}{profile.staff_type ? ` · ${profile.staff_type}` : ''}</span></div>
             </div>
             {driver && (
-              <div style={{ marginBottom: 12 }}>
-                <div style={{ ...S.kpi, marginBottom: 4 }}>Linked driver</div>
-                <div style={{ fontSize: 15, color: S.text }}>{driver.name} ({driver.id})</div>
-                <div style={{ fontSize: 12, color: S.textDim, marginTop: 4 }}>You can use the Driver section to submit trip start/end and odometer photos.</div>
+              <div style={{ marginTop: 12, fontSize: 13, color: S.textDim }}>
+                Linked driver: <strong style={{ color: S.text }}>{driver.name}</strong> ({driver.id})
               </div>
             )}
           </div>
+          {/* Right column: Edit Profile + Security */}
+          <div className="space-y-6">
+            <div>
+              <div style={{ ...S.kpi, marginBottom: 12 }}>Edit Profile</div>
+              <div style={S.fg}>
+                <label style={S.lbl}>Full Name</label>
+                <input style={S.inp} value={editName} onChange={e => setEditName(e.target.value)} placeholder="Your name" />
+              </div>
+              <div style={{ ...S.fg, marginTop: 12 }}>
+                <label style={S.lbl}>Phone Number</label>
+                <input style={S.inp} value={editPhone} onChange={e => setEditPhone(e.target.value)} placeholder="e.g. 254712345678" type="tel" />
+              </div>
+              <button type="button" onClick={saveProfile} disabled={savingProfile} style={{ ...S.btn(), marginTop: 12, opacity: savingProfile ? 0.7 : 1 }}>
+                {savingProfile ? 'Saving…' : 'Save Profile'}
+              </button>
+            </div>
+            <div>
+              <div style={{ ...S.kpi, marginBottom: 8 }}>Security</div>
+              <p style={{ fontSize: 13, color: S.textDim, marginBottom: 8 }}>Last login: {formatDate || 'Never'}</p>
+              <p style={{ fontSize: 13, color: S.textDim, marginBottom: 12 }}>Send yourself an email to set a new password. You will sign in again after changing it.</p>
+              <button type="button" onClick={sendPasswordReset} disabled={sendingReset} style={{ ...S.btn(), opacity: sendingReset ? 0.7 : 1 }}>
+                {sendingReset ? 'Sending…' : 'Send password reset email'}
+              </button>
+            </div>
+          </div>
         </div>
-      </div>
-      <div style={{ ...S.card(), maxWidth: 520, marginTop: 16 }}>
-        <div style={{ ...S.kpi, marginBottom: 8 }}>Security</div>
-        <p style={{ fontSize: 13, color: S.textDim, marginBottom: 12 }}>Send yourself an email to set a new password. You will sign in again after changing it.</p>
-        <button type="button" onClick={sendPasswordReset} disabled={sendingReset} style={{ ...S.btn(), opacity: sendingReset ? 0.7 : 1 }}>
-          {sendingReset ? 'Sending…' : 'Send password reset email'}
-        </button>
       </div>
     </AppLayout>
   )

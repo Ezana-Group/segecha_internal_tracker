@@ -10,31 +10,25 @@ const NAV = [
   { href: '/dashboard', icon: '◈', label: 'Dashboard' },
   { href: '/account', icon: '👤', label: 'Account' },
   { href: '/fleet', icon: '🚛', label: 'Fleet' },
-  { href: '/drivers', icon: '👤', label: 'Drivers' },
+  { href: '/drivers', icon: '👥', label: 'Drivers' },
   { href: '/journeys', icon: '🗺️', label: 'Journeys' },
   { href: '/fuel', icon: '⛽', label: 'Fuel Log' },
   { href: '/expenses', icon: '💸', label: 'Expenses' },
-  { href: '/invoices', icon: '📄', label: 'Invoices' },
-  { href: '/transactions', icon: '💳', label: 'M-Pesa' },
+  { href: '/invoices', icon: '📄', label: 'Invoices & M-Pesa' },
   { href: '/payroll', icon: '💰', label: 'Payroll' },
   { href: '/tyres', icon: '🔵', label: 'Tyre Monitor' },
   { href: '/maintenance', icon: '🔧', label: 'Maintenance' },
   { href: '/pnl', icon: '📈', label: 'P&L Report' },
-  { href: '/driver', icon: '🚚', label: 'Driver' },
+  { href: '/driver', icon: '🚗', label: 'Driver Portal' },
 ]
 const ADMIN_NAV = [
-  { href: '/admin/users', icon: '👥', label: 'Manage Users' },
-  { href: '/admin/settings', icon: '⚙️', label: 'Settings (M-Pesa)' },
-  { href: '/admin/driver-submissions', icon: '✅', label: 'Driver approvals' },
-]
-const STAFF_NAV = [
-  { href: '/admin/staff', icon: '👤', label: 'Manage Staff' },
+  { href: '/admin', icon: '⚙️', label: 'Admin Panel' },
 ]
 
 // Staff see only these routes by staff_type (others hidden from sidebar and protected)
 const STAFF_ALLOWED_ROUTES: Record<string, string[]> = {
-  driver: ['/dashboard', '/account', '/driver'],
-  marketing: ['/dashboard', '/account', '/invoices', '/transactions'],
+  driver: ['/driver'],
+  marketing: ['/dashboard', '/account', '/invoices'],
   office: ['/dashboard', '/account', '/journeys', '/fuel', '/expenses', '/invoices', '/payroll', '/tyres', '/maintenance', '/pnl'],
 }
 
@@ -49,11 +43,19 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [dark, setDark] = useState(false)
 
   useEffect(() => {
-    if (user?.role === 'staff' && user?.staff_type && pathname?.startsWith('/admin')) {
+    if (!user || pathname?.startsWith('/api')) return
+    // Staff driver with driver_id: only allow /driver routes
+    if (user.role === 'staff' && user.staff_type === 'driver' && user.driver_id) {
+      if (!pathname?.startsWith('/driver')) {
+        router.replace('/driver')
+      }
+      return
+    }
+    if (user.role === 'staff' && user.staff_type && pathname?.startsWith('/admin')) {
       router.replace('/dashboard')
       return
     }
-    if (user?.role === 'staff' && user?.staff_type && !pathname?.startsWith('/api')) {
+    if (user.role === 'staff' && user.staff_type) {
       const allowed = STAFF_ALLOWED_ROUTES[user.staff_type]
       if (allowed && !allowed.includes(pathname || '')) {
         router.replace('/dashboard')
@@ -68,7 +70,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         if (!session) { router.replace('/login'); return }
 
         const { data: profile, error: profileError } = await supabase
-          .from('users').select('id,email,name,role').eq('id', session.user.id).single()
+          .from('users').select('id,email,name,role,driver_id,staff_type').eq('id', session.user.id).single()
 
         if (profile) {
           setUser(profile as AppUser)
@@ -77,7 +79,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           const name = session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'User'
           const { data: np } = await supabase.from('users')
             .upsert({ id: session.user.id, email: session.user.email, name, role: 'admin' })
-            .select('id,email,name,role').single()
+            .select('id,email,name,role,driver_id,staff_type').single()
           if (np) {
             setUser(np as AppUser)
           } else {
@@ -93,7 +95,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             })
             if (res.ok) {
               const { data: created } = await supabase
-                .from('users').select('id,email,name,role').eq('id', session.user.id).single()
+                .from('users').select('id,email,name,role,driver_id,staff_type').eq('id', session.user.id).single()
               if (created) setUser(created as AppUser)
             }
           }
@@ -164,14 +166,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <p className="px-3 pt-4 pb-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Admin</p>
             {ADMIN_NAV.map(n => (
               <Link key={n.href} href={n.href} onClick={() => setSideOpen(false)}
-                className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition">
-                <span className="text-base w-5 text-center">{n.icon}</span><span>{n.label}</span>
-              </Link>
-            ))}
-            <p className="px-3 pt-4 pb-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Staff</p>
-            {STAFF_NAV.map(n => (
-              <Link key={n.href} href={n.href} onClick={() => setSideOpen(false)}
-                className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition">
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${pathname === n.href ? 'bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 border-l-2 border-orange-500' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'}`}>
                 <span className="text-base w-5 text-center">{n.icon}</span><span>{n.label}</span>
               </Link>
             ))}
