@@ -29,8 +29,9 @@ export default function AccountPage() {
         .select('id, email, name, role').single()
       profileData = created ?? null
     }
-    if (profileData?.driver_id) {
-      const { data: driverData } = await supabase.from('drivers').select('id, name').eq('id', profileData.driver_id).single()
+    const driverId = (profileData as { driver_id?: string } | null)?.driver_id
+    if (driverId) {
+      const { data: driverData } = await supabase.from('drivers').select('id, name').eq('id', driverId).single()
       setDriver(driverData ?? null)
     } else setDriver(null)
     setProfile(profileData || null)

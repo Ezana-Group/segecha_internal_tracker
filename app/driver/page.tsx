@@ -23,12 +23,13 @@ export default function DriverPage() {
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) return
     const { data: profile } = await supabase.from('users').select('id').eq('id', session.user.id).single()
-    setUser(profile || null)
-    if (!profile?.driver_id) {
+    const profileWithDriver = profile as { id: string; driver_id?: string } | null
+    setUser(profileWithDriver || null)
+    const driverId = profileWithDriver?.driver_id
+    if (!driverId) {
       setLoading(false)
       return
     }
-    const driverId = profile.driver_id
     const [
       { data: jData },
       { data: sData }
