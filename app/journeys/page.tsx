@@ -56,10 +56,24 @@ export default function Journeys() {
     const saveJourney = async () => {
         if (!form.truck || !form.origin || !form.dest) return toast.error("Truck, Origin, and Destination are required")
         if (!form.trailer) return toast.error("Trailer is required — every trip/job must have a trailer assigned")
+        // When a truck is selected, current odometer reading (start) is required
+        const odometerStart = form.odometerStart != null && form.odometerStart !== "" ? Number(form.odometerStart) : null
+        if (form.truck && (odometerStart == null || Number.isNaN(odometerStart) || odometerStart < 0)) return toast.error("Current odometer reading (km) is required when a truck is selected")
+        // When marking as Completed, final odometer reading is required
+        if (form.status === "Completed") {
+            const odometerEnd = form.odometerEnd != null && form.odometerEnd !== "" ? Number(form.odometerEnd) : null
+            if (odometerEnd == null || Number.isNaN(odometerEnd) || odometerEnd < 0) return toast.error("Final odometer reading (km) is required to mark the journey as completed")
+        }
         const payload = { ...form }
         // Clean foreign keys
         if (!payload.driver) payload.driver = null
         if (!payload.endDate) payload.endDate = null
+        payload.odometerStart = form.odometerStart != null && form.odometerStart !== "" ? Number(form.odometerStart) : null
+        payload.odometerEnd = form.odometerEnd != null && form.odometerEnd !== "" ? Number(form.odometerEnd) : null
+        // Auto-calculate distance when both odometer readings are present
+        if (payload.odometerStart != null && payload.odometerEnd != null && payload.odometerEnd >= payload.odometerStart) {
+            payload.distance = payload.odometerEnd - payload.odometerStart
+        }
         if (!payload.id) {
             payload.id = "J" + Date.now().toString().slice(-6)
             const { error } = await supabase.from('journeys').insert(payload)
@@ -228,10 +242,13 @@ export default function Journeys() {
                     <div style={S.fgg(2)}>
                         <F label="Origin" k="origin" form={form} setForm={setForm} /><F label="Destination" k="dest" form={form} setForm={setForm} />
                         <F label="Truck (tractor)" k="truck" options={[{ v: "", l: "-- Select Truck --" }, ...tractors.map((t: any) => ({ v: t.id, l: `${t.reg} · ${t.type || ""}` }))]} form={form} setForm={setForm} />
+                        <F label="Current odometer (km) *" k="odometerStart" type="number" form={form} setForm={setForm} placeholder="Reading when trip starts" />
                         <F label="Trailer" k="trailer" options={[{ v: "", l: "-- Select Trailer --" }, ...trailers.map((t: any) => ({ v: t.id, l: `${t.reg} · ${t.type || ""}` }))]} form={form} setForm={setForm} />
                         <F label="Driver" k="driver" options={[{ v: "", l: "-- Select Driver --" }, ...data.drivers.map((d: any) => ({ v: d.id, l: d.name }))]} form={form} setForm={setForm} />
                         <F label="Departure Date" k="date" type="date" form={form} setForm={setForm} /><F label="Arrival Date" k="endDate" type="date" form={form} setForm={setForm} />
-                        <F label="Distance (km)" k="distance" type="number" form={form} setForm={setForm} /><F label="Revenue (KES)" k="revenue" type="number" form={form} setForm={setForm} />
+                        <F label="Final odometer (km) *" k="odometerEnd" type="number" form={form} setForm={setForm} placeholder="Required when status is Completed" />
+                        <F label="Distance (km)" k="distance" type="number" form={form} setForm={setForm} />
+                        <F label="Revenue (KES)" k="revenue" type="number" form={form} setForm={setForm} />
                         <F label="Cargo Description" k="cargo" form={form} setForm={setForm} /><F label="Weight (Tonnes)" k="weight" type="number" form={form} setForm={setForm} />
                         <F label="Status" k="status" options={STATUSES_JOURNEY} form={form} setForm={setForm} /><F label="Notes" k="notes" form={form} setForm={setForm} />
                     </div>
