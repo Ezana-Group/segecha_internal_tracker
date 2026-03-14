@@ -40,7 +40,14 @@ function validateRows(rows: Record<string, unknown>[], _headers: string[]): Pars
       .some(([, v]) => v !== null && v !== undefined && String(v).trim() !== '')
 
     if (!hasAnyData) {
-      return { ...row, _status: 'skipped', _issues: [], _warnings: ['Empty row — skipped'], _fixed: false } as ParsedRow
+      return {
+        ...row,
+        _rowNumber: rowNum,
+        _status: 'skipped',
+        _issues: [],
+        _warnings: ['Empty row — skipped'],
+        _fixed: false,
+      } as ParsedRow
     }
 
     if (!row['Vehicle'] || String(row['Vehicle']).trim() === '') {
@@ -876,7 +883,11 @@ export default function ImportPage() {
                             <td className="px-3 py-2 text-right font-semibold text-emerald-600">
                               {row['Gross Income'] ? fmt(Number(row['Gross Income'])) : '—'}
                             </td>
-                            <td className="px-3 py-2 text-right text-slate-500">{row['Fuel(L)'] ?? '—'}</td>
+                            <td className="px-3 py-2 text-right text-slate-500">
+                              {row['Fuel(L)'] != null && row['Fuel(L)'] !== ''
+                                ? String(row['Fuel(L)'])
+                                : '—'}
+                            </td>
                             <td className="px-3 py-2 text-right text-slate-500">
                               {row['Total Expense'] ? Number(row['Total Expense']).toLocaleString() : '—'}
                             </td>
@@ -960,7 +971,7 @@ export default function ImportPage() {
                           {row['Origin'] && row['Destination']
                             ? `${row['Origin']} → ${row['Destination']}`
                             : 'Unknown route'}
-                          {row['Date'] && ` · ${String(row['Date'])}`}
+                          {row['Date'] ? ` · ${String(row['Date'])}` : null}
                         </div>
                       </div>
                       <div className="flex gap-2">
