@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import AppLayout from '@/components/AppLayout'
 import { useErpContext, fmt, today } from '@/lib/ErpContext'
 import { ErpModal, F, FMultiSelect, KENYA_LICENSE_CLASSES, parseLicenseClasses, serializeLicenseClasses, TableSearch, SortableTh, sortCompare, ClearFiltersButton } from '@/components/ErpShared'
+import { DOC_LABELS } from '@/lib/documents'
 import { supabase } from '@/lib/supabase'
 import toast from 'react-hot-toast'
 
@@ -20,11 +21,12 @@ export default function Drivers() {
 
     const loadData = async () => {
         setLoading(true)
-        const [{ data: drivers }, { data: trucks }] = await Promise.all([
+        const [{ data: drivers }, { data: trucks }, { data: documents }] = await Promise.all([
             supabase.from('drivers').select('*').order('name'),
-            supabase.from('trucks').select('*')
+            supabase.from('trucks').select('*'),
+            supabase.from('documents').select('*').eq('entity_type', 'driver')
         ])
-        setData({ drivers: drivers || [], trucks: trucks || [] })
+        setData({ drivers: drivers || [], trucks: trucks || [], documents: documents || [] })
         setLoading(false)
     }
 
@@ -99,6 +101,13 @@ export default function Drivers() {
     }
     const handleSort = (key: string) => setSort(prev => ({ key, dir: prev.key === key ? (prev.dir === 'asc' ? 'desc' : 'asc') : 'asc' }))
     const sorted = [...filtered].sort((a, b) => sortCompare(getSortVal(a, sort.key), getSortVal(b, sort.key), sort.dir))
+    const driverDocStatuses: Record<string, { doc_type: string; status: string; expiry_date: string }[]> = {}
+    ;(data?.documents || []).forEach((d: any) => {
+        const eid = d.entity_id || d.entityId
+        if (!eid) return
+        if (!driverDocStatuses[eid]) driverDocStatuses[eid] = []
+        driverDocStatuses[eid].push({ doc_type: d.doc_type, status: d.status || 'Valid', expiry_date: d.expiry_date || '' })
+    })
 
     return (
         <AppLayout>
@@ -133,6 +142,7 @@ export default function Drivers() {
                             <SortableTh label="Truck ID" sortKey="truck" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
                             <SortableTh label="Salary (KES)" sortKey="salary" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
                             <SortableTh label="Status" sortKey="status" currentSortKey={sort.key} currentSortDir={sort.dir} onSort={handleSort} />
+                            <th style={S.th}>Docs</th>
                             <th style={S.th}></th>
                         </tr>
                     </thead>
@@ -154,6 +164,27 @@ export default function Drivers() {
                                 <td style={{ ...S.td, color: "#f97316", fontWeight: 700 }}>{truckReg(d.truck)}</td>
                                 <td style={{ ...S.td, color: "#10b981", fontWeight: 700 }}>{fmt(d.salary)}/mo</td>
                                 <td style={S.td}><span style={S.badge(d.status)}>{d.status}</span></td>
+                                <td style={S.td}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                                        {(driverDocStatuses[d.id] || []).map((doc: { doc_type: string; status: string; expiry_date: string }) => (
+                                            <span
+                                                key={doc.doc_type}
+                                                title={`${DOC_LABELS[doc.doc_type] || doc.doc_type}: ${doc.status} (${doc.expiry_date})`}
+                                                style={{
+                                                    width: 10,
+                                                    height: 10,
+                                                    borderRadius: '50%',
+                                                    flexShrink: 0,
+                                                    cursor: 'help',
+                                                    background: doc.status === 'Expired' ? '#ef4444' : doc.status === 'Expiring Soon' ? '#f59e0b' : '#10b981',
+                                                }}
+                                            />
+                                        ))}
+                                        {(!driverDocStatuses[d.id] || driverDocStatuses[d.id].length === 0) && (
+                                            <span style={{ fontSize: 11, color: S.textDim }}>—</span>
+                                        )}
+                                    </div>
+                                </td>
                                 <td style={S.td}><div style={{ display: "flex", gap: 6 }}><button style={S.btn("sm")} onClick={() => openModal("driver", d)}>Edit</button><button style={S.btn("del")} onClick={() => delDriver(d.id)}>✕</button></div></td>
                             </tr>
                         ))}

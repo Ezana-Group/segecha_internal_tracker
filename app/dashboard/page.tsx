@@ -1,9 +1,11 @@
 'use client'
 
 import React from 'react'
+import Link from 'next/link'
 import AppLayout from '@/components/AppLayout'
 import { useErpContext, fmt, fmtN } from '@/lib/ErpContext'
 import { SC, TYRE_WARN_KM } from '@/lib/seed-data'
+import { DOC_LABELS, daysAgo } from '@/lib/documents'
 import { supabase } from '@/lib/supabase'
 
 export default function Dashboard() {
@@ -11,9 +13,20 @@ export default function Dashboard() {
     const [data, setData] = React.useState<any>(null)
     const [loading, setLoading] = React.useState(true)
 
+    const currentMonth = React.useMemo(() => new Date().toISOString().slice(0, 7), [])
+    const monthFirstLast = React.useMemo(() => {
+        const [y, m] = currentMonth.split('-').map(Number)
+        const first = `${currentMonth}-01`
+        const last = new Date(y, m, 0)
+        const lastStr = last.getFullYear() + '-' + String(last.getMonth() + 1).padStart(2, '0') + '-' + String(last.getDate()).padStart(2, '0')
+        return { first, last: lastStr }
+    }, [currentMonth])
+
     React.useEffect(() => {
         async function load() {
             setLoading(true)
+            const thirtyDaysFromNow = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+            const { first, last } = monthFirstLast
             const tables = [
                 () => supabase.from('trucks').select('*'),
                 () => supabase.from('journeys').select('*'),
@@ -22,7 +35,9 @@ export default function Dashboard() {
                 () => supabase.from('invoices').select('*'),
                 () => supabase.from('payroll').select('*'),
                 () => supabase.from('drivers').select('*'),
-                () => supabase.from('maintenance').select('*')
+                () => supabase.from('maintenance').select('*'),
+                () => supabase.from('documents').select('*').lte('expiry_date', thirtyDaysFromNow).order('expiry_date'),
+                () => supabase.from('budgets').select('*').eq('month', currentMonth)
             ]
             const results = await Promise.allSettled(tables.map(fn => fn()))
             const pick = (i: number) => {
@@ -30,16 +45,26 @@ export default function Dashboard() {
                 if (r.status === 'fulfilled' && r.value.data != null) return r.value.data
                 return []
             }
+            const journeysThisMonth = (pick(1) as any[]).filter((j: any) => j.date >= first && j.date <= last)
+            const fuelThisMonth = (pick(2) as any[]).filter((f: any) => f.date >= first && f.date <= last)
+            const expensesThisMonth = (pick(3) as any[]).filter((e: any) => e.date >= first && e.date <= last)
+            const payrollThisMonth = (pick(5) as any[]).filter((p: any) => (p.month || '').slice(0, 7) === currentMonth)
             setData({
                 trucks: pick(0), journeys: pick(1),
                 fuel: pick(2), expenses: pick(3),
                 invoices: pick(4), payroll: pick(5),
-                drivers: pick(6), maintenance: pick(7)
+                drivers: pick(6), maintenance: pick(7),
+                urgentDocuments: pick(8),
+                budgets: pick(9),
+                journeysThisMonth,
+                fuelThisMonth,
+                expensesThisMonth,
+                payrollThisMonth
             })
             setLoading(false)
         }
         load()
-    }, [])
+    }, [currentMonth, monthFirstLast])
 
     const truckStats = (tid: string) => {
         const jrns = data?.journeys.filter((j: any) => j.truck === tid) || []
@@ -75,6 +100,9 @@ export default function Dashboard() {
 
     const tyreAlerts = data.trucks.filter((t: any) => { const ts = tyreStatus(t); return ts.status !== "OK"; })
     const overdueInv = data.invoices.filter((i: any) => i.status === "Overdue")
+    const urgentDocs = data.urgentDocuments || []
+    const expiredDocs = urgentDocs.filter((d: any) => d.status === 'Expired')
+    const expiringSoonDocs = urgentDocs.filter((d: any) => d.status === 'Expiring Soon')
     const todayStr = new Date().toISOString().split('T')[0]
     const addMonths = (d: string, months: number) => { const x = new Date(d); x.setMonth(x.getMonth() + months); return x.toISOString().split('T')[0] }
     const maintenanceAlerts = (data.maintenance || []).filter((m: any) => {
@@ -95,11 +123,38 @@ export default function Dashboard() {
     const totalKm = data.journeys.filter((j: any) => j.status === "Completed").reduce((s: any, j: any) => s + +j.distance, 0)
     const overallKmPerL = totalLitres > 0 ? (totalKm / totalLitres).toFixed(2) : 0
 
+    const companyBudgets = (data.budgets || []).filter((b: any) => b.truck_id == null)
+    const budgetActuals = {
+        revenue: (data.journeysThisMonth || []).filter((j: any) => j.status === 'Completed').reduce((s: number, j: any) => s + Number(j.revenue || 0), 0),
+        Fuel: (data.fuelThisMonth || []).reduce((s: number, f: any) => s + Number(f.litres || 0) * Number(f.pricePerL || 0), 0),
+        Maintenance: (data.expensesThisMonth || []).filter((e: any) => (e.cat || '') === 'Maintenance').reduce((s: number, e: any) => s + Number(e.amount || 0), 0),
+        Salary: (data.payrollThisMonth || []).reduce((s: number, p: any) => s + Number(p.baseSalary || 0) + Number(p.allowance || 0) - Number(p.deductions || 0), 0),
+        Tyre: (data.expensesThisMonth || []).filter((e: any) => (e.cat || '') === 'Tyre').reduce((s: number, e: any) => s + Number(e.amount || 0), 0),
+        Other: ['Other', 'Toll', 'Permit', 'Allowance', 'Insurance'].reduce((sum, cat) => sum + (data.expensesThisMonth || []).filter((e: any) => (e.cat || '') === cat).reduce((s: number, e: any) => s + Number(e.amount || 0), 0), 0)
+    }
+    const budgetAlerts: { label: string; budget: number; actual: number; pct: number; positive: boolean; severity: 'amber' | 'red' }[] = []
+    const BUDGET_CATS = [
+        { key: 'revenue', label: 'Revenue Target', positive: true },
+        { key: 'Fuel', label: 'Fuel', positive: false },
+        { key: 'Maintenance', label: 'Maintenance', positive: false },
+        { key: 'Salary', label: 'Driver Salaries', positive: false },
+        { key: 'Tyre', label: 'Tyres', positive: false },
+        { key: 'Other', label: 'Other', positive: false }
+    ]
+    BUDGET_CATS.forEach(({ key, label, positive }) => {
+        const budget = Number(companyBudgets.find((b: any) => (b.category || '') === key)?.amount ?? 0)
+        if (budget <= 0) return
+        const actual = (budgetActuals as any)[key] ?? 0
+        const pct = (actual / budget) * 100
+        if (positive && pct < 90) budgetAlerts.push({ label, budget, actual, pct, positive, severity: pct < 70 ? 'red' : 'amber' })
+        if (!positive && pct > 90) budgetAlerts.push({ label, budget, actual, pct, positive, severity: pct >= 100 ? 'red' : 'amber' })
+    })
+
     return (
         <AppLayout>
             <div style={S.ph}>◈ Operations Dashboard <span style={S.pill()}>March 2025</span></div>
 
-            {(tyreAlerts.length > 0 || overdueInv.length > 0 || maintenanceAlerts.length > 0) && (
+            {(tyreAlerts.length > 0 || overdueInv.length > 0 || maintenanceAlerts.length > 0 || expiredDocs.length > 0 || expiringSoonDocs.length > 0 || budgetAlerts.length > 0) && (
                 <div style={{ marginBottom: 20 }}>
                     {tyreAlerts.map((t: any) => {
                         const ts = tyreStatus(t)
@@ -133,6 +188,52 @@ export default function Dashboard() {
                             <div>
                                 <div style={{ fontWeight: 700, color: S.mtitle.color, fontSize: 13 }}>Overdue Invoice — {i.id}</div>
                                 <div style={{ fontSize: 12, color: S.sub.color }}>{i.client} · {fmt(i.amount)} · Due {i.due}</div>
+                            </div>
+                        </div>
+                    ))}
+                    {expiredDocs.map((doc: any) => (
+                        <div key={doc.id} className="flex items-center gap-3 p-3 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30">
+                            <span className="text-red-500 text-lg">🔴</span>
+                            <div className="flex-1 min-w-0">
+                                <span className="font-semibold text-red-700 dark:text-red-400 text-sm">
+                                    EXPIRED: {DOC_LABELS[doc.doc_type] || doc.doc_type}
+                                </span>
+                                <span className="text-red-500 text-sm ml-2">
+                                    {doc.entity_name || doc.entity_id || '—'} · Expired {daysAgo(doc.expiry_date)} days ago
+                                </span>
+                            </div>
+                            <Link href="/documents" className="text-xs text-red-500 font-semibold hover:underline whitespace-nowrap">Renew →</Link>
+                        </div>
+                    ))}
+                    {expiringSoonDocs.map((doc: any) => (
+                        <div key={doc.id} className="flex items-center gap-3 p-3 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30">
+                            <span className="text-amber-500 text-lg">🟡</span>
+                            <div className="flex-1 min-w-0">
+                                <span className="font-semibold text-amber-700 dark:text-amber-400 text-sm">
+                                    EXPIRING SOON: {DOC_LABELS[doc.doc_type] || doc.doc_type}
+                                </span>
+                                <span className="text-amber-600 dark:text-amber-400 text-sm ml-2">
+                                    {doc.entity_name || doc.entity_id || '—'} · {doc.expiry_date}
+                                </span>
+                            </div>
+                            <Link href="/documents" className="text-xs text-amber-600 dark:text-amber-400 font-semibold hover:underline whitespace-nowrap">Renew →</Link>
+                        </div>
+                    ))}
+                    {budgetAlerts.map((a, i) => (
+                        <div key={i} style={S.alertBox(a.severity === 'red' ? '#ef4444' : '#f59e0b')}>
+                            <span style={{ fontSize: 18 }}>{a.severity === 'red' ? '🔴' : '🟡'}</span>
+                            <div>
+                                <div style={{ fontWeight: 700, color: S.mtitle.color, fontSize: 13 }}>
+                                    Budget Alert — {a.label}
+                                </div>
+                                <div style={{ fontSize: 12, color: S.sub.color }}>
+                                    {a.positive
+                                        ? `Revenue at ${a.pct.toFixed(0)}% of target (${fmt(a.actual)} / ${fmt(a.budget)})`
+                                        : `Spend at ${a.pct.toFixed(0)}% of budget (${fmt(a.actual)} / ${fmt(a.budget)})`
+                                    }
+                                    {' · '}
+                                    <Link href="/budget" style={{ color: '#f97316', fontWeight: 600 }}>Open Budget →</Link>
+                                </div>
                             </div>
                         </div>
                     ))}

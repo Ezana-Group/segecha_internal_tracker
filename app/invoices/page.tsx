@@ -7,6 +7,7 @@ import AppLayout from '@/components/AppLayout'
 import { useErpContext, fmt, today, uid } from '@/lib/ErpContext'
 import { ErpModal, F, TableSearch, SortableTh, sortCompare, DateRangeFilter, ClearFiltersButton } from '@/components/ErpShared'
 import { supabase } from '@/lib/supabase'
+import { notify, NOTIFY_MESSAGES } from '@/lib/notify'
 import toast from 'react-hot-toast'
 
 function InvoiceView({ inv, onClose, data, settings, onStkPush, stkPushing, totalPaid, paymentsList }: any) {
@@ -329,16 +330,24 @@ const SETTINGS_KEYS = {
 
 function InvoicesSettingsTab() {
     const { S } = useErpContext()
-    const [values, setValues] = useState<Record<string, string>>({ paybill_display: '', till_display: '', account_prefix: 'INV' })
+    const [values, setValues] = useState<Record<string, string>>({
+        paybill_display: '', till_display: '', account_prefix: 'INV', require_fuel_pump_photo: '',
+        notification_admin_phone: '', notification_director_phone: '',
+    })
+    const [notificationSettings, setNotificationSettings] = useState<{ key: string; label: string; enabled: boolean }[]>([])
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
 
     const load = async () => {
         setLoading(true)
-        const { data } = await supabase.from('settings').select('key, value')
-        const map: Record<string, string> = { paybill_display: '', till_display: '', account_prefix: 'INV' }
-        ;(data || []).forEach((r: any) => { map[r.key] = r.value ?? '' })
+        const [{ data: settingsData }, { data: notifData }] = await Promise.all([
+            supabase.from('settings').select('key, value'),
+            supabase.from('notification_settings').select('key, label, enabled'),
+        ])
+        const map: Record<string, string> = { paybill_display: '', till_display: '', account_prefix: 'INV', require_fuel_pump_photo: '', notification_admin_phone: '', notification_director_phone: '' }
+        ;(settingsData || []).forEach((r: any) => { map[r.key] = r.value ?? '' })
         setValues(map)
+        setNotificationSettings((notifData || []).map((r: any) => ({ key: r.key, label: r.label || r.key, enabled: r.enabled !== false })))
         setLoading(false)
     }
     useEffect(() => { load() }, [])
@@ -355,6 +364,12 @@ function InvoicesSettingsTab() {
         } finally {
             setSaving(false)
         }
+    }
+
+    const toggleNotification = async (key: string, enabled: boolean) => {
+        setNotificationSettings(prev => prev.map(s => s.key === key ? { ...s, enabled } : s))
+        const { error } = await supabase.from('notification_settings').update({ enabled }).eq('key', key)
+        if (error) toast.error('Failed to update'); else toast.success(enabled ? 'Enabled' : 'Disabled')
     }
 
     if (loading) return <div style={S.ph}>Loading settings...</div>
@@ -383,6 +398,55 @@ function InvoicesSettingsTab() {
             <div style={{ marginTop: 32, padding: 16, background: S.wrap?.background || '#f8fafc', borderRadius: 8, border: `1px solid ${S.border}`, fontSize: 12, color: S.kpi?.color }}>
                 <strong>On invoices:</strong> Customers will see Paybill (or Till) and Account number so they can pay manually. Use &quot;Request payment&quot; in the app to send an STK Push to the customer&apos;s phone.
             </div>
+
+            <div style={{ ...S.mtitle, marginTop: 40, marginBottom: 8 }}>Driver portal</div>
+            <p style={{ fontSize: 13, color: S.kpi?.color || '#64748b', marginBottom: 16 }}>
+                Directors and admins can make fuel pump photo mandatory when drivers log fuel.
+            </p>
+            <div style={S.fg}>
+                <label style={S.lbl}>Require fuel pump / receipt photo when logging fuel</label>
+                <select
+                    style={S.inp}
+                    value={values.require_fuel_pump_photo ?? ''}
+                    onChange={e => setValues(prev => ({ ...prev, require_fuel_pump_photo: e.target.value }))}
+                >
+                    <option value="">Optional (driver may skip)</option>
+                    <option value="1">Required (driver must upload pump/receipt photo)</option>
+                </select>
+            </div>
+            <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
+                <button style={S.btn()} onClick={save} disabled={saving}>{saving ? 'Saving...' : 'Save settings'}</button>
+            </div>
+
+            <div className="mt-6 pt-6 border-t border-slate-200 dark:border-slate-800">
+                <h3 className="font-bold text-slate-800 dark:text-white mb-1">SMS Notifications</h3>
+                <p className="text-xs text-slate-400 mb-4">Via Africa&apos;s Talking. Set AT_API_KEY, AT_USERNAME, AT_SENDER_ID in env. Standard SMS rates apply.</p>
+                <div style={S.fg}>
+                    <label style={S.lbl}>Admin phone (system alerts)</label>
+                    <input style={S.inp} placeholder="e.g. +254712345678" value={values.notification_admin_phone ?? ''} onChange={e => setValues(prev => ({ ...prev, notification_admin_phone: e.target.value }))} />
+                </div>
+                <div style={S.fg}>
+                    <label style={S.lbl}>Director phone (trip / submission alerts)</label>
+                    <input style={S.inp} placeholder="e.g. +254712345678" value={values.notification_director_phone ?? ''} onChange={e => setValues(prev => ({ ...prev, notification_director_phone: e.target.value }))} />
+                </div>
+                <div style={{ display: 'flex', gap: 10, marginTop: 8, marginBottom: 16 }}>
+                    <button style={S.btn()} onClick={save} disabled={saving}>Save phones</button>
+                </div>
+                <div className="space-y-2 mb-4">
+                    {notificationSettings.map(setting => (
+                        <div key={setting.key} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-800 rounded-xl">
+                            <span className="text-sm text-slate-700 dark:text-slate-300">{setting.label}</span>
+                            <button
+                                type="button"
+                                onClick={() => toggleNotification(setting.key, !setting.enabled)}
+                                className={`w-10 h-5 rounded-full transition-colors flex items-center flex-shrink-0 ${setting.enabled ? 'bg-emerald-500' : 'bg-slate-300 dark:bg-slate-600'}`}
+                            >
+                                <div className={`w-4 h-4 bg-white rounded-full shadow transition-transform ${setting.enabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                            </button>
+                        </div>
+                    ))}
+                </div>
+            </div>
         </div>
     )
 }
@@ -407,14 +471,18 @@ function InvoicesContent() {
     const [sendStkAfterSave, setSendStkAfterSave] = useState(false)
     const [paymentForm, setPaymentForm] = useState({ amount: '', paidDate: today(), mpesaRef: '', type: 'deposit' })
 
+    const [clientSearch, setClientSearch] = useState('')
+    const [clientDropdownOpen, setClientDropdownOpen] = useState(false)
+
     const loadData = async () => {
         setLoading(true)
-        const [{ data: invoices }, { data: trucks }, { data: journeys }, { data: drivers }, { data: settingsRows }] = await Promise.all([
+        const [{ data: invoices }, { data: trucks }, { data: journeys }, { data: drivers }, { data: settingsRows }, { data: clients }] = await Promise.all([
             supabase.from('invoices').select('*').order('issued', { ascending: false }),
             supabase.from('trucks').select('*'),
             supabase.from('journeys').select('*'),
             supabase.from('drivers').select('*'),
-            supabase.from('settings').select('key, value')
+            supabase.from('settings').select('key, value'),
+            supabase.from('clients').select('*').eq('status', 'Active').order('name')
         ])
         let payments: any[] = []
         const { data: p, error: payErr } = await supabase.from('invoice_payments').select('*')
@@ -422,7 +490,7 @@ function InvoicesContent() {
         const settingsMap: Record<string, string> = {}
         ;(settingsRows || []).forEach((r: any) => { settingsMap[r.key] = r.value ?? '' })
         setSettings(settingsMap)
-        setData({ invoices: invoices || [], trucks: trucks || [], journeys: journeys || [], drivers: drivers || [], invoicePayments: payments })
+        setData({ invoices: invoices || [], trucks: trucks || [], journeys: journeys || [], drivers: drivers || [], invoicePayments: payments, clients: clients || [] })
         setLoading(false)
     }
 
@@ -442,13 +510,14 @@ function InvoicesContent() {
 
     useEffect(() => { loadData() }, [])
 
-    const openModal = (type: string, item: any = {}) => { setModal(type); setForm({ ...item }) }
-    const closeModal = () => { setModal(null); setForm({}) }
+    const openModal = (type: string, item: any = {}) => { setModal(type); setForm({ ...item }); setClientSearch(''); setClientDropdownOpen(false) }
+    const closeModal = () => { setModal(null); setForm({}); setClientSearch(''); setClientDropdownOpen(false) }
 
     const saveInvoice = async () => {
-        if (!form.client || !form.amount) return toast.error("Client Name and Amount are required")
+        if ((!form.client && !form.client_id) || !form.amount) return toast.error("Client and Amount are required")
         const payload = { ...form }
         if (!payload.journey) payload.journey = null
+        if (!payload.client_id) payload.client_id = null
         let savedInv: any = null
         if (!payload.id) {
             payload.id = "INV-" + Date.now().toString().slice(-6)
@@ -488,10 +557,22 @@ function InvoicesContent() {
         loadData()
     }
 
-    const markInvoicePaid = async (id: string) => {
-        if (!confirm("Mark this invoice as Paid?")) return
+    const markInvoicePaid = async (invOrId: any) => {
+        const id = typeof invOrId === 'string' ? invOrId : invOrId?.id
+        if (!id || !confirm("Mark this invoice as Paid?")) return
+        const inv = typeof invOrId === 'object' ? invOrId : data?.invoices?.find((i: any) => i.id === id)
         const { error } = await supabase.from('invoices').update({ status: "Paid", paidDate: today() }).eq('id', id)
         if (error) return toast.error(error.message)
+        if (inv && (inv.phone || inv.phone_number)) {
+          const clientName = inv.client || data?.clients?.find((c: any) => c.id === inv.client_id)?.name || 'Customer'
+          notify(
+            inv.phone || inv.phone_number,
+            NOTIFY_MESSAGES.invoice_paid(clientName, inv.id, Number(inv.amount || 0).toLocaleString('en-KE')),
+            'invoice_paid',
+            inv.id,
+            clientName
+          )
+        }
         toast.success("Invoice marked as Paid via Cash/Bank")
         loadData()
     }
@@ -538,6 +619,16 @@ function InvoicesContent() {
             phone: inv.phone || inv.phone_number || undefined,
             transactionDate: paidDateVal
         })
+        if (inv.phone || inv.phone_number) {
+          const clientName = inv.client || data?.clients?.find((c: any) => c.id === inv.client_id)?.name || 'Customer'
+          notify(
+            inv.phone || inv.phone_number,
+            NOTIFY_MESSAGES.invoice_paid(clientName, inv.id, Number(inv.amount || 0).toLocaleString('en-KE')),
+            'invoice_paid',
+            inv.id,
+            clientName
+          )
+        }
         toast.success('Invoice marked as Paid with M-Pesa ref. Transaction recorded on M-Pesa page.')
         closeModal()
         loadData()
@@ -571,6 +662,16 @@ function InvoicesContent() {
                 paidDate: paidDateVal,
                 mpesaRef: mpesaRefVal || undefined
             }).eq('id', invoiceId)
+            if (inv.phone || inv.phone_number) {
+              const clientName = inv.client || data?.clients?.find((c: any) => c.id === inv.client_id)?.name || 'Customer'
+              notify(
+                inv.phone || inv.phone_number,
+                NOTIFY_MESSAGES.invoice_paid(clientName, inv.id, Number(inv.amount || 0).toLocaleString('en-KE')),
+                'invoice_paid',
+                inv.id,
+                clientName
+              )
+            }
         }
         setPaymentForm({ amount: '', paidDate: today(), mpesaRef: '', type: 'deposit' })
         toast.success('Payment recorded' + (mpesaRefVal ? ' (on M-Pesa page). ' : ' ') + (inv && totalPaid >= Number(inv.amount) ? 'Invoice marked Paid.' : ''))
@@ -705,7 +806,7 @@ function InvoicesContent() {
                                 <td style={S.td}>
                                     <div style={{ display: "flex", gap: 6 }}>
                                         <button style={S.btn("sm")} onClick={() => setInvoicePreview(inv)}>View</button>
-                                        {invoiceStatusResolved(inv) !== "Paid" && <button style={S.btn("green")} onClick={() => markInvoicePaid(inv.id)} >✓ Paid</button>}
+                                        {invoiceStatusResolved(inv) !== "Paid" && <button style={S.btn("green")} onClick={() => markInvoicePaid(inv)} >✓ Paid</button>}
                                         <button style={S.btn("sm")} onClick={() => openModal("invoice", inv)}>Edit</button>
                                         <button style={S.btn("del")} onClick={() => delInvoice(inv.id)}>✕</button>
                                     </div>
@@ -719,9 +820,71 @@ function InvoicesContent() {
             {modal === 'invoice' && (
                 <ErpModal title={form.id ? "Edit Invoice" : "New Invoice"} onClose={closeModal} onSave={saveInvoice}>
                     <div style={S.fgg(2)}>
-                        <F label="Client Name" k="client" full form={form} setForm={setForm} />
+                        <div style={{ ...S.fg, gridColumn: '1 / -1', position: 'relative' as const }}>
+                            <label style={S.lbl}>Client</label>
+                            <input
+                                style={S.inp}
+                                placeholder="Search client..."
+                                value={form.client_id ? (data?.clients?.find((c: any) => c.id === form.client_id)?.name ?? form.client) : clientSearch}
+                                onFocus={() => setClientDropdownOpen(true)}
+                                onBlur={() => setTimeout(() => setClientDropdownOpen(false), 200)}
+                                onChange={(e) => {
+                                    if (!form.client_id) setClientSearch(e.target.value)
+                                    else setForm((f: any) => ({ ...f, client_id: null, client: '', phone: '' }))
+                                    setClientDropdownOpen(true)
+                                }}
+                            />
+                            {clientDropdownOpen && (
+                                <div style={{ position: 'absolute', zIndex: 50, left: 0, right: 0, top: '100%', marginTop: 4, background: S.surface || '#fff', border: `1px solid ${S.border}`, borderRadius: 12, boxShadow: '0 10px 25px rgba(0,0,0,0.15)', maxHeight: 200, overflowY: 'auto' }}>
+                                    {(data?.clients || [])
+                                        .filter((c: any) => !clientSearch.trim() || (c.name || '').toLowerCase().includes(clientSearch.trim().toLowerCase()))
+                                        .map((c: any) => (
+                                            <div
+                                                key={c.id}
+                                                role="button"
+                                                tabIndex={0}
+                                                onClick={() => {
+                                                    setForm((f: any) => ({ ...f, client_id: c.id, client: c.name, phone: c.phone || '' }))
+                                                    setClientSearch('')
+                                                    setClientDropdownOpen(false)
+                                                }}
+                                                onKeyDown={(e) => e.key === 'Enter' && setForm((f: any) => ({ ...f, client_id: c.id, client: c.name, phone: c.phone || '' }))}
+                                                style={{ padding: '10px 14px', cursor: 'pointer', fontSize: 13, borderBottom: `1px solid ${S.border2 || S.border}` }}
+                                                className="hover:bg-slate-50 dark:hover:bg-slate-800"
+                                            >
+                                                <div style={{ fontWeight: 600, color: S.text }}>{c.name}</div>
+                                                <div style={{ fontSize: 12, color: S.textDim }}>{c.city || '—'} · {c.phone || '—'}</div>
+                                            </div>
+                                        ))}
+                                    <button
+                                        type="button"
+                                        onClick={() => { setClientDropdownOpen(false); window.open('/clients', '_blank') }}
+                                        style={{ padding: '10px 14px', width: '100%', textAlign: 'left', borderTop: `1px solid ${S.border}`, fontWeight: 600, color: '#f97316', cursor: 'pointer', fontSize: 13 }}
+                                        className="hover:bg-orange-50 dark:hover:bg-orange-500/20"
+                                    >
+                                        + Add new client
+                                    </button>
+                                </div>
+                            )}
+                        </div>
                         <F label="Client phone (customer number, for M-Pesa STK Push)" k="phone" placeholder="e.g. 254712345678" full form={form} setForm={setForm} />
-                        <F label="Linked Journey" k="journey" options={[{ v: "", l: "-- None --" }, ...data.journeys.map((j: any) => ({ v: j.id, l: `${j.origin}→${j.dest} (${j.date})` }))]} form={form} setForm={setForm} />
+                        {(() => {
+                            const sel = form.client_id ? (data?.clients || []).find((c: any) => c.id === form.client_id) : null
+                            const outstanding = sel && (data?.invoices && data?.invoicePayments) ? (data.invoices as any[])
+                                .filter((inv: any) => (inv.client_id || inv.clientId) === sel.id && inv.id !== form.id)
+                                .reduce((sum: number, inv: any) => {
+                                    const totalPaid = (data.invoicePayments as any[]).filter((p: any) => (p.invoice_id || p.invoiceId) === inv.id).reduce((s: number, p: any) => s + Number(p.amount || 0), 0)
+                                    return sum + Math.max(0, Number(inv.amount || 0) - totalPaid)
+                                }, 0) : 0
+                            const limit = sel ? Number(sel.credit_limit || 0) : 0
+                            const creditWarning = limit > 0 && (outstanding > limit || (outstanding + Number(form.amount || 0) > limit))
+                            return creditWarning ? (
+                                <div style={{ gridColumn: '1 / -1', padding: 12, borderRadius: 12, background: '#fef3c7', border: '1px solid #fcd34d', color: '#92400e', fontSize: 13 }}>
+                                    ⚠️ {sel?.name} has {fmt(outstanding)} outstanding, which exceeds their credit limit of {fmt(limit)}. Proceed with caution.
+                                </div>
+                            ) : null
+                        })()}
+                        <F label="Linked Journey" k="journey" options={[{ v: "", l: "-- None --" }, ...(data.journeys || []).map((j: any) => ({ v: j.id, l: `${j.origin}→${j.dest} (${j.date})` }))]} form={form} setForm={setForm} />
                         <F label="Amount (KES)" k="amount" type="number" form={form} setForm={setForm} /><F label="Date Issued" k="issued" type="date" form={form} setForm={setForm} />
                         <F label="Due Date" k="due" type="date" form={form} setForm={setForm} /><F label="Status" k="status" options={["Pending", "Paid", "Overdue"]} form={form} setForm={setForm} />
                         <F label="M-Pesa Ref" k="mpesaRef" placeholder="e.g. QJK1234567 (or enter after customer pays)" form={form} setForm={setForm} /><F label="Date Paid" k="paidDate" type="date" form={form} setForm={setForm} />

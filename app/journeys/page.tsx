@@ -6,12 +6,15 @@ import { useErpContext, fmt, today } from '@/lib/ErpContext'
 import { ErpModal, F, TableSearch, ImportReviewBadge, hasImportFlag, SortableTh, sortCompare, DateRangeFilter, ClearFiltersButton, ThFilterCell, ThTextFilter, ThSelectFilter, ThDateFilter, ThNumberRangeFilter } from '@/components/ErpShared'
 import { STATUSES_JOURNEY } from '@/lib/seed-data'
 import { supabase } from '@/lib/supabase'
+import { notifyDirector, NOTIFY_MESSAGES } from '@/lib/notify'
 import toast from 'react-hot-toast'
 
 export default function Journeys() {
     const { S } = useErpContext()
     const [data, setData] = useState<any>(null)
     const [loading, setLoading] = useState(true)
+    const [clientSearch, setClientSearch] = useState('')
+    const [clientDropdownOpen, setClientDropdownOpen] = useState(false)
     const [searchQuery, setSearchQuery] = useState("")
     const [filterOrigin, setFilterOrigin] = useState("")
     const [filterDest, setFilterDest] = useState("")
@@ -34,12 +37,13 @@ export default function Journeys() {
 
     const loadData = async () => {
         setLoading(true)
-        const [{ data: journeys }, { data: trucks }, { data: drivers }] = await Promise.all([
+        const [{ data: journeys }, { data: trucks }, { data: drivers }, { data: clients }] = await Promise.all([
             supabase.from('journeys').select('*').order('date', { ascending: false }),
             supabase.from('trucks').select('*'),
-            supabase.from('drivers').select('*')
+            supabase.from('drivers').select('*'),
+            supabase.from('clients').select('*').eq('status', 'Active').order('name')
         ])
-        setData({ journeys: journeys || [], trucks: trucks || [], drivers: drivers || [] })
+        setData({ journeys: journeys || [], trucks: trucks || [], drivers: drivers || [], clients: clients || [] })
         setLoading(false)
     }
 
@@ -50,8 +54,16 @@ export default function Journeys() {
     const tractors = (data?.trucks || []).filter((t: any) => t.type && !["Trailer", "Skeletal Trailer"].includes(t.type))
     const trailers = (data?.trucks || []).filter((t: any) => t.type && ["Trailer", "Skeletal Trailer"].includes(t.type))
 
-    const openModal = (type: string, item: any = {}) => { setModal(type); setForm({ ...item }) }
-    const closeModal = () => { setModal(null); setForm({}) }
+    // Trucks/trailers on an active trip (In Transit or Loading) cannot be selected for another trip
+    const activeJourneys = (data?.journeys || []).filter((j: any) => j.status === "In Transit" || j.status === "Loading")
+    const truckIdsOnTrip = new Set(activeJourneys.map((j: any) => j.truck).filter(Boolean))
+    const trailerIdsOnTrip = new Set(activeJourneys.map((j: any) => j.trailer).filter(Boolean))
+    // When editing, always include the current journey's truck and trailer so the form can keep them
+    const tractorsAvailable = tractors.filter((t: any) => !truckIdsOnTrip.has(t.id) || t.id === form.truck)
+    const trailersAvailable = trailers.filter((t: any) => !trailerIdsOnTrip.has(t.id) || t.id === form.trailer)
+
+    const openModal = (type: string, item: any = {}) => { setModal(type); setForm({ ...item }); setClientSearch(''); setClientDropdownOpen(false) }
+    const closeModal = () => { setModal(null); setForm({}); setClientSearch(''); setClientDropdownOpen(false) }
 
     const saveJourney = async () => {
         if (!form.truck || !form.origin || !form.dest) return toast.error("Truck, Origin, and Destination are required")
@@ -68,6 +80,7 @@ export default function Journeys() {
         // Clean foreign keys
         if (!payload.driver) payload.driver = null
         if (!payload.endDate) payload.endDate = null
+        if (!payload.client_id) payload.client_id = null
         payload.odometerStart = form.odometerStart != null && form.odometerStart !== "" ? Number(form.odometerStart) : null
         payload.odometerEnd = form.odometerEnd != null && form.odometerEnd !== "" ? Number(form.odometerEnd) : null
         // Auto-calculate distance when both odometer readings are present
@@ -79,10 +92,23 @@ export default function Journeys() {
             const { error } = await supabase.from('journeys').insert(payload)
             if (error) return toast.error(error.message)
             toast.success("Journey logged")
+            if (payload.client_id && (Number(payload.revenue) > 0 || payload.revenue != null)) {
+                toast.success('Journey logged. Create an invoice from Invoices → New Invoice and select this journey and client.', { duration: 5000 })
+            }
         } else {
+            const prevStatus = form.status
             const { error } = await supabase.from('journeys').update(payload).eq('id', payload.id)
             if (error) return toast.error(error.message)
             toast.success("Journey updated")
+            const driverName = data?.drivers?.find((d: any) => d.id === payload.driver)?.name || 'Driver'
+            const route = `${payload.origin || ''}→${payload.dest || ''}`
+            const truckReg = data?.trucks?.find((t: any) => t.id === payload.truck)?.reg || '—'
+            if (payload.status === 'In Transit' && prevStatus !== 'In Transit') {
+              notifyDirector(NOTIFY_MESSAGES.journey_started(driverName, route, truckReg), 'journey_started', payload.id)
+            }
+            if (payload.status === 'Completed') {
+              notifyDirector(NOTIFY_MESSAGES.journey_completed(driverName, route), 'journey_completed', payload.id)
+            }
         }
         closeModal()
         loadData()
@@ -239,11 +265,60 @@ export default function Journeys() {
             </div>
             {modal === "journey" && (
                 <ErpModal title={form.id ? "Edit Journey" : "Log Journey"} onClose={closeModal} onSave={saveJourney}>
+                    {((truckIdsOnTrip.size > 0) || (trailerIdsOnTrip.size > 0)) && (
+                        <p style={{ fontSize: 12, color: S.textDim, marginBottom: 12 }}>Trucks and trailers currently on a trip (In Transit / Loading) are not listed until that trip is completed.</p>
+                    )}
                     <div style={S.fgg(2)}>
+                        <div style={{ ...S.fg, gridColumn: '1 / -1', position: 'relative' as const }}>
+                            <label style={S.lbl}>Client</label>
+                            <input
+                                style={S.inp}
+                                placeholder="Search client..."
+                                value={form.client_id ? (data?.clients?.find((c: any) => c.id === form.client_id)?.name ?? '') : clientSearch}
+                                onFocus={() => setClientDropdownOpen(true)}
+                                onBlur={() => setTimeout(() => setClientDropdownOpen(false), 200)}
+                                onChange={(e) => {
+                                    if (!form.client_id) setClientSearch(e.target.value)
+                                    else setForm((f: any) => ({ ...f, client_id: null }))
+                                    setClientDropdownOpen(true)
+                                }}
+                            />
+                            {clientDropdownOpen && (
+                                <div style={{ position: 'absolute', zIndex: 50, left: 0, right: 0, top: '100%', marginTop: 4, background: S.surface || '#fff', border: `1px solid ${S.border}`, borderRadius: 12, boxShadow: '0 10px 25px rgba(0,0,0,0.15)', maxHeight: 200, overflowY: 'auto' }}>
+                                    {(data?.clients || [])
+                                        .filter((c: any) => !clientSearch.trim() || (c.name || '').toLowerCase().includes(clientSearch.trim().toLowerCase()))
+                                        .map((c: any) => (
+                                            <div
+                                                key={c.id}
+                                                role="button"
+                                                tabIndex={0}
+                                                onClick={() => {
+                                                    setForm((f: any) => ({ ...f, client_id: c.id }))
+                                                    setClientSearch('')
+                                                    setClientDropdownOpen(false)
+                                                }}
+                                                style={{ padding: '10px 14px', cursor: 'pointer', fontSize: 13, borderBottom: `1px solid ${S.border2 || S.border}` }}
+                                                className="hover:bg-slate-50 dark:hover:bg-slate-800"
+                                            >
+                                                <div style={{ fontWeight: 600, color: S.text }}>{c.name}</div>
+                                                <div style={{ fontSize: 12, color: S.textDim }}>{c.city || '—'} · {c.phone || '—'}</div>
+                                            </div>
+                                        ))}
+                                    <button
+                                        type="button"
+                                        onClick={() => { setClientDropdownOpen(false); window.open('/clients', '_blank') }}
+                                        style={{ padding: '10px 14px', width: '100%', textAlign: 'left', borderTop: `1px solid ${S.border}`, fontWeight: 600, color: '#f97316', cursor: 'pointer', fontSize: 13 }}
+                                        className="hover:bg-orange-50 dark:hover:bg-orange-500/20"
+                                    >
+                                        + Add new client
+                                    </button>
+                                </div>
+                            )}
+                        </div>
                         <F label="Origin" k="origin" form={form} setForm={setForm} /><F label="Destination" k="dest" form={form} setForm={setForm} />
-                        <F label="Truck (tractor)" k="truck" options={[{ v: "", l: "-- Select Truck --" }, ...tractors.map((t: any) => ({ v: t.id, l: `${t.reg} · ${t.type || ""}` }))]} form={form} setForm={setForm} />
+                        <F label="Truck (tractor)" k="truck" options={[{ v: "", l: "-- Select Truck --" }, ...tractorsAvailable.map((t: any) => ({ v: t.id, l: `${t.reg} · ${t.type || ""}` }))]} form={form} setForm={setForm} />
                         <F label="Current odometer (km) *" k="odometerStart" type="number" form={form} setForm={setForm} placeholder="Reading when trip starts" />
-                        <F label="Trailer" k="trailer" options={[{ v: "", l: "-- Select Trailer --" }, ...trailers.map((t: any) => ({ v: t.id, l: `${t.reg} · ${t.type || ""}` }))]} form={form} setForm={setForm} />
+                        <F label="Trailer" k="trailer" options={[{ v: "", l: "-- Select Trailer --" }, ...trailersAvailable.map((t: any) => ({ v: t.id, l: `${t.reg} · ${t.type || ""}` }))]} form={form} setForm={setForm} />
                         <F label="Driver" k="driver" options={[{ v: "", l: "-- Select Driver --" }, ...data.drivers.map((d: any) => ({ v: d.id, l: d.name }))]} form={form} setForm={setForm} />
                         <F label="Departure Date" k="date" type="date" form={form} setForm={setForm} /><F label="Arrival Date" k="endDate" type="date" form={form} setForm={setForm} />
                         <F label="Final odometer (km) *" k="odometerEnd" type="number" form={form} setForm={setForm} placeholder="Required when status is Completed" />
@@ -251,6 +326,17 @@ export default function Journeys() {
                         <F label="Revenue (KES)" k="revenue" type="number" form={form} setForm={setForm} />
                         <F label="Cargo Description" k="cargo" form={form} setForm={setForm} /><F label="Weight (Tonnes)" k="weight" type="number" form={form} setForm={setForm} />
                         <F label="Status" k="status" options={STATUSES_JOURNEY} form={form} setForm={setForm} /><F label="Notes" k="notes" form={form} setForm={setForm} />
+                        <div style={{ gridColumn: '1 / -1', borderTop: `1px solid ${S.border}`, paddingTop: 12, marginTop: 8 }}>
+                            <div style={{ fontSize: 11, color: S.textDim, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Waybill (optional)</div>
+                            <div style={S.fgg(2)}>
+                                <F label="Waybill No." k="waybill_number" form={form} setForm={setForm} />
+                                <F label="Shipper" k="shipper" form={form} setForm={setForm} />
+                                <F label="Consignee" k="consignee" form={form} setForm={setForm} full />
+                            </div>
+                            {form.waybill_number && form.id && (
+                                <a href={`/api/waybill/${encodeURIComponent(form.id)}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: '#f97316', fontWeight: 600 }}>Print waybill →</a>
+                            )}
+                        </div>
                     </div>
                 </ErpModal>
             )}

@@ -27,6 +27,9 @@ export default function DriverFuelPage() {
   })
   const [odomPhotoFile, setOdomPhotoFile] = useState<File | null>(null)
   const [odomPreview, setOdomPreview] = useState<string | null>(null)
+  const [pumpPhotoFile, setPumpPhotoFile] = useState<File | null>(null)
+  const [pumpPreview, setPumpPreview] = useState<string | null>(null)
+  const [requireFuelPumpPhoto, setRequireFuelPumpPhoto] = useState(false)
 
   const load = async () => {
     const { data: { session } } = await supabase.auth.getSession()
@@ -63,6 +66,11 @@ export default function DriverFuelPage() {
       .order('createdAt', { ascending: false })
       .limit(5)
     setRecent(subData || [])
+
+    const { data: settingsRows } = await supabase.from('settings').select('key, value').eq('key', 'require_fuel_pump_photo')
+    const reqPump = (settingsRows || []).find((r: any) => r.key === 'require_fuel_pump_photo')?.value
+    setRequireFuelPumpPhoto(reqPump === '1' || reqPump === 'true')
+
     setLoading(false)
   }
 
@@ -81,6 +89,8 @@ export default function DriverFuelPage() {
     })
     setOdomPhotoFile(null)
     setOdomPreview(null)
+    setPumpPhotoFile(null)
+    setPumpPreview(null)
   }
 
   const submit = async (e: React.FormEvent) => {
@@ -98,9 +108,18 @@ export default function DriverFuelPage() {
       toast.error('Odometer photo is required when logging fuel')
       return
     }
+    if (requireFuelPumpPhoto && !pumpPhotoFile) {
+      toast.error('Fuel pump / receipt photo is required. Your company has set this as mandatory.')
+      return
+    }
     setSubmitting(true)
     try {
       const odomUrl = await uploadDriverPhoto(odomPhotoFile, 'odometer/fuel')
+      const photoUrls: string[] = [odomUrl]
+      if (pumpPhotoFile) {
+        const pumpUrl = await uploadDriverPhoto(pumpPhotoFile, 'fuel/pump')
+        photoUrls.push(pumpUrl)
+      }
       const fuelId = 'F' + Date.now().toString().slice(-6)
       const { data: fuelEntry, error } = await supabase
         .from('fuel')
@@ -131,7 +150,7 @@ export default function DriverFuelPage() {
           totalCost,
           odomReading: form.odomReading || null,
         },
-        photoUrls: [odomUrl],
+        photoUrls,
         status: 'pending',
       })
       toast.success('Fuel entry logged!')
@@ -288,6 +307,54 @@ export default function DriverFuelPage() {
               >
                 <span className="text-3xl mb-2">📸</span>
                 <span className="text-sm font-semibold text-orange-600 dark:text-orange-400">Take odometer photo</span>
+              </label>
+            )}
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
+              ⛽ Fuel pump / receipt photo {requireFuelPumpPhoto ? <span className="text-red-500">*</span> : null}
+            </label>
+            <p className="text-xs text-slate-400 dark:text-slate-500 mb-3">
+              {requireFuelPumpPhoto
+                ? 'Your company requires a photo of the pump display or receipt.'
+                : 'Optional: photo of pump display or receipt showing litres/amount.'}
+            </p>
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={(e) => {
+                const f = e.target.files?.[0]
+                setPumpPhotoFile(f || null)
+                setPumpPreview(f ? URL.createObjectURL(f) : null)
+              }}
+              className="hidden"
+              id="fuel-pump-input"
+            />
+            {pumpPreview ? (
+              <div className="relative">
+                <img
+                  src={pumpPreview}
+                  alt="Fuel pump"
+                  className="w-full h-40 object-cover rounded-xl border border-slate-200 dark:border-slate-600"
+                />
+                <button
+                  type="button"
+                  onClick={() => { setPumpPhotoFile(null); setPumpPreview(null) }}
+                  className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-8 h-8 flex items-center justify-center text-sm"
+                >
+                  ✕
+                </button>
+              </div>
+            ) : (
+              <label
+                htmlFor="fuel-pump-input"
+                className="flex flex-col items-center justify-center h-28 border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl bg-slate-50 dark:bg-slate-800/50 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+              >
+                <span className="text-2xl mb-1">⛽</span>
+                <span className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                  {requireFuelPumpPhoto ? 'Take pump/receipt photo (required)' : 'Tap to add pump/receipt photo'}
+                </span>
               </label>
             )}
           </div>

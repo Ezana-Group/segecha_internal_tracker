@@ -5,6 +5,7 @@ import AppLayout from '@/components/AppLayout'
 import { useErpContext, fmt, fmtN } from '@/lib/ErpContext'
 import { ErpModal, F, TableSearch, sortCompare, ClearFiltersButton } from '@/components/ErpShared'
 import { SC, TRUCK_TYPES, STATUSES_TRUCK, TYRE_WARN_KM } from '@/lib/seed-data'
+import { DOC_LABELS } from '@/lib/documents'
 import { supabase } from '@/lib/supabase'
 import toast from 'react-hot-toast'
 
@@ -23,18 +24,19 @@ export default function Fleet() {
         setLoading(true)
         const [
             { data: trucks }, { data: drivers }, { data: journeys },
-            { data: fuel }, { data: expenses }
+            { data: fuel }, { data: expenses }, { data: documents }
         ] = await Promise.all([
             supabase.from('trucks').select('*').order('reg'),
             supabase.from('drivers').select('*'),
             supabase.from('journeys').select('*'),
             supabase.from('fuel').select('*'),
-            supabase.from('expenses').select('*')
+            supabase.from('expenses').select('*'),
+            supabase.from('documents').select('*').eq('entity_type', 'truck')
         ])
         setData({
             trucks: trucks || [], drivers: drivers || [],
             journeys: journeys || [], fuel: fuel || [],
-            expenses: expenses || []
+            expenses: expenses || [], documents: documents || []
         })
         setLoading(false)
     }
@@ -106,6 +108,13 @@ export default function Fleet() {
     })
     const hasActiveFilters = searchQuery.trim() !== "" || filterType !== "ALL" || filterStatus !== "ALL"
     const clearFilters = () => { setSearchQuery(""); setFilterType("ALL"); setFilterStatus("ALL") }
+    const truckDocStatuses: Record<string, { doc_type: string; status: string; expiry_date: string }[]> = {}
+    ;(data?.documents || []).forEach((d: any) => {
+        const eid = d.entity_id || d.entityId
+        if (!eid) return
+        if (!truckDocStatuses[eid]) truckDocStatuses[eid] = []
+        truckDocStatuses[eid].push({ doc_type: d.doc_type, status: d.status || 'Valid', expiry_date: d.expiry_date || '' })
+    })
     const getSortVal = (t: any, key: string) => {
         switch (key) {
             case 'reg': return (t.reg || '').toString()
@@ -168,6 +177,22 @@ export default function Fleet() {
                             <div style={{ fontSize: 12, color: S.kpi.color, marginBottom: 10 }}>⚖️ {t.capacity}T · 🛣️ {(t.odom || 0).toLocaleString()} km</div>
                             <div style={{ fontSize: 11, color: ts.status === "OK" ? "#10b981" : SC[ts.status as keyof typeof SC], marginBottom: 10, fontWeight: 600 }}>
                                 🔵 Tyres: {ts.status === "Overdue" ? `Overdue ${Math.abs(ts.remaining).toLocaleString()}km` : ts.status === "Due Soon" ? `Due in ${ts.remaining.toLocaleString()}km` : `OK — ${ts.remaining.toLocaleString()}km left`}
+                            </div>
+                            <div className="flex items-center gap-1.5 mt-2 mb-2">
+                                <span className="text-xs text-slate-400 mr-1">Docs:</span>
+                                {(truckDocStatuses[t.id] || []).map((doc: { doc_type: string; status: string; expiry_date: string }) => (
+                                    <div
+                                        key={doc.doc_type}
+                                        title={`${DOC_LABELS[doc.doc_type] || doc.doc_type}: ${doc.status} (${doc.expiry_date})`}
+                                        className={`w-2.5 h-2.5 rounded-full cursor-help flex-shrink-0 ${
+                                            doc.status === 'Expired' ? 'bg-red-500' :
+                                            doc.status === 'Expiring Soon' ? 'bg-amber-500' : 'bg-emerald-500'
+                                        }`}
+                                    />
+                                ))}
+                                {(!truckDocStatuses[t.id] || truckDocStatuses[t.id].length === 0) && (
+                                    <span className="text-xs text-slate-400">No documents added</span>
+                                )}
                             </div>
                             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 14 }}>
                                 {[{ l: "Revenue", v: fmt(st.rev), c: "#10b981" }, { l: "Expenses", v: fmt(st.exp), c: "#f59e0b" }, { l: "Profit", v: fmt(st.profit), c: st.profit >= 0 ? "#3b82f6" : "#ef4444" }].map(s => (

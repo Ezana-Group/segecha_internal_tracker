@@ -5,6 +5,7 @@ import AppLayout from '@/components/AppLayout'
 import { useErpContext, fmt, today } from '@/lib/ErpContext'
 import { ErpModal, F, TableSearch, SortableTh, sortCompare, ClearFiltersButton } from '@/components/ErpShared'
 import { supabase } from '@/lib/supabase'
+import { notify, NOTIFY_MESSAGES } from '@/lib/notify'
 import toast from 'react-hot-toast'
 
 export default function Payroll() {
@@ -56,8 +57,20 @@ export default function Payroll() {
 
     const markPayrollPaid = async (id: string) => {
         if (!confirm("Confirm payment sent via M-Pesa?")) return
+        const payslip = data?.payroll?.find((p: any) => p.id === id)
+        const driver = payslip ? data?.drivers?.find((d: any) => d.id === payslip.driver) : null
         const { error } = await supabase.from('payroll').update({ status: "Paid", paidDate: today() }).eq('id', id)
         if (error) return toast.error(error.message)
+        if (driver?.mpesa) {
+          const netPay = Number(payslip?.baseSalary || 0) + Number(payslip?.allowance || 0) - Number(payslip?.deductions || 0)
+          notify(
+            driver.mpesa,
+            NOTIFY_MESSAGES.payroll_paid(driver.name || 'Driver', netPay.toLocaleString('en-KE'), payslip?.month || '', payslip?.mpesaRef || '—'),
+            'payroll_processed',
+            id,
+            driver.name
+          )
+        }
         toast.success("Payroll marked as Paid")
         loadData()
     }

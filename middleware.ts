@@ -8,6 +8,7 @@ export async function middleware(request: NextRequest) {
   // Always allow these paths through
   if (
     pathname.startsWith('/login') ||
+    pathname.startsWith('/portal') ||
     pathname.startsWith('/api/') ||
     pathname.startsWith('/_next/') ||
     pathname === '/favicon.ico' ||

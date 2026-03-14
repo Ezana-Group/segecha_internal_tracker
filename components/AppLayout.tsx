@@ -9,13 +9,17 @@ import toast from 'react-hot-toast'
 const NAV = [
   { href: '/dashboard', icon: '◈', label: 'Dashboard' },
   { href: '/account', icon: '👤', label: 'Account' },
+  { href: '/clients', icon: '👥', label: 'Clients' },
   { href: '/fleet', icon: '🚛', label: 'Fleet' },
   { href: '/drivers', icon: '👥', label: 'Drivers' },
   { href: '/journeys', icon: '🗺️', label: 'Journeys' },
+  { href: '/cargo', icon: '📦', label: 'Cargo' },
   { href: '/fuel', icon: '⛽', label: 'Fuel Log' },
   { href: '/expenses', icon: '💸', label: 'Expenses' },
   { href: '/invoices', icon: '📄', label: 'Invoices & M-Pesa' },
   { href: '/payroll', icon: '💰', label: 'Payroll' },
+  { href: '/budget', icon: '📊', label: 'Budget' },
+  { href: '/documents', icon: '📁', label: 'Documents' },
   { href: '/tyres', icon: '🔵', label: 'Tyre Monitor' },
   { href: '/maintenance', icon: '🔧', label: 'Maintenance' },
   { href: '/pnl', icon: '📈', label: 'P&L Report' },
@@ -23,13 +27,14 @@ const NAV = [
 ]
 const ADMIN_NAV = [
   { href: '/admin', icon: '⚙️', label: 'Admin Panel' },
+  { href: '/notifications', icon: '📱', label: 'SMS Log' },
 ]
 
 // Staff see only these routes by staff_type (others hidden from sidebar and protected)
 const STAFF_ALLOWED_ROUTES: Record<string, string[]> = {
   driver: ['/driver'],
-  marketing: ['/dashboard', '/account', '/invoices'],
-  office: ['/dashboard', '/account', '/journeys', '/fuel', '/expenses', '/invoices', '/payroll', '/tyres', '/maintenance', '/pnl'],
+  marketing: ['/dashboard', '/account', '/clients', '/invoices'],
+  office: ['/dashboard', '/account', '/clients', '/journeys', '/cargo', '/fuel', '/expenses', '/invoices', '/payroll', '/documents', '/tyres', '/maintenance', '/pnl'],
 }
 
 interface AppUser { id: string; email: string; name: string; role: 'admin' | 'director' | 'viewer' | 'staff' | 'revoked'; driver_id?: string | null; staff_type?: string | null }
@@ -52,6 +57,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       return
     }
     if (user.role === 'staff' && user.staff_type && pathname?.startsWith('/admin')) {
+      router.replace('/dashboard')
+      return
+    }
+    if (pathname === '/budget' && user.role !== 'admin' && user.role !== 'director') {
       router.replace('/dashboard')
       return
     }
@@ -80,7 +89,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           }
           setUser(profile as AppUser)
         } else {
-          // No row or not found: try client upsert (may fail with RLS)
+          // No users row: might be a portal-only user
+          const { data: cu } = await supabase.from('client_users').select('id').eq('auth_user_id', session.user.id).eq('status', 'Active').maybeSingle()
+          if (cu) {
+            router.replace('/portal/invoices')
+            return
+          }
+          // Try client upsert (may fail with RLS)
           const name = session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'User'
           const { data: np } = await supabase.from('users')
             .upsert({ id: session.user.id, email: session.user.email, name, role: 'admin' })
@@ -150,8 +165,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }
   const staffType = user?.role === 'staff' ? (user.staff_type ?? '') : ''
   const navItems = staffType
-    ? NAV.filter(n => STAFF_ALLOWED_ROUTES[staffType]?.includes(n.href) && (n.href !== '/driver' || user?.driver_id))
-    : NAV.filter(n => n.href !== '/driver' || user?.driver_id)
+    ? NAV.filter(n => STAFF_ALLOWED_ROUTES[staffType]?.includes(n.href) && (n.href !== '/driver' || user?.driver_id) && (n.href !== '/budget' || user?.role === 'admin' || user?.role === 'director'))
+    : NAV.filter(n => (n.href !== '/driver' || user?.driver_id) && (n.href !== '/budget' || user?.role === 'admin' || user?.role === 'director'))
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full">

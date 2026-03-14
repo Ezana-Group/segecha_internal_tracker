@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import DriverLayout from '@/components/DriverLayout'
 import { supabase } from '@/lib/supabase'
+import { notifyDirector, NOTIFY_MESSAGES } from '@/lib/notify'
 import toast from 'react-hot-toast'
 import { uploadDriverPhoto } from '@/lib/driver-upload'
 
@@ -181,7 +182,7 @@ export default function DriverPage() {
         photoUrls: [odomStartUrl],
         status: 'approved',
       })
-      toast.success('Trip started! Safe travels 🚛')
+      toast.success('Trip started! Marked as In Transit. Safe travels 🚛')
       setShowStartNewModal(false)
       load()
     } catch (e: any) {
@@ -230,7 +231,13 @@ export default function DriverPage() {
         photoUrls: [url],
         status: 'approved',
       })
-      toast.success('Trip started! Safe travels 🚛')
+      const route = `${showStartTripModal.origin || ''}→${showStartTripModal.dest || ''}`
+      notifyDirector(
+        NOTIFY_MESSAGES.journey_started(user?.name || 'Driver', route, driverInfo?.truckReg || '—'),
+        'journey_started',
+        showStartTripModal.id
+      )
+      toast.success('Trip started! Marked as In Transit. Safe travels 🚛')
       setShowStartTripModal(null)
       load()
     } catch (e: any) {
@@ -291,7 +298,13 @@ export default function DriverPage() {
         photoUrls: [odomEndUrl],
         status: 'pending',
       })
-      toast.success('Trip completed! Great work 👏')
+      const route = `${trip.origin || ''}→${trip.dest || ''}`
+      notifyDirector(
+        NOTIFY_MESSAGES.journey_completed(user?.name || 'Driver', route),
+        'journey_completed',
+        trip.id
+      )
+      toast.success('Trip marked as completed! Great work 👏')
       setShowEndModal(null)
       load()
     } catch (e: any) {
@@ -323,6 +336,23 @@ export default function DriverPage() {
   }
 
   const firstName = user?.name?.split(' ')[0] || ''
+  const hasInTransitTrip = journeys.some((j: any) => j.status === 'In Transit')
+
+  const handleOpenStartNewModal = () => {
+    if (hasInTransitTrip) {
+      toast.error('Finish your current trip before starting a new one.')
+      return
+    }
+    openStartNewModal()
+  }
+
+  const handleOpenStartTripModal = (trip: any) => {
+    if (hasInTransitTrip) {
+      toast.error('Finish your current trip before starting another.')
+      return
+    }
+    openStartTripModal(trip)
+  }
 
   return (
     <DriverLayout title="My Trips" driverFirstName={firstName}>
@@ -348,10 +378,16 @@ export default function DriverPage() {
         </div>
       </div>
 
+      {hasInTransitTrip && (
+        <div className="mb-4 p-3 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 text-sm">
+          You have a trip in progress. Mark it as completed before starting a new one.
+        </div>
+      )}
       <button
         type="button"
-        onClick={openStartNewModal}
-        className="flex items-center justify-center w-full min-h-[52px] rounded-xl text-white font-bold text-base bg-gradient-to-r from-orange-500 to-orange-600 shadow-sm mb-6"
+        onClick={handleOpenStartNewModal}
+        disabled={hasInTransitTrip}
+        className="flex items-center justify-center w-full min-h-[52px] rounded-xl text-white font-bold text-base bg-gradient-to-r from-orange-500 to-orange-600 shadow-sm mb-6 disabled:opacity-50 disabled:cursor-not-allowed"
       >
         ＋ Start New Trip
       </button>
@@ -401,16 +437,17 @@ export default function DriverPage() {
                     onClick={() => openEndModal(trip)}
                     className="text-xs bg-orange-500 text-white px-3 py-1.5 rounded-lg font-semibold"
                   >
-                    End Trip →
+                    Mark completed
                   </button>
                 )}
                 {trip.status === 'Loading' && (
                   <button
                     type="button"
-                    onClick={() => openStartTripModal(trip)}
-                    className="text-xs bg-blue-500 text-white px-3 py-1.5 rounded-lg font-semibold"
+                    onClick={() => handleOpenStartTripModal(trip)}
+                    disabled={hasInTransitTrip}
+                    className="text-xs bg-blue-500 text-white px-3 py-1.5 rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Start Trip →
+                    Start trip (In Transit)
                   </button>
                 )}
               </div>
@@ -452,7 +489,10 @@ export default function DriverPage() {
         <div className="fixed inset-0 bg-black/60 z-50 flex items-end lg:items-center justify-center p-0 lg:p-4 overflow-y-auto">
           <div className="bg-white dark:bg-slate-900 rounded-t-2xl lg:rounded-2xl w-full max-h-[90vh] overflow-y-auto lg:max-w-lg shadow-2xl">
             <div className="sticky top-0 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 px-4 py-3 flex items-center justify-between">
-              <h2 className="text-lg font-bold text-slate-800 dark:text-white">Start New Trip</h2>
+              <div>
+                <h2 className="text-lg font-bold text-slate-800 dark:text-white">Start New Trip</h2>
+                <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">Odometer photo + reading required. Trip will be In Transit.</p>
+              </div>
               <button
                 type="button"
                 onClick={() => setShowStartNewModal(false)}
@@ -610,9 +650,12 @@ export default function DriverPage() {
         <div className="fixed inset-0 bg-black/60 z-50 flex items-end lg:items-center justify-center p-0 lg:p-4">
           <div className="bg-white dark:bg-slate-900 rounded-t-2xl lg:rounded-2xl w-full max-h-[90vh] overflow-y-auto lg:max-w-md shadow-2xl">
             <div className="p-4">
-              <h2 className="text-lg font-bold text-slate-800 dark:text-white mb-4">Start Trip</h2>
-              <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+              <h2 className="text-lg font-bold text-slate-800 dark:text-white mb-1">Start trip</h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mb-2">
                 {showStartTripModal.origin} → {showStartTripModal.dest}
+              </p>
+              <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">
+                Take odometer photo and enter reading. Trip will be marked <strong>In Transit</strong>.
               </p>
               <div className="mb-4">
                 <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Odometer reading (km) *</label>
@@ -682,14 +725,17 @@ export default function DriverPage() {
         </div>
       )}
 
-      {/* End Trip modal */}
+      {/* Mark trip as completed modal */}
       {showEndModal && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-end lg:items-center justify-center p-0 lg:p-4">
           <div className="bg-white dark:bg-slate-900 rounded-t-2xl lg:rounded-2xl w-full max-h-[90vh] overflow-y-auto lg:max-w-md shadow-2xl">
             <div className="p-4">
-              <h2 className="text-lg font-bold text-slate-800 dark:text-white mb-4">End Trip</h2>
-              <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+              <h2 className="text-lg font-bold text-slate-800 dark:text-white mb-1">Mark trip as completed</h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mb-2">
                 {showEndModal.origin} → {showEndModal.dest}
+              </p>
+              <p className="text-xs text-slate-400 dark:text-slate-500 mb-4">
+                Take a photo of the odometer, enter the final reading, then mark as completed.
               </p>
               <div className="space-y-4 mb-4">
                 <div>
@@ -771,7 +817,7 @@ export default function DriverPage() {
                   disabled={submittingEnd}
                   className="flex-1 min-h-[48px] rounded-xl font-bold bg-orange-500 text-white disabled:opacity-70"
                 >
-                  {submittingEnd ? 'Completing…' : 'Complete Trip'}
+                  {submittingEnd ? 'Submitting…' : 'Mark as completed'}
                 </button>
                 <button
                   type="button"
