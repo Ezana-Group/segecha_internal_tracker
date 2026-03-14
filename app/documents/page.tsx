@@ -8,8 +8,6 @@ import { supabase } from '@/lib/supabase'
 import { DOC_LABELS, daysUntil, daysAgo } from '@/lib/documents'
 import toast from 'react-hot-toast'
 
-export { DOC_LABELS }
-
 const DOC_TYPES_TRUCK = [
   'insurance_comprehensive', 'insurance_third_party', 'ntsa_inspection', 'comesa_certificate',
   'good_transit_licence', 'overload_permit', 'route_permit', 'customs_bond', 'fire_extinguisher', 'other_truck',
