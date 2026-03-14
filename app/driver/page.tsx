@@ -22,7 +22,7 @@ export default function DriverPage() {
   const load = async () => {
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) return
-    const { data: profile } = await supabase.from('users').select('id, driver_id').eq('id', session.user.id).single()
+    const { data: profile } = await supabase.from('users').select('id').eq('id', session.user.id).single()
     setUser(profile || null)
     if (!profile?.driver_id) {
       setLoading(false)

@@ -68,7 +68,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         if (!session) { router.replace('/login'); return }
 
         const { data: profile, error: profileError } = await supabase
-          .from('users').select('id,email,name,role,driver_id').eq('id', session.user.id).single()
+          .from('users').select('id,email,name,role').eq('id', session.user.id).single()
 
         if (profile) {
           setUser(profile as AppUser)
@@ -77,7 +77,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           const name = session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'User'
           const { data: np } = await supabase.from('users')
             .upsert({ id: session.user.id, email: session.user.email, name, role: 'admin' })
-            .select('id,email,name,role,driver_id').single()
+            .select('id,email,name,role').single()
           if (np) {
             setUser(np as AppUser)
           } else {
@@ -93,7 +93,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             })
             if (res.ok) {
               const { data: created } = await supabase
-                .from('users').select('id,email,name,role,driver_id').eq('id', session.user.id).single()
+                .from('users').select('id,email,name,role').eq('id', session.user.id).single()
               if (created) setUser(created as AppUser)
             }
           }

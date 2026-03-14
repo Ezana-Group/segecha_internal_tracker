@@ -21,12 +21,12 @@ export default function AccountPage() {
   const loadProfile = async () => {
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) return null
-    let { data: profileData } = await supabase.from('users').select('id, email, name, role, driver_id').eq('id', session.user.id).single()
+    let { data: profileData } = await supabase.from('users').select('id, email, name, role').eq('id', session.user.id).single()
     if (!profileData) {
       const name = session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'User'
       const { data: created } = await supabase.from('users')
         .upsert({ id: session.user.id, email: session.user.email, name, role: 'admin' })
-        .select('id, email, name, role, driver_id').single()
+        .select('id, email, name, role').single()
       profileData = created ?? null
     }
     if (profileData?.driver_id) {
