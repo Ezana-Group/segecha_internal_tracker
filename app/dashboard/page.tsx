@@ -14,26 +14,27 @@ export default function Dashboard() {
     React.useEffect(() => {
         async function load() {
             setLoading(true)
-            const [
-                { data: trucks }, { data: journeys },
-                { data: fuel }, { data: expenses },
-                { data: invoices }, { data: payroll }, { data: drivers },
-                { data: maintenance }
-            ] = await Promise.all([
-                supabase.from('trucks').select('*'),
-                supabase.from('journeys').select('*'),
-                supabase.from('fuel').select('*'),
-                supabase.from('expenses').select('*'),
-                supabase.from('invoices').select('*'),
-                supabase.from('payroll').select('*'),
-                supabase.from('drivers').select('*'),
-                supabase.from('maintenance').select('*')
-            ])
+            const tables = [
+                () => supabase.from('trucks').select('*'),
+                () => supabase.from('journeys').select('*'),
+                () => supabase.from('fuel').select('*'),
+                () => supabase.from('expenses').select('*'),
+                () => supabase.from('invoices').select('*'),
+                () => supabase.from('payroll').select('*'),
+                () => supabase.from('drivers').select('*'),
+                () => supabase.from('maintenance').select('*')
+            ]
+            const results = await Promise.allSettled(tables.map(fn => fn()))
+            const pick = (i: number) => {
+                const r = results[i]
+                if (r.status === 'fulfilled' && r.value.data != null) return r.value.data
+                return []
+            }
             setData({
-                trucks: trucks || [], journeys: journeys || [],
-                fuel: fuel || [], expenses: expenses || [],
-                invoices: invoices || [], payroll: payroll || [],
-                drivers: drivers || [], maintenance: maintenance || []
+                trucks: pick(0), journeys: pick(1),
+                fuel: pick(2), expenses: pick(3),
+                invoices: pick(4), payroll: pick(5),
+                drivers: pick(6), maintenance: pick(7)
             })
             setLoading(false)
         }

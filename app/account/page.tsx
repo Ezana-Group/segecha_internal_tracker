@@ -40,7 +40,21 @@ export default function AccountPage() {
   const ensureProfile = async () => {
     setEnsuring(true)
     try {
-      const res = await fetch('/api/auth/ensure-profile', { method: 'POST' })
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) {
+        toast.error('Not signed in. Please sign in and try again.')
+        setEnsuring(false)
+        return
+      }
+      const res = await fetch('/api/auth/ensure-profile', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          access_token: session.access_token,
+          refresh_token: session.refresh_token,
+        }),
+      })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Failed')
       toast.success('Profile created. Reloading…')
