@@ -1,0 +1,7 @@
+.env
+.env.local
+node_modules/
+drivers-auth.json
+documents.json
+tracker-data.json
+cached-settings.json

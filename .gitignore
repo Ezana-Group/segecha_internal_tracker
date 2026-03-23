@@ -1,24 +1,23 @@
-# Logs
-logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
+# Environment variables — never commit these
+.env
+.env.local
+src/.env
+src/.env.local
+payment-portal/.env
+payment-portal/.env.local
+driver-portal/.env
+driver-portal/.env.local
+track-portal/.env
+track-portal/.env.local
+server/.env
 
-node_modules
-dist
-dist-ssr
-*.local
+# Server data files — managed on Render, not in git
+server/drivers-auth.json
+server/documents.json
+server/tracker-data.json
+server/cached-settings.json
 
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
-.DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
+# Build outputs
+dist/
+.vercel/
+node_modules/

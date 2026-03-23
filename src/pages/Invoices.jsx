@@ -1,0 +1,400 @@
+import React, { useState } from "react";
+import { 
+    FileText, 
+    Plus, 
+    Send, 
+    CreditCard, 
+    CheckCircle2, 
+    Clock, 
+    AlertCircle, 
+    TrendingUp, 
+    TrendingDown,
+    DollarSign,
+    Search,
+    Printer,
+    Download,
+    MessageSquare,
+    ArrowUpRight,
+    ArrowDownRight,
+    Search as SearchIcon,
+    Filter,
+    Share2,
+    Calendar
+} from "lucide-react";
+import { fmt, uid, today, fmtDate } from "../utils/formatters";
+import { validators } from "../utils/validators";
+import { useNavigate } from "react-router-dom";
+import { INVOICE_PREFIX, PAYMENT_TERMS_DAYS } from "../constants/nav";
+import { Card } from "../components/Card";
+import { Badge } from "../components/Badge";
+import { Button } from "../components/Button";
+import { InvoiceView } from "../components/InvoiceView";
+import { PaymentRequestModal } from "../components/PaymentRequestModal";
+import { PAYMENT_API, ADMIN_KEY } from "../utils/env";
+import { readSettings } from "../utils/settingsStore.js";
+import { PageHeader } from "../components/PageHeader";
+import { TableRowActions } from "../components/TableRowActions";
+import { CommunicationChannelMenu } from "../components/CommunicationChannelMenu";
+
+const PORTAL_URL = 'https://payment.segecha.com';
+
+export function Invoices({ data, setData, dark, isMobile, modal, form, setForm, openModal, closeModal, saveItem, delItem, markInvoicePaid, invoicePreview, setInvoicePreview, customerName, ...props }) {
+    const navigate = useNavigate();
+    const totalInvoiced = data.invoices.reduce((s, i) => s + +i.amount, 0);
+    const totalPaid = data.invoices.reduce((s, i) => s + +i.paidAmount || 0, 0);
+    const totalPending = data.invoices.filter(i => i.status !== "Paid").reduce((s, i) => s + (+i.amount - (+i.paidAmount || 0)), 0);
+    
+    const [paymentModal, setPaymentModal] = useState(null);
+    const [payReqStatus, setPayReqStatus] = useState({});
+    const [paymentReceiptWa, setPaymentReceiptWa] = useState(null);
+    const [searchTerm, setSearchTerm] = useState("");
+
+    const handleLogPayment = (payment) => {
+        const s = JSON.parse(localStorage.getItem('segecha_settings') || '{}');
+        const inv = modal === "logPayment" ? data.invoices.find(i => i.id === form.invoiceId) : null;
+        if (!inv) return;
+
+        const newPayments = [...(inv.payments || []), { ...payment, id: uid().slice(0, 8) }];
+        const newPaidAmount = newPayments.reduce((s, p) => s + +p.amount, 0);
+        const newStatus = newPaidAmount >= +inv.amount ? "Paid" : "Partial";
+        
+        setData(d => ({
+            ...d,
+            invoices: d.invoices.map(i => i.id === inv.id ? {
+                ...i,
+                paidAmount: newPaidAmount,
+                status: newStatus,
+                payments: newPayments,
+                paidDate: newStatus === "Paid" ? today() : i.paidDate
+            } : i)
+        }));
+
+        if (inv.email && payment.method) {
+            fetch(`${PAYMENT_API}/api/invoices/send-receipt`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    invoiceId: inv.id,
+                    payment: { ...payment, id: payment.id || Date.now() },
+                    adminKey: ADMIN_KEY,
+                    settings: s,
+                }),
+            }).catch(err => console.warn('Receipt email failed:', err.message));
+        }
+
+        const waMsg = [
+            `✅ *Payment Receipt — ${inv.id}*`,
+            ``,
+            `Dear ${inv.client},`,
+            `We have received your payment of *KES ${Number(payment.amount).toLocaleString()}*.`,
+            ``,
+            `Method: ${payment.method}`,
+            `Ref: *${payment.ref || 'N/A'}*`,
+            `Status: ${newStatus === "Paid" ? "Fully Settled ✅" : "Balance Outstanding"}`,
+            ``,
+            `Thank you — ${s.companyName || 'Segecha Group Ltd'}`,
+        ].join('\n');
+
+        const clientPhone = (inv.phone || '').replace(/\D/g, '').replace(/^0/, '254');
+        if (clientPhone) {
+            setPaymentReceiptWa({ url: `https://wa.me/${clientPhone}?text=${encodeURIComponent(waMsg)}`, name: inv.client });
+        }
+        closeModal();
+    };
+
+    const invStatusFilter = form._invStatusFilter || "ALL";
+    const filteredInvoices = data.invoices.filter(i => {
+        const matchesSearch = (i.client || customerName(i.customerId))?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                              i.id?.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesStatus = invStatusFilter === "ALL" || i.status === invStatusFilter;
+        return matchesSearch && matchesStatus;
+    });
+
+    return (
+        <div className="page-shell">
+            <PageHeader
+                icon={FileText}
+                title="Invoices"
+                description="Billing, payment requests, and settlement status."
+                actions={
+                    <>
+                        <Button variant="secondary" icon={Download}>
+                            Export
+                        </Button>
+                        <Button variant="premium" icon={Plus} onClick={() => openModal("invoice")}>
+                            New invoice
+                        </Button>
+                    </>
+                }
+            />
+
+            {/* Financial Status Bar */}
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: 16, marginBottom: 20 }}>
+                {[
+                    { label: "Total Revenue", value: fmt(totalInvoiced), icon: TrendingUp, color: "var(--brand-primary)", trend: "+12.5%", trendUp: true },
+                    { label: "Settled Payments", value: fmt(totalPaid), icon: CheckCircle2, color: "#10b981", trend: "+8.2%", trendUp: true },
+                    { label: "Accounts Receivable", value: fmt(totalPending), icon: Clock, color: "#f59e0b", trend: "-2.1%", trendUp: false }
+                ].map((kpi, idx) => (
+                    <Card key={idx} style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)", borderRadius: 16 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+                            <div style={{ width: 40, height: 40, borderRadius: 10, background: `${kpi.color}10`, display: "flex", alignItems: "center", justifyContent: "center", color: kpi.color }}>
+                                <kpi.icon size={20} />
+                            </div>
+                            <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 8px", borderRadius: 8, background: kpi.trendUp ? "#10b98110" : "#ef444410", color: kpi.trendUp ? "#10b981" : "#ef4444", fontSize: 11, fontWeight: 700 }}>
+                                {kpi.trendUp ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
+                                {kpi.trend}
+                            </div>
+                        </div>
+                        <div style={{ fontSize: 11, color: "var(--text-dim)", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 2 }}>{kpi.label}</div>
+                        <div style={{ fontSize: 18, fontWeight: 900, color: "var(--text-primary)" }}>{kpi.value}</div>
+                    </Card>
+                ))}
+            </div>
+
+            {/* Filters & Actions (Premium Search Section) */}
+            <div style={{ 
+                display: "flex", 
+                justifyContent: "space-between", 
+                alignItems: "center", 
+                marginBottom: 24, 
+                flexWrap: "wrap", 
+                gap: 16,
+                background: "var(--bg-card)",
+                padding: "16px 20px",
+                borderRadius: 20,
+                border: "1px solid var(--border-subtle)",
+                backdropFilter: "blur(12px)"
+            }}>
+                <div style={{ position: "relative", flex: 1, maxWidth: 450 }}>
+                    <SearchIcon style={{ position: "absolute", left: 16, top: "50%", transform: "translateY(-50%)", color: "var(--brand-primary)" }} size={18} />
+                    <input 
+                        className="input-modern input-modern--filter"
+                        placeholder="Search invoices, clients, or IDs..." 
+                        style={{ 
+                            paddingLeft: 48, 
+                            height: 48, 
+                            fontSize: 14, 
+                            borderRadius: 14,
+                            background: "var(--surface-subtle)",
+                            border: "1px solid transparent"
+                        }}
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                </div>
+                <div style={{ display: "flex", gap: 12 }}>
+                    <div style={{ position: "relative" }}>
+                        <Filter style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--text-dim)", pointerEvents: "none" }} size={14} />
+                        <select 
+                            className="input-premium" 
+                            style={{ width: 170, fontSize: 13, height: 48, padding: "0 12px 0 34px", borderRadius: 14, background: "var(--surface-subtle)" }}
+                            value={invStatusFilter}
+                            onChange={e => setForm(f => ({ ...f, _invStatusFilter: e.target.value }))}
+                        >
+                            <option value="ALL">All Statuses</option>
+                            {["Draft", "Pending", "Sent", "Partial", "Paid", "Overdue", "Cancelled"].map(status => <option key={status} value={status}>{status}</option>)}
+                        </select>
+                    </div>
+                    <Button variant="ghost" style={{ borderRadius: 14, height: 48 }} icon={Calendar}>Quarterly</Button>
+                </div>
+            </div>
+
+            {/* Main Ledger Table */}
+            <Card style={{ padding: 0, overflow: "hidden" }}>
+                <div style={{ overflowX: "auto" }}>
+                    <table className="table-modern">
+                        <thead>
+                            <tr>
+                                <th>Invoice ID</th>
+                                <th>Client Name</th>
+                                <th>Issue Date</th>
+                                <th>Due Date</th>
+                                <th>Total Amount</th>
+                                <th>Balance Owed</th>
+                                <th>Status</th>
+                                <th style={{ textAlign: "right" }}>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {filteredInvoices.length === 0 ? (
+                                <tr>
+                                    <td colSpan="8" style={{ textAlign: "center", padding: 80, color: "var(--text-dim)" }}>
+                                        <div style={{ marginBottom: 16 }}><Search size={48} opacity={0.2} /></div>
+                                        <div style={{ fontWeight: 600 }}>No invoices found matching your criteria.</div>
+                                    </td>
+                                </tr>
+                            ) : filteredInvoices.map(inv => (
+                                <tr key={inv.id} onClick={() => setInvoicePreview(inv)} style={{ cursor: "pointer" }} className="hover-scale">
+                                    <td style={{ fontWeight: 800, color: "var(--brand-primary)" }}>{inv.id}</td>
+                                    <td>
+                                        <div 
+                                            style={{ fontWeight: 700, color: "var(--text-primary)" }}
+                                        >
+                                            {inv.client || customerName(inv.customerId)}
+                                        </div>
+                                    </td>
+                                    <td>{fmtDate(inv.date)}</td>
+                                    <td style={{ color: (new Date(inv.dueDate) < new Date() && inv.status !== 'Paid') ? '#ef4444' : 'inherit', fontWeight: (new Date(inv.dueDate) < new Date() && inv.status !== 'Paid') ? 700 : 400 }}>
+                                        {fmtDate(inv.dueDate)}
+                                    </td>
+                                    <td style={{ fontWeight: 800, color: "var(--text-primary)" }}>{fmt(inv.amount)}</td>
+                                    <td style={{ color: "#f59e0b", fontWeight: 700 }}>{fmt(+inv.amount - (+inv.paidAmount || 0))}</td>
+                                    <td><Badge status={inv.status} /></td>
+                                    <td style={{ textAlign: "right", verticalAlign: "middle" }}>
+                                        <TableRowActions
+                                            ariaLabel={`Actions for invoice ${inv.id}`}
+                                            items={[
+                                                {
+                                                    id: "preview",
+                                                    label: "Preview invoice",
+                                                    icon: FileText,
+                                                    onClick: (e) => {
+                                                        e.stopPropagation();
+                                                        setInvoicePreview(inv);
+                                                    },
+                                                },
+                                                {
+                                                    id: "payreq",
+                                                    label: "Request payment",
+                                                    icon: Send,
+                                                    onClick: (e) => {
+                                                        e.stopPropagation();
+                                                        setPaymentModal(inv);
+                                                    },
+                                                },
+                                                {
+                                                    id: "logpay",
+                                                    label: "Log payment",
+                                                    icon: DollarSign,
+                                                    onClick: (e) => {
+                                                        e.stopPropagation();
+                                                        openModal("logPayment", {
+                                                            invoiceId: inv.id,
+                                                            amount: +inv.amount - (+inv.paidAmount || 0),
+                                                            client: inv.client,
+                                                        });
+                                                    },
+                                                },
+                                            ]}
+                                        />
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </Card>
+
+            {/* Modals & Overlays */}
+            {paymentModal && (
+                <PaymentRequestModal 
+                    inv={paymentModal} 
+                    onClose={() => setPaymentModal(null)}
+                    payReqStatus={payReqStatus}
+                    setPayReqStatus={setPayReqStatus}
+                    PAYMENT_API={PAYMENT_API}
+                    PORTAL_URL={PORTAL_URL}
+                />
+            )}
+
+            {invoicePreview && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', alignItems: isMobile ? 'stretch' : 'flex-start', justifyContent: 'center', padding: isMobile ? 0 : 'max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left))', overflowY: isMobile ? 'hidden' : 'auto', overscrollBehavior: 'contain' }}>
+                    <div style={{ width: '100%', maxWidth: 1000, height: isMobile ? '100dvh' : 'min(90dvh, 900px)', maxHeight: isMobile ? '100dvh' : 'min(90dvh, 900px)', margin: isMobile ? 0 : '24px 0', background: 'white', display: 'flex', flexDirection: 'column', borderRadius: isMobile ? 0 : 20, overflow: 'hidden' }}>
+                        <div style={{ padding: '12px 20px', background: '#111', color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0, flexWrap: 'wrap', gap: 8 }}>
+                            <div style={{ fontWeight: 800, fontSize: 14 }}>INVOICE PREVIEW — {invoicePreview.id}</div>
+                            <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                                {(() => {
+                                    const inv = invoicePreview;
+                                    const cust = inv.customerId ? data.customers?.find((c) => c.id === inv.customerId) : null;
+                                    const custEmail = (cust?.email || "").trim();
+                                    const co = readSettings().companyName || "Segecha Group";
+                                    const plain = `Hi ${inv.client},\n\nInvoice ${inv.id} — amount due KES ${Number(inv.amount).toLocaleString("en-KE")}. Due ${inv.due}.\n\nThank you,\n${co}`;
+                                    return (
+                                        <>
+                                            <CommunicationChannelMenu
+                                                phone={inv.phone}
+                                                email={custEmail}
+                                                emailSubject={`Invoice ${inv.id} — ${inv.client}`}
+                                                emailBody={plain}
+                                                smsBody={plain}
+                                                whatsappBody={plain}
+                                                showToast={props.showToast}
+                                                label="Send message"
+                                                size="sm"
+                                            />
+                                            <Button
+                                                size="sm"
+                                                variant="secondary"
+                                                icon={MessageSquare}
+                                                onClick={() => {
+                                                    const jid = inv.journey || inv.journeyId;
+                                                    const journey = jid ? data.journeys?.find((j) => j.id === jid) : null;
+                                                    const truck = journey ? data.trucks?.find((t) => t.id === journey.truck) : null;
+                                                    const driver = journey ? data.drivers?.find((d) => d.id === journey.driver) : null;
+                                                    openModal("templateSelector", {
+                                                        type: "invoice",
+                                                        entityData: {
+                                                            invoiceId: inv.id,
+                                                            customerName: inv.client,
+                                                            amount: fmt(inv.amount),
+                                                            dueDate: inv.due,
+                                                            mpesaRef: inv.mpesaRef || "",
+                                                            customerPhone: inv.phone || "",
+                                                            customerEmail: (cust?.email || "").trim(),
+                                                            firstName: (cust?.contactPerson || inv.client || "")
+                                                                .trim()
+                                                                .split(/\s+/)[0] || "",
+                                                            journeyId: journey?.id || jid || "",
+                                                            origin: journey?.origin || "",
+                                                            destination: journey?.dest || "",
+                                                            dest: journey?.dest || "",
+                                                            cargo: journey?.cargo || "",
+                                                            truckReg: truck?.reg || "",
+                                                            driverName: driver?.name || "",
+                                                            driverId: driver?.uId || driver?.id || "",
+                                                            revenue:
+                                                                journey?.revenue != null ? fmt(journey.revenue) : "",
+                                                            waybillNo:
+                                                                journey?.waybillNo ||
+                                                                journey?.waybillData?.waybillNo ||
+                                                                "",
+                                                            borderPoint: journey?.waybillData?.borderPoint || "",
+                                                            businessName: readSettings().companyName || "",
+                                                        },
+                                                    });
+                                                }}
+                                            >
+                                                Templates
+                                            </Button>
+                                        </>
+                                    );
+                                })()}
+                                <Button size="sm" variant="secondary" icon={Printer} onClick={() => window.print()}>Print</Button>
+                                <Button size="sm" variant="primary" onClick={() => setInvoicePreview(null)}>Close</Button>
+                            </div>
+                        </div>
+                        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', background: '#f5f5f5', padding: isMobile ? 12 : 40 }}>
+                            <InvoiceView inv={invoicePreview} data={data} dark={dark} fillTemplate={props.fillTemplate} />
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {paymentReceiptWa && (
+                <div className="animate-fade-in" style={{ position: 'fixed', bottom: 'max(16px, env(safe-area-inset-bottom))', right: 'max(16px, env(safe-area-inset-right))', left: 'auto', width: 'min(320px, calc(100vw - 32px))', maxWidth: 'calc(100vw - 32px)', background: "var(--bg-card)", border: "1px solid var(--border-subtle)", padding: 24, borderRadius: 20, boxShadow: "var(--glass-shadow)", zIndex: 1100, boxSizing: 'border-box' }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+                        <div style={{ width: 40, height: 40, borderRadius: "50%", background: "#25D366", display: "flex", alignItems: "center", justifyContent: "center", color: "white" }}>
+                            <MessageSquare size={20} />
+                        </div>
+                        <div style={{ fontWeight: 800, color: "var(--text-primary)" }}>Payment Logged!</div>
+                    </div>
+                    <p style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 20 }}>Would you like to send a digital receipt to <b>{paymentReceiptWa.name}</b> via WhatsApp?</p>
+                    <div style={{ display: "flex", gap: 10 }}>
+                        <Button style={{ flex: 1 }} variant="ghost" onClick={() => setPaymentReceiptWa(null)}>Dismiss</Button>
+                        <Button style={{ flex: 1, background: "#25D366", border: "none", color: "white" }} onClick={() => { window.open(paymentReceiptWa.url); setPaymentReceiptWa(null); }}>Send Now</Button>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
