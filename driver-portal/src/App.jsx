@@ -2066,10 +2066,10 @@ export default function DriverPortal() {
         const authInp = { ...S.inp, background: '#ffffff', color: '#0f172a' };
 
         return (
-            <div style={{ minHeight: '100vh', background: `linear-gradient(160deg, #0d1b35, ${COLORS.primary} 60%, #0d2347)`, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+            <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
                 <div style={{ background: '#fff', borderRadius: 20, padding: 36, width: '100%', maxWidth: 380, boxShadow: '0 24px 64px rgba(0,0,0,.35)' }}>
                     <div style={{ textAlign: 'center', marginBottom: 32 }}>
-                        <div style={{ fontSize: 44, marginBottom: 10 }}>🚛</div>
+                        <img src="/logo.png" alt="Logo" style={{ height: 100, marginBottom: 16, objectFit: 'contain' }} />
                         <div style={{ fontSize: 22, fontWeight: 800, color: COLORS.primary, marginBottom: 4 }}>{view === 'forgot' ? 'Reset Password' : 'Segecha Group Ltd'}</div>
                         <div style={{ fontSize: 13, color: COLORS.textFaint }}>Driver Portal · driver.segecha.com</div>
                     </div>

@@ -60,7 +60,7 @@ export default function PaymentPortal() {
     const goBack = () => { setStep(STEPS.SELECT); setStkPending(false); setError(''); };
 
     const S = {
-        page: { minHeight: '100vh', background: 'linear-gradient(160deg, #0d1b35 0%, #1B3A6B 60%, #0d2347 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', fontFamily: "'Helvetica Neue', Arial, sans-serif" },
+        page: { minHeight: '100vh', background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', fontFamily: "'Helvetica Neue', Arial, sans-serif" },
         card: { background: '#fff', borderRadius: 20, padding: 40, width: '100%', maxWidth: 480, boxShadow: '0 24px 64px rgba(0,0,0,.35)' },
         logo: { textAlign: 'center', marginBottom: 28 },
         logoIcon: { fontSize: 38, marginBottom: 8 },

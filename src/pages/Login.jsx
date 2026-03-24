@@ -43,7 +43,7 @@ export function Login({ showToast }) {
       flexDirection: 'column',
       alignItems: 'center', 
       justifyContent: 'center', 
-      background: '#0F172A', // Dark background from image 1
+      background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)', // Lighter gradient background
       color: '#fff',
       fontFamily: "'Inter', sans-serif",
       padding: 20,
