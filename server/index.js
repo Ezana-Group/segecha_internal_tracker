@@ -30,15 +30,39 @@ const getData = (file, defaultVal = { journeys: [], history: [] }) => {
 };
 const saveData = (file, data) => writeFileSync(file, JSON.stringify(data, null, 2));
 
+const db = require('./db');
+const bcrypt = require('bcryptjs');
+
 // --- ADMIN ROUTES ---
 
 // Login
-app.post('/api/admin/login', (req, res) => {
+app.post('/api/admin/login', async (req, res) => {
     const { email, password } = req.body;
-    if (email === 'admin@segecha.com' && password === 'segecha2025') {
-        res.json({ token: 'mock-token', user: { email, displayName: 'Administrator', role: 'admin' } });
-    } else {
-        res.status(401).json({ error: 'Invalid credentials' });
+    try {
+        const result = await db.query('SELECT * FROM admins WHERE email = $1', [email.toLowerCase().trim()]);
+        if (result.rows.length === 0) {
+            return res.status(401).json({ error: 'Invalid credentials' });
+        }
+
+        const admin = result.rows[0];
+        const valid = bcrypt.compareSync(password, admin.password_hash);
+        
+        if (!valid) {
+            return res.status(401).json({ error: 'Invalid credentials' });
+        }
+
+        res.json({ 
+            token: 'mock-token-' + admin.id, 
+            user: { 
+                id: admin.id,
+                email: admin.email, 
+                displayName: admin.display_name, 
+                role: admin.role 
+            } 
+        });
+    } catch (e) {
+        console.error('Login error:', e);
+        res.status(500).json({ error: 'Database authentication error' });
     }
 });
 

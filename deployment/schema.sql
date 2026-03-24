@@ -201,8 +201,19 @@ CREATE TABLE IF NOT EXISTS settings (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 12. Admin Users Table
+CREATE TABLE IF NOT EXISTS admins (
+    id TEXT PRIMARY KEY,
+    email TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    display_name TEXT,
+    role TEXT DEFAULT 'admin', -- 'admin' or 'superadmin'
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_journeys_driver ON journeys(driver_id);
 CREATE INDEX IF NOT EXISTS idx_journeys_status ON journeys(status);
 CREATE INDEX IF NOT EXISTS idx_fuel_truck ON fuel_entries(truck_id);
 CREATE INDEX IF NOT EXISTS idx_expenses_truck ON expense_entries(truck_id);
+CREATE INDEX IF NOT EXISTS idx_admins_email ON admins(email);

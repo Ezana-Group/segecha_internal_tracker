@@ -260,7 +260,11 @@ export function Settings({ dark, setDark, data, setData, setSettings, importSess
 
     useEffect(() => {
         const t = searchParams.get("tab");
-        if (t && SETTINGS_TAB_IDS.includes(t) && t !== activeTab) setActiveTab(t);
+        if (t && SETTINGS_TAB_IDS.includes(t)) {
+            if (t !== activeTab) {
+                setActiveTab(t);
+            }
+        }
     }, [searchParams, activeTab]);
 
     useEffect(() => {
