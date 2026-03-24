@@ -43,7 +43,7 @@ export function Login({ showToast }) {
       flexDirection: 'column',
       alignItems: 'center', 
       justifyContent: 'center', 
-      background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)', // Lighter gradient background
+      background: 'linear-gradient(135deg, #64748b 0%, #1e293b 50%, #0f172a 100%)', // Brighter, more distinct gradient
       color: '#fff',
       fontFamily: "'Inter', sans-serif",
       padding: 20,
@@ -61,8 +61,9 @@ export function Login({ showToast }) {
         maxWidth: 440, 
         padding: '40px', 
         borderRadius: 16,
-        background: '#1E293B', // Dark card background from image 1
-        border: '1px solid #334155',
+        background: 'rgba(30, 41, 59, 0.7)', // Semi-transparent for glassmorphism
+        backdropFilter: 'blur(16px)',
+        border: '1px solid rgba(255, 255, 255, 0.1)',
         boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
       }}>
         <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 32 }}>Sign in to your account</h2>
