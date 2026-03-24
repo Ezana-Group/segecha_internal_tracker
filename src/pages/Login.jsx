@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { adminAuth } from '../utils/adminAuth';
+import { PAYMENT_API } from '../utils/env';
 import { Mail, Lock, AlertCircle, Loader2, Eye, EyeOff } from 'lucide-react';
 
 export function Login({ showToast }) {
@@ -17,7 +18,7 @@ export function Login({ showToast }) {
     setError('');
     
     try {
-      const resp = await fetch('/api/admin/login', {
+      const resp = await fetch(`${PAYMENT_API}/api/admin/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
