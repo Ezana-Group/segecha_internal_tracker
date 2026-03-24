@@ -1,10 +1,8 @@
-import express from 'express';
-import cors from 'cors';
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
+const express = require('express');
+const cors = require('cors');
+const { readFileSync, writeFileSync, existsSync, mkdirSync } = require('fs');
+const path = require('path');
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = process.env.PORT || 3001;
 
@@ -15,17 +13,15 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'x-admin-key']
 }));
 
-// Express json parser
 app.use(express.json());
 
 // JSON File paths
-const DATA_DIR = __dirname;
-const JOURNEYS_FILE = path.join(DATA_DIR, 'tracker-data.json');
-const DRIVERS_AUTH_FILE = path.join(DATA_DIR, 'drivers-auth.json');
-const SETTINGS_FILE = path.join(DATA_DIR, 'cached-settings.json');
+const JOURNEYS_FILE = path.join(__dirname, 'tracker-data.json');
+const DRIVERS_AUTH_FILE = path.join(__dirname, 'drivers-auth.json');
+const SETTINGS_FILE = path.join(__dirname, 'cached-settings.json');
 
 // Ensure data directory exists
-if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR);
+if (!existsSync(__dirname)) mkdirSync(__dirname);
 
 // Helper to read/write data
 const getData = (file, defaultVal = { journeys: [], history: [] }) => {
@@ -50,9 +46,13 @@ app.post('/api/admin/login', (req, res) => {
 app.get(['/api/admin/journeys/pending', '/api/admin/journeys/pending-verification'], (req, res) => {
     try {
         const data = getData(JOURNEYS_FILE);
-        const pending = data.journeys.filter(j => j.status === 'pending-verification');
+        const journeys = Array.isArray(data.journeys) ? data.journeys : [];
+        const pending = journeys.filter(j => j.status === 'pending-verification');
         res.json({ success: true, journeys: pending });
-    } catch (e) { res.status(500).json({ error: 'Failed' }); }
+    } catch (e) { 
+        console.error('Pending fetch error:', e);
+        res.status(500).json({ error: 'Failed to access journey data' }); 
+    }
 });
 
 // Import history
@@ -71,7 +71,7 @@ app.get('/api/admin/stats', (req, res) => {
     } catch (e) { res.status(500).json({ error: 'Failed' }); }
 });
 
-// Upload (Placeholder for odometer photos)
+// Upload
 app.post('/api/admin/upload', (req, res) => {
     res.json({ success: true, url: 'https://cdn.segecha.com/uploads/fallback.png' });
 });
