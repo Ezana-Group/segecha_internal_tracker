@@ -8,5 +8,8 @@
     "healthcheckPath": "/",
     "healthcheckTimeout": 100,
     "restartPolicyType": "ON_FAILURE"
+  },
+  "env": {
+    "NIXPACKS_NODE_VERSION": "20"
   }
 }
