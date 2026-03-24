@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { mergeFlatPermissionOverrides, mergeProfilePermissions } from '../../src/utils/profilePermissions.js';
+import { mergeFlatPermissionOverrides, mergeProfilePermissions } from './utils/profilePermissions.js';
 
 const API = import.meta.env.VITE_API_URL || 'https://api.segecha.com';
 const fmt = n => `KES ${Number(n || 0).toLocaleString('en-KE')}`;

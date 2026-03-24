@@ -53,9 +53,7 @@ export function Login({ showToast }) {
     }}>
       {/* Logo and Header */}
       <div style={{ textAlign: 'center', marginBottom: 40 }}>
-        <img src="/logo.png" alt="Segecha Group" style={{ height: 100, marginBottom: 20 }} />
-        <h1 style={{ fontSize: 32, fontWeight: 700, margin: 0 }}>Segecha Group</h1>
-        <p style={{ color: '#94A3B8', fontSize: 16, marginTop: 4 }}>Fleet Operations Management</p>
+        <img src="/logo.png" alt="Segecha Group" style={{ height: 160, marginBottom: 0 }} />
       </div>
 
       <div style={{ 
