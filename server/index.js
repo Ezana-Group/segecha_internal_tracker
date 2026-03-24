@@ -118,7 +118,19 @@ app.post('/api/admin/reset', (req, res) => {
 
     try {
         // Truncate the file or reset to seed structure
-        const seedData = { journeys: [], history: [], stats: {} };
+        const seedData = { 
+            trucks: [], 
+            trailers: [],
+            drivers: [],
+            journeys: [], 
+            fuel: [],
+            expenses: [],
+            customers: [],
+            payroll: [],
+            staff: [],
+            history: [], 
+            stats: {} 
+        };
         saveData(JOURNEYS_FILE, seedData);
         
         // Also clear driver auth if needed? (Maybe just journeys for now as requested)
