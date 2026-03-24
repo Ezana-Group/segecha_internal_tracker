@@ -2066,8 +2066,8 @@ export default function DriverPortal() {
         const authInp = { ...S.inp, background: '#ffffff', color: '#0f172a' };
 
         return (
-            <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #64748b 0%, #1e293b 50%, #0f172a 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-                <div style={{ background: 'rgba(255, 255, 255, 0.9)', backdropFilter: 'blur(12px)', borderRadius: 20, padding: 36, width: '100%', maxWidth: 380, boxShadow: '0 24px 64px rgba(0,0,0,.35)', border: '1px solid rgba(255,255,255,0.2)' }}>
+            <div style={{ minHeight: '100vh', background: 'radial-gradient(at 0% 0%, rgba(232, 80, 26, 0.1) 0, transparent 50%), radial-gradient(at 100% 100%, rgba(27, 58, 107, 0.1) 0, transparent 50%), #ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+                <div style={{ background: 'rgba(255, 255, 255, 0.85)', backdropFilter: 'blur(20px)', borderRadius: 24, padding: 36, width: '100%', maxWidth: 380, boxShadow: '0 20px 50px rgba(0,0,0,0.06)', border: '1px solid rgba(0,0,0,0.05)' }}>
                     <div style={{ textAlign: 'center', marginBottom: 32 }}>
                         <img src="/logo.png" alt="Logo" style={{ height: 100, marginBottom: 16, objectFit: 'contain' }} />
                         <div style={{ fontSize: 22, fontWeight: 800, color: COLORS.primary, marginBottom: 4 }}>{view === 'forgot' ? 'Reset Password' : 'Segecha Group Ltd'}</div>

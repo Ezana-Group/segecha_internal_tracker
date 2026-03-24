@@ -60,8 +60,8 @@ export default function PaymentPortal() {
     const goBack = () => { setStep(STEPS.SELECT); setStkPending(false); setError(''); };
 
     const S = {
-        page: { minHeight: '100vh', background: 'linear-gradient(135deg, #64748b 0%, #1e293b 50%, #0f172a 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', fontFamily: "'Helvetica Neue', Arial, sans-serif" },
-        card: { background: 'rgba(255, 255, 255, 0.9)', backdropFilter: 'blur(12px)', borderRadius: 20, padding: 40, width: '100%', maxWidth: 480, boxShadow: '0 24px 64px rgba(0,0,0,.35)', border: '1px solid rgba(255,255,255,0.2)' },
+        page: { minHeight: '100vh', background: 'radial-gradient(at 0% 0%, rgba(232, 80, 26, 0.1) 0, transparent 50%), radial-gradient(at 100% 100%, rgba(27, 58, 107, 0.1) 0, transparent 50%), #ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', fontFamily: "'Helvetica Neue', Arial, sans-serif" },
+        card: { background: 'rgba(255, 255, 255, 0.85)', backdropFilter: 'blur(20px)', borderRadius: 24, padding: 40, width: '100%', maxWidth: 480, boxShadow: '0 20px 50px rgba(0,0,0,0.06)', border: '1px solid rgba(0,0,0,0.05)' },
         logo: { textAlign: 'center', marginBottom: 28 },
         logoIcon: { fontSize: 38, marginBottom: 8 },
         logoName: { fontSize: 22, fontWeight: 800, color: '#1B3A6B', letterSpacing: -0.5 },

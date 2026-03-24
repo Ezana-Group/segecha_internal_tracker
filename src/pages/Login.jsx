@@ -43,8 +43,8 @@ export function Login({ showToast }) {
       flexDirection: 'column',
       alignItems: 'center', 
       justifyContent: 'center', 
-      background: 'linear-gradient(135deg, #64748b 0%, #1e293b 50%, #0f172a 100%)', // Brighter, more distinct gradient
-      color: '#fff',
+      background: 'radial-gradient(at 0% 0%, rgba(232, 80, 26, 0.1) 0, transparent 50%), radial-gradient(at 100% 100%, rgba(27, 58, 107, 0.1) 0, transparent 50%), #ffffff', // White with orange/blue mesh
+      color: '#0f172a',
       fontFamily: "'Inter', sans-serif",
       padding: 20,
       position: 'fixed',
@@ -61,12 +61,12 @@ export function Login({ showToast }) {
         maxWidth: 440, 
         padding: '40px', 
         borderRadius: 16,
-        background: 'rgba(30, 41, 59, 0.7)', // Semi-transparent for glassmorphism
-        backdropFilter: 'blur(16px)',
-        border: '1px solid rgba(255, 255, 255, 0.1)',
-        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+        background: 'rgba(255, 255, 255, 0.8)', // Glassmorphic light card
+        backdropFilter: 'blur(20px)',
+        border: '1px solid rgba(0, 0, 0, 0.05)',
+        boxShadow: '0 20px 50px rgba(0, 0, 0, 0.05)',
       }}>
-        <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 32 }}>Sign in to your account</h2>
+        <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 32, color: '#0f172a' }}>Sign in to your account</h2>
 
         {error && (
           <div style={{ 
@@ -88,7 +88,7 @@ export function Login({ showToast }) {
 
         <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
           <div>
-            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#94A3B8', marginBottom: 8, textTransform: 'uppercase' }}>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 8, textTransform: 'uppercase' }}>
               Email Address
             </label>
             <input 
@@ -99,11 +99,11 @@ export function Login({ showToast }) {
               required
               style={{
                 width: '100%',
-                background: '#0F172A',
-                border: '1px solid #334155',
+                background: '#f8fafc',
+                border: '1px solid #e2e8f0',
                 borderRadius: 8,
                 padding: '12px 16px',
-                color: '#fff',
+                color: '#0f172a',
                 fontSize: 15,
                 outline: 'none',
                 boxSizing: 'border-box'
@@ -113,7 +113,7 @@ export function Login({ showToast }) {
 
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <label style={{ fontSize: 12, fontWeight: 600, color: '#94A3B8', textTransform: 'uppercase' }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', textTransform: 'uppercase' }}>
                 Password
               </label>
             </div>
@@ -126,11 +126,11 @@ export function Login({ showToast }) {
                 required
                 style={{
                   width: '100%',
-                  background: '#0F172A',
-                  border: '1px solid #334155',
+                  background: '#f8fafc',
+                  border: '1px solid #e2e8f0',
                   borderRadius: 8,
                   padding: '12px 16px',
-                  color: '#fff',
+                  color: '#0f172a',
                   fontSize: 15,
                   outline: 'none',
                   boxSizing: 'border-box'
