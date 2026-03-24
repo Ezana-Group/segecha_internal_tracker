@@ -662,8 +662,8 @@ export function useAppState() {
         try {
             const res = await fetch(`${PAYMENT_API}/api/admin/import-history?adminKey=${ADMIN_KEY}`);
             if (res.ok) {
-                const history = await res.json();
-                setImportHistory(history);
+                const result = await res.json();
+                setImportHistory(result.history || []);
             }
         } catch (e) {
             console.warn("Could not load import history:", e.message);
