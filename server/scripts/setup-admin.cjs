@@ -1,6 +1,6 @@
 const path = require('path');
-require('dotenv').config({ path: path.join(__dirname, '../server/.env') });
-const db = require('../server/db');
+require('dotenv').config({ path: path.join(__dirname, '../.env') });
+const db = require('../db');
 const bcrypt = require('bcryptjs');
 
 // Usage: node scripts/setup-admin.js admin@segecha.com MySecurePassword "System Admin"
