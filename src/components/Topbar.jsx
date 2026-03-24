@@ -16,8 +16,6 @@ export function Topbar({
     clearPreviewMode,
     pendingVerifications,
     setVerifyModal,
-    truckReg,
-    setAdminAuthed,
     S,
 }) {
     const activeTrucks = data.trucks.filter((t) => t.status === "Active").length;
@@ -102,8 +100,10 @@ export function Topbar({
                     style={{ ...S.btn('ghost'), padding: '5px 10px', fontSize: 11, marginLeft: 8 }}
                     onClick={() => {
                         if (window.confirm('Sign out of the admin panel?')) {
-                            localStorage.removeItem('segecha_admin_authed');
-                            setAdminAuthed(false);
+                            import("../utils/adminAuth").then(({ adminAuth }) => {
+                                adminAuth.clearSession();
+                                window.location.reload();
+                            });
                         }
                     }}>
                     Sign out

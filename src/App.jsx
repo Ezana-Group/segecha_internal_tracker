@@ -38,26 +38,6 @@ import { adminAuth } from "./utils/adminAuth";
 import { Login } from "./pages/Login";
 
 export default function App() {
-    // ── Admin login gate
-    const [adminAuthed, setAdminAuthed] = useState(() => {
-        return localStorage.getItem('segecha_admin_authed') === 'true';
-    });
-    const [loginInput, setLoginInput]   = useState('');
-    const [loginError, setLoginError]   = useState('');
-
-    const ADMIN_PASSWORD = import.meta.env.VITE_ADMIN_PASSWORD || 'segecha2025';
-
-    const handleAdminLogin = () => {
-        if (loginInput === ADMIN_PASSWORD) {
-            localStorage.setItem('segecha_admin_authed', 'true');
-            setAdminAuthed(true);
-            setLoginError('');
-        } else {
-            setLoginError('Incorrect password. Contact your system administrator.');
-            setLoginInput('');
-        }
-    };
-
     const state = useAppState();
     const location = useLocation();
     const navigate = useNavigate();
@@ -145,134 +125,6 @@ export default function App() {
         flexDirection: "column",
     };
 
-    const AdminLoginScreen = () => (
-        <div style={{
-            minHeight: '100vh',
-            background: state.dark ? '#0d1117' : '#f6f8fa',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontFamily: "'DM Sans', -apple-system, sans-serif",
-            padding: 20,
-        }}>
-            <div style={{
-                background: state.dark ? '#161b22' : '#ffffff',
-                border: `1px solid ${state.dark ? '#30363d' : '#d0d7de'}`,
-                borderRadius: 12,
-                padding: '40px 36px',
-                width: '100%',
-                maxWidth: 380,
-                boxShadow: state.dark
-                    ? '0 16px 48px rgba(0,0,0,0.6)'
-                    : '0 16px 48px rgba(0,0,0,0.1)',
-            }}>
-                {/* Logo / brand */}
-                <div style={{ textAlign: 'center', marginBottom: 32 }}>
-                    {(() => {
-                        const logo = localStorage.getItem('segecha_logo');
-                        const name = (() => {
-                            try {
-                                return JSON.parse(localStorage.getItem('segecha_settings') || '{}')
-                                    .companyName || 'Segecha Group';
-                            } catch { return 'Segecha Group'; }
-                        })();
-                        return logo
-                            ? <img src={logo} alt={name}
-                                style={{ height: 48, maxWidth: 180,
-                                    objectFit: 'contain', marginBottom: 12 }} />
-                            : <div style={{
-                                width: 52, height: 52, borderRadius: 12,
-                                background: '#E8501A',
-                                display: 'flex', alignItems: 'center',
-                                justifyContent: 'center',
-                                fontSize: 22, fontWeight: 700, color: '#fff',
-                                margin: '0 auto 12px',
-                                fontFamily: "'Syne', sans-serif",
-                              }}>
-                                {name.charAt(0)}
-                              </div>;
-                    })()}
-                    <div style={{
-                        fontSize: 18, fontWeight: 700, color: state.dark ? '#e6edf3' : '#1f2328',
-                        fontFamily: "'Syne', sans-serif", letterSpacing: '-0.3px',
-                    }}>
-                        Fleet Management
-                    </div>
-                    <div style={{
-                        fontSize: 13, color: state.dark ? '#8b949e' : '#636c76',
-                        marginTop: 4,
-                    }}>
-                        app.segecha.com — admin access only
-                    </div>
-                </div>
-
-                {/* Form */}
-                <div style={{ marginBottom: 14 }}>
-                    <label style={{
-                        display: 'block', fontSize: 12, fontWeight: 500,
-                        color: state.dark ? '#8b949e' : '#636c76',
-                        marginBottom: 6,
-                    }}>
-                        Admin password
-                    </label>
-                    <input
-                        type="password"
-                        placeholder="Enter password"
-                        value={loginInput}
-                        onChange={e => setLoginInput(e.target.value)}
-                        onKeyDown={e => e.key === 'Enter' && handleAdminLogin()}
-                        autoFocus
-                        style={{
-                            width: '100%', padding: '10px 14px',
-                            borderRadius: 8,
-                            border: `1px solid ${loginError
-                                ? '#ef4444'
-                                : state.dark ? '#30363d' : '#d0d7de'}`,
-                            background: state.dark ? '#0d1117' : '#f6f8fa',
-                            color: state.dark ? '#e6edf3' : '#1f2328',
-                            fontSize: 15, outline: 'none',
-                            fontFamily: "'DM Sans', sans-serif",
-                            boxSizing: 'border-box',
-                        }}
-                    />
-                    {loginError && (
-                        <div style={{
-                            fontSize: 12, color: '#ef4444',
-                            marginTop: 6, fontWeight: 500,
-                        }}>
-                            {loginError}
-                        </div>
-                    )}
-                </div>
-
-                <button
-                    onClick={handleAdminLogin}
-                    style={{
-                        width: '100%', padding: '11px',
-                        background: '#E8501A', color: '#fff',
-                        border: 'none', borderRadius: 8,
-                        fontSize: 14, fontWeight: 600, cursor: 'pointer',
-                        fontFamily: "'DM Sans', sans-serif",
-                        letterSpacing: '0.1px',
-                    }}>
-                    Sign in
-                </button>
-
-                <div style={{
-                    marginTop: 20, textAlign: 'center',
-                    fontSize: 11, color: state.dark ? '#484f58' : '#9ca3af',
-                }}>
-                    Segecha Group Ltd · Fleet ERP v3.0
-                    <br />
-                    <span style={{ color: state.dark ? '#30363d' : '#d0d7de' }}>
-                        Unauthorised access is prohibited
-                    </span>
-                </div>
-            </div>
-        </div>
-    );
-
-    if (!adminAuthed) return <AdminLoginScreen />;
 
     return (
         <div id="app-shell" style={layoutStyle}>
@@ -285,7 +137,7 @@ export default function App() {
             )}
             
             
-            {adminAuth.isAuthenticated() && <Topbar {...p} setAdminAuthed={setAdminAuthed} />}
+            {adminAuth.isAuthenticated() && <Topbar {...p} />}
             <PreviewModeBanner
                 previewMode={state.previewMode}
                 label={previewLabel}

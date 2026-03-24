@@ -64,7 +64,7 @@ export default function TrackApp() {
       <nav style={S.nav}>
         <div style={S.container}>
           <div style={S.logo}>
-            <span style={S.logoIcon}>🚛</span>
+            <img src="/logo.png" alt="Logo" style={{ height: 40, width: 'auto', objectFit: 'contain' }} />
             <span style={S.logoText}>SEGECHA</span>
             <span style={S.logoSub}>LOGISTICS</span>
           </div>

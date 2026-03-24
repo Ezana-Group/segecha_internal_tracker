@@ -104,8 +104,8 @@ export default function PaymentPortal() {
 
                 {/* Header */}
                 <div style={S.logo}>
-                    <div style={S.logoIcon}>🚛</div>
-                    <div style={S.logoName}>{companyName}</div>
+                    <img src="/logo.png" alt="Logo" style={{ height: 64, marginBottom: 12, objectFit: 'contain' }} />
+                    <div style={S.logoName}>{companyName || "Segecha Group"}</div>
                     <div style={S.logoSub}>🔒 Secure Payment Portal</div>
                 </div>
 

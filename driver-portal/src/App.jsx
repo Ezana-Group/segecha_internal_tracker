@@ -2254,22 +2254,7 @@ export default function DriverPortal() {
                 <div style={{ flex: '0 0 auto', minWidth: 120, display: 'flex', alignItems: 'center', gap: 8 }}>
                     {isPrimaryTab ? (
                         <>
-                            <span
-                                style={{
-                                    width: 32,
-                                    height: 32,
-                                    borderRadius: 10,
-                                    background: `linear-gradient(135deg, ${COLORS.primary}, #2563eb)`,
-                                    color: '#fff',
-                                    fontSize: 13,
-                                    fontWeight: 900,
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                }}
-                            >
-                                S
-                            </span>
+                            <img src="/logo.png" alt="S" style={{ width: 32, height: 32, objectFit: 'contain' }} />
                             <span style={{ color: COLORS.text, fontWeight: 800, fontSize: 14, letterSpacing: -0.3 }}>Segecha Group</span>
                         </>
                     ) : (
