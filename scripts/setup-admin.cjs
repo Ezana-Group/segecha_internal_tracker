@@ -1,6 +1,5 @@
 const db = require('../server/db');
 const bcrypt = require('bcryptjs');
-const { v4: uuidv4 } = require('uuid'); // Assume uuid is available in workspace for simple ID generation or just use crypto
 
 // Usage: node scripts/setup-admin.js admin@segecha.com MySecurePassword "System Admin"
 const email = process.argv[2] || 'admin@segecha.com';
