@@ -397,9 +397,37 @@ export function useAppState() {
     };
 
     const resetData = () => {
-        if (window.confirm("Reset all data to demo data? This cannot be undone.")) {
+        if (window.confirm("Reset all local data to demo data? This cannot be undone.")) {
             localStorage.removeItem(STORAGE_KEY);
             window.location.reload();
+        }
+    };
+
+    const hardResetSystem = async () => {
+        if (!window.confirm("CRITICAL: This will permanently delete ALL data from BOTH this browser and the production server. This cannot be undone. Continue?")) {
+            return;
+        }
+
+        try {
+            const res = await fetch(`${PAYMENT_API}/api/admin/reset`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-admin-key': ADMIN_KEY
+                }
+            });
+            const result = await res.json().catch(() => ({}));
+            
+            if (res.ok) {
+                localStorage.removeItem(STORAGE_KEY);
+                localStorage.removeItem(LAST_SYNC_KEY);
+                showToast("System reset successful. Reloading...", "success");
+                setTimeout(() => window.location.reload(), 1500);
+            } else {
+                showToast("Server reset failed: " + (result.error || "Unknown error"), "error");
+            }
+        } catch (e) {
+            showToast("Connection error during reset: " + e.message, "error");
         }
     };
 
@@ -1073,7 +1101,7 @@ export function useAppState() {
         invoicePreview, setInvoicePreview,
         sideOpen, setSideOpen,
         dark, setDark,
-        saveItem, delItem, markPayrollPaid, markInvoicePaid, resetData,
+        saveItem, delItem, markPayrollPaid, markInvoicePaid, resetData, hardResetSystem,
         verifyJourney, fetchPendingVerifications, syncToServer,
         verifySubmission,
         driverName, driverPhone, staffName, truckReg, customerName, truckStats, tyreStatus, maintenanceStatus, logMaintenance,

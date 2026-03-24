@@ -215,7 +215,7 @@ function SettingsShellSectionHeader({ title, desc, icon: Icon }) {
     );
 }
 
-export function Settings({ dark, setDark, data, setData, setSettings, importSession, setImportSession, runExcelImport, isMobile, showToast, fillTemplate, syncToServer }) {
+export function Settings({ dark, setDark, data, setData, setSettings, importSession, setImportSession, runExcelImport, isMobile, showToast, fillTemplate, syncToServer, hardResetSystem }) {
     const [searchParams, setSearchParams] = useSearchParams();
     const tabFromUrl = searchParams.get("tab");
     const [activeTab, setActiveTab] = useState(() =>
@@ -344,10 +344,7 @@ export function Settings({ dark, setDark, data, setData, setSettings, importSess
             showToast?.("Only Super Admin can destroy local data.", "error");
             return;
         }
-        if (window.confirm("CRITICAL: This will permanently delete ALL data including trucks, drivers, journeys and expenses. Continue?")) {
-            localStorage.clear();
-            window.location.reload();
-        }
+        hardResetSystem?.();
     };
 
     // (import is handled by the dedicated Import components)

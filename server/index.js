@@ -81,6 +81,31 @@ app.put('/api/admin/:col/:id', (req, res) => {
     res.json({ success: true });
 });
 
+// Deep Reset - Wipes all server data
+app.post('/api/admin/reset', (req, res) => {
+    const key = req.headers['x-admin-key'];
+    // In prod, this key is managed via environment variables on Railway.
+    // We expect it to match the VITE_ADMIN_KEY sent by the frontend.
+    const expectedKey = process.env.ADMIN_KEY || 'segecha-admin-key-change-this';
+    
+    if (key !== expectedKey) {
+        return res.status(403).json({ error: 'Unauthorized reset request' });
+    }
+
+    try {
+        // Truncate the file or reset to seed structure
+        const seedData = { journeys: [], history: [], stats: {} };
+        saveData(JOURNEYS_FILE, seedData);
+        
+        // Also clear driver auth if needed? (Maybe just journeys for now as requested)
+        // saveData(DRIVERS_AUTH_FILE, { drivers: [] });
+
+        res.json({ success: true, message: 'Server data factory-reset successful' });
+    } catch (e) {
+        res.status(500).json({ error: 'Reset failed: ' + e.message });
+    }
+});
+
 // --- DRIVER ROUTES ---
 app.post('/api/driver/login', (req, res) => {
     res.json({ success: true, token: 'driver-token', driver: { name: 'Demo Driver' } });
