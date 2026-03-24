@@ -16,6 +16,7 @@ export function Topbar({
     clearPreviewMode,
     pendingVerifications,
     setVerifyModal,
+    truckReg,
     S,
 }) {
     const activeTrucks = data.trucks.filter((t) => t.status === "Active").length;
