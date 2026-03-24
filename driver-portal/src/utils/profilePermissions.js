@@ -4,7 +4,6 @@
  * `tracker-data.json` via Push snapshot for the portal.
  */
 import { useEffect, useMemo, useState } from "react";
-import { readSettings, subscribeSettings } from "./settingsStore.js";
 
 function deepMergeBools(defaults, stored) {
     if (!stored || typeof stored !== "object") return { ...defaults };
@@ -379,11 +378,6 @@ export function mergeProfilePermissions(storedRoot) {
     };
 }
 
-export function useMergedProfilePermissions() {
-    const [rev, setRev] = useState(0);
-    useEffect(() => subscribeSettings(() => setRev((r) => r + 1)), []);
-    return useMemo(() => mergeProfilePermissions(readSettings().profilePermissions), [rev]);
-}
 
 /**
  * Merge workspace-wide permissions with per-staff / per-driver delta overrides.
