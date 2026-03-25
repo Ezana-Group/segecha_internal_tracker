@@ -9,17 +9,36 @@ require('dotenv').config({ path: path.join(__dirname, '../.env') });
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Health Check
-app.get('/health', (req, res) => res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() }));
-
-// CORS configuration - Allow all origins and methods for production stability
+// 1. CORS - MUST BE FIRST for production reliability
 app.use(cors({
   origin: '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-admin-key']
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-admin-key'],
+  maxAge: 86400 // Cache preflight for 24h
 }));
 
+// 2. Health Check - Before auth so monitoring works
+app.get('/health', (req, res) => res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() }));
+
 app.use(express.json());
+
+// 3. Admin Auth Middleware
+const adminAuth = (req, res, next) => {
+    // Skip auth for login and public routes
+    if (req.path === '/api/admin/login' || req.path === '/health' || !req.path.startsWith('/api/')) return next();
+    
+    // Check key in header or body
+    const adminKey = req.headers['x-admin-key'] || req.body?.adminKey || req.query?.adminKey;
+    const expectedKey = process.env.VITE_ADMIN_KEY || process.env.ADMIN_KEY || 'segecha-admin-key-change-this';
+    
+    if (adminKey !== expectedKey) {
+        console.warn(`[AUTH_FAILURE] ip=${req.ip} path=${req.path} key=${adminKey?.substring(0,3)}...`);
+        return res.status(403).json({ error: 'Unauthorized access' });
+    }
+    next();
+};
+
+app.use(adminAuth);
 
 // JSON File paths
 const JOURNEYS_FILE = path.join(__dirname, 'tracker-data.json');
@@ -333,14 +352,8 @@ app.post('/api/admin/reset', (req, res) => {
 // --- TRACKER SYNC & BACKUP ---
 
 // Sync Snapshot (Local -> Server)
-app.post('/api/tracker/sync', (req, res) => {
-    const { data, settings, adminKey } = req.body;
-    const expectedKey = process.env.VITE_ADMIN_KEY || process.env.ADMIN_KEY || 'segecha-admin-key-change-this';
-    
-    if (adminKey !== expectedKey) {
-        return res.status(403).json({ error: 'Unauthorized sync request' });
-    }
-
+app.post('/api/tracker/snapshot', (req, res) => {
+    const { data, settings } = req.body;
     try {
         if (data) saveData(JOURNEYS_FILE, data);
         if (settings) saveData(SETTINGS_FILE, settings);
@@ -355,11 +368,8 @@ app.post('/api/tracker/sync', (req, res) => {
     }
 });
 
-// Auto-sync from admin (lightweight — accepts x-admin-key header for browser fetch)
+// Auto-sync from admin (lightweight)
 app.post('/api/tracker/data', (req, res) => {
-    const adminKey = req.headers['x-admin-key'] || req.body?.adminKey;
-    const expectedKey = process.env.VITE_ADMIN_KEY || process.env.ADMIN_KEY || 'segecha-admin-key-change-this';
-    if (adminKey !== expectedKey) return res.status(403).json({ error: 'Unauthorized' });
     try {
         if (req.body && Object.keys(req.body).length) {
             saveData(JOURNEYS_FILE, req.body);
@@ -410,13 +420,7 @@ app.post('/api/tracker/backup-now', (req, res) => {
 
 // Restore from Backup
 app.post('/api/tracker/restore', (req, res) => {
-    const { filename, adminKey } = req.body;
-    const expectedKey = process.env.VITE_ADMIN_KEY || process.env.ADMIN_KEY || 'segecha-admin-key-change-this';
-    
-    if (adminKey !== expectedKey) {
-        return res.status(403).json({ error: 'Unauthorized restore request' });
-    }
-
+    const { filename } = req.body;
     try {
         const backupPath = path.join(BACKUPS_DIR, filename);
         if (!existsSync(backupPath)) return res.status(404).json({ error: 'Backup file not found' });
@@ -523,10 +527,7 @@ const driverData = require('./driver-data');
 // --- DRIVER ACCOUNT MANAGEMENT (ADMIN) ---
 
 app.post('/api/driver/create-account', async (req, res) => {
-    const { driverId, email, phone, adminKey } = req.body;
-    const expectedKey = process.env.ADMIN_KEY || 'segecha-admin-key-change-this';
-    if (adminKey !== expectedKey) return res.status(403).json({ error: 'Unauthorized' });
-
+    const { driverId, email, phone } = req.body;
     try {
         const result = await driverAuth.createDriverAccount(driverId, email, phone);
         res.json(result);
@@ -536,19 +537,12 @@ app.post('/api/driver/create-account', async (req, res) => {
 });
 
 app.get('/api/driver/account-status/:id', (req, res) => {
-    const { adminKey } = req.query;
-    const expectedKey = process.env.ADMIN_KEY || 'segecha-admin-key-change-this';
-    if (adminKey !== expectedKey) return res.status(403).json({ error: 'Unauthorized' });
-
     const status = driverAuth.getDriverAccountStatus(req.params.id);
     res.json(status);
 });
 
 app.post('/api/driver/account/regenerate-credentials', async (req, res) => {
-    const { driverId, email, phone, forcePasswordReset, adminKey } = req.body;
-    const expectedKey = process.env.ADMIN_KEY || 'segecha-admin-key-change-this';
-    if (adminKey !== expectedKey) return res.status(403).json({ error: 'Unauthorized' });
-
+    const { driverId, email, phone, forcePasswordReset } = req.body;
     try {
         const result = await driverAuth.regenerateDriverCredentials(driverId, { email, phone, forcePasswordReset });
         res.json(result);
@@ -558,20 +552,12 @@ app.post('/api/driver/account/regenerate-credentials', async (req, res) => {
 });
 
 app.get('/api/driver/account-export/:id', (req, res) => {
-    const { adminKey } = req.query;
-    const expectedKey = process.env.ADMIN_KEY || 'segecha-admin-key-change-this';
-    if (adminKey !== expectedKey) return res.status(403).json({ error: 'Unauthorized' });
-
     const exportData = driverAuth.exportDriverAccount(req.params.id);
     if (!exportData) return res.status(404).json({ error: 'Account not found' });
     res.json(exportData);
 });
 
 app.delete('/api/driver/account/:id', (req, res) => {
-    const { adminKey } = req.query;
-    const expectedKey = process.env.ADMIN_KEY || 'segecha-admin-key-change-this';
-    if (adminKey !== expectedKey) return res.status(403).json({ error: 'Unauthorized' });
-
     const success = driverAuth.deleteDriverAccount(req.params.id);
     res.json({ success });
 });
@@ -579,10 +565,7 @@ app.delete('/api/driver/account/:id', (req, res) => {
 // --- STAFF ACCOUNT MANAGEMENT (ADMIN) ---
 
 app.post('/api/staff/create-account', async (req, res) => {
-    const { staffId, email, phone, adminKey } = req.body;
-    const expectedKey = process.env.ADMIN_KEY || 'segecha-admin-key-change-this';
-    if (adminKey !== expectedKey) return res.status(403).json({ error: 'Unauthorized' });
-
+    const { staffId, email, phone } = req.body;
     try {
         const result = await staffAuth.createStaffAccount(staffId, email, phone);
         res.json(result);
@@ -592,19 +575,12 @@ app.post('/api/staff/create-account', async (req, res) => {
 });
 
 app.get('/api/staff/account-status/:id', (req, res) => {
-    const { adminKey } = req.query;
-    const expectedKey = process.env.ADMIN_KEY || 'segecha-admin-key-change-this';
-    if (adminKey !== expectedKey) return res.status(403).json({ error: 'Unauthorized' });
-
     const status = staffAuth.getStaffAccountStatus(req.params.id);
     res.json(status);
 });
 
 app.post('/api/staff/account/regenerate-credentials', async (req, res) => {
-    const { staffId, email, phone, forcePasswordReset, adminKey } = req.body;
-    const expectedKey = process.env.ADMIN_KEY || 'segecha-admin-key-change-this';
-    if (adminKey !== expectedKey) return res.status(403).json({ error: 'Unauthorized' });
-
+    const { staffId, email, phone, forcePasswordReset } = req.body;
     try {
         const result = await staffAuth.regenerateStaffCredentials(staffId, { email, phone, forcePasswordReset });
         res.json(result);
@@ -614,20 +590,12 @@ app.post('/api/staff/account/regenerate-credentials', async (req, res) => {
 });
 
 app.get('/api/staff/account-export/:id', (req, res) => {
-    const { adminKey } = req.query;
-    const expectedKey = process.env.ADMIN_KEY || 'segecha-admin-key-change-this';
-    if (adminKey !== expectedKey) return res.status(403).json({ error: 'Unauthorized' });
-
     const exportData = staffAuth.exportStaffAccount(req.params.id);
     if (!exportData) return res.status(404).json({ error: 'Account not found' });
     res.json(exportData);
 });
 
 app.delete('/api/staff/account/:id', (req, res) => {
-    const { adminKey } = req.query;
-    const expectedKey = process.env.ADMIN_KEY || 'segecha-admin-key-change-this';
-    if (adminKey !== expectedKey) return res.status(403).json({ error: 'Unauthorized' });
-
     const success = staffAuth.deleteStaffAccount(req.params.id);
     res.json({ success });
 });
