@@ -17,6 +17,7 @@ import {
     UserRoundCog,
     Download,
     ExternalLink,
+    AlertTriangle,
 } from "lucide-react";
 import { NAV } from "../constants/nav";
 import { getPreviewNavItems } from "../constants/previewNav.js";
@@ -36,6 +37,7 @@ const ICON_MAP = {
     maintenance: Wrench,
     tyres: CircleDot,
     pnl: BarChart3,
+    incidents: AlertTriangle,
     documents: Files,
     import: Download,
     settings: Settings,

@@ -75,7 +75,7 @@ function getDriverData(driverId, settings = {}) {
         .sort((a, b) => b.date.localeCompare(a.date));
 
     const activeJourneys = journeys
-        .filter(j => ['Loading', 'In Transit', 'Awaiting Start Verification', 'Awaiting Verification'].includes(j.status))
+        .filter(j => ['Loading', 'Approved', 'In Transit', 'Awaiting Start Verification', 'Awaiting Verification'].includes(j.status))
         .map(j => enrichJourneyForPortal(j, data));
     const completedJourneys = journeys
         .filter(j => j.status === 'Completed')
@@ -94,6 +94,12 @@ function getDriverData(driverId, settings = {}) {
     const expenseEntries = (data.expenses || [])
         .filter(e => e.truck === driver.truck || e.driver === driverId || e._submittedBy === driverId)
         .sort((a, b) => b.date.localeCompare(a.date))
+        .slice(0, 20);
+
+    // Incident history for this driver
+    const incidentEntries = (data.incidents || [])
+        .filter(i => i.driverId === driverId || i.driver === driverId)
+        .sort((a, b) => (b.createdAt || b.date).localeCompare(a.createdAt || a.date))
         .slice(0, 20);
 
     // Maintenance history for this truck (subset of expenses)
@@ -130,6 +136,7 @@ function getDriverData(driverId, settings = {}) {
         completedJourneys,
         fuelEntries,
         expenseEntries,
+        incidentEntries,
         maintenanceHistory,
         payslips,
         customers,
@@ -351,7 +358,7 @@ function otherActiveJourneys(data, driverId, excludeJourneyId) {
     );
 }
 
-const ACTIVE_JOURNEY_STATUSES = ['Loading', 'In Transit', 'Awaiting Start Verification', 'Awaiting Verification'];
+const ACTIVE_JOURNEY_STATUSES = ['Loading', 'Approved', 'In Transit', 'Awaiting Start Verification', 'Awaiting Verification'];
 
 function activeJourneysForDriver(data, driverId) {
     return (data.journeys || []).filter(
@@ -442,6 +449,7 @@ function updateJourneyStatus(driverId, journeyId, newStatus, extras = {}) {
     // Valid driver-initiated transitions only
     const validDriverTransitions = {
         'Loading': ['Awaiting Start Verification'],
+        'Approved': ['Loading', 'In Transit'],
         'In Transit': ['Awaiting Verification'],
         // Drivers cannot set Completed — only admin can do that
     };
@@ -487,6 +495,9 @@ function updateJourneyStatus(driverId, journeyId, newStatus, extras = {}) {
         journey._rejectionReason = null; // clear any previous rejection
     }
 
+    if (newStatus === 'In Transit' && !journey.startedAt) {
+        journey.startedAt = new Date().toISOString();
+    }
     journey.status = newStatus;
     writeTrackerData(data);
     return { success: true, journey };
@@ -500,11 +511,11 @@ function verifyJourneyCompletion(journeyId, approved, rejectionReason = '', reje
 
     if (status === 'Awaiting Start Verification') {
         if (approved) {
-            journey.status = 'In Transit';
+            journey.status = 'Approved';
             journey._pendingStartVerification = false;
             journey._rejectionReason = null;
             journey._rejectedFields = null;
-            journey.startedAt = new Date().toISOString();
+            // startedAt will be set when the driver actually presses "Start Trip"
             journey._startVerifiedAt = new Date().toISOString();
         } else {
             journey.status = 'Loading';
@@ -617,12 +628,13 @@ function addPendingSubmission(driverId, type, payload) {
             driverId,
             truck,
             journey,
-            type: payload.incidentType,
+            incidentType: payload.incidentType,
             description: payload.description,
-            location: payload.location || '',
-            date: new Date().toISOString().split('T')[0],
+            location: payload.location,
+            incidentPhotoUrl: payload.incidentPhotoUrl,
             status: 'Open',
-            _submittedAt: new Date().toISOString(),
+            _pendingApproval: true,
+            createdAt: new Date().toISOString(),
         });
     }
 
@@ -653,7 +665,8 @@ function addPendingSubmission(driverId, type, payload) {
     }
 
     writeTrackerData(data);
-    return { success: true };
+    const msgMap = { fuel: 'Fuel log submitted', expense: 'Expense claim submitted', incident: 'Incident report submitted', maintenance: 'Maintenance log submitted' };
+    return { success: true, message: msgMap[type] || 'Submitted successfully' };
 }
 
 module.exports = {

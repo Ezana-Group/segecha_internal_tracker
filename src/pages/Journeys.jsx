@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useTableFilter } from "../hooks/useTableFilter";
 import { 
     Route as RouteIcon, 
     Truck, 
@@ -10,11 +11,12 @@ import {
     Plus,
     Filter,
     ChevronRight,
-    Search,
+    Search as SearchIcon,
     Trash2,
     FileText,
     Droplet,
     Receipt,
+    DollarSign
 } from "lucide-react";
 import { fmt, today, uid, fmtDate } from "../utils/formatters";
 import { STATUSES_JOURNEY, CARGO_TYPES } from "../constants/nav";
@@ -25,6 +27,7 @@ import { Badge } from "../components/Badge";
 import { Button } from "../components/Button";
 import { PageHeader } from "../components/PageHeader";
 import { TableRowActions } from "../components/TableRowActions";
+import { SortableTableHead } from "../components/SortableTableHead";
 import { mergeFlatPermissionOverrides, useMergedProfilePermissions } from "../utils/profilePermissions.js";
 
 export function Journeys({ data, isMobile, modal, form, setForm, openModal, closeModal, saveItem, delItem, filterTruck, setFilterTruck, driverName, truckReg, customerName, setVerifyModal, openWaybillGenerator, previewMode }) {
@@ -41,17 +44,39 @@ export function Journeys({ data, isMobile, modal, form, setForm, openModal, clos
         : data.journeys;
 
     const jStatusFilter = form._jStatusFilter || "ALL";
-    const [searchTerm, setSearchTerm] = useState("");
-    const filtered = scopeJourneys
-        .filter(j => filterTruck === "ALL" || j.truck === filterTruck)
-        .filter(j => jStatusFilter === "ALL" || j.status === jStatusFilter)
-        .filter(j => 
-            j.id.toLowerCase().includes(searchTerm.toLowerCase()) || 
-            (j.customerId && customerName(j.customerId).toLowerCase().includes(searchTerm.toLowerCase())) ||
-            j.origin.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            j.dest.toLowerCase().includes(searchTerm.toLowerCase())
-        );
-    const totalKm = scopeJourneys.filter(j => j.status === "Completed").reduce((s, j) => s + +j.distance, 0);
+
+    // Refine data for sorting and filtering
+    const refinedJourneys = scopeJourneys.map(j => ({
+        ...j,
+        _customer: customerName(j.customerId),
+        _vehicle: truckReg(j.truck),
+        _distance: Number(j.distance || 0),
+        _revenue: Number(j.revenue || 0)
+    })).filter(j => {
+        const matchesTruck = filterTruck === "ALL" || j.truck === filterTruck;
+        const matchesStatus = jStatusFilter === "ALL" || j.status === jStatusFilter;
+        return matchesTruck && matchesStatus;
+    });
+
+    const {
+        filteredRows: sortedItems,
+        applyFilter: handleJourneyFilterChange,
+        setSort: requestSort,
+        sortState: sortConfig,
+        filterState: journeyFilters,
+        getUniqueValues,
+        isFiltered,
+        isSorted,
+        searchTerm,
+        setSearchTerm
+    } = useTableFilter(refinedJourneys, { 
+        namespace: "missions",
+        initialSort: { col: 'date', dir: 'desc' },
+        searchColumns: ["id", "origin", "dest", "cargo", "_customer", "waybillNo"]
+    });
+    
+    const totalDistanceFiltered = sortedItems.reduce((s, j) => s + (j._distance || 0), 0);
+    const totalRevenueFiltered = sortedItems.reduce((s, j) => s + (j._revenue || 0), 0);
 
     return (
         <div className="page-shell">
@@ -107,25 +132,6 @@ export function Journeys({ data, isMobile, modal, form, setForm, openModal, clos
                                 ))}
                             </select>
                         </div>
-                        <div style={{ position: "relative", width: 280, minWidth: 200 }}>
-                            <Search
-                                style={{
-                                    position: "absolute",
-                                    left: 12,
-                                    top: "50%",
-                                    transform: "translateY(-50%)",
-                                    color: "var(--text-dim)",
-                                }}
-                                size={16}
-                            />
-                            <input
-                                className="input-premium"
-                                placeholder="Search routes, clients…"
-                                style={{ paddingLeft: 38, height: 42, fontSize: 13, width: "100%" }}
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                            />
-                        </div>
                         <Button
                             icon={Plus}
                             onClick={() => openModal("journey", { date: new Date().toISOString().split("T")[0], status: "Loading" })}
@@ -139,18 +145,18 @@ export function Journeys({ data, isMobile, modal, form, setForm, openModal, clos
 
             {/* Quick Stats */}
             {(!isDriverPreview || jpv("statsRow")) && (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 20, marginBottom: 32 }}>
-                <Card title="Total Missions" icon={Navigation} accent="#3b82f6">
-                    <div style={{ fontSize: 20, fontWeight: 800, color: "var(--text-primary)" }}>{filtered.length}</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 20, marginBottom: 32 }}>
+                <Card title="Filtered Missions" icon={Navigation} accent="#3b82f6">
+                    <div style={{ fontSize: 18, fontWeight: 800, color: "var(--text-primary)" }}>{sortedItems.length} missions</div>
                 </Card>
-                <Card title="Ongoing" icon={Clock} accent="#f59e0b">
-                    <div style={{ fontSize: 20, fontWeight: 800, color: "var(--text-primary)" }}>{filtered.filter(j => ["Loading", "In Transit", "Awaiting Start Verification"].includes(j.status)).length}</div>
+                <Card title="Filtered Distance" icon={Navigation} accent="#a78bfa">
+                    <div style={{ fontSize: 18, fontWeight: 800, color: "var(--text-primary)" }}>{totalDistanceFiltered.toLocaleString()} <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 500 }}>KM</span></div>
                 </Card>
-                <Card title="Completed" icon={CheckCircle2} accent="#10b981">
-                    <div style={{ fontSize: 20, fontWeight: 800, color: "var(--text-primary)" }}>{filtered.filter(j => j.status === "Completed").length}</div>
+                <Card title="Filtered Revenue" icon={DollarSign} accent="#10b981">
+                    <div style={{ fontSize: 18, fontWeight: 800, color: "var(--text-primary)" }}>{fmt(totalRevenueFiltered)}</div>
                 </Card>
-                <Card title="Fleet Progress" icon={Truck} accent="#a78bfa">
-                    <div style={{ fontSize: 20, fontWeight: 800, color: "var(--text-primary)" }}>{filtered.filter(j => j.status === "Completed").reduce((s, j) => s + +j.distance, 0).toLocaleString()} <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 500 }}>KM</span></div>
+                <Card title="Ongoing trips" icon={Clock} accent="#f59e0b">
+                    <div style={{ fontSize: 18, fontWeight: 800, color: "var(--text-primary)" }}>{sortedItems.filter(j => ["Loading", "In Transit", "Awaiting Start Verification"].includes(j.status)).length} active</div>
                 </Card>
             </div>
             )}
@@ -164,14 +170,14 @@ export function Journeys({ data, isMobile, modal, form, setForm, openModal, clos
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
                         {data.pendingVerifications.filter(v => v._itemType !== 'journey').map(v => (
-                            <div 
-                                key={v.id} 
+                            <div
+                                key={v.id}
                                 onClick={() => setVerifyModal(v)}
-                                style={{ 
-                                    background: "var(--bg-card)", 
-                                    border: "1px solid var(--border-subtle)", 
-                                    borderRadius: 16, 
-                                    padding: 16, 
+                                style={{
+                                    background: "var(--bg-card)",
+                                    border: "1px solid var(--border-subtle)",
+                                    borderRadius: 16,
+                                    padding: 16,
                                     cursor: "pointer",
                                     display: 'flex',
                                     alignItems: 'center',
@@ -199,91 +205,46 @@ export function Journeys({ data, isMobile, modal, form, setForm, openModal, clos
                 </div>
             )}
 
-            {/* Filter & Search Bar (Premium UI) */}
-            {!isDriverPreview ? (
-            <div style={{ 
-                display: "flex", 
-                justifyContent: "space-between", 
-                alignItems: "center", 
-                marginBottom: 24, 
-                flexWrap: "wrap", 
-                gap: 16,
-                background: "var(--bg-card)",
-                padding: "16px 20px",
-                borderRadius: 20,
-                border: "1px solid var(--border-subtle)",
-                backdropFilter: "blur(12px)"
-            }}>
-                <div style={{ position: "relative", flex: 1, maxWidth: 450 }}>
-                    <Search style={{ position: "absolute", left: 16, top: "50%", transform: "translateY(-50%)", color: "var(--brand-primary)" }} size={18} />
-                    <input 
-                        className="input-modern input-modern--filter"
-                        placeholder="Search by Mission ID, Route or Client..." 
-                        style={{ 
-                            paddingLeft: 48, 
-                            height: 48, 
-                            fontSize: 14, 
-                            borderRadius: 14,
-                            background: "var(--surface-subtle)",
-                            border: "1px solid transparent"
-                        }}
+            <Card style={{ padding: 0, overflow: "hidden", borderRadius: 24 }}>
+                <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", gap: 12 }}>
+                    <SearchIcon size={18} color="var(--text-dim)" />
+                    <input
+                        type="search"
+                        placeholder="Search journeys..."
                         value={searchTerm}
-                        onChange={e => setSearchTerm(e.target.value)}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        style={{ border: "none", background: "none", padding: 0, fontSize: 14, flex: 1, color: "var(--text-primary)", fontWeight: 500 }}
                     />
                 </div>
-                
-                <div style={{ display: "flex", gap: 12 }}>
-                    <div style={{ position: "relative" }}>
-                        <Truck style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--text-dim)", pointerEvents: "none" }} size={14} />
-                        <select 
-                            className="input-premium" 
-                            style={{ width: 170, fontSize: 13, height: 48, padding: "0 12px 0 34px", borderRadius: 14, background: "var(--surface-subtle)" }}
-                            value={filterTruck} 
-                            onChange={e => setFilterTruck(e.target.value)}
-                        >
-                            <option value="ALL">All Vehicles</option>
-                            {data.trucks.map(t => <option key={t.id} value={t.id}>{t.reg}</option>)}
-                        </select>
-                    </div>
-                    <div style={{ position: "relative" }}>
-                        <Filter style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--text-dim)", pointerEvents: "none" }} size={14} />
-                        <select 
-                            className="input-premium" 
-                            style={{ width: 170, fontSize: 13, height: 48, padding: "0 12px 0 34px", borderRadius: 14, background: "var(--surface-subtle)" }}
-                            value={jStatusFilter}
-                            onChange={e => setForm(f => ({ ...f, _jStatusFilter: e.target.value }))}
-                        >
-                            <option value="ALL">All Statuses</option>
-                            {["Loading", "In Transit", "Awaiting Start Verification", "Awaiting Verification", "Completed", "Cancelled"].map(s => <option key={s} value={s}>{s}</option>)}
-                        </select>
-                    </div>
-                </div>
-            </div>
-            ) : null}
-
-            <Card style={{ padding: 0, overflow: "hidden", borderRadius: 24 }}>
-                <div style={{ overflowX: "auto" }}>
+                <div className="table-container">
                     <table className="table-modern journeys-matrix-table">
-                        <thead>
-                            <tr>
-                                {(!isDriverPreview || jpv("colMissionId")) && <th>Mission ID</th>}
-                                {(!isDriverPreview || jpv("colDate")) && <th>Departure</th>}
-                                {(!isDriverPreview || jpv("colRoute")) && <th>Route</th>}
-                                {(!isDriverPreview || jpv("colClient")) && <th>Client</th>}
-                                {(!isDriverPreview || jpv("colVehicle")) && <th>Vehicle</th>}
-                                {(!isDriverPreview || jpv("colCrew")) && <th>Crew</th>}
-                                {(!isDriverPreview || jpv("colCargo")) && <th>Cargo</th>}
-                                {(!isDriverPreview || jpv("colDistance")) && <th style={{ textAlign: "right" }}>Distance</th>}
-                                {(!isDriverPreview || jpv("colNotes")) && <th>Notes</th>}
-                                {(!isDriverPreview || jpv("colRevenue")) && <th style={{ textAlign: "right" }}>Revenue</th>}
-                                {(!isDriverPreview || jpv("colStatus")) && <th>Status</th>}
-                                {(!isDriverPreview || jpv("actionWaybill") || jpv("actionViewJourney")) && (
-                                    <th style={{ textAlign: "right" }}>Actions</th>
-                                )}
-                            </tr>
-                        </thead>
+                        <SortableTableHead
+                            requestSort={requestSort}
+                            sortConfig={sortConfig}
+                            filterState={journeyFilters}
+                            onFilterChange={handleJourneyFilterChange}
+                            getUniqueValues={getUniqueValues}
+                            isFiltered={isFiltered}
+                            isSorted={isSorted}
+                            columns={[
+                                { key: "uId", label: "Mission ID", sortable: !isDriverPreview || jpv("colMissionId") },
+                                { key: "date", label: "Departure", sortable: !isDriverPreview || jpv("colDate") },
+                                { key: "origin", label: "Origin", sortable: !isDriverPreview || jpv("colRoute") },
+                                { key: "dest", label: "Destination", sortable: !isDriverPreview || jpv("colRoute") },
+                                { key: "_customer", label: "Client", sortable: !isDriverPreview || jpv("colClient") },
+                                { key: "_vehicle", label: "Vehicle", sortable: !isDriverPreview || jpv("colVehicle") },
+                                { key: "driver", label: "Crew", sortable: !isDriverPreview || jpv("colCrew") },
+                                { key: "cargoType", label: "Cargo", sortable: !isDriverPreview || jpv("colCargo") },
+                                { key: "_distance", label: "Distance", sortable: !isDriverPreview || jpv("colDistance"), align: "right" },
+                                { key: "notes", label: "Notes", sortable: !isDriverPreview || jpv("colNotes") },
+                                { key: "_revenue", label: "Revenue", sortable: !isDriverPreview || jpv("colRevenue"), align: "right" },
+                                { key: "status", label: "Status", sortable: !isDriverPreview || jpv("colStatus") },
+                                { key: "actions", label: "Actions", sortable: false, align: "right" }
+                            ].filter(c => c.sortable !== false || c.key === 'actions')}
+                        />
                         <tbody>
-                            {filtered.sort((a, b) => b.date.localeCompare(a.date)).map((j) => (
+                            {sortedItems.length > 0 ? (
+                                sortedItems.map((j) => (
                                 <tr
                                     key={j.id}
                                     onClick={() => {
@@ -294,7 +255,7 @@ export function Journeys({ data, isMobile, modal, form, setForm, openModal, clos
                                     className="hover-scale"
                                 >
                                     {(!isDriverPreview || jpv("colMissionId")) && (
-                                        <td>
+                                        <td className="sticky-col" title={j.uId || j.id.slice(0, 8).toUpperCase()}>
                                             <div
                                                 style={{
                                                     fontWeight: 700,
@@ -312,23 +273,24 @@ export function Journeys({ data, isMobile, modal, form, setForm, openModal, clos
                                         </td>
                                     )}
                                     {(!isDriverPreview || jpv("colDate")) && (
-                                        <td>
+                                        <td title={fmtDate(j.date)}>
                                             <div style={{ fontWeight: 800, color: "var(--text-primary)", fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}>
                                                 <Calendar size={12} color="var(--text-dim)" /> {fmtDate(j.date)}
                                             </div>
                                         </td>
                                     )}
                                     {(!isDriverPreview || jpv("colRoute")) && (
-                                        <td>
-                                            <div style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 800, color: "var(--text-primary)", fontSize: 13, flexWrap: "wrap" }}>
-                                                <span>{j.origin}</span>
-                                                <ChevronRight size={12} color="var(--brand-primary)" style={{ flexShrink: 0 }} aria-hidden />
-                                                <span>{j.dest}</span>
-                                            </div>
+                                        <td title={j.origin}>
+                                            <div style={{ fontWeight: 800, color: "var(--text-primary)", fontSize: 13 }}>{j.origin}</div>
+                                        </td>
+                                    )}
+                                    {(!isDriverPreview || jpv("colRoute")) && (
+                                        <td title={j.dest}>
+                                            <div style={{ fontWeight: 800, color: "var(--text-primary)", fontSize: 13 }}>{j.dest}</div>
                                         </td>
                                     )}
                                     {(!isDriverPreview || jpv("colClient")) && (
-                                        <td>
+                                        <td title={customerName(j.customerId)}>
                                             {j.customerId ? (
                                                 <button
                                                     type="button"
@@ -347,7 +309,7 @@ export function Journeys({ data, isMobile, modal, form, setForm, openModal, clos
                                         </td>
                                     )}
                                     {(!isDriverPreview || jpv("colVehicle")) && (
-                                        <td>
+                                        <td title={truckReg(j.truck)}>
                                             <button
                                                 type="button"
                                                 className="journeys-table-link"
@@ -362,7 +324,7 @@ export function Journeys({ data, isMobile, modal, form, setForm, openModal, clos
                                         </td>
                                     )}
                                     {(!isDriverPreview || jpv("colCrew")) && (
-                                        <td>
+                                        <td title={driverName(j.driver)}>
                                             <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: 6 }}>
                                                 <User size={12} color="var(--text-dim)" strokeWidth={2} aria-hidden />
                                                 {driverName(j.driver)}
@@ -370,7 +332,7 @@ export function Journeys({ data, isMobile, modal, form, setForm, openModal, clos
                                         </td>
                                     )}
                                     {(!isDriverPreview || jpv("colCargo")) && (
-                                        <td>
+                                        <td title={`${j.cargo || "General cargo"} ${j.weight ? `(${j.weight} T)` : ""}`}>
                                             <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-primary)" }}>{j.cargo || "General cargo"}</div>
                                             {j.weight != null && j.weight !== "" ? (
                                                 <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>{j.weight} T</div>
@@ -378,14 +340,14 @@ export function Journeys({ data, isMobile, modal, form, setForm, openModal, clos
                                         </td>
                                     )}
                                     {(!isDriverPreview || jpv("colDistance")) && (
-                                        <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+                                        <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }} title={j.distance != null && j.distance !== "" ? `${Number(j.distance).toLocaleString()} km` : "—"}>
                                             <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>
                                                 {j.distance != null && j.distance !== "" ? `${Number(j.distance).toLocaleString()} km` : "—"}
                                             </div>
                                         </td>
                                     )}
                                     {(!isDriverPreview || jpv("colNotes")) && (
-                                        <td className="journeys-col-notes">
+                                        <td className="journeys-col-notes" title={j.notes && String(j.notes).trim() ? String(j.notes).trim() : "—"}>
                                             {j.notes && String(j.notes).trim() ? (
                                                 <span>{String(j.notes).trim()}</span>
                                             ) : (
@@ -394,19 +356,22 @@ export function Journeys({ data, isMobile, modal, form, setForm, openModal, clos
                                         </td>
                                     )}
                                     {(!isDriverPreview || jpv("colRevenue")) && (
-                                        <td style={{ textAlign: "right" }}>
+                                        <td style={{ textAlign: "right" }} title={fmt(j.revenue)}>
                                             <div style={{ fontWeight: 800, color: "#10b981", fontSize: 13, fontVariantNumeric: "tabular-nums" }}>{fmt(j.revenue)}</div>
                                             {j.driverMileage && (!isDriverPreview || jpv("colAllowanceSubline")) ? (
-                                                <div style={{ fontSize: 10, color: "var(--text-dim)", marginTop: 2, fontVariantNumeric: "tabular-nums" }}>
+                                                <div style={{ fontSize: 10, color: "var(--text-dim)", marginTop: 2, fontVariantNumeric: "tabular-nums", display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4 }}>
                                                     Allowance {fmt(j.driverMileage)}
+                                                    {j.mileageRouteOverride && (
+                                                        <span style={{ background: "var(--brand-primary)15", color: "var(--brand-primary)", padding: "1px 4px", borderRadius: 4, fontSize: 8, fontWeight: 800 }}>ROUTE RATE</span>
+                                                    )}
                                                 </div>
                                             ) : null}
                                         </td>
                                     )}
                                     {(!isDriverPreview || jpv("colStatus")) && (
-                                        <td>
+                                        <td className="status-col" title={j._isRejected ? "Rejected" : j.status}>
                                             <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 6 }}>
-                                                <Badge status={j.status} />
+                                                <Badge status={j._isRejected ? "Rejected" : j.status} />
                                             </div>
                                         </td>
                                     )}
@@ -472,11 +437,18 @@ export function Journeys({ data, isMobile, modal, form, setForm, openModal, clos
                                             />
                                         </td>
                                     )}
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
+                                    </tr>
+                                ))
+                        ) : (
+                            <tr>
+                                <td colSpan={13} style={{ textAlign: "center", padding: "40px 20px", color: "var(--text-dim)", fontStyle: "italic" }}>
+                                    No results match your filters
+                                </td>
+                            </tr>
+                        )}
+                    </tbody>
+                </table>
+            </div>
             </Card>
         </div>
     );

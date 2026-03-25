@@ -15,6 +15,7 @@ export function canonicalTemplateType(raw) {
     const s = String(raw ?? "Email").trim().toLowerCase();
     if (s === "sms") return "SMS";
     if (s === "pdf") return "PDF";
+    if (s === "whatsapp") return "WhatsApp";
     return "Email";
 }
 

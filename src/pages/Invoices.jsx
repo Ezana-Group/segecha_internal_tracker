@@ -35,19 +35,17 @@ import { readSettings } from "../utils/settingsStore.js";
 import { PageHeader } from "../components/PageHeader";
 import { TableRowActions } from "../components/TableRowActions";
 import { CommunicationChannelMenu } from "../components/CommunicationChannelMenu";
+import { SortableTableHead } from "../components/SortableTableHead";
+import { useTableFilter } from "../hooks/useTableFilter";
 
 const PORTAL_URL = 'https://payment.segecha.com';
 
 export function Invoices({ data, setData, dark, isMobile, modal, form, setForm, openModal, closeModal, saveItem, delItem, markInvoicePaid, invoicePreview, setInvoicePreview, customerName, ...props }) {
     const navigate = useNavigate();
-    const totalInvoiced = data.invoices.reduce((s, i) => s + +i.amount, 0);
-    const totalPaid = data.invoices.reduce((s, i) => s + +i.paidAmount || 0, 0);
-    const totalPending = data.invoices.filter(i => i.status !== "Paid").reduce((s, i) => s + (+i.amount - (+i.paidAmount || 0)), 0);
     
     const [paymentModal, setPaymentModal] = useState(null);
     const [payReqStatus, setPayReqStatus] = useState({});
     const [paymentReceiptWa, setPaymentReceiptWa] = useState(null);
-    const [searchTerm, setSearchTerm] = useState("");
 
     const handleLogPayment = (payment) => {
         const s = JSON.parse(localStorage.getItem('segecha_settings') || '{}');
@@ -102,13 +100,33 @@ export function Invoices({ data, setData, dark, isMobile, modal, form, setForm, 
         closeModal();
     };
 
-    const invStatusFilter = form._invStatusFilter || "ALL";
-    const filteredInvoices = data.invoices.filter(i => {
-        const matchesSearch = (i.client || customerName(i.customerId))?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                              i.id?.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesStatus = invStatusFilter === "ALL" || i.status === invStatusFilter;
-        return matchesSearch && matchesStatus;
+    // Refine data for sorting and filtering
+    const refinedInvoices = data.invoices.map(i => ({
+        ...i,
+        _client: i.client || customerName(i.customerId),
+        _amount: Number(i.amount || 0),
+        _balance: Number(i.amount || 0) - Number(i.paidAmount || 0),
+        _contact: `${i.phone || ""} ${i.email || ""}`
+    }));
+
+    const {
+        filteredRows: sortedInvoices,
+        setSort: requestSort,
+        sortState: sortConfig,
+        filterState: invoiceFilters,
+        applyFilter: handleInvoiceFilterChange,
+        getUniqueValues: getInvoiceUniqueValues,
+        searchTerm,
+        setSearchTerm
+    } = useTableFilter(refinedInvoices, { 
+        namespace: "inv", 
+        initialSort: { col: "date", dir: "desc" },
+        searchColumns: ["id", "_client"]
     });
+
+    const totalInvoicedFiltered = sortedInvoices.reduce((s, i) => s + +i.amount, 0);
+    const totalPaidFiltered = sortedInvoices.reduce((s, i) => s + +i.paidAmount || 0, 0);
+    const totalPendingFiltered = sortedInvoices.filter(i => i.status !== "Paid").reduce((s, i) => s + (+i.amount - (+i.paidAmount || 0)), 0);
 
     return (
         <div className="page-shell">
@@ -131,18 +149,14 @@ export function Invoices({ data, setData, dark, isMobile, modal, form, setForm, 
             {/* Financial Status Bar */}
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: 16, marginBottom: 20 }}>
                 {[
-                    { label: "Total Revenue", value: fmt(totalInvoiced), icon: TrendingUp, color: "var(--brand-primary)", trend: "+12.5%", trendUp: true },
-                    { label: "Settled Payments", value: fmt(totalPaid), icon: CheckCircle2, color: "#10b981", trend: "+8.2%", trendUp: true },
-                    { label: "Accounts Receivable", value: fmt(totalPending), icon: Clock, color: "#f59e0b", trend: "-2.1%", trendUp: false }
+                    { label: "Filtered Revenue", value: fmt(totalInvoicedFiltered), icon: TrendingUp, color: "var(--brand-primary)" },
+                    { label: "Filtered Settlements", value: fmt(totalPaidFiltered), icon: CheckCircle2, color: "#10b981" },
+                    { label: "Filtered Receivables", value: fmt(totalPendingFiltered), icon: Clock, color: "#f59e0b" }
                 ].map((kpi, idx) => (
                     <Card key={idx} style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)", borderRadius: 16 }}>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
                             <div style={{ width: 40, height: 40, borderRadius: 10, background: `${kpi.color}10`, display: "flex", alignItems: "center", justifyContent: "center", color: kpi.color }}>
                                 <kpi.icon size={20} />
-                            </div>
-                            <div style={{ display: "flex", alignItems: "center", gap: 4, padding: "4px 8px", borderRadius: 8, background: kpi.trendUp ? "#10b98110" : "#ef444410", color: kpi.trendUp ? "#10b981" : "#ef4444", fontSize: 11, fontWeight: 700 }}>
-                                {kpi.trendUp ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
-                                {kpi.trend}
                             </div>
                         </div>
                         <div style={{ fontSize: 11, color: "var(--text-dim)", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 2 }}>{kpi.label}</div>
@@ -151,95 +165,60 @@ export function Invoices({ data, setData, dark, isMobile, modal, form, setForm, 
                 ))}
             </div>
 
-            {/* Filters & Actions (Premium Search Section) */}
-            <div style={{ 
-                display: "flex", 
-                justifyContent: "space-between", 
-                alignItems: "center", 
-                marginBottom: 24, 
-                flexWrap: "wrap", 
-                gap: 16,
-                background: "var(--bg-card)",
-                padding: "16px 20px",
-                borderRadius: 20,
-                border: "1px solid var(--border-subtle)",
-                backdropFilter: "blur(12px)"
-            }}>
-                <div style={{ position: "relative", flex: 1, maxWidth: 450 }}>
-                    <SearchIcon style={{ position: "absolute", left: 16, top: "50%", transform: "translateY(-50%)", color: "var(--brand-primary)" }} size={18} />
-                    <input 
-                        className="input-modern input-modern--filter"
-                        placeholder="Search invoices, clients, or IDs..." 
-                        style={{ 
-                            paddingLeft: 48, 
-                            height: 48, 
-                            fontSize: 14, 
-                            borderRadius: 14,
-                            background: "var(--surface-subtle)",
-                            border: "1px solid transparent"
-                        }}
+            {/* Main Ledger Table */}
+            <Card style={{ padding: 0, overflow: "hidden", borderRadius: 24 }}>
+                <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", gap: 12 }}>
+                    <SearchIcon size={18} color="var(--text-dim)" />
+                    <input
+                        type="search"
+                        placeholder="Search invoices..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
+                        style={{ border: "none", background: "none", padding: 0, fontSize: 14, flex: 1, color: "var(--text-primary)", fontWeight: 500 }}
                     />
                 </div>
-                <div style={{ display: "flex", gap: 12 }}>
-                    <div style={{ position: "relative" }}>
-                        <Filter style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--text-dim)", pointerEvents: "none" }} size={14} />
-                        <select 
-                            className="input-premium" 
-                            style={{ width: 170, fontSize: 13, height: 48, padding: "0 12px 0 34px", borderRadius: 14, background: "var(--surface-subtle)" }}
-                            value={invStatusFilter}
-                            onChange={e => setForm(f => ({ ...f, _invStatusFilter: e.target.value }))}
-                        >
-                            <option value="ALL">All Statuses</option>
-                            {["Draft", "Pending", "Sent", "Partial", "Paid", "Overdue", "Cancelled"].map(status => <option key={status} value={status}>{status}</option>)}
-                        </select>
-                    </div>
-                    <Button variant="ghost" style={{ borderRadius: 14, height: 48 }} icon={Calendar}>Quarterly</Button>
-                </div>
-            </div>
-
-            {/* Main Ledger Table */}
-            <Card style={{ padding: 0, overflow: "hidden" }}>
-                <div style={{ overflowX: "auto" }}>
+                <div className="table-container">
                     <table className="table-modern">
-                        <thead>
-                            <tr>
-                                <th>Invoice ID</th>
-                                <th>Client Name</th>
-                                <th>Issue Date</th>
-                                <th>Due Date</th>
-                                <th>Total Amount</th>
-                                <th>Balance Owed</th>
-                                <th>Status</th>
-                                <th style={{ textAlign: "right" }}>Actions</th>
-                            </tr>
-                        </thead>
+                        <SortableTableHead
+                            requestSort={requestSort}
+                            sortConfig={sortConfig}
+                            filterState={invoiceFilters}
+                            onFilterChange={handleInvoiceFilterChange}
+                            getUniqueValues={getInvoiceUniqueValues}
+                            columns={[
+                                { key: "id", label: "Invoice ID", sortable: true },
+                                { key: "_client", label: "Client Name", sortable: true },
+                                { key: "date", label: "Issue Date", sortable: true },
+                                { key: "dueDate", label: "Due Date", sortable: true },
+                                { key: "_amount", label: "Total Amount", sortable: true, align: "right" },
+                                { key: "_balance", label: "Balance Owed", sortable: true, align: "right" },
+                                { key: "status", label: "Status", sortable: true },
+                                { key: "actions", label: "Actions", sortable: false, align: "right" }
+                            ]}
+                        />
                         <tbody>
-                            {filteredInvoices.length === 0 ? (
+                            {sortedInvoices.length === 0 ? (
                                 <tr>
                                     <td colSpan="8" style={{ textAlign: "center", padding: 80, color: "var(--text-dim)" }}>
-                                        <div style={{ marginBottom: 16 }}><Search size={48} opacity={0.2} /></div>
-                                        <div style={{ fontWeight: 600 }}>No invoices found matching your criteria.</div>
+                                        <div style={{ marginBottom: 16 }}><AlertCircle size={48} opacity={0.2} /></div>
+                                        <div style={{ fontWeight: 600 }}>No invoices found matching your filters.</div>
                                     </td>
                                 </tr>
-                            ) : filteredInvoices.map(inv => (
+                            ) : sortedInvoices.map(inv => (
                                 <tr key={inv.id} onClick={() => setInvoicePreview(inv)} style={{ cursor: "pointer" }} className="hover-scale">
-                                    <td style={{ fontWeight: 800, color: "var(--brand-primary)" }}>{inv.id}</td>
-                                    <td>
-                                        <div 
-                                            style={{ fontWeight: 700, color: "var(--text-primary)" }}
-                                        >
-                                            {inv.client || customerName(inv.customerId)}
+                                    <td className="sticky-col" title={inv.id} style={{ fontWeight: 800, color: "var(--brand-primary)" }}>{inv.id}</td>
+                                    <td title={inv._client}>
+                                        <div style={{ fontWeight: 700, color: "var(--text-primary)" }}>
+                                            {inv._client}
                                         </div>
                                     </td>
-                                    <td>{fmtDate(inv.date)}</td>
-                                    <td style={{ color: (new Date(inv.dueDate) < new Date() && inv.status !== 'Paid') ? '#ef4444' : 'inherit', fontWeight: (new Date(inv.dueDate) < new Date() && inv.status !== 'Paid') ? 700 : 400 }}>
+                                    <td title={fmtDate(inv.date)}>{fmtDate(inv.date)}</td>
+                                    <td title={fmtDate(inv.dueDate)} style={{ color: (new Date(inv.dueDate) < new Date() && inv.status !== 'Paid') ? '#ef4444' : 'inherit', fontWeight: (new Date(inv.dueDate) < new Date() && inv.status !== 'Paid') ? 700 : 400 }}>
                                         {fmtDate(inv.dueDate)}
                                     </td>
-                                    <td style={{ fontWeight: 800, color: "var(--text-primary)" }}>{fmt(inv.amount)}</td>
-                                    <td style={{ color: "#f59e0b", fontWeight: 700 }}>{fmt(+inv.amount - (+inv.paidAmount || 0))}</td>
-                                    <td><Badge status={inv.status} /></td>
+                                    <td title={fmt(inv.amount)} style={{ fontWeight: 800, color: "var(--text-primary)", textAlign: "right" }}>{fmt(inv.amount)}</td>
+                                    <td title={fmt(inv._balance)} style={{ color: "#f59e0b", fontWeight: 700, textAlign: "right" }}>{fmt(inv._balance)}</td>
+                                    <td className="status-col" title={inv.status}><Badge status={inv.status} /></td>
                                     <td style={{ textAlign: "right", verticalAlign: "middle" }}>
                                         <TableRowActions
                                             ariaLabel={`Actions for invoice ${inv.id}`}
@@ -270,8 +249,8 @@ export function Invoices({ data, setData, dark, isMobile, modal, form, setForm, 
                                                         e.stopPropagation();
                                                         openModal("logPayment", {
                                                             invoiceId: inv.id,
-                                                            amount: +inv.amount - (+inv.paidAmount || 0),
-                                                            client: inv.client,
+                                                            amount: inv._balance,
+                                                            client: inv._client,
                                                         });
                                                     },
                                                 },
@@ -308,13 +287,13 @@ export function Invoices({ data, setData, dark, isMobile, modal, form, setForm, 
                                     const cust = inv.customerId ? data.customers?.find((c) => c.id === inv.customerId) : null;
                                     const custEmail = (cust?.email || "").trim();
                                     const co = readSettings().companyName || "Segecha Group";
-                                    const plain = `Hi ${inv.client},\n\nInvoice ${inv.id} — amount due KES ${Number(inv.amount).toLocaleString("en-KE")}. Due ${inv.due}.\n\nThank you,\n${co}`;
+                                    const plain = `Hi ${inv.client || customerName(inv.customerId)},\n\nInvoice ${inv.id} — amount due KES ${Number(inv.amount).toLocaleString("en-KE")}. Due ${inv.due}.\n\nThank you,\n${co}`;
                                     return (
                                         <>
                                             <CommunicationChannelMenu
                                                 phone={inv.phone}
                                                 email={custEmail}
-                                                emailSubject={`Invoice ${inv.id} — ${inv.client}`}
+                                                emailSubject={`Invoice ${inv.id} — ${inv.client || customerName(inv.customerId)}`}
                                                 emailBody={plain}
                                                 smsBody={plain}
                                                 whatsappBody={plain}
@@ -335,13 +314,13 @@ export function Invoices({ data, setData, dark, isMobile, modal, form, setForm, 
                                                         type: "invoice",
                                                         entityData: {
                                                             invoiceId: inv.id,
-                                                            customerName: inv.client,
+                                                            customerName: inv.client || customerName(inv.customerId),
                                                             amount: fmt(inv.amount),
                                                             dueDate: inv.due,
                                                             mpesaRef: inv.mpesaRef || "",
                                                             customerPhone: inv.phone || "",
                                                             customerEmail: (cust?.email || "").trim(),
-                                                            firstName: (cust?.contactPerson || inv.client || "")
+                                                            firstName: (cust?.contactPerson || inv.client || customerName(inv.customerId) || "")
                                                                 .trim()
                                                                 .split(/\s+/)[0] || "",
                                                             journeyId: journey?.id || jid || "",

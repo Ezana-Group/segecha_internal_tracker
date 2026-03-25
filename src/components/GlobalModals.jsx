@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { Modal } from "./Modal";
 import { Field } from "./Field";
+import { Button } from "./Button";
 import { fmt, fmtDate, today, uid, monthLabel } from "../utils/formatters";
 import { validators } from "../utils/validators";
 import { PAYMENT_API, ADMIN_KEY } from "../utils/env";
-import { DEFAULT_FUEL_PRICE, STATUSES_JOURNEY, CARGO_TYPES, TRUCK_TYPES, STATUSES_TRUCK } from "../constants/nav";
+import { DEFAULT_FUEL_PRICE, STATUSES_JOURNEY, CARGO_TYPES, TRUCK_TYPES, STATUSES_TRUCK, INVOICE_PREFIX, PAYMENT_TERMS_DAYS } from "../constants/nav";
 import { getLicenceClasses, getCommonRoutes, subscribeSettings } from "../utils/settingsStore.js";
 
 const FuelPhotoField = ({ label, k, form, setForm, S, T }) => {
@@ -308,8 +309,9 @@ export function GlobalModals(props) {
         return (
             <Modal title={form.id ? "Edit Pay Record" : "Add New Pay Record"} onSave={() => saveItem("payroll", form)} S={S} closeModal={closeModal} saveDisabled={hasErrors}>
                 <div style={S.fgg(2)}>
-                    <Field label="Staff Member" k="driver" options={[
+                    <Field label="Employee / Driver" k="driver" options={[
                         ...data.drivers.map(d => ({ v: d.id, l: `Driver: ${d.name}` })),
+                        ...(data.staff || []).map(s => ({ v: s.id, l: `Staff: ${s.name}` })),
                         ...(data.turnboys || []).map(t => ({ v: t.id, l: `Turnboy: ${t.name}` }))
                     ]} form={form} setForm={setForm} S={S} />
                     
@@ -339,7 +341,7 @@ export function GlobalModals(props) {
                             <div style={{ background: "rgba(255,255,255,0.02)", borderRadius: 12, border: `1px solid var(--border-subtle)`, padding: 16 }}>
                                 <div style={{ fontWeight: 700, fontSize: 11, marginBottom: 12, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Summary ({monthLabel(form.month)})</div>
                                 {(() => {
-                                    const drvJourneys = data.journeys.filter(j => j.driver === form.driver && j.date.startsWith(form.month) && j.status === 'Completed');
+                                    const drvJourneys = data.journeys.filter(j => j.driver === form.driver && j.date?.startsWith(form.month) && j.status === 'Completed');
                                     const totalMileage = drvJourneys.reduce((s, j) => s + (j.driverMileage || 0), 0);
                                     
                                     if (drvJourneys.length === 0) return <div style={{ color: "var(--text-dim)", fontSize: 12 }}>No completed journeys found.</div>;
@@ -370,8 +372,10 @@ export function GlobalModals(props) {
         errors.revenue = validators.required(form.revenue) || validators.positiveNumber(form.revenue);
         // errors.distance = validators.required(form.distance) || validators.positiveNumber(form.distance);
         errors.endDate = validators.dateOrder(form.date, form.endDate);
-        errors.customerId = validators.required(form.customerId);
-        errors.deliveryCustomerId = validators.required(form.deliveryCustomerId);
+        if (!form.returningEmpty) {
+            errors.customerId = validators.required(form.customerId);
+            errors.deliveryCustomerId = validators.required(form.deliveryCustomerId);    
+        }
         const hasErrors = Object.values(errors).some(Boolean);
 
         const _S = JSON.parse(localStorage.getItem('segecha_settings') || '{}');
@@ -384,63 +388,152 @@ export function GlobalModals(props) {
 
         const getEffectiveRates = (origin, dest) => {
             if (!origin || !dest) return { driver: DRIVER_PER_KM, turnboy: TURNBOY_PER_KM };
-            const key = `${origin.trim()}→${dest.trim()}`;
-            const reverseKey = `${dest.trim()}→${origin.trim()}`;
-            const override = ROUTE_OVERRIDES[key] || ROUTE_OVERRIDES[reverseKey];
+            
+            const isReturning = !!form.returningEmpty;
+            const isInternational = !!form.isInternational;
+
+            const routeOverridesArr = Array.isArray(ROUTE_OVERRIDES) ? ROUTE_OVERRIDES : Object.entries(ROUTE_OVERRIDES || {}).map(([key, val]) => {
+                const [o, d] = key.split('→');
+                return { origin: o, dest: d, driverRate: val.driver, turnboyRate: val.turnboy, returnDriverRate: val.returnDriver, returnTurnboyRate: val.returnTurnboy };
+            });
+            const override = routeOverridesArr.find(ro => 
+                (ro.origin?.trim() === origin?.trim() && ro.dest?.trim() === dest?.trim()) ||
+                (ro.origin?.trim() === dest?.trim() && ro.dest?.trim() === origin?.trim())
+            );
+
+            let dRate, tRate;
+            let isFlatRate = false;
+
+            if (override) {
+                const oDRate = isReturning && override.returnDriverRate != null ? +override.returnDriverRate : +override.driverRate;
+                const oTRate = isReturning && override.returnTurnboyRate != null ? +override.returnTurnboyRate : +override.turnboyRate;
+                dRate = oDRate;
+                tRate = oTRate;
+            } else {
+                // If no route override, check for International/Domestic Flat Rates
+                const flatDriver = isInternational ? (_S.flatRateOutsideDriver || 0) : (_S.flatRateInsideDriver || 0);
+                const flatTurnboy = isInternational ? (_S.flatRateOutsideTurnboy || 0) : (_S.flatRateInsideTurnboy || 0);
+                
+                if (flatDriver > 0) {
+                    dRate = flatDriver;
+                    tRate = flatTurnboy;
+                    isFlatRate = true;
+                } else {
+                    dRate = DRIVER_PER_KM;
+                    tRate = TURNBOY_PER_KM;
+                }
+            }
+
+            // Road User Allowance calculation
+            const rua = isReturning ? (_S.roadUserAllowanceReturn || _S.roadUserAllowance || 0) : (_S.roadUserAllowance || 0);
+
             return {
-                driver: override?.driver ?? DRIVER_PER_KM,
-                turnboy: override?.turnboy ?? TURNBOY_PER_KM,
+                driver: dRate,
+                turnboy: tRate,
                 isOverride: !!override,
-                routeKey: key,
+                isFlatRate,
+                roadUserAllowance: rua,
+                routeKey: `${origin.trim()}→${dest.trim()}`,
             };
         };
 
+
         const onSave = () => {
-            if (!form.customerId || !form.deliveryCustomerId) {
+            if (!form.returningEmpty && (!form.customerId || !form.deliveryCustomerId)) {
                 showToast?.('Billing customer and delivery customer are required (used on the waybill).', 'error');
                 return;
             }
             const wasNew = !form.id;
             const dist = +form.distance || 0;
             const rates = getEffectiveRates(form.origin, form.dest);
-            const driverMileage = Math.round(dist * rates.driver);
-            const turnboyMileage = (form.turnboyId || form.turnboyName) ? Math.round(dist * rates.turnboy) : 0;
+            
+            // Calculate mileage/flat-rate allowance
+            const driverMileage = rates.isFlatRate ? rates.driver : Math.round(dist * rates.driver);
+            const turnboyMileage = (form.turnboyId || form.turnboyName) ? (rates.isFlatRate ? rates.turnboy : Math.round(dist * rates.turnboy)) : 0;
+            const roadUserAllowance = rates.roadUserAllowance || 0;
             
             const enrichedForm = { 
                 ...form, 
                 id: form.id || uid(),
                 driverMileage, 
                 turnboyMileage,
+                roadUserAllowance,
                 mileageRateUsed: rates.driver,
                 turnboyMileageRateUsed: rates.turnboy,
-                mileageRouteOverride: rates.isOverride
+                mileageRouteOverride: rates.isOverride,
+                isFlatRate: rates.isFlatRate
             };
             saveItem("journeys", enrichedForm, { skipClose: true, silent: true });
 
             if (driverMileage > 0 && !form.id) {
+                const descPrefix = rates.isFlatRate ? "Flat rate allowance" : `Mileage allowance (${dist} km @ KES ${rates.driver}/km)`;
                 saveItem("expenses", {
                     date: form.date || today(),
                     truck: form.truck,
                     cat: "Allowance",
                     category: "Allowance",
                     amount: driverMileage,
-                    desc: `Driver mileage allowance — ${form.origin} → ${form.dest} (${dist} km @ KES ${rates.driver}/km)`,
+                    desc: `Driver ${descPrefix} — ${form.origin} → ${form.dest}`,
                     journey: enrichedForm.id,
                     status: "Unpaid"
                 }, { skipClose: true, silent: true });
             }
             if (turnboyMileage > 0 && !form.id && (form.turnboyId || form.turnboyName)) {
                 const tbName = form.turnboyId ? (data.turnboys?.find(t => t.id === form.turnboyId)?.name || form.turnboyId) : form.turnboyName;
+                const descPrefix = rates.isFlatRate ? "Flat rate allowance" : `Mileage allowance (${dist} km @ KES ${rates.turnboy}/km)`;
                 saveItem("expenses", {
                     date: form.date || today(),
                     truck: form.truck,
                     cat: "Allowance",
                     category: "Allowance",
                     amount: turnboyMileage,
-                    desc: `Turnboy mileage allowance (${tbName}) — ${form.origin} → ${form.dest} (${dist} km @ KES ${rates.turnboy}/km)`,
+                    desc: `Turnboy ${descPrefix} (${tbName}) — ${form.origin} → ${form.dest}`,
                     journey: enrichedForm.id,
                     status: "Unpaid"
                 }, { skipClose: true, silent: true });
+            }
+
+            // Auto-create Road User Allowance expense
+            if (roadUserAllowance > 0 && !form.id) {
+                saveItem("expenses", {
+                    date: form.date || today(),
+                    truck: form.truck,
+                    cat: "Allowance",
+                    category: "Allowance",
+                    amount: roadUserAllowance,
+                    desc: `Road User Allowance${form.returningEmpty ? " (Return)" : ""} — ${form.origin} → ${form.dest}`,
+                    journey: enrichedForm.id,
+                    status: "Unpaid"
+                }, { skipClose: true, silent: true });
+            }
+            
+            // Auto-generate invoice when journey is Accepted or Loading
+            if (!form.returningEmpty && (enrichedForm.status === "Accepted" || enrichedForm.status === "Loading")) {
+                const existingInvoice = data.invoices?.find(inv => inv.journey === enrichedForm.id);
+                if (!existingInvoice) {
+                    const invoiceId = (INVOICE_PREFIX || "INV") + "-" + uid().slice(0, 5);
+                    const issuedDate = today();
+                    const dueDate = new Date();
+                    dueDate.setDate(dueDate.getDate() + (PAYMENT_TERMS_DAYS || 14));
+                    const dueDateStr = dueDate.toISOString().split('T')[0];
+                    
+                    const billingCust = data.customers.find(c => c.id === form.customerId);
+                    
+                    saveItem("invoices", {
+                        id: invoiceId,
+                        customerId: form.customerId,
+                        client: billingCust?.name || "",
+                        phone: billingCust?.phone || "",
+                        journey: enrichedForm.id,
+                        amount: enrichedForm.revenue,
+                        issued: issuedDate,
+                        due: dueDateStr,
+                        status: "Pending",
+                        notes: `Automated invoice for journey ${enrichedForm.origin} → ${enrichedForm.dest}. Cargo: ${enrichedForm.cargo || "N/A"}`
+                    }, { skipClose: true, silent: true });
+                    
+                    showToast?.(`Invoice ${invoiceId} generated automatically.`, "success");
+                }
             }
 
             showToast?.("Record saved", "success");
@@ -476,6 +569,13 @@ export function GlobalModals(props) {
                     </div>
                     <Field label="Origin" k="origin" form={form} setForm={setForm} S={S} />
                     <Field label="Destination" k="dest" form={form} setForm={setForm} S={S} />
+                    
+                    <div style={{ ...S.fg, gridColumn: "1/-1" }}>
+                        <div style={S.fgg(2)}>
+                            <Field label="Pickup Address" k="pickupAddress" full form={form} setForm={setForm} S={S} placeholder="Specific location details at origin..." />
+                            <Field label="Delivery Address" k="deliveryAddress" full form={form} setForm={setForm} S={S} placeholder="Specific unloading point details..." />
+                        </div>
+                    </div>
                     
                     <div style={S.fg}>
                         <label style={S.lbl}>
@@ -560,7 +660,25 @@ export function GlobalModals(props) {
                     <Field label="Departure Date" k="date" type="date" form={form} setForm={setForm} S={S} />
                     <Field label="Arrival Date" k="endDate" type="date" form={form} setForm={setForm} S={S} error={errors.endDate} />
 
-                    <div style={{ ...S.fg, gridColumn: "1 / -1" }}>
+                    <div style={{ ...S.fg, gridColumn: '1/-1', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', padding: '12px 16px', background: form.isInternational ? 'rgba(7,131,235,0.08)' : 'var(--surface-subtle)', borderRadius: 10, border: `1px solid ${form.isInternational ? 'var(--brand-primary)' : 'var(--border-subtle)'}` }}>
+                            <input type="checkbox" checked={!!form.isInternational} onChange={e => setForm(f => ({ ...f, isInternational: e.target.checked }))} style={{ width: 18, height: 18, accentColor: 'var(--brand-primary)' }} />
+                            <div>
+                                <div style={{ fontWeight: 800, color: 'var(--text-primary)', fontSize: 14 }}>International Journey</div>
+                                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>Journey is outside Kenya. International flat rates will apply.</div>
+                            </div>
+                        </label>
+
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', padding: '12px 16px', background: form.returningEmpty ? 'rgba(251,191,36,0.08)' : 'var(--surface-subtle)', borderRadius: 10, border: `1px solid ${form.returningEmpty ? '#f59e0b' : 'var(--border-subtle)'}` }}>
+                            <input type="checkbox" checked={!!form.returningEmpty} onChange={e => setForm(f => ({ ...f, returningEmpty: e.target.checked, customerId: e.target.checked ? '' : f.customerId, deliveryCustomerId: e.target.checked ? '' : f.deliveryCustomerId }))} style={{ width: 18, height: 18, accentColor: '#f59e0b' }} />
+                            <div>
+                                <div style={{ fontWeight: 800, color: 'var(--text-primary)', fontSize: 14 }}>Return Trip / Empty</div>
+                                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>Vehicle is returning. Specific return rates apply.</div>
+                            </div>
+                        </label>
+                    </div>
+                    {!form.returningEmpty && (
+                    <div style={{ ...S.fg, gridColumn: '1 / -1' }}>
                         <div style={{ fontWeight: 700, color: T.text, fontSize: 13, marginBottom: 10 }}>Billing customer (consignor) — required</div>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                             <label style={{ ...S.lbl, marginBottom: 0 }}>Customer</label>
@@ -583,6 +701,9 @@ export function GlobalModals(props) {
                                         onClick={() => {
                                             const name = document.getElementById("qa-bill-name")?.value;
                                             const phone = document.getElementById("qa-bill-phone")?.value;
+                                            if (!name?.trim()) return alert("Consignor name is required");
+                                            if (!phone?.trim()) return alert("Consignor phone number is required");
+                                            
                                             if (name?.trim()) {
                                                 const normalizedName = name.trim().toLowerCase();
                                                 const existing = data.customers.find(c => c.name.trim().toLowerCase() === normalizedName);
@@ -616,7 +737,9 @@ export function GlobalModals(props) {
                         )}
                         {errors.customerId && <p style={{ color: "#DC2626", fontSize: 11, marginTop: 4 }}>{errors.customerId}</p>}
                     </div>
+                    )}
 
+                    {!form.returningEmpty && (
                     <div style={{ ...S.fg, gridColumn: "1 / -1" }}>
                         <div style={{ fontWeight: 700, color: T.text, fontSize: 13, marginBottom: 10 }}>Delivery customer (consignee) — required</div>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
@@ -640,6 +763,9 @@ export function GlobalModals(props) {
                                         onClick={() => {
                                             const name = document.getElementById("qa-del-name")?.value;
                                             const phone = document.getElementById("qa-del-phone")?.value;
+                                            if (!name?.trim()) return alert("Consignee name is required");
+                                            if (!phone?.trim()) return alert("Consignee phone number is required");
+
                                             if (name?.trim()) {
                                                 const normalizedName = name.trim().toLowerCase();
                                                 const existing = data.customers.find(c => c.name.trim().toLowerCase() === normalizedName);
@@ -676,6 +802,7 @@ export function GlobalModals(props) {
                             Used on the waybill as consignor and consignee. You can still edit wording in the waybill screen after saving.
                         </div>
                     </div>
+                    )}
 
 
                     <Field label="Distance (km)" k="distance" type="number" form={form} setForm={setForm} S={S} />
@@ -692,7 +819,51 @@ export function GlobalModals(props) {
                     
                     <Field label="Weight (Tonnes)" k="weight" type="number" form={form} setForm={setForm} S={S} />
                     <Field label="Status" k="status" options={STATUSES_JOURNEY} form={form} setForm={setForm} S={S} />
+                    
+                    {/* Projected Allowance Preview */}
+                    {(form.origin && form.dest && (form.distance || form.isInternational)) && (
+                        <div style={{ ...S.fg, gridColumn: "1/-1" }}>
+                            {(() => {
+                                const rates = getEffectiveRates(form.origin, form.dest);
+                                const allowance = rates.isFlatRate ? rates.driver : Math.round(+form.distance * rates.driver);
+                                const rua = rates.roadUserAllowance || 0;
+                                const total = allowance + rua;
+                                return (
+                                    <div style={{ display: "grid", gap: 10 }}>
+                                        <div style={{ background: "rgba(16, 185, 129, 0.05)", border: `1px solid ${rates.isOverride ? 'var(--brand-primary)33' : 'rgba(16, 185, 129, 0.2)'}`, borderRadius: 12, padding: "14px 18px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                            <div>
+                                                <div style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4, display: "flex", alignItems: "center", gap: 8 }}>
+                                                    {rates.isFlatRate ? "Flat Rate Allowance" : "Mileage Allowance"}
+                                                    {rates.isOverride && (
+                                                        <span style={{ background: "var(--brand-primary)15", color: "var(--brand-primary)", padding: "2px 6px", borderRadius: 6, fontSize: 9 }}>ROUTE RATE</span>
+                                                    )}
+                                                </div>
+                                                <div style={{ fontSize: 13, color: "var(--text-secondary)", fontWeight: 500 }}>
+                                                    {rates.isFlatRate ? "International/Domestic Flat Rate" : `${Number(form.distance).toLocaleString()} km @ ${fmt(rates.driver)}/km`}
+                                                </div>
+                                            </div>
+                                            <div style={{ fontSize: 18, fontWeight: 800, color: "#10b981" }}>{fmt(allowance)}</div>
+                                        </div>
+
+                                        {rua > 0 && (
+                                            <div style={{ background: "rgba(7, 131, 235, 0.05)", border: `1px solid rgba(7, 131, 235, 0.2)`, borderRadius: 12, padding: "10px 18px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                                <div style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>Road User Allowance</div>
+                                                <div style={{ fontSize: 16, fontWeight: 800, color: "var(--brand-primary)" }}>{fmt(rua)}</div>
+                                            </div>
+                                        )}
+
+                                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "4px 18px" }}>
+                                            <div style={{ fontSize: 13, fontWeight: 800, color: "var(--text-primary)" }}>Total Projected Allowance</div>
+                                            <div style={{ fontSize: 22, fontWeight: 900, color: "var(--brand-primary)" }}>{fmt(total)}</div>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+                        </div>
+                    )}
+
                     <div style={{ gridColumn: isMobile ? "auto" : "1 / -1" }}>
+
                         <Field label="Notes" k="notes" form={form} setForm={setForm} S={S} full />
                     </div>
 
@@ -888,10 +1059,20 @@ export function GlobalModals(props) {
                         </div>
                     </div>
                     <Field label="Registration No." k="reg" form={form} setForm={setForm} S={S} T={T} error={errors.reg} />
-                    <Field label="Make / Model" k="make" form={form} setForm={setForm} S={S} T={T} />
+                    <Field label="Manufacturer / Model" k="make" form={form} setForm={setForm} S={S} T={T} />
+                    <div style={{ ...S.fg, alignSelf: 'center', paddingTop: 10 }}>
+                        <label style={{ ...S.lbl, display: "flex", alignItems: "center", gap: 8, cursor: "pointer", marginBottom: 0 }}>
+                            <input
+                                type="checkbox"
+                                checked={!!form.isRigid}
+                                onChange={(e) => setForm((f) => ({ ...f, isRigid: e.target.checked }))}
+                            />
+                            Rigid Vehicle?
+                        </label>
+                    </div>
                     <Field label="Year" k="year" type="number" form={form} setForm={setForm} S={S} T={T} />
                     <Field label="Capacity (tonnes)" k="capacity" type="number" form={form} setForm={setForm} S={S} T={T} error={errors.capacity} />
-                    <Field label="Type" k="type" options={TRUCK_TYPES} form={form} setForm={setForm} S={S} T={T} />
+                    <Field label="Vehicle Type" k="type" options={TRUCK_TYPES} form={form} setForm={setForm} S={S} T={T} />
                     <Field label="Status" k="status" options={STATUSES_TRUCK} form={form} setForm={setForm} S={S} T={T} />
                     <Field label="Odometer (km)" k="odom" type="number" form={form} setForm={setForm} S={S} T={T} />
                     <Field label="Assigned Driver" k="driver" options={data.drivers.map(d => ({ v: d.id, l: d.name }))} form={form} setForm={setForm} S={S} T={T} />
@@ -1201,7 +1382,12 @@ export function GlobalModals(props) {
     // ── TEMPLATE SELECTOR MODAL ──
     if (modal === "templateSelector") {
         const { type, entityData } = form;
-        const templatesList = data.templates || [];
+        const templatesList = (data.templates || []).filter(t => {
+            if (type === "invoice") return t.category === "Finance" || t.category === "General";
+            if (type === "staff") return t.category === "Staff" || t.category === "General";
+            if (type === "journey") return t.category === "Operations" || t.category === "General";
+            return true;
+        });
         const selectedId = form._selectedTemplateId ?? templatesList[0]?.id ?? "";
         const template = templatesList.find((t) => t.id === selectedId);
 
@@ -1225,7 +1411,7 @@ export function GlobalModals(props) {
                                 <option value="">No templates — add some in Settings</option>
                             ) : (
                                 templatesList.map((t) => (
-                                    <option key={t.id} value={t.id}>{t.name}</option>
+                                    <option key={t.id} value={t.id}>{t.name} ({t.type})</option>
                                 ))
                             )}
                         </select>

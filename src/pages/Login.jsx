@@ -5,31 +5,64 @@ import { PAYMENT_API } from '../utils/env';
 import { Mail, Lock, AlertCircle, Loader2, Eye, EyeOff } from 'lucide-react';
 
 export function Login({ showToast }) {
-  const [email, setEmail] = useState('');
+  const [loginMethod, setLoginMethod] = useState('email'); // email | phone
+  const [view, setView] = useState('login'); // login | forgot | reset
+  const [resetToken, setResetToken] = useState('');
+
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  
+  React.useEffect(() => {
+    if (adminAuth.isAuthenticated()) {
+      navigate('/', { replace: true });
+    }
+  }, [navigate]);
 
   const handleLogin = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     setLoading(true);
     setError('');
     
     try {
-      const resp = await fetch(`${PAYMENT_API}/api/admin/login`, {
+      // 1. Try Admin Login (Postgres)
+      const adminResp = await fetch(`${PAYMENT_API}/api/admin/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({ email: identifier, password })
       });
+      const adminData = await adminResp.json();
       
-      const data = await resp.json();
-      if (!resp.ok) throw new Error(data.error || 'Login failed');
+      if (adminResp.ok) {
+        adminAuth.setSession(adminData.token, adminData.user);
+        showToast?.('Welcome back, ' + adminData.user.displayName, 'success');
+        navigate('/');
+        return;
+      }
+
+      // 2. Try Staff Login (JSON)
+      const staffResp = await fetch(`${PAYMENT_API}/api/staff/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifier, password, method: 'email' })
+      });
+      const staffData = await staffResp.json();
       
-      adminAuth.setSession(data.token, data.user);
-      showToast?.('Welcome back, ' + data.user.displayName, 'success');
-      navigate('/');
+      if (staffResp.ok && staffData.success) {
+        if (staffData.requirePasswordChange) {
+          setResetToken(staffData.setupToken);
+          setView('reset');
+          return;
+        }
+        adminAuth.setSession(staffData.token, { id: staffData.staffId, role: 'staff', displayName: 'Staff User' });
+        navigate('/');
+        return;
+      }
+      
+      setError(staffData.error || adminData.error || 'Login failed');
     } catch (err) {
       setError(err.message);
     } finally {
@@ -37,156 +70,149 @@ export function Login({ showToast }) {
     }
   };
 
+  const handleForgot = async (e) => {
+    e.preventDefault();
+    setLoading(true); setError('');
+    try {
+      const resp = await fetch(`${PAYMENT_API}/api/staff/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifier })
+      });
+      const data = await resp.json();
+      showToast?.(data.message || 'If that account exists, a link was sent.', 'info');
+      setView('login');
+    } catch (err) { setError(err.message); }
+    finally { setLoading(false); }
+  };
+
+  const handleReset = async (e) => {
+    e.preventDefault();
+    if (password.length < 8) { setError('Password must be at least 8 characters'); return; }
+    setLoading(true); setError('');
+    try {
+      const resp = await fetch(`${PAYMENT_API}/api/staff/set-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: resetToken, password })
+      });
+      const data = await resp.json();
+      if (data.success) {
+        showToast?.('Password set! Logging you in...', 'success');
+        adminAuth.setSession(data.token, { id: data.staffId, role: 'staff', displayName: 'Staff User' });
+        navigate('/');
+      } else setError(data.error);
+    } catch (err) { setError(err.message); }
+    finally { setLoading(false); }
+  };
+
+  if (view === 'reset') {
+    return (
+      <div style={containerStyle}>
+        <div style={cardStyle}>
+          <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 24 }}>Set Your Password</h2>
+          <p style={{ fontSize: 13, color: '#64748b', marginBottom: 24 }}>Create a new permanent password for your staff account.</p>
+          {error && <div style={errorBoxStyle}>{error}</div>}
+          <form onSubmit={handleReset} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            <label style={labelStyle}>New Password</label>
+            <input type="password" value={password} onChange={e => setPassword(e.target.value)} required style={inputStyle} placeholder="Min 8 characters" />
+            <button type="submit" disabled={loading} style={btnStyle}>{loading ? 'Saving...' : 'Secure Account'}</button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div style={{ 
-      minHeight: '100vh', 
-      display: 'flex', 
-      flexDirection: 'column',
-      alignItems: 'center', 
-      justifyContent: 'center', 
-      background: 'radial-gradient(at 0% 0%, rgba(232, 80, 26, 0.1) 0, transparent 50%), radial-gradient(at 100% 100%, rgba(27, 58, 107, 0.1) 0, transparent 50%), #ffffff', // White with orange/blue mesh
-      color: '#0f172a',
-      fontFamily: "'Inter', sans-serif",
-      padding: 20,
-      position: 'fixed',
-      inset: 0,
-      zIndex: 9999
-    }}>
-      {/* Logo and Header */}
-      <div style={{ textAlign: 'center', marginBottom: 40 }}>
-        <img src="/logo.png" alt="Segecha Group" style={{ height: 160, marginBottom: 0 }} />
+    <div style={containerStyle}>
+      <div style={{ textAlign: 'center', marginBottom: 30 }}>
+        <img src="/logo.png" alt="Segecha Group" style={{ height: 120 }} />
       </div>
 
-      <div style={{ 
-        width: '100%', 
-        maxWidth: 440, 
-        padding: '40px', 
-        borderRadius: 16,
-        background: 'rgba(255, 255, 255, 0.8)', // Glassmorphic light card
-        backdropFilter: 'blur(20px)',
-        border: '1px solid rgba(0, 0, 0, 0.05)',
-        boxShadow: '0 20px 50px rgba(0, 0, 0, 0.05)',
-      }}>
-        <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 32, color: '#0f172a' }}>Sign in to your account</h2>
+      <div style={cardStyle}>
+        <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 24, color: '#0f172a' }}>
+          {view === 'forgot' ? 'Reset Password' : 'Sign in to your account'}
+        </h2>
 
-        {error && (
-          <div style={{ 
-            background: 'rgba(239, 68, 68, 0.1)', 
-            color: '#F87171', 
-            padding: '12px 16px', 
-            borderRadius: 8, 
-            fontSize: 14, 
-            display: 'flex', 
-            alignItems: 'center', 
-            gap: 10, 
-            marginBottom: 24,
-            border: '1px solid rgba(239, 68, 68, 0.2)'
-          }}>
-            <AlertCircle size={18} />
-            {error}
-          </div>
-        )}
+        {error && <div style={errorBoxStyle}>{error}</div>}
 
-        <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+        <form onSubmit={view === 'forgot' ? handleForgot : handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
           <div>
-            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#64748b', marginBottom: 8, textTransform: 'uppercase' }}>
-              Email Address
-            </label>
+            <label style={labelStyle}>Email Address</label>
             <input 
-              type="email" 
-              placeholder="director@segechagroup.co.ke"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
+              type="email"
+              placeholder="e.g. name@company.com"
+              value={identifier}
+              onChange={e => setIdentifier(e.target.value)}
               required
-              style={{
-                width: '100%',
-                background: '#f8fafc',
-                border: '1px solid #e2e8f0',
-                borderRadius: 8,
-                padding: '12px 16px',
-                color: '#0f172a',
-                fontSize: 15,
-                outline: 'none',
-                boxSizing: 'border-box'
-              }}
+              style={inputStyle}
             />
           </div>
 
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', textTransform: 'uppercase' }}>
-                Password
-              </label>
+          {view === 'login' && (
+            <div>
+              <label style={labelStyle}>Password</label>
+              <div style={{ position: 'relative' }}>
+                <input 
+                  type={showPassword ? "text" : "password"} 
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  required
+                  style={inputStyle}
+                />
+                <button 
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  style={{ position: 'absolute', right: 12, top: 10, background: 'none', border: 'none', color: '#94A3B8', fontSize: 13, cursor: 'pointer' }}>
+                  {showPassword ? 'Hide' : 'Show'}
+                </button>
+              </div>
             </div>
-            <div style={{ position: 'relative' }}>
-              <input 
-                type={showPassword ? "text" : "password"} 
-                placeholder="••••••••"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                required
-                style={{
-                  width: '100%',
-                  background: '#f8fafc',
-                  border: '1px solid #e2e8f0',
-                  borderRadius: 8,
-                  padding: '12px 16px',
-                  color: '#0f172a',
-                  fontSize: 15,
-                  outline: 'none',
-                  boxSizing: 'border-box'
-                }}
-              />
-              <button 
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                style={{
-                  position: 'absolute',
-                  right: 12,
-                  top: 10,
-                  background: 'none',
-                  border: 'none',
-                  color: '#94A3B8',
-                  fontSize: 13,
-                  cursor: 'pointer'
-                }}
-              >
-                {showPassword ? 'Hide' : 'Show'}
-              </button>
-            </div>
-          </div>
+          )}
 
-          <button 
-            type="submit" 
-            disabled={loading}
-            style={{ 
-              width: '100%', 
-              height: 48, 
-              background: 'linear-gradient(to right, #F97316, #EF4444)', // Orange/Red gradient from image 1
-              color: '#fff',
-              border: 'none',
-              borderRadius: 8,
-              fontSize: 16,
-              fontWeight: 700,
-              cursor: loading ? 'not-allowed' : 'pointer',
-              marginTop: 10,
-              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
-            }}
-          >
-            {loading ? <Loader2 className="animate-spin" size={20} style={{ margin: '0 auto' }} /> : 'Sign In'}
+          <button type="submit" disabled={loading} style={btnStyle}>
+            {loading ? <Loader2 className="animate-spin" size={20} style={{ margin: '0 auto' }} /> : (view === 'forgot' ? 'Send Link' : 'Sign In')}
           </button>
         </form>
 
         <div style={{ marginTop: 32, textAlign: 'center', fontSize: 13, color: '#94A3B8' }}>
-          <p style={{ margin: 0 }}>Forgot your password? Contact your system administrator.</p>
-          <p style={{ marginTop: 8, fontSize: 12 }}>Segecha Group ERP v3.0 · Nairobi, Kenya</p>
+          {view === 'login' ? (
+             <button onClick={() => setView('forgot')} style={{ background: 'none', border: 'none', color: '#F97316', fontWeight: 600, cursor: 'pointer' }}>Forgot password?</button>
+          ) : (
+             <button onClick={() => setView('login')} style={{ background: 'none', border: 'none', color: '#F97316', fontWeight: 600, cursor: 'pointer' }}>← Back to login</button>
+          )}
+          <p style={{ marginTop: 12, fontSize: 11 }}>Segecha ERP v3.1 · Secure Internal System</p>
         </div>
-      </div>
-
-      <div style={{ marginTop: 40, color: '#475569', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-        <span role="img" aria-label="lock">🔒</span>
-        Secure · Internal use only · {new Date().getFullYear()}
       </div>
     </div>
   );
 }
+
+const containerStyle = {
+  minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+  background: 'radial-gradient(at 0% 0%, rgba(232, 80, 26, 0.05) 0, transparent 50%), radial-gradient(at 100% 100%, rgba(27, 58, 107, 0.05) 0, transparent 50%), #ffffff',
+  color: '#0f172a', fontFamily: "'Inter', sans-serif", padding: 20, position: 'fixed', inset: 0, zIndex: 9999
+};
+const cardStyle = {
+  width: '100%', maxWidth: 400, padding: 32, borderRadius: 20, background: 'rgba(255, 255, 255, 0.9)',
+  backdropFilter: 'blur(20px)', border: '1px solid rgba(0, 0, 0, 0.05)', boxShadow: '0 20px 50px rgba(0, 0, 0, 0.05)',
+};
+const labelStyle = { display: 'block', fontSize: 11, fontWeight: 700, color: '#64748b', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' };
+const inputStyle = {
+  width: '100%', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '12px 16px',
+  color: '#0f172a', fontSize: 15, outline: 'none', boxSizing: 'border-box', transition: 'all 0.2s'
+};
+const btnStyle = {
+  width: '100%', height: 48, background: 'linear-gradient(to right, #F97316, #EF4444)', color: '#fff',
+  border: 'none', borderRadius: 10, fontSize: 16, fontWeight: 700, cursor: 'pointer', marginTop: 8,
+  boxShadow: '0 4px 12px rgba(249, 115, 22, 0.2)'
+};
+const errorBoxStyle = {
+  background: 'rgba(239, 68, 68, 0.08)', color: '#ef4444', padding: '12px 16px', borderRadius: 10,
+  fontSize: 13, marginBottom: 24, border: '1px solid rgba(239, 68, 68, 0.15)', fontWeight: 500
+};
+const tabBtnStyle = {
+  flex: 1, padding: '10px 0', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 700,
+  cursor: 'pointer', transition: 'all 0.2s'
+};

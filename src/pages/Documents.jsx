@@ -409,12 +409,12 @@ export function Documents({ data, setData, dark, isMobile }) {
                         <table className="table-modern">
                             <thead>
                                 <tr>
-                                    <th onClick={() => setSortCol('name')} style={{ cursor: "pointer" }}>Document Name {sortCol === 'name' && (sortAsc ? "↑" : "↓")}</th>
-                                    <th>Schema</th>
-                                    <th onClick={() => setSortCol('entity')} style={{ cursor: "pointer" }}>Linked Asset {sortCol === 'entity' && (sortAsc ? "↑" : "↓")}</th>
-                                    <th onClick={() => setSortCol('expiry')} style={{ cursor: "pointer" }}>Expiry Map {sortCol === 'expiry' && (sortAsc ? "↑" : "↓")}</th>
-                                    <th>Status</th>
-                                    <th style={{ textAlign: "right" }}>Actions</th>
+                                    <th className="sticky-col" onClick={() => setSortCol('name')} style={{ cursor: "pointer" }} title="Document Name">Document Name {sortCol === 'name' && (sortAsc ? "↑" : "↓")}</th>
+                                    <th title="Schema">Schema</th>
+                                    <th onClick={() => setSortCol('entity')} style={{ cursor: "pointer" }} title="Linked Asset">Linked Asset {sortCol === 'entity' && (sortAsc ? "↑" : "↓")}</th>
+                                    <th onClick={() => setSortCol('expiry')} style={{ cursor: "pointer" }} title="Expiry Map">Expiry Map {sortCol === 'expiry' && (sortAsc ? "↑" : "↓")}</th>
+                                    <th className="status-col" title="Status">Status</th>
+                                    <th style={{ textAlign: "right" }} title="Actions">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -428,7 +428,7 @@ export function Documents({ data, setData, dark, isMobile }) {
                                     const cat = categoryLabel(doc.category);
                                     return (
                                         <tr key={doc.id}>
-                                            <td>
+                                            <td className="sticky-col" title={`${doc.label} (${doc.filename})`}>
                                                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                                                     <div style={{ width: 40, height: 40, borderRadius: 10, background: "var(--surface-subtle)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--brand-primary)" }}>
                                                         <FileText size={20} />
@@ -439,7 +439,7 @@ export function Documents({ data, setData, dark, isMobile }) {
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td>
+                                            <td title={cat.label}>
                                                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                                                     <div style={{ width: 28, height: 28, borderRadius: 6, background: `${cat.color}15`, display: "flex", alignItems: "center", justifyContent: "center", color: cat.color }}>
                                                         <cat.icon size={14} />
@@ -447,13 +447,13 @@ export function Documents({ data, setData, dark, isMobile }) {
                                                     <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-secondary)" }}>{cat.label}</div>
                                                 </div>
                                             </td>
-                                            <td>
+                                            <td title={`${doc.entityType}: ${doc.entityName}`}>
                                                 <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 10px", borderRadius: 8, background: "var(--surface-subtle)", fontSize: 12, fontWeight: 700, color: "var(--text-primary)" }}>
                                                     {doc.entityType === 'truck' ? <Truck size={12} /> : <User size={12} />}
                                                     {doc.entityName}
                                                 </div>
                                             </td>
-                                            <td>
+                                            <td title={doc.expiryDate ? `Expires on ${fmtDate(doc.expiryDate)}` : "Lifetime document"}>
                                                 {doc.expiryDate ? (
                                                     <div>
                                                         <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: 6 }}>
@@ -466,7 +466,7 @@ export function Documents({ data, setData, dark, isMobile }) {
                                                     </div>
                                                 ) : <span style={{ color: "var(--text-dim)", fontSize: 12 }}>Lifetime</span>}
                                             </td>
-                                            <td>{statusBadge(doc)}</td>
+                                            <td className="status-col" title={docStatus(doc)}>{statusBadge(doc)}</td>
                                             <td style={{ textAlign: "right", verticalAlign: "middle" }}>
                                                 <TableRowActions
                                                     ariaLabel={`Actions for ${doc.label || doc.filename}`}

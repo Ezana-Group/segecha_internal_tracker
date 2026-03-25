@@ -68,6 +68,7 @@ export const DEFAULT_EMAIL_IDENTITIES = {
         // If welcome@ isn't verified in SendGrid yet, fallback to payments@ automatically.
         fromFallbackEmails: ["payments@segecha.com"],
     },
+    backupFrequency: "Disabled",
 };
 
 function mergeEmailIdentities(base, next) {

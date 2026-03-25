@@ -1,185 +1,278 @@
-import { CircleDot, Gauge, AlertTriangle, Pencil } from "lucide-react";
+import React, { useState } from "react";
+import { CircleDot, Gauge, AlertTriangle, Pencil, Search as SearchIcon, CreditCard, Activity, AlertCircle } from "lucide-react";
 import { Card } from "../components/Card";
 import { Button } from "../components/Button";
 import { Badge } from "../components/Badge";
 import { PageHeader } from "../components/PageHeader";
-import { fmt, fmtN } from "../utils/formatters";
+import { SortableTableHead } from "../components/SortableTableHead";
+import { useTableFilter } from "../hooks/useTableFilter";
+import { fmt, fmtN, fmtDate } from "../utils/formatters";
 
 const DEFAULT_TYRE_LIMIT_KM = 60000;
 
-export function TyreMonitor({ data, dark, openModal, tyreStatus, truckReg }) {
-    const tyreRows = (data.trucks || []).map((t) => {
+export function TyreMonitor({ data, dark, openModal, tyreStatus, truckReg, isMobile }) {
+    const [activeTab, setActiveTab] = useState("health");
+
+    // Refine health data for sorting and filtering
+    const healthData = (data.trucks || []).map((t) => {
         const ts = tyreStatus(t);
         const limit = Number(t.tyreLimit) > 0 ? Number(t.tyreLimit) : DEFAULT_TYRE_LIMIT_KM;
         const rulePct = Math.min(100, parseFloat(ts.pct) || 0);
-        return { truck: t, ts, limit, rulePct };
+        return { 
+            id: t.id,
+            reg: t.reg, 
+            make: t.make,
+            type: t.type,
+            status: ts.status, 
+            kmSince: ts.kmSince, 
+            remaining: ts.remaining, 
+            odom: Number(t.odom || 0), 
+            limit, 
+            rulePct,
+            rawTruck: t
+        };
     });
 
-    const tyreExpenses = (data.expenses || [])
+    const spendData = (data.expenses || [])
         .filter((e) => e.cat === "Tyre")
-        .sort((a, b) => b.date.localeCompare(a.date));
+        .map(e => ({
+            ...e,
+            vehicle: truckReg(e.truck) || "Unknown",
+            amountVal: Number(e.amount || 0)
+        }));
+
+    const { 
+        filteredRows: sortedHealthItems, 
+        setSort: requestSortHealth, 
+        sortState: sortConfigHealth,
+        filterState: healthFilters,
+        applyFilter: handleHealthFilterChange,
+        getUniqueValues: getHealthUniqueValues,
+        searchTerm: searchTermHealth,
+        setSearchTerm: setSearchTermHealth
+    } = useTableFilter(healthData, { 
+        namespace: "tyreh", 
+        initialSort: { col: "status", dir: "asc" },
+        searchColumns: ["reg", "make", "type"]
+    });
+
+    const { 
+        filteredRows: sortedSpendItems, 
+        setSort: requestSortSpend, 
+        sortState: sortConfigSpend,
+        filterState: spendFilters,
+        applyFilter: handleSpendFilterChange,
+        getUniqueValues: getSpendUniqueValues,
+        searchTerm: searchTermSpend,
+        setSearchTerm: setSearchTermSpend
+    } = useTableFilter(spendData, { 
+        namespace: "tyres", 
+        initialSort: { col: "date", dir: "desc" },
+        searchColumns: ["vehicle", "desc"]
+    });
+
+    const totalSpendFiltered = sortedSpendItems.reduce((sum, e) => sum + e.amountVal, 0);
 
     return (
         <div className="page-shell">
             <PageHeader
                 icon={CircleDot}
-                title="Tyre health"
-                description="Kilometres since baseline, wear vs maintenance interval, and tyre-category spend."
+                title="Tyre management"
+                description="Monitor fleet tyre health and historical replacement expenditure."
+                belowTitle={
+                    <div style={{ display: "flex", gap: 12, marginTop: 24, borderBottom: "1px solid var(--border-subtle)", paddingBottom: 0 }}>
+                        {[
+                            { id: "health", label: "Tyre Health", icon: Activity },
+                            { id: "spend", label: "Replacement Spend", icon: CreditCard }
+                        ].map(tab => (
+                            <button
+                                key={tab.id}
+                                onClick={() => setActiveTab(tab.id)}
+                                style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 8,
+                                    padding: "12px 20px",
+                                    border: "none",
+                                    background: "none",
+                                    color: activeTab === tab.id ? "var(--brand-primary)" : "var(--text-dim)",
+                                    fontSize: 14,
+                                    fontWeight: 700,
+                                    cursor: "pointer",
+                                    position: "relative",
+                                    transition: "all 0.2s"
+                                }}
+                            >
+                                <tab.icon size={18} />
+                                {tab.label}
+                                {activeTab === tab.id && (
+                                    <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 3, background: "var(--brand-primary)", borderRadius: "3px 3px 0 0" }} />
+                                )}
+                            </button>
+                        ))}
+                    </div>
+                }
             />
 
-            <div
-                style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
-                    gap: 20,
-                    marginBottom: 28,
-                }}
-            >
-                {tyreRows.map(({ truck: t, ts, limit, rulePct }) => {
-                    const alertColor =
-                        ts.status === "Overdue" ? "#dc2626" : ts.status === "Due Soon" ? "#ea580c" : "#059669";
-                    return (
-                        <Card key={t.id} className="animate-fade-in" style={{ padding: 20 }}>
-                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
-                                <div>
-                                    <div style={{ fontWeight: 800, fontSize: 18, color: "var(--text-primary)" }}>{t.reg}</div>
-                                    <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 2 }}>
-                                        {t.make} · {t.type}
-                                    </div>
-                                </div>
-                                <Badge status={ts.status === "OK" ? "Active" : ts.status === "Due Soon" ? "Due Soon" : "Overdue"}>
-                                    {ts.status}
-                                </Badge>
-                            </div>
+            {activeTab === "health" ? (
+                <div className="animate-fade-in">
+                    <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 16 }}>
+                        <div style={{ display: "flex", gap: 12 }}>
+                            <Badge status="Active">{healthData.filter(d => d.status === "OK").length} Healthy</Badge>
+                            <Badge status="Due Soon">{healthData.filter(d => d.status === "Due Soon").length} Due</Badge>
+                            <Badge status="Overdue">{healthData.filter(d => d.status === "Overdue").length} Overdue</Badge>
+                        </div>
+                    </div>
 
-                            <div style={{ marginBottom: 14 }}>
-                                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 8 }}>
-                                    <span style={{ color: "var(--text-muted)", fontWeight: 600 }}>Vs maintenance rule</span>
-                                    <span style={{ color: alertColor, fontWeight: 700 }}>
-                                        {ts.kmSince.toLocaleString()} km since baseline
-                                    </span>
-                                </div>
-                                <div
-                                    style={{
-                                        height: 8,
-                                        borderRadius: 999,
-                                        background: dark ? "rgba(255,255,255,0.08)" : "rgba(15,23,42,0.08)",
-                                        overflow: "hidden",
-                                    }}
-                                >
-                                    <div
-                                        style={{
-                                            width: `${rulePct}%`,
-                                            maxWidth: "100%",
-                                            height: "100%",
-                                            borderRadius: 999,
-                                            background: alertColor,
-                                            transition: "width 0.35s ease",
-                                        }}
-                                    />
-                                </div>
-                                <div style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 6, textAlign: "right" }}>
-                                    {fmtN(rulePct, 1)}% of tyre replacement interval (Settings → Maintenance)
-                                </div>
-                            </div>
-
-                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
-                                {[
-                                    { l: "Remaining", v: ts.remaining <= 0 ? `${Math.abs(ts.remaining).toLocaleString()} km over` : `${ts.remaining.toLocaleString()} km`, c: alertColor },
-                                    { l: "Baseline odometer", v: `${Number(t.tyreOdom || 0).toLocaleString()} km`, c: "var(--text-secondary)" },
-                                    { l: "Current odometer", v: `${Number(t.odom || 0).toLocaleString()} km`, c: "var(--text-secondary)" },
-                                    { l: "Interval (vehicle)", v: `${limit.toLocaleString()} km`, c: "var(--text-secondary)" },
-                                ].map((row) => (
-                                    <div
-                                        key={row.l}
-                                        style={{
-                                            background: dark ? "rgba(255,255,255,0.04)" : "var(--bg-surface)",
-                                            borderRadius: 10,
-                                            padding: "10px 12px",
-                                            border: "1px solid var(--border-subtle)",
-                                        }}
-                                    >
-                                        <div
-                                            style={{
-                                                fontSize: 10,
-                                                fontWeight: 700,
-                                                color: "var(--text-dim)",
-                                                textTransform: "uppercase",
-                                                letterSpacing: "0.06em",
-                                                marginBottom: 4,
-                                            }}
-                                        >
-                                            {row.l}
-                                        </div>
-                                        <div style={{ fontSize: 13, fontWeight: 700, color: row.c }}>{row.v}</div>
-                                    </div>
-                                ))}
-                            </div>
-
-                            {ts.status !== "OK" && (
-                                <div
-                                    style={{
-                                        display: "flex",
-                                        alignItems: "flex-start",
-                                        gap: 10,
-                                        background: dark ? "rgba(220,38,38,0.12)" : "rgba(220,38,38,0.08)",
-                                        border: `1px solid ${alertColor}40`,
-                                        borderRadius: 10,
-                                        padding: 12,
-                                        fontSize: 13,
-                                        color: alertColor,
-                                        fontWeight: 600,
-                                        marginBottom: 14,
-                                    }}
-                                >
-                                    <AlertTriangle size={18} style={{ flexShrink: 0, marginTop: 1 }} />
-                                    <span>
-                                        {ts.status === "Overdue"
-                                            ? "Tyres are past the replacement interval. Plan change immediately."
-                                            : "Approaching replacement interval. Schedule a tyre change."}
-                                    </span>
-                                </div>
-                            )}
-
-                            <Button variant="secondary" size="sm" icon={Pencil} onClick={() => openModal("truck", t)} style={{ width: "100%" }}>
-                                Update odometer / tyre data
-                            </Button>
-                        </Card>
-                    );
-                })}
-            </div>
-
-            <Card title="Tyre replacement spend" subtitle="Expense lines categorised as Tyre" icon={Gauge} style={{ padding: 20 }}>
-                <div style={{ overflowX: "auto" }}>
-                    <table className="table-modern">
-                        <thead>
-                            <tr>
-                                {["Date", "Vehicle", "Description", "Amount"].map((h) => (
-                                    <th key={h}>{h}</th>
-                                ))}
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {tyreExpenses.length === 0 ? (
-                                <tr>
-                                    <td colSpan={4} style={{ padding: 24, textAlign: "center", color: "var(--text-muted)" }}>
-                                        No tyre expenses recorded yet.
-                                    </td>
-                                </tr>
-                            ) : (
-                                tyreExpenses.map((e) => (
-                                    <tr key={e.id}>
-                                        <td>{e.date}</td>
-                                        <td style={{ fontWeight: 700, color: "var(--brand-primary)" }}>{truckReg(e.truck)}</td>
-                                        <td>{e.desc}</td>
-                                        <td style={{ fontWeight: 700 }}>{fmt(e.amount)}</td>
-                                    </tr>
-                                ))
-                            )}
-                        </tbody>
-                    </table>
+                    <Card style={{ padding: 0, overflow: "hidden", borderRadius: 24 }}>
+                        <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", gap: 12 }}>
+                            <SearchIcon size={18} color="var(--text-dim)" />
+                            <input
+                                type="search"
+                                placeholder="Search tyre health..."
+                                value={searchTermHealth}
+                                onChange={(e) => setSearchTermHealth(e.target.value)}
+                                style={{ border: "none", background: "none", padding: 0, fontSize: 14, flex: 1, color: "var(--text-primary)", fontWeight: 500 }}
+                            />
+                        </div>
+                        <div className="table-container">
+                            <table className="table-modern">
+                                <SortableTableHead 
+                                    requestSort={requestSortHealth}
+                                    sortConfig={sortConfigHealth}
+                                    filterState={healthFilters}
+                                    onFilterChange={handleHealthFilterChange}
+                                    getUniqueValues={getHealthUniqueValues}
+                                    columns={[
+                                        { key: "reg", label: "Vehicle", sortable: true },
+                                        { key: "status", label: "Status", sortable: true },
+                                        { key: "rulePct", label: "Wear level", sortable: true },
+                                        { key: "kmSince", label: "Km Since Change", sortable: true, align: "right" },
+                                        { key: "remaining", label: "Remaining Km", sortable: true, align: "right" },
+                                        { key: "odom", label: "Current Odom", sortable: true, align: "right" },
+                                        { key: "actions", label: "Actions", sortable: false, align: "right" }
+                                    ]}
+                                />
+                                <tbody>
+                                    {sortedHealthItems.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={7} style={{ padding: 80, textAlign: "center", color: "var(--text-dim)" }}>
+                                                <div style={{ marginBottom: 16 }}><AlertCircle size={48} opacity={0.2} /></div>
+                                                <div style={{ fontWeight: 600 }}>No vehicles found matching your filters.</div>
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        sortedHealthItems.map(d => (
+                                            <tr key={d.id} className="hover-scale">
+                                                <td className="sticky-col" title={d.reg}>
+                                                    <div style={{ fontWeight: 800, color: "var(--text-primary)" }}>{d.reg}</div>
+                                                    <div style={{ fontSize: 11, color: "var(--text-dim)" }}>{d.make} · {d.type}</div>
+                                                </td>
+                                                <td className="status-col" title={d.status}>
+                                                    <Badge status={d.status === "OK" ? "Active" : d.status === "Due Soon" ? "Due Soon" : "Overdue"}>
+                                                        {d.status}
+                                                    </Badge>
+                                                </td>
+                                                <td title={`${fmtN(d.rulePct, 0)}% wear`}>
+                                                    <div style={{ width: 120 }}>
+                                                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, marginBottom: 4, fontWeight: 700 }}>
+                                                            <span>{fmtN(d.rulePct, 0)}%</span>
+                                                        </div>
+                                                        <div style={{ height: 6, borderRadius: 10, background: "var(--surface-subtle)", overflow: "hidden" }}>
+                                                            <div style={{ 
+                                                                width: `${d.rulePct}%`, 
+                                                                height: "100%", 
+                                                                background: d.status === "Overdue" ? "#ef4444" : d.status === "Due Soon" ? "#f59e0b" : "#10b981",
+                                                                borderRadius: 10
+                                                            }} />
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td style={{ textAlign: "right", fontWeight: 700, color: "var(--text-secondary)" }} title={`${d.kmSince.toLocaleString()} km`}>{d.kmSince.toLocaleString()} km</td>
+                                                <td style={{ textAlign: "right", fontWeight: 700, color: d.remaining <= 0 ? "#ef4444" : "var(--text-secondary)" }} title={d.remaining <= 0 ? `${Math.abs(d.remaining).toLocaleString()} over` : `${d.remaining.toLocaleString()} left`}>
+                                                    {d.remaining <= 0 ? `${Math.abs(d.remaining).toLocaleString()} over` : `${d.remaining.toLocaleString()} left`}
+                                                </td>
+                                                <td style={{ textAlign: "right", color: "var(--text-dim)" }} title={d.odom.toLocaleString()}>{d.odom.toLocaleString()}</td>
+                                                <td style={{ textAlign: "right", verticalAlign: "middle" }}>
+                                                    <Button variant="secondary" size="sm" icon={Pencil} onClick={() => openModal("truck", d.rawTruck)}>
+                                                        Update
+                                                    </Button>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </Card>
                 </div>
-            </Card>
+            ) : (
+                <div className="animate-fade-in">
+                    <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)", gap: 20, marginBottom: 28 }}>
+                        <Card accent="var(--brand-primary)" style={{ padding: 20, borderRadius: 16 }}>
+                            <div style={{ fontSize: 11, fontWeight: 800, color: "var(--text-dim)", textTransform: "uppercase", marginBottom: 4 }}>Filtered Tyre Spend</div>
+                            <div style={{ fontSize: 24, fontWeight: 900, color: "var(--text-primary)" }}>{fmt(totalSpendFiltered)}</div>
+                        </Card>
+                        <Card accent="#10b981" style={{ padding: 20, borderRadius: 16 }}>
+                            <div style={{ fontSize: 11, fontWeight: 800, color: "var(--text-dim)", textTransform: "uppercase", marginBottom: 4 }}>Filtered Entries</div>
+                            <div style={{ fontSize: 24, fontWeight: 900, color: "var(--text-primary)" }}>{sortedSpendItems.length}</div>
+                        </Card>
+                        <Card accent="#f59e0b" style={{ padding: 20, borderRadius: 16 }}>
+                            <div style={{ fontSize: 11, fontWeight: 800, color: "var(--text-dim)", textTransform: "uppercase", marginBottom: 4 }}>Avg per Change</div>
+                            <div style={{ fontSize: 24, fontWeight: 900, color: "var(--text-primary)" }}>{fmt(totalSpendFiltered / (sortedSpendItems.length || 1))}</div>
+                        </Card>
+                    </div>
+
+                    <Card style={{ padding: 0, overflow: "hidden", borderRadius: 24 }}>
+                        <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", gap: 12 }}>
+                            <SearchIcon size={18} color="var(--text-dim)" />
+                            <input
+                                type="search"
+                                placeholder="Search spend records..."
+                                value={searchTermSpend}
+                                onChange={(e) => setSearchTermSpend(e.target.value)}
+                                style={{ border: "none", background: "none", padding: 0, fontSize: 14, flex: 1, color: "var(--text-primary)", fontWeight: 500 }}
+                            />
+                        </div>
+                        <div className="table-container">
+                            <table className="table-modern">
+                                <SortableTableHead 
+                                    requestSort={requestSortSpend}
+                                    sortConfig={sortConfigSpend}
+                                    filterState={spendFilters}
+                                    onFilterChange={handleSpendFilterChange}
+                                    getUniqueValues={getSpendUniqueValues}
+                                    columns={[
+                                        { key: "date", label: "Date", sortable: true },
+                                        { key: "vehicle", label: "Vehicle", sortable: true },
+                                        { key: "desc", label: "Description", sortable: true },
+                                        { key: "amountVal", label: "Amount", sortable: true, align: "right" }
+                                    ]}
+                                />
+                                <tbody>
+                                    {sortedSpendItems.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={4} style={{ padding: 80, textAlign: "center", color: "var(--text-dim)" }}>
+                                                <div style={{ marginBottom: 16 }}><AlertCircle size={48} opacity={0.2} /></div>
+                                                <div style={{ fontWeight: 600 }}>No spend records found matching your filters.</div>
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        sortedSpendItems.map(e => (
+                                            <tr key={e.id} className="hover-scale">
+                                                <td className="sticky-col" title={fmtDate(e.date)}>{fmtDate(e.date)}</td>
+                                                <td style={{ fontWeight: 800, color: "var(--brand-primary)" }} title={e.vehicle}>{e.vehicle}</td>
+                                                <td style={{ color: "var(--text-secondary)", fontSize: 13 }} title={e.desc}>{e.desc}</td>
+                                                <td style={{ textAlign: "right", fontWeight: 800, color: "var(--text-primary)" }} title={fmt(e.amountVal)}>{fmt(e.amountVal)}</td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </Card>
+                </div>
+            )}
         </div>
     );
 }

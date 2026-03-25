@@ -4,6 +4,7 @@
    ═══════════════════════════════════════════════════════════════════ */
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('./styles/table.css');
 
 :root {
   --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
@@ -109,7 +110,7 @@ body {
   color: var(--text-secondary);
   line-height: 1.5;
   font-size: 14px;
-  overflow-x: hidden;
+  overflow-x: auto; /* Enable page-level horizontal scroll */
 }
 
 #root {
@@ -125,15 +126,21 @@ h1, h2, h3, h4, h5, h6 {
 
 /* ─── Layout shell ─────────────────────────────────────────── */
 .page-shell {
-  max-width: 1400px;
+  max-width: 1600px;
   margin: 0 auto;
   width: 100%;
 }
 
 .page-shell-wide {
-  max-width: 1600px;
-  margin: 0 auto;
-  width: 100%;
+  max-width: 100%;
+  padding: 0 32px 48px;
+}
+
+/* Responsive Page Shell */
+@media (max-width: 768px) {
+  .page-shell, .page-shell-wide {
+    padding: 0 16px 32px;
+  }
 }
 
 /* ─── Sidebar ─────────────────────────────────────────────── */
@@ -436,6 +443,23 @@ h1, h2, h3, h4, h5, h6 {
   color: var(--text-muted);
 }
 
+.page-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 640px) {
+  .page-header-actions {
+    gap: 8px;
+  }
+  
+  .page-header-actions > * {
+    flex: 1 1 auto;
+  }
+}
+
 .topbar-actions {
   display: flex;
   align-items: center;
@@ -507,13 +531,69 @@ h1, h2, h3, h4, h5, h6 {
   border-color: var(--border-medium);
 }
 
-/* ─── Tables ────────────────────────────────────────────────── */
-.table-modern {
+/* Tables */
+.table-container {
   width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-card);
+  position: relative;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
 }
 
+/* Premium Scrollbar Styling */
+.table-container::-webkit-scrollbar {
+  height: 8px;
+  background: transparent;
+}
+
+.table-container::-webkit-scrollbar-thumb {
+  background: var(--border-medium);
+  border-radius: 10px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.table-container::-webkit-scrollbar-thumb:hover {
+  background: var(--border-strong);
+  background-clip: padding-box;
+}
+
+.table-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.table-modern {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 14px;
+  min-width: 800px; /* Ensure tables don't squash too much */
+}
+
+@media (max-width: 640px) {
+  .table-modern {
+    font-size: 13px;
+    min-width: 600px;
+  }
+}
+
+.sortable-header {
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.sortable-header:hover {
+  background: var(--surface-hover) !important;
+  color: var(--text-primary) !important;
+}
+
+.sortable-header:active {
+  background: var(--surface-active) !important;
+}
 .table-modern thead th {
   text-align: left;
   padding: 10px 16px;
@@ -564,6 +644,30 @@ h1, h2, h3, h4, h5, h6 {
   padding-top: 4px;
 }
 
+/* Fix for overlapping buttons/selects in filter rows */
+.filter-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.input-premium {
+  appearance: none;
+  background: var(--surface-subtle);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  padding: 10px 14px;
+  color: var(--text-primary);
+  font-size: 14px;
+  transition: all 0.2s;
+}
+
+.input-premium:focus {
+  border-color: var(--brand-primary);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
 .dashboard-finance-status__payroll {
   margin-top: 4px;
   padding-right: 4px;

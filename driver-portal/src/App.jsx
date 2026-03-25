@@ -28,12 +28,13 @@ const SC = {
 /** Bottom navigation — 4 tabs to match mobile / WhatsApp-style app shell */
 const PRIMARY_TABS = [
     { id: 'journeys', icon: '🗺️', label: 'My Trips' },
+    { id: 'payslips', icon: '💰', label: 'Payments' },
     { id: 'submit', icon: '⛽', label: 'Fuel Log' },
     { id: 'costs', icon: '💸', label: 'Expenses' },
     { id: 'profile', icon: '👤', label: 'Profile' },
 ];
 
-const TAB_NAV_PERM = { journeys: 'navTrips', submit: 'navFuel', costs: 'navCosts', profile: 'navProfile' };
+const TAB_NAV_PERM = { journeys: 'navTrips', payslips: 'navPayments', submit: 'navFuel', costs: 'navCosts', profile: 'navProfile' };
 
 const TAB_TITLE = {
     journeys: 'My Trips',
@@ -286,8 +287,16 @@ const JourneyCard = ({
                 )}
                 {portalPerm.tripCardMileageLine !== false && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                        <span style={{ fontSize: 12, color: COLORS.textFaint, fontWeight: 600 }}>Mileage allowance</span>
-                        <span style={{ fontSize: 18, fontWeight: 800, color: COLORS.green }}>{fmt(j.driverMileage || 0)}</span>
+                        <span style={{ fontSize: 12, color: COLORS.textFaint, fontWeight: 600 }}>Projected Allowance</span>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                            <span style={{ fontSize: 18, fontWeight: 800, color: COLORS.green }}>{fmt((j.driverMileage || 0) + (j.roadUserAllowance || 0))}</span>
+                            <div style={{ fontSize: 10, color: COLORS.textFaint, marginTop: 2, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                {j.isFlatRate ? 'FLAT RATE' : (j.mileageRateUsed ? `${fmt(j.mileageRateUsed)}/km` : '')}
+                                {j.mileageRouteOverride && (
+                                    <span style={{ background: COLORS.accent + '15', color: COLORS.accent, padding: '1px 5px', borderRadius: 4, fontSize: 8, fontWeight: 800 }}>ROUTE RATE</span>
+                                )}
+                            </div>
+                        </div>
                     </div>
                 )}
                 {portalPerm.tripExpandDetails !== false && (
@@ -299,7 +308,7 @@ const JourneyCard = ({
                 <div style={{ borderTop: `1px solid ${COLORS.border}`, padding: 16, background: COLORS.bg }} onClick={(e) => e.stopPropagation()}>
                     {portalPerm.tripDetailAllowanceNote !== false && (
                         <div style={{ fontSize: 11, color: COLORS.textFaint, marginBottom: 12, lineHeight: 1.4 }}>
-                            Trip allowance <b>{fmt(j.driverMileage || 0)}</b> — not customer freight charges.
+                            Projected allowance <b>{fmt((j.driverMileage || 0) + (j.roadUserAllowance || 0))}</b> — this represents your income for this trip.
                         </div>
                     )}
                     {portalPerm.tripDetailDistance !== false && (
@@ -364,10 +373,10 @@ const JourneyCard = ({
                         </button>
                     )}
 
-                    {allowUpdate && (j.status === 'Loading' || j.status === 'In Transit') && (
+                    {allowUpdate && (j.status === 'Loading' || j.status === 'Approved' || j.status === 'In Transit') && (
                         !showForm ? (
                             <button style={{ ...S.btn('blue'), width: '100%', marginTop: 14 }} onClick={(e) => { e.stopPropagation(); setShowForm(true); }}>
-                                {j.status === 'Loading' ? '+ Log Trip Start' : '+ Log Arrival / End Trip'}
+                                {j.status === 'Loading' ? '+ Log Trip Start' : j.status === 'Approved' ? 'Start Trip' : '+ Log Arrival / End Trip'}
                             </button>
                         ) : (
                         <div style={{ marginTop: 14, padding: 14, background: '#fff', borderRadius: 12, border: `1px solid ${COLORS.border}` }}>
@@ -637,8 +646,40 @@ const JourneyCard = ({
                                     </button>
                                 </>
                             )}
+                            {j.status === 'Approved' && (
+                                <>
+                                    <div style={{ fontWeight: 700, color: COLORS.text, marginBottom: 12, fontSize: 13 }}>🚀 Trip Approved! Update your current status:</div>
+                                    <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+                                        <button
+                                            style={{ ...S.btn('ghost'), flex: 1 }}
+                                            disabled={updating[j.id]}
+                                            onClick={() => updateStatus(j, 'Loading')}
+                                        >
+                                            Stay Loading
+                                        </button>
+                                        <button
+                                            style={{ ...S.btn('green'), flex: 1 }}
+                                            disabled={updating[j.id]}
+                                            onClick={() => updateStatus(j, 'In Transit')}
+                                        >
+                                            Start Trip
+                                        </button>
+                                    </div>
+                                    {msgs[j.id] && <div style={{ color: msgs[j.id].startsWith('✅') ? COLORS.green : COLORS.red, fontSize: 12, marginTop: 10 }}>{msgs[j.id]}</div>}
+                                </>
+                            )}
                         </div>
                         )
+                    )}
+
+                    {j.status === 'Approved' && (
+                        <div style={{ marginTop: 14, padding: 14, background: '#f0fdf4', border: '1px dashed #22c55e', borderRadius: 10, textAlign: 'center' }}>
+                            <div style={{ fontSize: 24, marginBottom: 8 }}>✅</div>
+                            <div style={{ fontWeight: 700, color: '#16a34a', fontSize: 14 }}>Trip Start Approved</div>
+                            <div style={{ fontSize: 12, color: COLORS.textDim, marginTop: 4 }}>
+                                The office has approved your start details. You can now mark the trip as **In Transit** when you depart.
+                            </div>
+                        </div>
                     )}
 
                     {j.status === 'Awaiting Start Verification' && portalPerm.tripAwaitingBanner !== false && (
@@ -676,9 +717,9 @@ const JourneysTab = ({
     driver,
     truck,
     tyreInfo,
-    activeJourneys,
-    completedJourneys,
-    customerDirectory,
+    activeJourneys = [],
+    completedJourneys = [],
+    customerDirectory = [],
     token,
     portalPerm,
     fetchDriverData,
@@ -820,7 +861,11 @@ const JourneysTab = ({
         }
 
         setUpdating(u => ({ ...u, [j.id]: true }));
-        const result = await apiPost(`/api/driver/journey/${j.id}/status`, { status: newStatus, ...form });
+        const result = await apiPost(`/api/driver/journeys/status`, { 
+            journeyId: j.id, 
+            status: newStatus, 
+            ...form 
+        });
         if (result.success) {
             const msg = newStatus === 'Awaiting Verification'
                 ? '✅ Submitted for office verification'
@@ -833,15 +878,22 @@ const JourneysTab = ({
         setUpdating(u => ({ ...u, [j.id]: false }));
     };
 
-    const firstNameHi = driver.name.split(' ')[0] || driver.name;
+    const firstNameHi = (driver.name || driver.email || 'Driver').split(' ')[0];
     const hour = new Date().getHours();
     const greet = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
     const monthKey = new Date().toISOString().slice(0, 7);
     const journeysThisMonth = [...activeJourneys, ...completedJourneys].filter((j) => j.date && j.date.startsWith(monthKey));
-    const monthAllowance = journeysThisMonth.reduce((s, j) => s + (+j.driverMileage || 0), 0);
+    const monthAllowance = journeysThisMonth.reduce((s, j) => s + (+j.driverMileage || 0) + (+j.roadUserAllowance || 0), 0);
     const totalTrips = activeJourneys.length + completedJourneys.length;
     const pendingCount = activeJourneys.filter((j) => j.status === 'Awaiting Verification').length;
-    const openTrip = activeJourneys.some((j) => ['Loading', 'In Transit', 'Awaiting Start Verification', 'Awaiting Verification'].includes(j.status));
+    const openTrip = activeJourneys.some((j) => ['Loading', 'Approved', 'In Transit', 'Awaiting Start Verification', 'Awaiting Verification'].includes(j.status));
+
+    const lastCompletedDest = completedJourneys[0]?.dest || '';
+
+    const [showEmptyReturnForm, setShowEmptyReturnForm] = useState(false);
+    const [emptyReturnForm, setEmptyReturnForm] = useState({});
+    const [emptyReturnMsg, setEmptyReturnMsg] = useState('');
+    const [emptyReturnLoading, setEmptyReturnLoading] = useState(false);
 
     const onStartNewTrip = () => {
         if (openTrip) {
@@ -861,6 +913,35 @@ const JourneysTab = ({
                 window.alert('Could not create trip request: ' + (e?.message || String(e)));
             }
         })();
+    };
+
+    const onSubmitEmptyReturn = async () => {
+        if (!emptyReturnForm.origin) { setEmptyReturnMsg('❌ Please confirm your current location (origin)'); return; }
+        if (!emptyReturnForm.dest) { setEmptyReturnMsg('❌ Please enter your destination'); return; }
+        if (!emptyReturnForm.reason) { setEmptyReturnMsg('❌ Please provide a reason for the empty return'); return; }
+        setEmptyReturnLoading(true);
+        setEmptyReturnMsg('');
+        try {
+            const result = await apiPost('/api/driver/journeys/start-placeholder', { 
+                date: today(), 
+                origin: emptyReturnForm.origin,
+                dest: emptyReturnForm.dest,
+                returningEmpty: true,
+                cargo: 'Empty Return',
+                notes: `EMPTY RETURN — Reason: ${emptyReturnForm.reason}${emptyReturnForm.extraNotes ? '. ' + emptyReturnForm.extraNotes : ''}`,
+            });
+            if (result.success) {
+                setEmptyReturnMsg('✅ Empty return trip request submitted — office has been notified.');
+                setEmptyReturnForm({});
+                await fetchDriverData(token);
+                setTimeout(() => setShowEmptyReturnForm(false), 2500);
+            } else {
+                setEmptyReturnMsg('❌ ' + (result.error || 'Submission failed'));
+            }
+        } catch (e) {
+            setEmptyReturnMsg('❌ Error: ' + (e?.message || String(e)));
+        }
+        setEmptyReturnLoading(false);
     };
 
     const kpiCard = (label, child, accentColor) => (
@@ -887,7 +968,7 @@ const JourneysTab = ({
             )}
             {portalPerm.tripsMonthExplainer !== false && (
                 <div style={{ fontSize: 11, color: COLORS.textFaint, marginTop: -8, marginBottom: 16, lineHeight: 1.35 }}>
-                    <b>This Month</b> is the sum of your <b>mileage allowances</b> for trips dated this month — not customer freight charges.
+                    <b>This Month</b> is the sum of your <b>projected allowances</b> for trips dated this month.
                 </div>
             )}
             {openTrip && portalPerm.tripsOpenTripBanner !== false && (
@@ -896,9 +977,64 @@ const JourneysTab = ({
                 </div>
             )}
             {portalPerm.tripsStartNewTrip !== false && (
-                <button type="button" style={{ width: '100%', minHeight: 54, borderRadius: 14, border: 'none', background: `linear-gradient(135deg, ${COLORS.coral} 0%, ${COLORS.coralDark} 100%)`, color: '#fff', fontWeight: 800, fontSize: 16, marginBottom: 22, cursor: 'pointer', boxShadow: '0 6px 20px rgba(249,115,113,.32)' }} onClick={onStartNewTrip}>
+                <button type="button" style={{ width: '100%', minHeight: 54, borderRadius: 14, border: 'none', background: `linear-gradient(135deg, ${COLORS.coral} 0%, ${COLORS.coralDark} 100%)`, color: '#fff', fontWeight: 800, fontSize: 16, marginBottom: 10, cursor: 'pointer', boxShadow: '0 6px 20px rgba(249,115,113,.32)' }} onClick={onStartNewTrip}>
                     + Start New Trip
                 </button>
+            )}
+            {!openTrip && (
+                <button type="button" onClick={() => {
+                    setShowEmptyReturnForm(f => !f);
+                    if (!emptyReturnForm.origin && lastCompletedDest) {
+                        setEmptyReturnForm({ origin: lastCompletedDest, dest: '', reason: '🔙 Returning to base after delivery', extraNotes: '' });
+                    }
+                }} style={{ width: '100%', padding: '10px 0', borderRadius: 12, border: `1px dashed ${COLORS.yellow}`, background: 'rgba(245,158,11,0.06)', color: COLORS.yellow, fontWeight: 700, fontSize: 14, marginBottom: 16, cursor: 'pointer' }}>
+                    🔙 Request Empty Return Trip
+                </button>
+            )}
+            {showEmptyReturnForm && (
+                <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 14, padding: 16, marginBottom: 16 }}>
+                    <div style={{ fontWeight: 800, fontSize: 14, color: '#92400e', marginBottom: 12 }}>📋 Empty Return Trip Request</div>
+                    <div style={{ fontSize: 12, color: '#78350f', marginBottom: 12, lineHeight: 1.45 }}>
+                        Vehicle is returning without cargo. Select your current location (suggested from last delivery), your destination, and give a reason. The office will review and approve.
+                    </div>
+                    {emptyReturnMsg && <div style={{ padding: '8px 12px', borderRadius: 8, background: emptyReturnMsg.startsWith('✅') ? '#d1fae5' : '#fee2e2', color: emptyReturnMsg.startsWith('✅') ? '#065f46' : '#991b1b', fontSize: 13, fontWeight: 700, marginBottom: 10 }}>{emptyReturnMsg}</div>}
+                    <div style={{ marginBottom: 10 }}>
+                        <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#78350f', marginBottom: 4 }}>Your Current Location (Origin)</label>
+                        <input style={S.inp} value={emptyReturnForm.origin || ''} placeholder={lastCompletedDest || 'e.g. Eldoret'} onChange={e => setEmptyReturnForm(f => ({ ...f, origin: e.target.value }))} />
+                        {lastCompletedDest && !emptyReturnForm.origin && <div style={{ fontSize: 11, color: '#92400e', marginTop: 3 }}>Suggested: {lastCompletedDest} (your last delivery)</div>}
+                    </div>
+                    <div style={{ marginBottom: 10 }}>
+                        <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#78350f', marginBottom: 4 }}>Destination</label>
+                        <input style={S.inp} value={emptyReturnForm.dest || ''} placeholder="e.g. Nairobi" onChange={e => setEmptyReturnForm(f => ({ ...f, dest: e.target.value }))} />
+                    </div>
+                    <div style={{ marginBottom: 10 }}>
+                        <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#78350f', marginBottom: 4 }}>Reason for Empty Return</label>
+                        <select style={S.inp} value={emptyReturnForm.reason || ''} onChange={e => setEmptyReturnForm(f => ({ ...f, reason: e.target.value }))}>
+                            <option value="">Select reason...</option>
+                            <option value="🔙 Returning to base after delivery">Returning to base after delivery</option>
+                            <option value="🔄 Repositioning for next load">Repositioning for next load</option>
+                            <option value="🔧 Going to workshop for maintenance">Going to workshop for maintenance</option>
+                            <option value="⚡ Emergency — driver or family">Emergency (driver or family)</option>
+                            <option value="❌ Load cancelled at source">Load cancelled at source</option>
+                            <option value="🏢 Office instruction">Office instruction</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                    {emptyReturnForm.reason && (
+                        <div style={{ marginBottom: 12 }}>
+                            <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#78350f', marginBottom: 4 }}>Additional notes (optional)</label>
+                            <input style={S.inp} value={emptyReturnForm.extraNotes || ''} placeholder="Any extra details for the office..." onChange={e => setEmptyReturnForm(f => ({ ...f, extraNotes: e.target.value }))} />
+                        </div>
+                    )}
+                    <div style={{ display: 'flex', gap: 10 }}>
+                        <button type="button" onClick={onSubmitEmptyReturn} disabled={emptyReturnLoading} style={{ flex: 1, padding: '10px 0', borderRadius: 10, border: 'none', background: '#d97706', color: '#fff', fontWeight: 800, fontSize: 14, cursor: 'pointer' }}>
+                            {emptyReturnLoading ? '⏳ Sending...' : '📤 Submit to Office'}
+                        </button>
+                        <button type="button" onClick={() => setShowEmptyReturnForm(false)} style={{ padding: '10px 16px', borderRadius: 10, border: '1px solid #d97706', background: 'transparent', color: '#92400e', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
+                            Cancel
+                        </button>
+                    </div>
+                </div>
             )}
             {truck && portalPerm.tripsTruckTyreStrip !== false && (
                 <div style={{ fontSize: 13, color: COLORS.textDim, marginBottom: 16, padding: '10px 12px', background: '#fff', borderRadius: 12, border: `1px solid ${COLORS.border}` }}>
@@ -973,7 +1109,7 @@ const JourneysTab = ({
     );
 };
 
-const SubmitTab = ({ activeJourneys, apiPost, driver, truck, portalPerm, token, fuelEntries = [] }) => {
+const SubmitTab = ({ activeJourneys = [], apiPost, driver, truck, portalPerm, token, fuelEntries = [] }) => {
     const [form, setForm] = useState({ date: today() });
     const [submitting, setSubmitting] = useState(false);
     const [msg, setMsg] = useState('');
@@ -1001,9 +1137,9 @@ const SubmitTab = ({ activeJourneys, apiPost, driver, truck, portalPerm, token, 
         const payload = { ...form, truck: driver.truck };
         if (fixingId) payload._fixingId = fixingId; 
 
-        const result = await apiPost('/api/driver/submit/fuel', payload);
+        const result = await apiPost('/api/driver/fuel', payload);
         if (result.success) {
-            setMsg('✅ ' + result.message);
+            setMsg('✅ ' + (result.message || 'Fuel log submitted'));
             setForm({ date: today(), journey: firstActiveId || '' });
             setFixingId(null);
             setShowForm(false);
@@ -1151,7 +1287,7 @@ const SubmitTab = ({ activeJourneys, apiPost, driver, truck, portalPerm, token, 
     );
 };
 
-const CostsTab = ({ portalPerm, activeJourneys, apiPost, driver, truck, token, expenseEntries = [] }) => {
+const CostsTab = ({ portalPerm, activeJourneys = [], apiPost, driver, truck, token, expenseEntries = [], driverData }) => {
     const [subType, setSubType] = useState('expense');
     const [form, setForm] = useState({ date: today() });
     const [submitting, setSubmitting] = useState(false);
@@ -1163,7 +1299,7 @@ const CostsTab = ({ portalPerm, activeJourneys, apiPost, driver, truck, token, e
 
     useEffect(() => {
         if (firstActiveId && !form.journey) setForm((f) => ({ ...f, journey: firstActiveId }));
-    }, [firstActiveId, form.journey]);
+    }, [firstActiveId, form.journey, subType]);
 
     const EXPENSE_CATS = ['Toll', 'Maintenance', 'Parking', 'Police', 'Other'];
     const INCIDENT_TYPES = ['Breakdown', 'Accident', 'Cargo Damage', 'Theft', 'Road Closure', 'Other'];
@@ -1184,14 +1320,14 @@ const CostsTab = ({ portalPerm, activeJourneys, apiPost, driver, truck, token, e
         }
         setSubmitting(true);
         setMsg('');
-        const url = subType === 'expense' ? '/api/driver/submit/expense' : '/api/driver/submit/incident';
+        const url = subType === 'expense' ? '/api/driver/expense' : '/api/driver/incident';
         
         const payload = { ...form, truck: driver.truck };
         if (fixingId && subType === 'expense') payload._fixingId = fixingId; 
 
         const result = await apiPost(url, payload);
         if (result.success) {
-            setMsg('✅ ' + result.message);
+            setMsg('✅ ' + (result.message || (subType === 'expense' ? 'Expense claim submitted' : 'Incident report submitted')));
             setForm({ date: today(), journey: firstActiveId || '' });
             setFixingId(null);
             setShowForm(false);
@@ -1345,6 +1481,17 @@ const CostsTab = ({ portalPerm, activeJourneys, apiPost, driver, truck, token, e
                         <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '10px 14px', marginBottom: 12, fontSize: 13, color: '#b91c1c' }}>
                             You can also message the office on WhatsApp after submitting.
                         </div>
+                        <div style={{ marginTop: 12 }}>
+                            <label style={S.lbl}>Associated Trip (Optional)</label>
+                            <select style={S.inp} value={form.journey || ''} onChange={(e) => set('journey', e.target.value)}>
+                                <option value="">None / Specific Trip N/A</option>
+                                {activeJourneys.map((j) => (
+                                    <option key={j.id} value={j.id}>
+                                        {j.origin} → {j.dest}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
                     </>
                 )}
                 {portalPerm.costsSubmit !== false && (
@@ -1400,11 +1547,37 @@ const CostsTab = ({ portalPerm, activeJourneys, apiPost, driver, truck, token, e
                     </div>
                 </div>
             )}
+
+            {subType === 'incident' && (
+                <div style={{ marginTop: 24 }}>
+                    <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 12, color: COLORS.text }}>Recent Incident History</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        {(driverData?.incidents || []).map(i => (
+                            <div key={i.id} style={{ ...S.card(), padding: 12 }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                    <div>
+                                        <div style={{ fontSize: 14, fontWeight: 700 }}>{i.incidentType}</div>
+                                        <div style={{ fontSize: 12, color: COLORS.textDim }}>{fmtDate(i.createdAt || i.date)} · {i.location}</div>
+                                        <div style={{ fontSize: 12, color: COLORS.textDim, marginTop: 4, fontStyle: 'italic' }}>{i.description}</div>
+                                    </div>
+                                    <Badge 
+                                        status={i._isRejected ? "Rejected" : (i._pendingApproval ? "Warning" : "Success")} 
+                                        text={i._isRejected ? "Rejected" : (i._pendingApproval ? "Pending" : "Resolved")} 
+                                    />
+                                </div>
+                            </div>
+                        ))}
+                        {(!driverData?.incidents || driverData.incidents.length === 0) && (
+                            <div style={{ fontSize: 13, color: COLORS.textFaint, textAlign: 'center', padding: 12 }}>No recent incidents recorded.</div>
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
 
-const MaintenanceTab = ({ activeJourneys, apiPost, driver, truck, portalPerm, token, maintenanceHistory }) => {
+const MaintenanceTab = ({ activeJourneys = [], apiPost, driver, truck, portalPerm, token, maintenanceHistory }) => {
     const [form, setForm] = useState({ date: today() });
     const [submitting, setSubmitting] = useState(false);
     const [msg, setMsg] = useState('');
@@ -1425,7 +1598,7 @@ const MaintenanceTab = ({ activeJourneys, apiPost, driver, truck, portalPerm, to
         setSubmitting(true);
         setMsg('');
         const payload = { ...form, truck: driver.truck };
-        const result = await apiPost('/api/driver/submit/maintenance', payload);
+        const result = await apiPost('/api/driver/maintenance', payload);
         if (result.success) {
             setMsg('✅ Maintenance log submitted for office review');
             setForm({});
@@ -1516,38 +1689,123 @@ const MaintenanceTab = ({ activeJourneys, apiPost, driver, truck, portalPerm, to
     );
 };
 
-const PayslipsTab = ({ portalPerm, payslips }) => (
-    <div style={S.content}>
-        {portalPerm.payslipsIntro !== false && (
-            <div style={{ fontSize: 14, color: COLORS.textDim, marginBottom: 16, lineHeight: 1.5 }}>
-                Payment <b>status</b> by month only. Amounts are handled by the office.
-            </div>
-        )}
-        {portalPerm.payslipsList === false ? (
-            <div style={{ ...S.card(), textAlign: 'center', padding: 24, color: COLORS.textFaint }}>Payment status is hidden for your account.</div>
-        ) : payslips.length === 0 ? (
-            <div style={{ ...S.card(), textAlign: 'center', padding: 28, color: COLORS.textFaint }}>
-                <div style={{ fontSize: 32, marginBottom: 10 }}>📋</div>
-                <div>No payment records yet</div>
-            </div>
-        ) : (
-            payslips.map((p) => (
-                <div key={p.id} style={S.card(p.status === 'Paid' ? COLORS.green : COLORS.yellow)}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                        <div style={{ fontWeight: 800, fontSize: 15, color: COLORS.text }}>{new Date(p.month + '-01').toLocaleDateString('en-KE', { month: 'long', year: 'numeric' })}</div>
-                        <span style={S.badge(p.status)}>{p.status}</span>
+const PayslipsTab = ({ portalPerm, payslips = [], activeJourneys = [], completedJourneys = [], driver = {} }) => {
+    const [subTab, setSubTab] = useState('summary'); // summary | history
+    
+    const allJourneys = useMemo(() => [...activeJourneys, ...completedJourneys], [activeJourneys, completedJourneys]);
+    
+    // 1. Current Month Breakdown
+    const monthKey = new Date().toISOString().slice(0, 7);
+    const thisMonthJourneys = allJourneys.filter(j => j.date && j.date.startsWith(monthKey));
+    const thisMonthAllowances = thisMonthJourneys.reduce((s, j) => s + (+j.driverMileage || 0) + (+j.roadUserAllowance || 0), 0);
+    const thisMonthSal = +(driver.salary || driver.baseSalary || 0);
+
+    // 2. Year-to-Date (Summary from payslips + current month)
+    const currentYear = new Date().getFullYear();
+    const paidThisYear = payslips
+        .filter(p => p.month?.startsWith(String(currentYear)) && p.status === 'Paid')
+        .reduce((s, p) => s + (+p.netPay || ((+p.baseSalary || 0) + (+p.allowance || 0) - (+p.deductions || 0))), 0);
+
+    const SummaryView = () => (
+        <div style={{ display: 'grid', gap: 16 }}>
+            <div style={{ background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)', borderRadius: 20, padding: 24, color: '#fff', boxShadow: '0 10px 30px rgba(0,0,0,0.1)' }}>
+                <div style={{ fontSize: 12, opacity: 0.7, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Estimated Balance</div>
+                <div style={{ fontSize: 32, fontWeight: 900, marginBottom: 4 }}>{fmt(thisMonthSal + thisMonthAllowances)}</div>
+                <div style={{ fontSize: 13, opacity: 0.8 }}>Current Month ({new Date().toLocaleDateString('en-KE', { month: 'long' })})</div>
+                
+                <div style={{ marginTop: 20, paddingTop: 20, borderTop: '1px solid rgba(255,255,255,0.1)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                    <div>
+                        <div style={{ fontSize: 10, opacity: 0.6, fontWeight: 700, marginBottom: 4 }}>BASE SALARY</div>
+                        <div style={{ fontSize: 16, fontWeight: 800 }}>{fmt(thisMonthSal)}</div>
                     </div>
-                    {portalPerm.payslipsPaidDate !== false && p.status === 'Paid' && p.paidDate && <div style={{ fontSize: 12, color: COLORS.textDim }}>Paid {p.paidDate}</div>}
-                    {portalPerm.payslipsMpesaRef !== false && p.mpesaRef && (
-                        <div style={{ marginTop: 8, fontSize: 11, color: COLORS.textFaint }}>
-                            Ref: <span style={{ fontFamily: 'monospace' }}>{p.mpesaRef}</span>
-                        </div>
-                    )}
+                    <div>
+                        <div style={{ fontSize: 10, opacity: 0.6, fontWeight: 700, marginBottom: 4 }}>ALLOWANCES</div>
+                        <div style={{ fontSize: 16, fontWeight: 800 }}>{fmt(thisMonthAllowances)}</div>
+                    </div>
                 </div>
-            ))
-        )}
-    </div>
-);
+            </div>
+
+            <div style={{ ...S.card(), padding: 20 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                    <div style={{ fontWeight: 800, fontSize: 15, color: COLORS.text }}>Year-to-Date {currentYear}</div>
+                    <div style={{ fontSize: 18, fontWeight: 900, color: COLORS.green }}>{fmt(paidThisYear)}</div>
+                </div>
+                <div style={{ fontSize: 12, color: COLORS.textFaint, lineHeight: 1.45 }}>
+                    Total amount confirmed as <b>Paid</b> this calendar year (excluding the current month which is pending).
+                </div>
+            </div>
+
+            <div style={{ marginTop: 8 }}>
+                <div style={{ fontWeight: 800, fontSize: 14, color: COLORS.text, marginBottom: 12, paddingLeft: 4 }}>This Month's Trips</div>
+                {thisMonthJourneys.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: 32, color: COLORS.textFaint, background: '#fff', borderRadius: 16, border: `1px dashed ${COLORS.border}` }}>
+                        No trips logged yet this month.
+                    </div>
+                ) : (
+                    thisMonthJourneys.map(j => (
+                        <div key={j.id} style={{ ...S.card(), padding: 12, marginBottom: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div>
+                                <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.text }}>{j.origin} → {j.dest}</div>
+                                <div style={{ fontSize: 11, color: COLORS.textFaint }}>{j.date}</div>
+                            </div>
+                            <div style={{ fontSize: 14, fontWeight: 800, color: COLORS.text }}>+{fmt((j.driverMileage || 0) + (j.roadUserAllowance || 0))}</div>
+                        </div>
+                    ))
+                )}
+            </div>
+        </div>
+    );
+
+    const HistoryView = () => (
+        <div style={{ display: 'grid', gap: 14 }}>
+            {payslips.length === 0 ? (
+                <div style={{ ...S.card(), textAlign: 'center', padding: 28, color: COLORS.textFaint }}>
+                    <div style={{ fontSize: 32, marginBottom: 10 }}>📋</div>
+                    <div>No payment records found</div>
+                </div>
+            ) : (
+                [...payslips].reverse().map((p) => (
+                    <div key={p.id} style={S.card(p.status === 'Paid' ? COLORS.green : COLORS.yellow)}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                            <div style={{ fontWeight: 800, fontSize: 15, color: COLORS.text }}>{new Date(p.month + '-01').toLocaleDateString('en-KE', { month: 'long', year: 'numeric' })}</div>
+                            <span style={S.badge(p.status)}>{p.status}</span>
+                        </div>
+                        {(() => {
+                            const net = +p.netPay || ((+p.baseSalary || 0) + (+p.allowance || 0) - (+p.deductions || 0));
+                            return (
+                                <div style={{ fontSize: 20, fontWeight: 900, color: p.status === 'Paid' ? COLORS.green : COLORS.text, marginBottom: 4 }}>
+                                    {fmt(net)}
+                                </div>
+                            );
+                        })()}
+                        {p.status === 'Paid' && p.paidDate && <div style={{ fontSize: 12, color: COLORS.textDim }}>Paid {p.paidDate}</div>}
+                    </div>
+                ))
+            )}
+        </div>
+    );
+
+    return (
+        <div style={S.content}>
+            <div style={{ display: 'flex', background: '#e2e8f0', borderRadius: 12, padding: 4, marginBottom: 20 }}>
+                <button
+                    style={{ flex: 1, padding: '10px 0', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', background: subTab === 'summary' ? '#fff' : 'transparent', color: subTab === 'summary' ? COLORS.primary : COLORS.textFaint, boxShadow: subTab === 'summary' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none' }}
+                    onClick={() => setSubTab('summary')}
+                >
+                    📊 Summary
+                </button>
+                <button
+                    style={{ flex: 1, padding: '10px 0', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', background: subTab === 'history' ? '#fff' : 'transparent', color: subTab === 'history' ? COLORS.primary : COLORS.textFaint, boxShadow: subTab === 'history' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none' }}
+                    onClick={() => setSubTab('history')}
+                >
+                    📜 History
+                </button>
+            </div>
+
+            {subTab === 'summary' ? <SummaryView /> : <HistoryView />}
+        </div>
+    );
+};
 
 const MyDocsTab = ({ token, portalPerm }) => {
     const [docs, setDocs] = useState([]);
@@ -1864,8 +2122,104 @@ const ProfileTab = ({ driver, truck, portalPerm, token, fetchDriverData, apiPost
         </div>
     );
 };
+// ── SET PASSWORD PAGE (Refactored outside to maintain purity) ────────────────
+const SetPasswordPage = ({ resetToken, setToken, setView }) => {
+    const [pw, setPw] = useState('');
+    const [confirm, setConfirm] = useState('');
+    const [status, setStatus] = useState('');
+    const [busy, setBusy] = useState(false);
+
+    const strength = pw.length === 0 ? 0 : pw.length < 8 ? 1 : pw.length < 12 ? 2 : 3;
+    const sColor = ['#e2e8f0', '#ef4444', '#f59e0b', '#10b981'][strength];
+    const sLabel = ['', 'Weak', 'Good', 'Strong'][strength];
+
+    const save = async () => {
+        if (pw.length < 8) { setStatus('❌ Password must be at least 8 characters'); return; }
+        if (pw !== confirm) { setStatus('❌ Passwords do not match'); return; }
+        setBusy(true); setStatus('');
+        try {
+            const res = await fetch(`${API}/api/driver/set-password`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token: resetToken, password: pw }),
+            });
+            const data = await res.json();
+            if (data.success) {
+                setStatus('✅ Password set successfully! Logging you in…');
+                setTimeout(() => {
+                    localStorage.setItem('driver_token', data.token);
+                    setToken(data.token);
+                    setView('login');
+                }, 1500);
+            } else setStatus('❌ ' + data.error);
+        } catch { setStatus('❌ Server error'); }
+        setBusy(false);
+    };
+
+    return (
+        <div style={{ minHeight: '100vh', background: COLORS.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+            <div style={{ background: '#fff', borderRadius: 24, padding: 36, width: '100%', maxWidth: 400, boxShadow: '0 20px 50px rgba(0,0,0,.1)' }}>
+                <div style={{ textAlign: 'center', marginBottom: 28 }}>
+                    <div style={{ fontSize: 44, marginBottom: 12 }}>🔐</div>
+                    <div style={{ fontSize: 22, fontWeight: 800, color: COLORS.primary, letterSpacing: '-0.02em' }}>Set Your Password</div>
+                    <p style={{ fontSize: 13, color: COLORS.textFaint, marginTop: 6, lineHeight: 1.5 }}>Choose a strong password to secure your driver portal access.</p>
+                </div>
+                
+                {status && (
+                    <div style={{ 
+                        ...status.startsWith('✅') ? S.success() : S.errBox(),
+                        marginBottom: 20,
+                    }}>
+                        {status}
+                    </div>
+                )}
+
+                <div style={{ marginBottom: 20 }}>
+                    <label style={{ ...S.lbl, marginBottom: 8, display: 'block' }}>New Password</label>
+                    <input 
+                        style={{ ...S.inp, marginBottom: 10 }} 
+                        type="password" 
+                        placeholder="Min 8 characters" 
+                        value={pw} 
+                        onChange={e => setPw(e.target.value)} 
+                    />
+                    {pw && (
+                        <div style={{ marginBottom: 8 }}>
+                            <div style={{ height: 6, background: '#f1f5f9', borderRadius: 3, overflow: 'hidden' }}>
+                                <div style={{ height: '100%', width: (strength / 3) * 100 + '%', background: sColor, transition: 'all .4s cubic-bezier(0.4, 0, 0.2, 1)' }} />
+                            </div>
+                            <div style={{ fontSize: 11, color: sColor, fontWeight: 700, marginTop: 6, textAlign: 'right', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                {sLabel}
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                <div style={{ marginBottom: 24 }}>
+                    <label style={{ ...S.lbl, marginBottom: 8, display: 'block' }}>Confirm Password</label>
+                    <input 
+                        style={S.inp} 
+                        type="password" 
+                        placeholder="Repeat password" 
+                        value={confirm} 
+                        onChange={e => setConfirm(e.target.value)} 
+                    />
+                </div>
+
+                <button 
+                    style={{ ...S.btn(), width: '100%', padding: '14px', fontSize: 15, borderRadius: 14 }} 
+                    onClick={save} 
+                    disabled={busy || strength < 2}
+                >
+                    {busy ? '⏳ Saving…' : 'Secure Account'}
+                </button>
+            </div>
+        </div>
+    );
+};
 
 export default function DriverPortal() {
+
     const [token, setToken] = useState(() => localStorage.getItem('driver_token') || '');
     const [driverData, setDriverData] = useState(null);
     const [loading, setLoading] = useState(false);
@@ -1875,6 +2229,7 @@ export default function DriverPortal() {
     const [password, setPassword] = useState('');
     const [loginError, setLoginError] = useState('');
     const [loginLoading, setLoginLoading] = useState(false);
+    const [loginMethod, setLoginMethod] = useState('phone'); // phone | email
     const [tab, setTab] = useState('journeys');
 
     const portalPerm = useMemo(() => {
@@ -1902,35 +2257,43 @@ export default function DriverPortal() {
         else if (tab === 'payslips' && !canPayslipsTab && visiblePrimaryTabs.length) setTab(visiblePrimaryTabs[0].id);
     }, [tab, token, driverData, visiblePrimaryTabs, canDocsTab, canMaintTab, canPayslipsTab]);
 
-    const fetchDriverData = useCallback(async (tok) => {
+    const prevDataRef = useRef(null);
+    const fetchDriverData = useCallback(async (tok, isBackground = false) => {
         if (!tok) return;
-        setLoading(true);
+        if (!isBackground) setLoading(true);
         try {
-            const res = await fetch(`${API}/api/driver/me`, { headers: { Authorization: `Bearer ${tok}` } });
+            const res = await fetch(`${API}/api/driver/portal-data`, { headers: { Authorization: `Bearer ${tok}` } });
             if (res.status === 401) {
                 setToken('');
                 setDriverData(null);
                 setView('login');
                 setLoginError('Session expired. Please log in again.');
                 localStorage.removeItem('driver_token');
-                setLoading(false);
+                if (!isBackground) setLoading(false);
                 return;
             }
             const payload = await res.json().catch(() => ({}));
             if (!res.ok || !payload?.driver) {
-                setToken('');
-                setDriverData(null);
-                setView('login');
-                setLoginError(payload?.error || 'Driver profile not found. Contact your office.');
-                localStorage.removeItem('driver_token');
-                setLoading(false);
+                if (!isBackground) {
+                    setToken('');
+                    setDriverData(null);
+                    setView('login');
+                    setLoginError(payload?.error || 'Driver profile not found. Contact your office.');
+                    localStorage.removeItem('driver_token');
+                }
+                if (!isBackground) setLoading(false);
                 return;
             }
-            setDriverData(payload);
+            // Only update state if data actually changed — prevents form reset on background polls
+            const newJson = JSON.stringify(payload);
+            if (newJson !== prevDataRef.current) {
+                prevDataRef.current = newJson;
+                setDriverData(payload);
+            }
         } catch {
-            setLoginError('Could not connect to server. Please try again.');
+            if (!isBackground) setLoginError('Could not connect to server. Please try again.');
         }
-        setLoading(false);
+        if (!isBackground) setLoading(false);
     }, []);
 
     useEffect(() => {
@@ -1944,16 +2307,22 @@ export default function DriverPortal() {
         }
     }, []);
 
-    useEffect(() => { if (token) fetchDriverData(token); }, [token, fetchDriverData]);
+    useEffect(() => { 
+        if (!token) return;
+        fetchDriverData(token, false);
+        const pid = setInterval(() => fetchDriverData(token, true), 10000);
+        return () => clearInterval(pid);
+    }, [token, fetchDriverData]);
 
     const login = async () => {
-        if (!identifier || !password) { setLoginError('Enter your phone/email and password'); return; }
+        const errorMsg = loginMethod === 'email' ? 'Enter your email and temporary password' : 'Enter your phone number and 6-digit OTP';
+        if (!identifier || !password) { setLoginError(errorMsg); return; }
         setLoginLoading(true); setLoginError('');
         try {
             const res = await fetch(`${API}/api/driver/login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ identifier, password }),
+                body: JSON.stringify({ identifier, password, method: loginMethod }),
             });
             const data = await res.json();
             if (data.requirePasswordChange && data.setupToken) {
@@ -1997,72 +2366,122 @@ export default function DriverPortal() {
 
 
 
-    // ── SET PASSWORD PAGE ─────────────────────────────────────────────────────
-    const SetPasswordPage = () => {
-        const [pw, setPw] = useState('');
-        const [confirm, setConfirm] = useState('');
-        const [status, setStatus] = useState('');
-        const [busy, setBusy] = useState(false);
+    // (SetPasswordPage moved outside)
 
-        const strength = pw.length === 0 ? 0 : pw.length < 6 ? 1 : pw.length < 10 ? 2 : 3;
-        const sColor = ['#e2e8f0', '#ef4444', '#f59e0b', '#10b981'][strength];
-        const sLabel = ['', 'Weak', 'Good', 'Strong'][strength];
 
-        const save = async () => {
-            if (pw.length < 8) { setStatus('❌ Password must be at least 8 characters'); return; }
-            if (pw !== confirm) { setStatus('❌ Passwords do not match'); return; }
-            setBusy(true); setStatus('');
-            try {
-                const res = await fetch(`${API}/api/driver/set-password`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ token: resetToken, password: pw }),
-                });
-                const data = await res.json();
-                if (data.success) {
-                    setStatus('✅ Password set successfully! Logging you in…');
-                    setTimeout(() => {
-                        localStorage.setItem('driver_token', data.token);
-                        setToken(data.token);
-                        setView('login');
-                    }, 1500);
-                } else setStatus('❌ ' + data.error);
-            } catch { setStatus('❌ Server error'); }
-            setBusy(false);
-        };
+    // ── Pre-calculate values for main app ─────────────────────────────────────
+    const {
+        driver = null,
+        truck = null,
+        tyreInfo = null,
+        activeJourneys = [],
+        completedJourneys = [],
+        fuelEntries = [],
+        expenses = [],
+        payslips = null,
+        maintenanceHistory = [],
+        customers: customerDirectory = [],
+    } = driverData || {};
 
-        return (
-            <div style={{ minHeight: '100vh', background: COLORS.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-                <div style={{ background: '#fff', borderRadius: 20, padding: 32, width: '100%', maxWidth: 400, boxShadow: '0 20px 50px rgba(0,0,0,.1)' }}>
-                    <div style={{ textAlign: 'center', marginBottom: 24 }}>
-                        <div style={{ fontSize: 40, marginBottom: 8 }}>🔐</div>
-                        <div style={{ fontSize: 20, fontWeight: 800, color: COLORS.primary }}>Set Your Password</div>
-                        <div style={{ fontSize: 13, color: COLORS.textFaint, marginTop: 4 }}>Choose a secure password for your account</div>
-                    </div>
-                    {status && <div style={status.startsWith('✅') ? S.success() : S.errBox()}>{status}</div>}
-                    <label style={S.lbl}>New Password</label>
-                    <input style={S.inp} type="password" placeholder="Min 8 characters" value={pw} onChange={e => setPw(e.target.value)} />
-                    {pw && (
-                        <div style={{ marginBottom: 12 }}>
-                            <div style={{ height: 4, background: '#eee', borderRadius: 2, overflow: 'hidden' }}>
-                                <div style={{ height: '100%', width: (strength / 3) * 100 + '%', background: sColor, transition: 'all .3s' }} />
-                            </div>
-                            <div style={{ fontSize: 10, color: sColor, fontWeight: 700, marginTop: 4, textAlign: 'right' }}>{sLabel}</div>
-                        </div>
-                    )}
-                    <label style={S.lbl}>Confirm Password</label>
-                    <input style={S.inp} type="password" placeholder="Repeat password" value={confirm} onChange={e => setConfirm(e.target.value)} />
-                    <button style={{ ...S.btn(), width: '100%', marginTop: 10 }} onClick={save} disabled={busy}>
-                        {busy ? '⏳ Saving…' : 'Secure Account'}
-                    </button>
-                </div>
-            </div>
-        );
+    const JourneysTabWrapper = useMemo(() => () => (
+        <JourneysTab 
+            driver={driver}
+            truck={truck}
+            tyreInfo={tyreInfo}
+            activeJourneys={activeJourneys}
+            completedJourneys={completedJourneys}
+            customerDirectory={customerDirectory}
+            token={token}
+            portalPerm={portalPerm}
+            fetchDriverData={fetchDriverData}
+            apiPost={apiPost}
+        />
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    ), [driver, truck, tyreInfo, activeJourneys, completedJourneys, customerDirectory, token, portalPerm]);
+
+    const SubmitTabWrapper = useMemo(() => () => (
+        <SubmitTab 
+            activeJourneys={activeJourneys}
+            apiPost={apiPost}
+            driver={driver}
+            truck={truck}
+            portalPerm={portalPerm}
+            token={token}
+            fuelEntries={fuelEntries}
+        />
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    ), [activeJourneys, driver, truck, portalPerm, token, fuelEntries]);
+
+    const CostsTabWrapper = useMemo(() => () => (
+        <CostsTab 
+            portalPerm={portalPerm}
+            activeJourneys={activeJourneys}
+            apiPost={apiPost}
+            driver={driver}
+            truck={truck}
+            token={token}
+            expenseEntries={expenses}
+            driverData={driverData}
+        />
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    ), [activeJourneys, driver, truck, portalPerm, token, expenses, driverData]);
+
+    const MaintenanceTabWrapper = useMemo(() => () => (
+        <MaintenanceTab 
+            activeJourneys={activeJourneys}
+            apiPost={apiPost}
+            driver={driver}
+            truck={truck}
+            portalPerm={portalPerm}
+            token={token}
+            maintenanceHistory={maintenanceHistory}
+        />
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    ), [activeJourneys, driver, truck, portalPerm, token, maintenanceHistory]);
+
+    const PayslipsTabWrapper = useMemo(() => () => (
+        <PayslipsTab 
+            portalPerm={portalPerm} 
+            payslips={payslips || []} 
+            activeJourneys={activeJourneys}
+            completedJourneys={completedJourneys}
+            driver={driver}
+        />
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    ), [portalPerm, payslips, activeJourneys, completedJourneys, driver]);
+
+    const MyDocsTabWrapper = useMemo(() => () => (
+        <MyDocsTab token={token} portalPerm={portalPerm} />
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    ), [token, portalPerm]);
+
+    const ProfileTabWrapper = useMemo(() => () => (
+        <ProfileTab 
+            driver={driver}
+            truck={truck}
+            portalPerm={portalPerm}
+            token={token}
+            fetchDriverData={fetchDriverData}
+            apiPost={apiPost}
+            setTab={setTab}
+        />
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    ), [driver, truck, portalPerm, token, fetchDriverData, setTab]);
+
+    const TAB_COMPONENTS = {
+        profile: ProfileTabWrapper,
+        journeys: JourneysTabWrapper,
+        submit: SubmitTabWrapper,
+        costs: CostsTabWrapper,
+        maintenance: MaintenanceTabWrapper,
+        docs: MyDocsTabWrapper,
+        payslips: PayslipsTabWrapper,
     };
 
-    // ── AUTH SCREEN ──────────────────────────────────────────────────────────
+    // ── CONDITIONAL RENDERING (Must be AFTER all hooks) ────────────────────────
     if (!token || !driverData) {
-        if (view === 'reset') return <SetPasswordPage />;
+        if (view === 'reset') return <SetPasswordPage resetToken={resetToken} setToken={setToken} setView={setView} />;
+
         const authInp = { ...S.inp, background: '#ffffff', color: '#0f172a' };
 
         return (
@@ -2076,20 +2495,41 @@ export default function DriverPortal() {
                     
                     {loginError && <div style={S.errBox()}>{loginError}</div>}
                     
-                    <label style={S.lbl}>Phone Number or Email</label>
+                    {view === 'login' && (
+                        <div style={{ display: 'flex', background: '#f1f5f9', borderRadius: 12, padding: 4, marginBottom: 20 }}>
+                            <button
+                                style={{ flex: 1, padding: '10px 0', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', background: loginMethod === 'email' ? '#fff' : 'transparent', color: loginMethod === 'email' ? COLORS.primary : COLORS.textFaint, boxShadow: loginMethod === 'email' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none', transition: 'all 0.2s' }}
+                                onClick={() => { setLoginMethod('email'); setLoginError(''); }}
+                            >
+                                📧 Email Login
+                            </button>
+                            <button
+                                style={{ flex: 1, padding: '10px 0', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', background: loginMethod === 'phone' ? '#fff' : 'transparent', color: loginMethod === 'phone' ? COLORS.primary : COLORS.textFaint, boxShadow: loginMethod === 'phone' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none', transition: 'all 0.2s' }}
+                                onClick={() => { setLoginMethod('phone'); setLoginError(''); }}
+                            >
+                                📱 Phone Login
+                            </button>
+                        </div>
+                    )}
+                    
+                    <label style={S.lbl}>{loginMethod === 'email' ? 'Email Address' : 'Phone Number'}</label>
                     <input
                         style={authInp}
-                        type="text"
-                        placeholder="07XXXXXXXX or name@segecha.com"
+                        type={loginMethod === 'email' ? 'email' : 'tel'}
+                        placeholder={loginMethod === 'email' ? 'e.g. name@company.com' : 'e.g. 07XXXXXXXX'}
                         value={identifier}
-                        onChange={e => setIdentifier(e.target.value)}
-                        autoComplete="username"
+                        onChange={e => {
+                            const val = e.target.value;
+                            if (loginMethod === 'phone' && !/^\d*$/.test(val)) return;
+                            setIdentifier(val);
+                        }}
+                        autoComplete={loginMethod === 'email' ? 'email' : 'tel'}
                     />
                     
                     {view === 'login' && (
                         <>
-                            <label style={S.lbl}>Password / OTP / Temporary Password</label>
-                            <input style={authInp} type="password" placeholder="Enter password or OTP" value={password}
+                            <label style={S.lbl}>{loginMethod === 'email' ? 'Password' : '6-Digit PIN'}</label>
+                            <input style={authInp} type="password" placeholder={loginMethod === 'email' ? 'Enter password' : '••••••'} value={password}
                                 onChange={e => setPassword(e.target.value)}
                                 onKeyDown={e => e.key === 'Enter' && login()} />
                             
@@ -2126,95 +2566,8 @@ export default function DriverPortal() {
         );
     }
 
-    const {
-        driver,
-        truck,
-        tyreInfo,
-        activeJourneys,
-        completedJourneys,
-        fuelEntries,
-        expenses = [],
-        payslips,
-        maintenanceHistory,
-        customers: customerDirectory = [],
-    } = driverData;
-
-    const JourneysTabWrapper = () => (
-        <JourneysTab 
-            driver={driver}
-            truck={truck}
-            tyreInfo={tyreInfo}
-            activeJourneys={activeJourneys}
-            completedJourneys={completedJourneys}
-            customerDirectory={customerDirectory}
-            token={token}
-            portalPerm={portalPerm}
-            fetchDriverData={fetchDriverData}
-            apiPost={apiPost}
-        />
-    );
-
-    const SubmitTabWrapper = () => (
-        <SubmitTab 
-            activeJourneys={activeJourneys}
-            apiPost={apiPost}
-            driver={driver}
-            truck={truck}
-            portalPerm={portalPerm}
-            token={token}
-            fuelEntries={fuelEntries}
-        />
-    );
-    const CostsTabWrapper = () => (
-        <CostsTab 
-            portalPerm={portalPerm}
-            activeJourneys={activeJourneys}
-            apiPost={apiPost}
-            driver={driver}
-            truck={truck}
-            token={token}
-            expenseEntries={expenses}
-        />
-    );
-    const MaintenanceTabWrapper = () => (
-        <MaintenanceTab 
-            activeJourneys={activeJourneys}
-            apiPost={apiPost}
-            driver={driver}
-            truck={truck}
-            portalPerm={portalPerm}
-            token={token}
-            maintenanceHistory={maintenanceHistory}
-        />
-    );
-    const PayslipsTabWrapper = () => (
-        <PayslipsTab portalPerm={portalPerm} payslips={payslips} />
-    );
-    const MyDocsTabWrapper = () => (
-        <MyDocsTab token={token} portalPerm={portalPerm} />
-    );
-    const ProfileTabWrapper = () => (
-        <ProfileTab 
-            driver={driver}
-            truck={truck}
-            portalPerm={portalPerm}
-            token={token}
-            fetchDriverData={fetchDriverData}
-            apiPost={apiPost}
-            setTab={setTab}
-        />
-    );
 
 
-    const TAB_COMPONENTS = {
-        profile: ProfileTabWrapper,
-        journeys: JourneysTabWrapper,
-        submit: SubmitTabWrapper,
-        costs: CostsTabWrapper,
-        maintenance: MaintenanceTabWrapper,
-        docs: MyDocsTabWrapper,
-        payslips: PayslipsTabWrapper,
-    };
     if (!driver) {
         return (
             <div style={{ minHeight: '100vh', background: COLORS.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
@@ -2297,6 +2650,23 @@ export default function DriverPortal() {
                         onClick={() => fetchDriverData(token)}
                     >
                         ↻
+                    </button>
+                    <button
+                        type="button"
+                        title="Logout"
+                        style={{
+                            background: COLORS.bg,
+                            border: `1px solid ${COLORS.border}`,
+                            borderRadius: 10,
+                            color: '#ef4444',
+                            fontSize: 13,
+                            fontWeight: 700,
+                            padding: '6px 10px',
+                            cursor: 'pointer',
+                        }}
+                        onClick={logout}
+                    >
+                        Logout
                     </button>
                     <span style={{ color: COLORS.text, fontWeight: 800, fontSize: 15 }}>{firstName}</span>
                 </div>

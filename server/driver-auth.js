@@ -214,6 +214,7 @@ async function regenerateDriverCredentials(driverId, { email, phone, forcePasswo
     record.otpExpiry = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000).toISOString();
     record.tempPasswordHash = await bcrypt.hash(tempPassword, 10);
     record.requirePasswordChange = true;
+    record.preferredMethod = null; // Reset preference on credential regeneration
     if (forcePasswordReset) record.passwordHash = null;
     const resetToken = issueSetupToken(record);
     record.updatedAt = new Date().toISOString();
@@ -223,7 +224,8 @@ async function regenerateDriverCredentials(driverId, { email, phone, forcePasswo
 }
 
 // ── Login with phone/email + password/otp/temp password
-async function loginDriver(identifier, secret) {
+// method: 'email' | 'phone'
+async function loginDriver(identifier, secret, method) {
     const db = readDB();
     const record = findDriverRecord(db, identifier);
     if (!record) return { success: false, error: 'Account not found. Contact your office.' };
@@ -231,15 +233,37 @@ async function loginDriver(identifier, secret) {
     const secretRaw = String(secret || '');
     const now = new Date();
 
+    // Check preferred method lock
+    if (record.preferredMethod && method && record.preferredMethod !== method) {
+        return {
+            success: false,
+            error: `Your account is set up for login via ${record.preferredMethod}. Please use the ${record.preferredMethod} tab.`,
+        };
+    }
+
     if (record.requirePasswordChange) {
-        const otpValid = !!(record.otpHash && record.otpExpiry && new Date(record.otpExpiry) > now && hashValue(secretRaw) === record.otpHash);
-        const tempValid = !!(record.tempPasswordHash && await bcrypt.compare(secretRaw, record.tempPasswordHash));
-        if (!otpValid && !tempValid) {
-            return {
-                success: false,
-                error: 'Use the latest OTP or temporary password from the office. Older credentials expire after regeneration.',
-            };
+        // Enforce specific secrets per tab during first login
+        if (method === 'email') {
+            const tempValid = !!(record.tempPasswordHash && await bcrypt.compare(secretRaw, record.tempPasswordHash));
+            if (!tempValid) return { success: false, error: 'Incorrect temporary password. Use the one provided by the office for Email login.' };
+        } else if (method === 'phone') {
+            const otpValid = !!(record.otpHash && record.otpExpiry && new Date(record.otpExpiry) > now && hashValue(secretRaw) === record.otpHash);
+            if (!otpValid) return { success: false, error: 'Invalid or expired OTP. Use the latest one sent to your phone or from the office.' };
+        } else {
+            // Fallback for older clients or mixed logic
+            const otpValid = !!(record.otpHash && record.otpExpiry && new Date(record.otpExpiry) > now && hashValue(secretRaw) === record.otpHash);
+            const tempValid = !!(record.tempPasswordHash && await bcrypt.compare(secretRaw, record.tempPasswordHash));
+            if (!otpValid && !tempValid) {
+                return {
+                    success: false,
+                    error: 'Use the latest OTP or temporary password from the office. Older credentials expire after regeneration.',
+                };
+            }
         }
+
+        // Lock the preferred method on first success
+        if (method) record.preferredMethod = method;
+
         const setupToken = issueSetupToken(record);
         record.updatedAt = new Date().toISOString();
         writeDB(db);
@@ -274,12 +298,17 @@ function verifyToken(token) {
 
 // ── Express middleware
 function authMiddleware(req, res, next) {
-    const auth = req.headers.authorization;
-    if (!auth?.startsWith('Bearer ')) return res.status(401).json({ error: 'Authentication required' });
-    const payload = verifyToken(auth.slice(7));
-    if (!payload) return res.status(401).json({ error: 'Session expired — please log in again' });
-    req.driver = payload;
-    next();
+    try {
+        const auth = req.headers.authorization;
+        if (!auth?.startsWith('Bearer ')) return res.status(401).json({ error: 'Authentication required' });
+        const payload = verifyToken(auth.slice(7));
+        if (!payload) return res.status(401).json({ error: 'Session expired — please log in again' });
+        req.driver = payload;
+        next();
+    } catch (e) {
+        console.error('AUTH_MIDDLEWARE_ERROR:', e);
+        next(e); // Pass to global error handler
+    }
 }
 
 // ── Get account status for a driver (used by tracker Settings page)

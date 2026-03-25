@@ -116,6 +116,7 @@ async function regenerateStaffCredentials(staffId, { email, phone, forcePassword
     record.otpExpiry = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000).toISOString();
     record.tempPasswordHash = await bcrypt.hash(tempPassword, 10);
     record.requirePasswordChange = true;
+    record.preferredMethod = null; // Reset preference on credential regeneration
     if (forcePasswordReset) record.passwordHash = null;
     const resetToken = issueSetupToken(record);
     record.updatedAt = new Date().toISOString();
@@ -148,7 +149,9 @@ async function resetStaffPasswordWithToken(token, newPassword) {
     return { success: true, token: tokenOut, staffId: record.staffId };
 }
 
-async function loginStaff(identifier, secret) {
+// ── Login Staff with phone/email + password/otp/temp password
+// method: 'email' | 'phone'
+async function loginStaff(identifier, secret, method) {
     const db = readDB();
     const id = String(identifier || '').trim().toLowerCase();
     const phone = normalizePhone(identifier);
@@ -158,12 +161,34 @@ async function loginStaff(identifier, secret) {
     const secretRaw = String(secret || '');
     const now = new Date();
 
+    // Check preferred method lock
+    if (record.preferredMethod && method && record.preferredMethod !== method) {
+        return {
+            success: false,
+            error: `Your account is set up for login via ${record.preferredMethod}. Please use the ${record.preferredMethod} tab.`,
+        };
+    }
+
     if (record.requirePasswordChange) {
-        const otpValid = !!(record.otpHash && record.otpExpiry && new Date(record.otpExpiry) > now && hashValue(secretRaw) === record.otpHash);
-        const tempValid = !!(record.tempPasswordHash && await bcrypt.compare(secretRaw, record.tempPasswordHash));
-        if (!otpValid && !tempValid) {
-            return { success: false, error: 'Use the temporary password or OTP from the office, then set a new password.' };
+        // Enforce specific secrets per tab during first login
+        if (method === 'email') {
+            const tempValid = !!(record.tempPasswordHash && await bcrypt.compare(secretRaw, record.tempPasswordHash));
+            if (!tempValid) return { success: false, error: 'Incorrect temporary password. Use the one provided by the office for Email login.' };
+        } else if (method === 'phone') {
+            const otpValid = !!(record.otpHash && record.otpExpiry && new Date(record.otpExpiry) > now && hashValue(secretRaw) === record.otpHash);
+            if (!otpValid) return { success: false, error: 'Invalid or expired OTP. Use the latest one sent to your phone or from the office.' };
+        } else {
+            // Fallback
+            const otpValid = !!(record.otpHash && record.otpExpiry && new Date(record.otpExpiry) > now && hashValue(secretRaw) === record.otpHash);
+            const tempValid = !!(record.tempPasswordHash && await bcrypt.compare(secretRaw, record.tempPasswordHash));
+            if (!otpValid && !tempValid) {
+                return { success: false, error: 'Use the temporary password or OTP from the office, then set a new password.' };
+            }
         }
+
+        // Lock the preferred method on first success
+        if (method) record.preferredMethod = method;
+
         const setupToken = issueSetupToken(record);
         record.updatedAt = new Date().toISOString();
         writeDB(db);

@@ -13,7 +13,7 @@ import {
     Filter,
     Plus,
     LayoutGrid,
-    Search
+    Search as SearchIcon
 } from "lucide-react";
 import { fmt, today, fmtN, fmtDate } from "../utils/formatters";
 import { Card } from "../components/Card";
@@ -21,6 +21,8 @@ import { Badge } from "../components/Badge";
 import { Button } from "../components/Button";
 import { PageHeader } from "../components/PageHeader";
 import { TableRowActions } from "../components/TableRowActions";
+import { SortableTableHead } from "../components/SortableTableHead";
+import { useTableFilter } from "../hooks/useTableFilter";
 
 // Default maintenance schedule — applied to every truck unless overridden
 const DEFAULT_SCHEDULE = [
@@ -39,9 +41,6 @@ const DEFAULT_SCHEDULE = [
 export function Maintenance({ data, setData, dark, isMobile, saveItem, truckReg, openModal, customerName }) {
     const navigate = useNavigate();
     const [viewMode, setViewMode]   = useState('schedule'); // 'schedule' | 'history'
-    const [filterStatus, setFilter] = useState('all');      // 'all' | 'overdue' | 'due' | 'ok'
-    const [filterTruckId, setFilterTruck] = useState('ALL');
-    const [expandedTrucks, setExpandedTrucks] = useState(() => new Set(data.trucks.map(t => t.id)));
 
     // ── Load Custom Schedule from Settings
     const settings = (() => { try { return JSON.parse(localStorage.getItem('segecha_settings') || '{}'); } catch { return {}; } })();
@@ -68,21 +67,13 @@ export function Maintenance({ data, setData, dark, isMobile, saveItem, truckReg,
         return { status, kmSince, remaining, pct, lastServiceOdom, lastServiceDate: history[0]?.date || null, history };
     };
 
-    // ── Aggregate stats
-    const allRows = data.trucks.flatMap(truck =>
+    // ── Compute all task rows for KPI cards
+    const allRowsForKpi = data.trucks.flatMap(truck =>
         customSchedule.map(s => ({ truck, ...s, ...getTaskStatus(truck, s.task, s.intervalKm) }))
     );
-    const overdueCount = allRows.filter(r => r.status === 'overdue').length;
-    const dueCount     = allRows.filter(r => r.status === 'due').length;
-    const okCount      = allRows.filter(r => r.status === 'ok').length;
-
-    const toggleTruck = (id) => {
-        setExpandedTrucks(s => {
-            const n = new Set(s);
-            if (n.has(id)) n.delete(id); else n.add(id);
-            return n;
-        });
-    };
+    const overdueCountTotal = allRowsForKpi.filter(r => r.status === 'overdue').length;
+    const dueCountTotal     = allRowsForKpi.filter(r => r.status === 'due').length;
+    const okCountTotal      = allRowsForKpi.filter(r => r.status === 'ok').length;
 
     const statusMap = {
         overdue: { color: "#ef4444", label: "Overdue", icon: AlertCircle },
@@ -90,11 +81,64 @@ export function Maintenance({ data, setData, dark, isMobile, saveItem, truckReg,
         ok: { color: "#10b981", label: "Healthy", icon: CheckCircle2 }
     };
 
-    const visibleTrucks = data.trucks.filter(t => filterTruckId === 'ALL' || t.id === filterTruckId);
-    const maintenanceHistory = data.expenses
+    // ── SCHEDULE TABLE DATA
+    const refinedSchedule = data.trucks.map(truck => {
+        const tasks = customSchedule.map(s => ({ ...s, ...getTaskStatus(truck, s.task, s.intervalKm) }));
+        const truckOverdue = tasks.filter(t => t.status === 'overdue').length;
+        const truckDue     = tasks.filter(t => t.status === 'due').length;
+        let aggregateStatus = 'ok';
+        if (truckOverdue > 0) aggregateStatus = 'overdue';
+        else if (truckDue > 0) aggregateStatus = 'due';
+        
+        return {
+            ...truck,
+            _odom: Number(truck.odom || 0),
+            _overdue: truckOverdue,
+            _aggStatus: aggregateStatus,
+            _aggStatusLabel: statusMap[aggregateStatus].label
+        };
+    });
+
+    const { 
+        filteredRows: sortedSchedule, 
+        setSort: requestSortSchedule, 
+        sortState: sortConfigSchedule,
+        filterState: scheduleFilters,
+        applyFilter: handleScheduleFilterChange,
+        getUniqueValues: getScheduleUniqueValues,
+        searchTerm: searchTermSched,
+        setSearchTerm: setSearchTermSched
+    } = useTableFilter(refinedSchedule, { 
+        namespace: "msched", 
+        initialSort: { col: "reg", dir: "asc" },
+        searchColumns: ["reg", "uId", "make"]
+    });
+
+    // ── HISTORY TABLE DATA
+    const refinedHistory = data.expenses
         .filter(e => e.cat === 'Maintenance')
-        .filter(e => filterTruckId === 'ALL' || e.truck === filterTruckId)
-        .sort((a, b) => b.date.localeCompare(a.date));
+        .map(e => ({
+            ...e,
+            _vehicle: truckReg(e.truck),
+            _cost: Number(e.amount || 0),
+            _odom: Number(e.odom || 0),
+            _workshop: e._maintenanceDetails?.workshop || '—'
+        }));
+
+    const { 
+        filteredRows: sortedHistory, 
+        setSort: requestSortHistory, 
+        sortState: sortConfigHistory,
+        filterState: historyFilters,
+        applyFilter: handleHistoryFilterChange,
+        getUniqueValues: getHistoryUniqueValues,
+        searchTerm: searchTermHist,
+        setSearchTerm: setSearchTermHist
+    } = useTableFilter(refinedHistory, { 
+        namespace: "mhist", 
+        initialSort: { col: "date", dir: "desc" },
+        searchColumns: ["_reg", "desc", "_workshop"]
+    });
 
     return (
         <div className="page-shell">
@@ -168,101 +212,107 @@ export function Maintenance({ data, setData, dark, isMobile, saveItem, truckReg,
                     title="Critical Alert" 
                     icon={AlertCircle} 
                     accent="#ef4444" 
-                    onClick={() => setFilter(filterStatus === 'overdue' ? 'all' : 'overdue')}
-                    style={{ cursor: 'pointer', border: filterStatus === 'overdue' ? '2px solid #ef4444' : '1px solid var(--border-subtle)', padding: 20, borderRadius: 16 }}
+                    onClick={() => handleScheduleFilterChange("_aggStatusLabel", new Set(["Overdue"]))}
+                    style={{ cursor: 'pointer', border: scheduleFilters._aggStatusLabel?.has("Overdue") ? '2px solid #ef4444' : '1px solid var(--border-subtle)', padding: 20, borderRadius: 16 }}
                 >
-                    <div style={{ fontSize: 20, fontWeight: 900, color: "#ef4444" }}>{overdueCount}</div>
+                    <div style={{ fontSize: 20, fontWeight: 900, color: "#ef4444" }}>{overdueCountTotal}</div>
                     <div style={{ fontSize: 11, color: "var(--text-dim)", fontWeight: 700, marginTop: 4, textTransform: "uppercase" }}>Critical Tasks</div>
                 </Card>
                 <Card 
                     title="Upcoming Service" 
                     icon={Clock} 
                     accent="#f97316"
-                    onClick={() => setFilter(filterStatus === 'due' ? 'all' : 'due')}
-                    style={{ cursor: 'pointer', border: filterStatus === 'due' ? '2px solid #f97316' : '1px solid var(--border-subtle)', padding: 20, borderRadius: 16 }}
+                    onClick={() => handleScheduleFilterChange("_aggStatusLabel", new Set(["Due Soon"]))}
+                    style={{ cursor: 'pointer', border: scheduleFilters._aggStatusLabel?.has("Due Soon") ? '2px solid #f97316' : '1px solid var(--border-subtle)', padding: 20, borderRadius: 16 }}
                 >
-                    <div style={{ fontSize: 20, fontWeight: 900, color: "#f97316" }}>{dueCount}</div>
+                    <div style={{ fontSize: 20, fontWeight: 900, color: "#f97316" }}>{dueCountTotal}</div>
                     <div style={{ fontSize: 11, color: "var(--text-dim)", fontWeight: 700, marginTop: 4, textTransform: "uppercase" }}>Due Soon</div>
                 </Card>
                 <Card 
                     title="System Health" 
                     icon={CheckCircle2} 
                     accent="#10b981"
-                    onClick={() => setFilter(filterStatus === 'ok' ? 'all' : 'ok')}
-                    style={{ cursor: 'pointer', border: filterStatus === 'ok' ? '2px solid #10b981' : '1px solid var(--border-subtle)', padding: 20, borderRadius: 16 }}
+                    onClick={() => handleScheduleFilterChange("_aggStatusLabel", new Set(["Healthy"]))}
+                    style={{ cursor: 'pointer', border: scheduleFilters._aggStatusLabel?.has("Healthy") ? '2px solid #10b981' : '1px solid var(--border-subtle)', padding: 20, borderRadius: 16 }}
                 >
-                    <div style={{ fontSize: 20, fontWeight: 900, color: "#10b981" }}>{okCount}</div>
+                    <div style={{ fontSize: 20, fontWeight: 900, color: "#10b981" }}>{okCountTotal}</div>
                     <div style={{ fontSize: 11, color: "var(--text-dim)", fontWeight: 700, marginTop: 4, textTransform: "uppercase" }}>Healthy Units</div>
                 </Card>
                 <Card style={{ padding: 20, border: "1px solid var(--border-subtle)", borderRadius: 16, background: "var(--bg-card)", display: "flex", flexDirection: "column", justifyContent: "center" }}>
-                    <div style={{ fontSize: 11, color: "var(--text-dim)", fontWeight: 800, textTransform: "uppercase", marginBottom: 8 }}>Quick Vehicle Search</div>
-                    <div style={{ position: "relative" }}>
-                        <Truck style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--brand-primary)" }} size={16} />
-                        <select 
-                            className="input-premium" 
-                            style={{ width: '100%', fontSize: 13, height: 42, padding: "0 12px 0 34px", borderRadius: 10, background: "var(--surface-subtle)" }}
-                            value={filterTruckId} 
-                            onChange={e => setFilterTruck(e.target.value)}
-                        >
-                            <option value="ALL">All Power Units</option>
-                            {data.trucks.map(t => <option key={t.id} value={t.id}>{t.reg} — {t.make}</option>)}
-                        </select>
+                    <div style={{ fontSize: 11, color: "var(--text-dim)", fontWeight: 800, textTransform: "uppercase", marginBottom: 4 }}>Filter Tip</div>
+                    <div style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.4 }}>
+                        Use column headers to filter by vehicle or workshop.
                     </div>
                 </Card>
             </div>
 
             {viewMode === 'schedule' ? (
                 <Card style={{ padding: 0, overflow: "hidden" }}>
-                    <div style={{ overflowX: "auto" }}>
+                    <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", gap: 12 }}>
+                        <SearchIcon size={18} color="var(--text-dim)" />
+                        <input
+                            type="search"
+                            placeholder="Search fleet schedule..."
+                            value={searchTermSched}
+                            onChange={(e) => setSearchTermSched(e.target.value)}
+                            style={{ border: "none", background: "none", padding: 0, fontSize: 14, flex: 1, color: "var(--text-primary)", fontWeight: 500 }}
+                        />
+                    </div>
+                    <div className="table-container">
                         <table className="table-modern">
-                            <thead>
-                                <tr>
-                                    <th>Unique ID</th>
-                                    <th>Licence Plate</th>
-                                    <th>Vehicle Type</th>
-                                    <th>Odometer</th>
-                                    <th>Health Status</th>
-                                    <th>Overdue Tasks</th>
-                                    <th style={{ textAlign: "right" }}>Actions</th>
-                                </tr>
-                            </thead>
+                            <SortableTableHead 
+                                requestSort={requestSortSchedule}
+                                sortConfig={sortConfigSchedule}
+                                filterState={scheduleFilters}
+                                onFilterChange={handleScheduleFilterChange}
+                                getUniqueValues={getScheduleUniqueValues}
+                                columns={[
+                                    { key: "uId", label: "Unique ID", sortable: true },
+                                    { key: "reg", label: "Licence Plate", sortable: true },
+                                    { key: "make", label: "Vehicle Type", sortable: true },
+                                    { key: "_odom", label: "Odometer", sortable: true, align: "right" },
+                                    { key: "_aggStatusLabel", label: "Health Status", sortable: true },
+                                    { key: "_overdue", label: "Overdue Tasks", sortable: true, align: "right" },
+                                    { key: "actions", label: "Actions", sortable: false, align: "right" }
+                                ]}
+                            />
                             <tbody>
-                                {visibleTrucks.map(truck => {
+                                {sortedSchedule.length === 0 ? (
+                                    <tr>
+                                        <td colSpan="7" style={{ textAlign: "center", padding: 80, color: "var(--text-dim)" }}>
+                                            <div style={{ marginBottom: 16 }}><AlertCircle size={48} opacity={0.2} /></div>
+                                            <div style={{ fontWeight: 600 }}>No vehicles found matching your filters.</div>
+                                        </td>
+                                    </tr>
+                                ) : sortedSchedule.map(truck => {
                                     const tasks = customSchedule.map(s => ({ ...s, ...getTaskStatus(truck, s.task, s.intervalKm) }));
                                     const truckOverdue = tasks.filter(t => t.status === 'overdue').length;
-                                    const truckDue     = tasks.filter(t => t.status === 'due').length;
-                                    
-                                    // Aggregate status
-                                    let aggregateStatus = 'ok';
-                                    if (truckOverdue > 0) aggregateStatus = 'overdue';
-                                    else if (truckDue > 0) aggregateStatus = 'due';
-
-                                    if (filterStatus !== 'all' && aggregateStatus !== filterStatus) return null;
+                                    const aggregateStatus = truck._aggStatus;
 
                                     return (
                                         <tr key={truck.id} onClick={() => navigate(`/fleet/${truck.id}`)} style={{ cursor: "pointer" }} className="hover-scale">
-                                            <td style={{ fontWeight: 800, color: "var(--brand-primary)", fontSize: 13, fontFamily: "var(--font-mono)" }}>
+                                            <td className="sticky-col" title={truck.uId || '—'} style={{ fontWeight: 800, color: "var(--brand-primary)", fontSize: 13, fontFamily: "var(--font-mono)" }}>
                                                 {truck.uId || '—'}
                                             </td>
-                                            <td style={{ fontWeight: 700, color: "var(--text-primary)" }}>
+                                            <td title={truck.reg} style={{ fontWeight: 700, color: "var(--text-primary)" }}>
                                                 {truck.reg}
                                             </td>
-                                            <td style={{ fontSize: 13, color: "var(--text-dim)" }}>
+                                            <td title={`${truck.make} ${truck.type}`} style={{ fontSize: 13, color: "var(--text-dim)" }}>
                                                 {truck.make} {truck.type}
                                             </td>
-                                            <td style={{ fontWeight: 700, color: "var(--text-primary)", fontSize: 13 }}>
-                                                {Number(truck.odom || 0).toLocaleString('en-KE')} <span style={{ fontSize: 11, fontWeight: 500, color: "var(--text-dim)" }}>KM</span>
+                                            <td title={`${Number(truck._odom || 0).toLocaleString('en-KE')} KM`} style={{ fontWeight: 700, color: "var(--text-primary)", fontSize: 13, textAlign: "right" }}>
+                                                {Number(truck._odom || 0).toLocaleString('en-KE')} <span style={{ fontSize: 11, fontWeight: 500, color: "var(--text-dim)" }}>KM</span>
                                             </td>
-                                            <td>
+                                            <td className="status-col" title={statusMap[aggregateStatus].label}>
                                                 <Badge 
                                                     status={aggregateStatus === 'overdue' ? 'Overdue' : aggregateStatus === 'due' ? 'Pending' : 'Paid'} 
                                                     text={statusMap[aggregateStatus].label} 
                                                     icon={statusMap[aggregateStatus].icon}
                                                 />
                                             </td>
-                                            <td>
+                                            <td style={{ textAlign: "right" }} title={`${truckOverdue} Overdue`}>
                                                 {truckOverdue > 0 ? (
-                                                    <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#ef4444", fontWeight: 700, fontSize: 13 }}>
+                                                    <div style={{ display: "flex", alignItems: "center", gap: 6, color: "#ef4444", fontWeight: 700, fontSize: 13, justifyContent: "flex-end" }}>
                                                         <AlertCircle size={14} /> {truckOverdue} Overdue
                                                     </div>
                                                 ) : (
@@ -307,61 +357,79 @@ export function Maintenance({ data, setData, dark, isMobile, saveItem, truckReg,
                 </Card>
             ) : (
                 <Card style={{ padding: 0, overflow: "hidden" }}>
-                    <div style={{ padding: "20px 24px", borderBottom: "1px solid var(--border-subtle)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <div style={{ fontWeight: 800, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: 10 }}>
+                    <div style={{ padding: "16px 24px", borderBottom: "1px solid var(--border-subtle)", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 20 }}>
+                        <div style={{ fontWeight: 800, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
                             <History size={18} color="var(--brand-primary)" />
                             Complete Service History
                         </div>
-                    </div>
-                    {maintenanceHistory.length === 0 ? (
-                        <div style={{ padding: 80, textAlign: "center", color: "var(--text-dim)" }}>
-                            <Wrench size={48} style={{ opacity: 0.1, marginBottom: 16 }} />
-                            <div style={{ fontSize: 16, fontWeight: 600 }}>No service records found</div>
-                            <p style={{ marginTop: 4 }}>Log your first maintenance activity to see it here.</p>
+                        <div style={{ position: "relative", flex: 1, maxWidth: 300 }}>
+                            <SearchIcon size={16} color="var(--text-dim)" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }} />
+                            <input
+                                type="search"
+                                placeholder="Search history..."
+                                value={searchTermHist}
+                                onChange={(e) => setSearchTermHist(e.target.value)}
+                                style={{ border: "1px solid var(--border-subtle)", background: "var(--surface-subtle)", padding: "8px 12px 8px 36px", fontSize: 13, borderRadius: 12, width: "100%", color: "var(--text-primary)", fontWeight: 500 }}
+                            />
                         </div>
-                    ) : (
-                        <div style={{ overflowX: "auto" }}>
-                            <table className="table-modern">
-                                <thead>
+                    </div>
+                    <div className="table-container">
+                        <table className="table-modern">
+                            <SortableTableHead 
+                                requestSort={requestSortHistory}
+                                sortConfig={sortConfigHistory}
+                                filterState={historyFilters}
+                                onFilterChange={handleHistoryFilterChange}
+                                getUniqueValues={getHistoryUniqueValues}
+                                columns={[
+                                    { key: "date", label: "Date", sortable: true },
+                                    { key: "_vehicle", label: "Vehicle", sortable: true },
+                                    { key: "desc", label: "Task / Description", sortable: true },
+                                    { key: "_odom", label: "Odometer", sortable: true, align: "right" },
+                                    { key: "_workshop", label: "Workshop", sortable: true },
+                                    { key: "_cost", label: "Service Cost", sortable: true, align: "right" },
+                                    { key: "actions", label: "", sortable: false }
+                                ]}
+                            />
+                            <tbody>
+                                {sortedHistory.length === 0 ? (
                                     <tr>
-                                        <th>Date</th>
-                                        <th>Vehicle</th>
-                                        <th>Task / Description</th>
-                                        <th>Odometer</th>
-                                        <th>Workshop</th>
-                                        <th>Service Cost</th>
-                                        <th style={{ width: 80 }}></th>
+                                        <td colSpan="7" style={{ textAlign: "center", padding: 80, color: "var(--text-dim)" }}>
+                                            <div style={{ marginBottom: 16 }}><Wrench size={48} opacity={0.1} /></div>
+                                            <div style={{ fontSize: 16, fontWeight: 600 }}>No service records found</div>
+                                            <p style={{ marginTop: 4 }}>Try adjusting your filters or log a new service.</p>
+                                        </td>
                                     </tr>
-                                </thead>
-                                <tbody>
-                                    {maintenanceHistory.map(e => (
+                                ) : (
+                                    sortedHistory.map(e => (
                                         <tr key={e.id} onClick={() => navigate(`/fleet/${e.truck}`)} style={{ cursor: "pointer" }} className="hover-scale">
-                                            <td style={{ fontWeight: 600 }}>{fmtDate(e.date)}</td>
-                                            <td><Badge status="Pending" text={truckReg(e.truck)} /></td>
-                                            <td>
+                                            <td className="sticky-col" title={fmtDate(e.date)} style={{ fontWeight: 600 }}>{fmtDate(e.date)}</td>
+                                            <td title={e._vehicle}><Badge status="Pending" text={e._vehicle} /></td>
+                                            <td title={e._maintenanceTask || e.desc}>
                                                 <div style={{ fontWeight: 700, color: "var(--text-primary)" }}>{e._maintenanceTask || e.desc}</div>
                                                 {e._maintenanceDetails?.notes && <div style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 2 }}>{e._maintenanceDetails.notes}</div>}
                                             </td>
-                                            <td style={{ fontFamily: "var(--font-mono)", fontSize: 13 }}>{e.odom ? `${Number(e.odom).toLocaleString('en-KE')} km` : '—'}</td>
-                                            <td style={{ fontSize: 13 }}>{e._maintenanceDetails?.workshop || '—'}</td>
-                                            <td style={{ fontWeight: 800, color: "var(--brand-primary)" }}>{fmt(e.amount)}</td>
-                                            <td><ChevronRight size={16} color="var(--text-dim)" /></td>
+                                            <td title={e.odom ? `${Number(e.odom).toLocaleString('en-KE')} km` : '—'} style={{ fontFamily: "var(--font-mono)", fontSize: 13, textAlign: "right" }}>{e.odom ? `${Number(e.odom).toLocaleString('en-KE')} km` : '—'}</td>
+                                            <td title={e._maintenanceDetails?.workshop || '—'} style={{ fontSize: 13 }}>{e._maintenanceDetails?.workshop || '—'}</td>
+                                            <td title={fmt(e.amount)} style={{ fontWeight: 800, color: "var(--brand-primary)", textAlign: "right" }}>{fmt(e.amount)}</td>
+                                            <td style={{ textAlign: "right" }}><ChevronRight size={16} color="var(--text-dim)" /></td>
                                         </tr>
-                                    ))}
-                                </tbody>
+                                    ))
+                                )}
+                            </tbody>
+                            {sortedHistory.length > 0 && (
                                 <tfoot>
                                     <tr style={{ background: "var(--surface-subtle)", fontWeight: 800 }}>
-                                        <td colSpan={5} style={{ textAlign: "right", color: "var(--text-dim)" }}>Total Lifecycle Investment</td>
-                                        <td style={{ color: "var(--brand-primary)", fontSize: 16 }}>{fmt(maintenanceHistory.reduce((s, e) => s + +e.amount, 0))}</td>
+                                        <td colSpan={5} style={{ textAlign: "right", color: "var(--text-dim)" }}>Total Lifecycle Investment (Filtered)</td>
+                                        <td style={{ color: "var(--brand-primary)", fontSize: 16, textAlign: "right" }}>{fmt(sortedHistory.reduce((s, e) => s + +e.amount, 0))}</td>
                                         <td></td>
                                     </tr>
                                 </tfoot>
-                            </table>
-                        </div>
-                    )}
+                            )}
+                        </table>
+                    </div>
                 </Card>
             )}
         </div>
     );
 }
-

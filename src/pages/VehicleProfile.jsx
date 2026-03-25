@@ -79,7 +79,7 @@ export function VehicleProfile({ data, setData, dark, isMobile, openModal, maint
     ];
 
     return (
-        <div style={{ maxWidth: 1400, margin: "0 auto" }}>
+        <div className="page-shell">
             {/* Header / Banner */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 20, marginBottom: 32, flexWrap: 'wrap' }}>
                 <Button variant="secondary" icon={ArrowLeft} onClick={() => navigate('/fleet')}>Back</Button>
@@ -207,19 +207,30 @@ export function VehicleProfile({ data, setData, dark, isMobile, openModal, maint
                             <Button size="sm" icon={Plus} onClick={() => openModal('fuel', { truck: truck.id, date: today() })}>Add Entry</Button>
                         </div>
                         <div style={{ padding: 32 }}>
-                            {truckFuel.length === 0 ? <div style={{ color: "var(--text-dim)", padding: 60, textAlign: 'center', fontSize: 14, fontWeight: 500 }}>No fuel records detected for this vehicle.</div> : (
+                                <div className="table-container">
                                 <table className="table-modern">
-                                    <thead><tr>{['Date', 'Station', 'Litres', 'Price/L', 'Total Cost', 'Odometer', 'Status', 'Actions'].map(h => <th key={h}>{h}</th>)}</tr></thead>
+                                    <thead>
+                                        <tr>
+                                            <th className="sticky-col" title="Date">Date</th>
+                                            <th title="Station">Station</th>
+                                            <th title="Litres">Litres</th>
+                                            <th title="Price/L">Price/L</th>
+                                            <th title="Total Cost">Total Cost</th>
+                                            <th title="Odometer">Odometer</th>
+                                            <th className="status-col" title="Status">Status</th>
+                                            <th style={{ textAlign: "right" }} title="Actions">Actions</th>
+                                        </tr>
+                                    </thead>
                                     <tbody>
                                         {truckFuel.map(f => (
                                             <tr key={f.id}>
-                                                <td>{fmtDate(f.date)}</td>
-                                                <td style={{ fontWeight: 700, color: "var(--text-primary)" }}>{f.station}</td>
-                                                <td style={{ fontWeight: 600 }}>{f.litres} L</td>
-                                                <td style={{ color: "var(--text-muted)" }}>{f.pricePerL}</td>
-                                                <td style={{ color: "#f97316", fontWeight: 800 }}>{fmt(f.litres * f.pricePerL)}</td>
-                                                <td style={{ color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>{f.odom ? `${Number(f.odom).toLocaleString()} km` : '—'}</td>
-                                                <td>
+                                                <td className="sticky-col" title={fmtDate(f.date)}>{fmtDate(f.date)}</td>
+                                                <td style={{ fontWeight: 700, color: "var(--text-primary)" }} title={f.station}>{f.station}</td>
+                                                <td style={{ fontWeight: 600 }} title={`${f.litres} L`}>{f.litres} L</td>
+                                                <td style={{ color: "var(--text-muted)" }} title={String(f.pricePerL)}>{f.pricePerL}</td>
+                                                <td style={{ color: "#f97316", fontWeight: 800 }} title={fmt(f.litres * f.pricePerL)}>{fmt(f.litres * f.pricePerL)}</td>
+                                                <td style={{ color: "var(--text-dim)", fontFamily: "var(--font-mono)" }} title={f.odom ? `${Number(f.odom).toLocaleString()} km` : 'None'}>{f.odom ? `${Number(f.odom).toLocaleString()} km` : '—'}</td>
+                                                <td className="status-col" title={f._pendingApproval ? 'Pending' : 'Approved'}>
                                                     {f._pendingApproval ? <Badge status="Pending" /> : <Badge status="Approved" />}
                                                 </td>
                                                 <td style={{ textAlign: "right", verticalAlign: "middle" }}>
@@ -245,7 +256,7 @@ export function VehicleProfile({ data, setData, dark, isMobile, openModal, maint
                                         ))}
                                     </tbody>
                                 </table>
-                            )}
+                                </div>
                         </div>
                     </div>
                 )}
@@ -258,17 +269,26 @@ export function VehicleProfile({ data, setData, dark, isMobile, openModal, maint
                             <Button size="sm" icon={Plus} onClick={() => openModal('journey', { truck: truck.id, date: today(), status: 'Loading' })}>Log Journey</Button>
                         </div>
                         <div style={{ padding: 32 }}>
-                            {truckJourneys.length === 0 ? <div style={{ color: "var(--text-dim)", padding: 60, textAlign: 'center', fontSize: 14, fontWeight: 500 }}>No mission history found.</div> : (
+                                <div className="table-container">
                                 <table className="table-modern">
-                                    <thead><tr>{['Date', 'Strategic Route', 'Distance', 'Revenue', 'Status', 'Actions'].map(h => <th key={h}>{h}</th>)}</tr></thead>
+                                    <thead>
+                                        <tr>
+                                            <th className="sticky-col" title="Date">Date</th>
+                                            <th title="Strategic Route">Strategic Route</th>
+                                            <th title="Distance">Distance</th>
+                                            <th title="Revenue">Revenue</th>
+                                            <th className="status-col" title="Status">Status</th>
+                                            <th style={{ textAlign: "right" }} title="Actions">Actions</th>
+                                        </tr>
+                                    </thead>
                                     <tbody>
                                         {truckJourneys.map(j => (
                                             <tr key={j.id}>
-                                                <td>{fmtDate(j.date)}</td>
-                                                <td style={{ fontWeight: 800, color: "var(--text-primary)" }}>{j.origin} → {j.dest}</td>
-                                                <td style={{ fontWeight: 600 }}>{j.distance} km</td>
-                                                <td style={{ color: "#10b981", fontWeight: 800 }}>{fmt(j.revenue)}</td>
-                                                <td><Badge status={j.status} /></td>
+                                                <td className="sticky-col" title={fmtDate(j.date)}>{fmtDate(j.date)}</td>
+                                                <td style={{ fontWeight: 800, color: "var(--text-primary)" }} title={`${j.origin} → ${j.dest}`}>{j.origin} → {j.dest}</td>
+                                                <td style={{ fontWeight: 600 }} title={`${j.distance} km`}>{j.distance} km</td>
+                                                <td style={{ color: "#10b981", fontWeight: 800 }} title={fmt(j.revenue)}>{fmt(j.revenue)}</td>
+                                                <td className="status-col" title={j.status}><Badge status={j.status} /></td>
                                                 <td style={{ textAlign: "right", verticalAlign: "middle" }}>
                                                     <TableRowActions
                                                         ariaLabel={`Journey ${j.id}`}
@@ -286,7 +306,7 @@ export function VehicleProfile({ data, setData, dark, isMobile, openModal, maint
                                         ))}
                                     </tbody>
                                 </table>
-                            )}
+                                </div>
                         </div>
                     </div>
                 )}
@@ -299,8 +319,18 @@ export function VehicleProfile({ data, setData, dark, isMobile, openModal, maint
                             <Button size="sm" icon={Wrench} onClick={() => openModal('maintenance', { truck: truck.id, task: 'Oil Change', date: today(), odom: truck.odom })}>Log Service</Button>
                         </div>
                         <div style={{ padding: 32 }}>
+                            <div className="table-container">
                             <table className="table-modern">
-                                <thead><tr>{['System Task', 'Interval', 'Metric Since Last', 'Last Service', 'Health Status', 'Action'].map(h => <th key={h}>{h}</th>)}</tr></thead>
+                                <thead>
+                                    <tr>
+                                        <th className="sticky-col" title="System Task">System Task</th>
+                                        <th title="Interval">Interval</th>
+                                        <th title="Metric Since Last">Metric Since Last</th>
+                                        <th title="Last Service">Last Service</th>
+                                        <th className="status-col" title="Health Status">Health Status</th>
+                                        <th style={{ textAlign: "right" }} title="Action">Action</th>
+                                    </tr>
+                                </thead>
                                 <tbody>
                                     {DEFAULT_SCHEDULE.map(s => {
                                         const odom = +truck.odom || 0;
@@ -313,11 +343,11 @@ export function VehicleProfile({ data, setData, dark, isMobile, openModal, maint
                                         
                                         return (
                                             <tr key={s.task}>
-                                                <td style={{ fontWeight: 800, color: "var(--text-primary)" }}>{s.task}</td>
-                                                <td style={{ color: "var(--text-dim)", fontSize: 12 }}>Every {s.intervalKm.toLocaleString()} km</td>
-                                                <td style={{ fontWeight: 600 }}>{kmSince.toLocaleString()} km <small style={{ color: "var(--text-dim)", fontWeight: 500 }}>ago</small></td>
-                                                <td style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>{fmtDate(lastDate)}</td>
-                                                <td><Badge status={status} /></td>
+                                                <td className="sticky-col" style={{ fontWeight: 800, color: "var(--text-primary)" }} title={s.task}>{s.task}</td>
+                                                <td style={{ color: "var(--text-dim)", fontSize: 12 }} title={`Every ${s.intervalKm.toLocaleString()} km`}>Every {s.intervalKm.toLocaleString()} km</td>
+                                                <td style={{ fontWeight: 600 }} title={`${kmSince.toLocaleString()} km ago`}>{kmSince.toLocaleString()} km <small style={{ color: "var(--text-dim)", fontWeight: 500 }}>ago</small></td>
+                                                <td style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }} title={fmtDate(lastDate)}>{fmtDate(lastDate)}</td>
+                                                <td className="status-col" title={status}><Badge status={status} /></td>
                                                 <td style={{ textAlign: "right", verticalAlign: "middle" }}>
                                                     <TableRowActions
                                                         ariaLabel={`Service ${s.task}`}
@@ -342,6 +372,7 @@ export function VehicleProfile({ data, setData, dark, isMobile, openModal, maint
                                     })}
                                 </tbody>
                             </table>
+                            </div>
                         </div>
                     </div>
                 )}
@@ -381,6 +412,7 @@ export function VehicleProfile({ data, setData, dark, isMobile, openModal, maint
                         </div>
                         <h3 style={{ fontSize: 18, fontWeight: 800, color: "var(--text-primary)", marginBottom: 20 }}>Detailed Expense Ledger</h3>
                         {truckExpenses.length === 0 ? <div style={{ color: "var(--text-dim)", padding: 60, textAlign: 'center' }}>No expenses recorded for this vehicle.</div> : (
+                        <div className="table-container">
                             <table className="table-modern">
                                 <thead><tr>{['Date', 'Classification', 'Description', 'Amount', 'Status', 'Actions'].map(h => <th key={h}>{h}</th>)}</tr></thead>
                                 <tbody>
@@ -416,6 +448,7 @@ export function VehicleProfile({ data, setData, dark, isMobile, openModal, maint
                                     ))}
                                 </tbody>
                             </table>
+                        </div>
                         )}
                     </div>
                 )}

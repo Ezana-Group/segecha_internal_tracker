@@ -81,7 +81,7 @@ export function DocumentPanel({
     const [uploadMsg, setUploadMsg] = useState('');
     const [selectedFile, setSelectedFile] = useState(null);
 
-    const entityDocs = (documents || []).filter(d => d.entityType === entityType && d.entityId === entityId);
+    const entityDocs = (documents || []).filter(d => (d.entityType === entityType && d.entityId === entityId) || (entityType === 'staff' && d.driverId === entityId));
 
     const handleUpload = async () => {
         if (!selectedFile || !uploadForm.docType) { setUploadMsg('❌ Select a document type and choose a file'); return; }
@@ -189,60 +189,80 @@ export function DocumentPanel({
             </div>
             )}
 
-            {/* Document Gallery */}
+            {/* Document Table */}
             {capViewList && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                {entityDocs.length === 0 ? (
-                    <div style={{ padding: 60, textAlign: 'center', background: "var(--bg-card)", borderRadius: 20, border: "1px dashed var(--border-subtle)" }}>
-                        <FileText size={48} color="var(--text-dim)" style={{ opacity: 0.2, marginBottom: 16 }} />
-                        <div style={{ color: "var(--text-dim)", fontWeight: 500 }}>No documents have been digitized for this profile.</div>
-                    </div>
-                ) : (
-                    entityDocs.map(doc => (
-                        <div key={doc.id} style={{ background: "var(--bg-card)", borderRadius: 16, padding: "16px 24px", border: "1px solid var(--border-subtle)", display: 'flex', alignItems: 'center', gap: 20, transition: "transform 0.2s ease" }} className="hover-scale">
-                            <div style={{ width: 48, height: 48, borderRadius: 12, background: "var(--bg-surface)", display: 'flex', alignItems: 'center', justifyContent: 'center', color: "var(--brand-primary)" }}>
-                                {doc.mimeType?.includes('pdf') ? <FileText size={20} /> : <Image size={20} />}
-                            </div>
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{ fontWeight: 800, color: "var(--text-primary)", fontSize: 15 }}>{doc.label}</div>
-                                <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4 }}>
-                                    {(docTypes || []).find(t => t.value === doc.docType)?.label || doc.docType} · <span style={{ color: "var(--text-dim)" }}>{doc.filename}</span>
-                                </div>
-                                <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 8 }}>
-                                    <Badge status={doc.isExpired ? 'Overdue' : (doc.daysUntilExpiry <= 30 ? 'Pending' : 'Paid')} text={expiryLabel(doc)} />
-                                </div>
-                            </div>
-                            {(capOpen || capDelete) && (
-                            <TableRowActions
-                                ariaLabel={`Document ${doc.label || doc.filename}`}
-                                items={[
-                                    ...(capOpen
-                                        ? [
-                                              {
-                                                  id: "view",
-                                                  label: "View",
-                                                  icon: Eye,
-                                                  onClick: () => window.open(doc.url, "_blank", "noopener,noreferrer"),
-                                              },
-                                          ]
-                                        : []),
-                                    ...(capDelete
-                                        ? [
-                                              {
-                                                  id: "delete",
-                                                  label: "Delete",
-                                                  icon: Trash2,
-                                                  danger: true,
-                                                  onClick: () => deleteDocumentById(doc.id, setDocuments),
-                                              },
-                                          ]
-                                        : []),
-                                ]}
-                            />
+            <div style={{ background: "var(--bg-card)", borderRadius: 24, padding: 0, border: "1px solid var(--border-subtle)", overflow: "hidden" }}>
+                <div style={{ padding: "20px 24px", borderBottom: "1px solid var(--border-subtle)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div style={{ fontWeight: 800, color: "var(--text-primary)", fontSize: 16 }}>Digitized Documents</div>
+                    <div style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 600 }}>{entityDocs.length} record(s)</div>
+                </div>
+                
+                <div className="table-container" style={{ margin: 0 }}>
+                    <table className="table-modern" style={{ border: "none" }}>
+                        <thead>
+                            <tr>
+                                <th style={{ paddingLeft: 24 }}>Document Label</th>
+                                <th>Classification</th>
+                                <th>Expiry Status</th>
+                                <th style={{ textAlign: "right", paddingRight: 24 }}>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {entityDocs.length === 0 ? (
+                                <tr>
+                                    <td colSpan="4" style={{ textAlign: "center", padding: "80px 0", color: "var(--text-dim)" }}>
+                                        <div style={{ marginBottom: 16 }}><FileText size={48} opacity={0.2} /></div>
+                                        <div style={{ fontWeight: 600 }}>No documents found for this profile.</div>
+                                    </td>
+                                </tr>
+                            ) : (
+                                entityDocs.map(doc => (
+                                    <tr key={doc.id} className="hover-row">
+                                        <td style={{ paddingLeft: 24 }}>
+                                            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                                                <div style={{ width: 36, height: 36, borderRadius: 10, background: "var(--surface-subtle)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--brand-primary)" }}>
+                                                    {doc.mimeType?.includes('pdf') ? <FileText size={18} /> : <Image size={18} />}
+                                                </div>
+                                                <div style={{ minWidth: 0 }}>
+                                                    <div style={{ fontWeight: 800, color: "var(--text-primary)", fontSize: 14 }}>{doc.label}</div>
+                                                    <div style={{ fontSize: 11, color: "var(--text-dim)", textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', maxWidth: 200 }}>{doc.filename}</div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <div style={{ fontSize: 13, color: "var(--text-secondary)", fontWeight: 700 }}>
+                                                {(docTypes || []).find(t => t.value === doc.docType)?.label || doc.docType}
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <Badge status={doc.isExpired ? 'Overdue' : (doc.daysUntilExpiry <= 30 ? 'Pending' : 'Paid')} text={expiryLabel(doc)} />
+                                        </td>
+                                        <td style={{ textAlign: "right", paddingRight: 24 }}>
+                                            <TableRowActions
+                                                ariaLabel={`Actions for ${doc.label || doc.filename}`}
+                                                items={[
+                                                    ...(capOpen ? [{
+                                                        id: "view",
+                                                        label: "Open / Download",
+                                                        icon: Eye,
+                                                        onClick: () => window.open(doc.url, "_blank", "noopener,noreferrer"),
+                                                    }] : []),
+                                                    ...(capDelete ? [{
+                                                        id: "delete",
+                                                        label: "Remove Permanently",
+                                                        icon: Trash2,
+                                                        danger: true,
+                                                        onClick: () => deleteDocumentById(doc.id, setDocuments),
+                                                    }] : []),
+                                                ]}
+                                            />
+                                        </td>
+                                    </tr>
+                                ))
                             )}
-                        </div>
-                    ))
-                )}
+                        </tbody>
+                    </table>
+                </div>
             </div>
             )}
         </div>

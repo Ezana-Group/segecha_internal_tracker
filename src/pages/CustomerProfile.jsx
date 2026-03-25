@@ -39,7 +39,7 @@ export function CustomerProfile({ data, isMobile, truckReg, customerName }) {
     const [activeTab, setActiveTab] = React.useState("Overview");
 
     return (
-        <div style={{ maxWidth: 1200, margin: "0 auto" }}>
+        <div className="page-shell">
             {/* Back Button */}
             <button 
                 onClick={() => navigate("/customers")}
@@ -157,14 +157,15 @@ export function CustomerProfile({ data, isMobile, truckReg, customerName }) {
                             <button onClick={() => setActiveTab("Missions")} style={{ background: "none", border: "none", color: "var(--brand-primary)", fontWeight: 700, cursor: "pointer", fontSize: 13 }}>View All</button>
                         </div>
                         <Card style={{ padding: 0, overflow: "hidden" }}>
+                            <div className="table-container">
                             <table className="table-modern">
                                 <thead>
                                     <tr>
-                                        <th>Date</th>
-                                        <th>Route</th>
-                                        <th>Vehicle</th>
-                                        <th>Status</th>
-                                        <th style={{ textAlign: "right" }}>Revenue</th>
+                                        <th className="sticky-col" title="Date">Date</th>
+                                        <th title="Route">Route</th>
+                                        <th title="Vehicle">Vehicle</th>
+                                        <th className="status-col" title="Status">Status</th>
+                                        <th style={{ textAlign: "right" }} title="Revenue">Revenue</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -172,25 +173,26 @@ export function CustomerProfile({ data, isMobile, truckReg, customerName }) {
                                         <tr><td colSpan="5" style={{ padding: 40, textAlign: "center", color: "var(--text-dim)" }}>No missions linked to this client yet.</td></tr>
                                     ) : journeys.sort((a,b) => b.date.localeCompare(a.date)).slice(0, 5).map(j => (
                                         <tr key={j.id}>
-                                            <td style={{ fontSize: 13, fontWeight: 600 }}>{fmtDate(j.date)}</td>
-                                            <td>
+                                            <td className="sticky-col" style={{ fontSize: 13, fontWeight: 600 }} title={fmtDate(j.date)}>{fmtDate(j.date)}</td>
+                                            <td title={`${j.origin} → ${j.dest}`}>
                                                 <div style={{ fontWeight: 700, color: "var(--text-primary)" }}>{j.origin} → {j.dest}</div>
                                                 <div style={{ fontSize: 11, color: "var(--text-dim)" }}>{j.cargo}</div>
                                             </td>
-                                            <td>
+                                            <td title={truckReg(j.truck)}>
                                                 <Badge status="Pending" text={truckReg(j.truck)} />
                                             </td>
-                                            <td>
+                                            <td className="status-col" title={j.status}>
                                                 <Badge 
                                                     status={j.status === "Completed" ? "Paid" : j.status === "In Transit" ? "Pending" : "Cancelled"} 
                                                     text={j.status}
                                                 />
                                             </td>
-                                            <td style={{ textAlign: "right", fontWeight: 800, color: "var(--brand-primary)" }}>{fmt(j.revenue)}</td>
+                                            <td style={{ textAlign: "right", fontWeight: 800, color: "var(--brand-primary)" }} title={fmt(j.revenue)}>{fmt(j.revenue)}</td>
                                         </tr>
                                     ))}
                                 </tbody>
                             </table>
+                            </div>
                         </Card>
                     </div>
 
@@ -233,14 +235,15 @@ export function CustomerProfile({ data, isMobile, truckReg, customerName }) {
                         <Navigation size={20} color="var(--brand-primary)" /> All Transport History
                     </h2>
                     <Card style={{ padding: 0, overflow: "hidden" }}>
+                        <div className="table-container">
                         <table className="table-modern">
                             <thead>
                                 <tr>
-                                    <th>Date</th>
-                                    <th>Route</th>
-                                    <th>Vehicle</th>
-                                    <th>Status</th>
-                                    <th style={{ textAlign: "right" }}>Revenue</th>
+                                    <th className="sticky-col" title="Date">Date</th>
+                                    <th title="Route">Route</th>
+                                    <th title="Vehicle">Vehicle</th>
+                                    <th className="status-col" title="Status">Status</th>
+                                    <th style={{ textAlign: "right" }} title="Revenue">Revenue</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -248,25 +251,26 @@ export function CustomerProfile({ data, isMobile, truckReg, customerName }) {
                                     <tr><td colSpan="5" style={{ padding: 40, textAlign: "center", color: "var(--text-dim)" }}>No missions linked to this client yet.</td></tr>
                                 ) : journeys.sort((a,b) => b.date.localeCompare(a.date)).map(j => (
                                     <tr key={j.id}>
-                                        <td style={{ fontSize: 13, fontWeight: 600 }}>{fmtDate(j.date)}</td>
-                                        <td>
+                                        <td className="sticky-col" style={{ fontSize: 13, fontWeight: 600 }} title={fmtDate(j.date)}>{fmtDate(j.date)}</td>
+                                        <td title={`${j.origin} → ${j.dest}`}>
                                             <div style={{ fontWeight: 700, color: "var(--text-primary)" }}>{j.origin} → {j.dest}</div>
                                             <div style={{ fontSize: 11, color: "var(--text-dim)" }}>{j.cargo}</div>
                                         </td>
-                                        <td>
+                                        <td title={truckReg(j.truck)}>
                                             <Badge status="Pending" text={truckReg(j.truck)} />
                                         </td>
-                                        <td>
+                                        <td className="status-col" title={j.status}>
                                             <Badge 
                                                 status={j.status === "Completed" ? "Paid" : j.status === "In Transit" ? "Pending" : "Cancelled"} 
                                                 text={j.status}
                                             />
                                         </td>
-                                        <td style={{ textAlign: "right", fontWeight: 800, color: "var(--brand-primary)" }}>{fmt(j.revenue)}</td>
+                                        <td style={{ textAlign: "right", fontWeight: 800, color: "var(--brand-primary)" }} title={fmt(j.revenue)}>{fmt(j.revenue)}</td>
                                     </tr>
                                 ))}
-                            </tbody>
-                        </table>
+                                </tbody>
+                            </table>
+                        </div>
                     </Card>
                 </div>
             )}

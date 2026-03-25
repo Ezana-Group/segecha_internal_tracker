@@ -1,0 +1,182 @@
+/* ═══════════════════════════════════════════════════════════════════
+   SEGECHA — Responsive Table System
+   Handles dynamic compression, sticky columns, and truncation.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* 1. Global Reset & Base Truncation */
+.table-modern {
+  table-layout: auto;
+  width: 100%;
+}
+
+.table-modern td, 
+.table-modern th {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 2. Responsive Breakpoints */
+
+.table-container {
+  overflow-x: hidden; /* Prevent horizontal scroll on desktop by default */
+  width: 100%;
+  margin: 0 -8px;    /* Standardized negative offset for card containment */
+  padding: 0 8px;     /* Match padding to negative margin */
+}
+
+/* 1024px to 1279px — small desktop / laptop */
+@media screen and (max-width: 1279px) and (min-width: 1024px) {
+  .table-modern {
+    table-layout: fixed; /* Force proportional width compression */
+  }
+  
+  .table-modern thead th {
+    padding: 8px 8px !important;
+    font-size: 10px !important;
+  }
+  
+  .table-modern tbody td {
+    padding: 8px 8px !important;
+    font-size: 11px !important;
+  }
+
+  .badge {
+    padding: 1px 6px !important;
+  }
+}
+
+/* Below 1024px — Activate Horizontal Scroll */
+@media screen and (max-width: 1023px) {
+  .table-container {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+    width: 100%;
+  }
+
+  .table-modern {
+    min-width: 700px; /* Ensure table has enough floor to trigger container scroll */
+    table-layout: auto; 
+  }
+}
+
+/* 768px to 1023px — tablet landscape specific adjustments */
+@media screen and (max-width: 1023px) and (min-width: 768px) {
+  .table-modern thead th {
+    padding: 6px 6px !important;
+    font-size: 10px !important;
+  }
+  
+  .table-modern tbody td {
+    padding: 6px 6px !important;
+    font-size: 11px !important;
+  }
+
+  .table-filter-popup {
+    width: 190px !important;
+  }
+}
+
+/* Below 768px — tablet portrait and mobile specific (Sticky Columns) */
+@media screen and (max-width: 767px) {
+  .table-container {
+    position: relative;
+  }
+
+  /* Scroll Hint Shadow Overlay */
+  .table-container::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 30px;
+    background: linear-gradient(to left, rgba(0,0,0,0.06), transparent);
+    pointer-events: none;
+    z-index: 2;
+  }
+
+  /* Sticky First Column */
+  .table-modern th.sticky-col,
+  .table-modern td.sticky-col {
+    position: sticky;
+    left: 0;
+    z-index: 10;
+    background-color: inherit; 
+    box-shadow: 2px 0 6px rgba(0,0,0,0.06);
+  }
+
+  .table-modern tr:hover .sticky-col {
+    background-color: var(--surface-hover) !important;
+  }
+
+  .table-modern thead th.sticky-col {
+    z-index: 11;
+  }
+
+  .table-modern tbody td {
+    padding: 6px 8px !important;
+    font-size: 11px !important;
+  }
+}
+
+/* 3. Static Column Rules */
+.status-col {
+  min-width: 90px;
+  width: 90px;
+  overflow: visible !important; /* Never truncate status badges */
+}
+
+.status-col * {
+  overflow: visible !important;
+  text-overflow: clip !important;
+}
+
+/* 5. Sticky Header & Totals Row */
+.table-modern thead th {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--bg-card) !important;
+}
+
+.sticky-totals-row td {
+  position: sticky;
+  top: 41px; /* Standard header height with 12px padding + 16px font + border */
+  z-index: 15;
+  background: var(--surface-subtle) !important;
+  font-weight: 800;
+  border-bottom: 2px solid var(--border-subtle) !important;
+  color: var(--text-primary);
+  padding: 12px 16px !important;
+}
+
+/* Adjust top offset for smaller desktop header (8px padding) */
+@media screen and (max-width: 1279px) and (min-width: 1024px) {
+  .sticky-totals-row td {
+    top: 33px;
+    padding: 8px 8px !important;
+    font-size: 11px !important;
+  }
+}
+
+/* 6. Custom Scrollbar Styling (Global override for table-container) */
+.table-container::-webkit-scrollbar {
+  height: 4px;
+  background: transparent;
+}
+
+.table-container::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 10px;
+}
+
+.table-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Firefox */
+.table-container {
+  scrollbar-width: thin;
+  scrollbar-color: #CBD5E1 transparent;
+}

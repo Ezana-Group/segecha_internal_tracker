@@ -35,26 +35,38 @@ import { Badge } from "../components/Badge";
 import { Button } from "../components/Button";
 import { PageHeader } from "../components/PageHeader";
 import { TableRowActions } from "../components/TableRowActions";
+import { SortableTableHead } from "../components/SortableTableHead";
+import { useTableFilter } from "../hooks/useTableFilter";
 
 export function Expenses({ 
     data, isMobile, modal, form, setForm, openModal, closeModal, saveItem, delItem, 
-    filterTruck, setFilterTruck, truckReg,
-    setVerifyModal, pendingVerifications, customerName, verifySubmission
+    truckReg, setVerifyModal, pendingVerifications, customerName, verifySubmission
 }) {
     const navigate = useNavigate();
-    const [searchTerm, setSearchTerm] = useState("");
     const [panelTruckId, setPanelTruckId] = useState(null);
     const [activeTab, setActiveTab] = useState('all');
     
-    // Dual filtering: truck + category + search
-    const expCatFilter = form._expCatFilter || "ALL";
-    const filtered = data.expenses
-        .filter(e => filterTruck === "ALL" || e.truck === filterTruck)
-        .filter(e => expCatFilter === "ALL" || e.cat === expCatFilter)
-        .filter(e => 
-            e.desc?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-            truckReg(e.truck)?.toLowerCase().includes(searchTerm.toLowerCase())
-        );
+    // Refine data for sorting and filtering
+    const refinedExpenses = data.expenses.map(e => ({
+        ...e,
+        _vehicle: truckReg(e.truck),
+        _amount: Number(e.amount || 0)
+    }));
+
+    const { 
+        filteredRows: sortedItems, 
+        setSort: requestSort, 
+        sortState: sortConfig, 
+        filterState: expenseFilters, 
+        applyFilter: handleExpenseFilterChange,
+        getUniqueValues: getExpenseUniqueValues,
+        searchTerm,
+        setSearchTerm
+    } = useTableFilter(refinedExpenses, { 
+        namespace: "exp", 
+        initialSort: { col: "date", dir: "desc" },
+        searchColumns: ["uId", "desc", "cat", "_vehicle"]
+    });
 
     const getCatIcon = (cat) => {
         switch(cat) {
@@ -67,8 +79,8 @@ export function Expenses({
         }
     };
 
-    const totalExpense = filtered.reduce((s, e) => s + +e.amount, 0);
-    const allExpenseTotal = data.expenses.reduce((s, e) => s + +e.amount, 0);
+    const totalExpenseFiltered = sortedItems.reduce((s, e) => s + +e.amount, 0);
+    const totalMaintenanceFiltered = sortedItems.filter(e => e.cat === "Maintenance").reduce((s, e) => s + +e.amount, 0);
 
     const DEFAULT_SCHEDULE = [
         { task: 'Oil Change', intervalKm: 10000 },
@@ -122,17 +134,18 @@ export function Expenses({
                             <TrendingUp size={20} />
                         </div>
                     </div>
-                    <div style={{ fontSize: 11, color: "var(--text-dim)", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 2 }}>Total Expenditure</div>
-                    <div style={{ fontSize: 24, fontWeight: 900, color: "var(--text-primary)" }}>{fmt(totalExpense)}</div>
+                    <div style={{ fontSize: 11, color: "var(--text-dim)", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 2 }}>Expenditure (Filtered)</div>
+                    <div style={{ fontSize: 24, fontWeight: 900, color: "var(--text-primary)" }}>{fmt(totalExpenseFiltered)}</div>
                 </Card>
-                <Card style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)", borderRadius: 16 }}>
+                <Card style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)", borderRadius: 16, cursor: 'pointer' }} onClick={() => handleExpenseFilterChange("cat", new Set(["Maintenance"]))}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
                         <div style={{ width: 40, height: 40, borderRadius: 10, background: "rgba(245, 158, 11, 0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "#f59e0b" }}>
                             <Wrench size={20} />
                         </div>
+                        {expenseFilters.cat?.has("Maintenance") && <Badge status="Active" text="Filtering" />}
                     </div>
-                    <div style={{ fontSize: 11, color: "var(--text-dim)", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 2 }}>Maintenance Cost</div>
-                    <div style={{ fontSize: 24, fontWeight: 900, color: "var(--text-primary)" }}>{fmt(filtered.filter(e => e.cat === "Maintenance").reduce((s, e) => s + +e.amount, 0))}</div>
+                    <div style={{ fontSize: 11, color: "var(--text-dim)", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 2 }}>Maintenance (Filtered)</div>
+                    <div style={{ fontSize: 24, fontWeight: 900, color: "var(--text-primary)" }}>{fmt(totalMaintenanceFiltered)}</div>
                 </Card>
                 <Card style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)", borderRadius: 16 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
@@ -140,32 +153,9 @@ export function Expenses({
                             <FileText size={20} />
                         </div>
                     </div>
-                    <div style={{ fontSize: 11, color: "var(--text-dim)", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 2 }}>Permits & Others</div>
-                    <div style={{ fontSize: 24, fontWeight: 900, color: "var(--text-primary)" }}>{filtered.filter(e => e.cat !== "Maintenance" && e.cat !== "Fuel").length} <span style={{ fontSize: 13, color: "var(--text-muted)", fontWeight: 500 }}>Items</span></div>
+                    <div style={{ fontSize: 11, color: "var(--text-dim)", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 2 }}>Filtered Items</div>
+                    <div style={{ fontSize: 24, fontWeight: 900, color: "var(--text-primary)" }}>{sortedItems.length} <span style={{ fontSize: 13, color: "var(--text-muted)", fontWeight: 500 }}>Entries</span></div>
                 </Card>
-            </div>
-
-            {/* Pending verifications are now handled inside the table tabs */}
-            {/* Category Analytics */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 20, marginBottom: 32 }}>
-                {["Maintenance", "Toll", "Permit", "Allowance"].map(cat => {
-                    const tot = filtered.filter(e => e.cat === cat).reduce((s, e) => s + +e.amount, 0);
-                    const Icon = getCatIcon(cat);
-                    const percentage = totalExpense > 0 ? (tot / totalExpense) * 100 : 0;
-                    
-                    return (
-                        <Card key={cat} style={{ padding: 20, background: "var(--bg-card)", border: "1px solid var(--border-subtle)", borderRadius: 16 }}>
-                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
-                                <div style={{ width: 40, height: 40, borderRadius: 10, background: "rgba(245, 158, 11, 0.08)", display: "flex", alignItems: "center", justifyContent: "center", color: "#f59e0b" }}>
-                                    <Icon size={20} />
-                                </div>
-                                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", background: "var(--surface-subtle)", padding: "2px 8px", borderRadius: 6 }}>{percentage.toFixed(1)}%</div>
-                            </div>
-                            <div style={{ fontSize: 11, color: "var(--text-dim)", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 2 }}>{cat}</div>
-                            <div style={{ fontSize: 20, fontWeight: 900, color: "var(--text-primary)" }}>{fmt(tot)}</div>
-                        </Card>
-                    );
-                })}
             </div>
 
             <div style={{ display: 'flex', gap: 16, marginBottom: 24, borderBottom: '1px solid var(--border-subtle)' }}>
@@ -188,84 +178,37 @@ export function Expenses({
                 </button>
             </div>
 
-            {/* Detailed Filters (Search Section) */}
-            <div style={{ 
-                display: "flex", 
-                justifyContent: "space-between", 
-                alignItems: "center", 
-                marginBottom: 24, 
-                flexWrap: "wrap", 
-                gap: 16,
-                background: "var(--bg-card)",
-                padding: "16px 20px",
-                borderRadius: 20,
-                border: "1px solid var(--border-subtle)",
-                backdropFilter: "blur(12px)"
-            }}>
-                <div style={{ position: "relative", flex: 1, maxWidth: 450 }}>
-                    <SearchIcon style={{ position: "absolute", left: 16, top: "50%", transform: "translateY(-50%)", color: "var(--brand-primary)" }} size={18} />
-                    <input 
-                        className="input-modern input-modern--filter"
-                        placeholder="Search by description, vehicle or ID..." 
-                        style={{ 
-                            paddingLeft: 48, 
-                            height: 48, 
-                            fontSize: 14, 
-                            borderRadius: 14,
-                            background: "var(--surface-subtle)",
-                            border: "1px solid transparent",
-                            transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-                            boxShadow: "inset 0 2px 4px rgba(0,0,0,0.02)"
-                        }}
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                    />
-                </div>
-                
-                <div style={{ display: "flex", gap: 12 }}>
-                    <div style={{ position: "relative" }}>
-                        <Filter style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--text-dim)", pointerEvents: "none" }} size={14} />
-                        <select 
-                            className="input-premium" 
-                            style={{ width: 180, fontSize: 13, height: 48, padding: "0 12px 0 34px", borderRadius: 14, background: "var(--surface-subtle)" }}
-                            value={filterTruck} 
-                            onChange={e => setFilterTruck(e.target.value)}
-                        >
-                            <option value="ALL">All Vehicles</option>
-                            {data.trucks.map(t => <option key={t.id} value={t.id}>{t.reg}</option>)}
-                        </select>
-                    </div>
-                    <div style={{ position: "relative" }}>
-                        <Tag style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--text-dim)", pointerEvents: "none" }} size={14} />
-                        <select 
-                            className="input-premium" 
-                            style={{ width: 180, fontSize: 13, height: 48, padding: "0 12px 0 34px", borderRadius: 14, background: "var(--surface-subtle)" }}
-                            value={expCatFilter}
-                            onChange={e => setForm(f => ({ ...f, _expCatFilter: e.target.value }))}
-                        >
-                            <option value="ALL">All Categories</option>
-                            {CATS.map(c => <option key={c} value={c}>{c}</option>)}
-                        </select>
-                    </div>
-                </div>
-            </div>
-
             {/* Expense Log Table */}
             <Card style={{ padding: 0, overflow: "hidden", borderRadius: 24 }}>
-                <div style={{ overflowX: "auto" }}>
+                <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", gap: 12 }}>
+                    <SearchIcon size={18} color="var(--text-dim)" />
+                    <input
+                        type="search"
+                        placeholder="Search expenses..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        style={{ border: "none", background: "none", padding: 0, fontSize: 14, flex: 1, color: "var(--text-primary)", fontWeight: 500 }}
+                    />
+                </div>
+                <div className="table-container">
                     <table className="table-modern">
-                        <thead>
-                            <tr>
-                                <th>Exp ID</th>
-                                <th>Vehicle</th>
-                                <th>Category</th>
-                                <th>Description</th>
-                                <th>Ref / Mission</th>
-                                <th>Amount</th>
-                                <th>Status</th>
-                                <th style={{ textAlign: "right" }}>Actions</th>
-                            </tr>
-                        </thead>
+                        <SortableTableHead 
+                            requestSort={requestSort}
+                            sortConfig={sortConfig}
+                            filterState={expenseFilters}
+                            onFilterChange={handleExpenseFilterChange}
+                            getUniqueValues={getExpenseUniqueValues}
+                            columns={[
+                                { key: "uId", label: "Exp ID", sortable: true },
+                                { key: "_vehicle", label: "Vehicle", sortable: true },
+                                { key: "cat", label: "Category", sortable: true },
+                                { key: "desc", label: "Description", sortable: true },
+                                { key: "date", label: "Date", sortable: true },
+                                { key: "_amount", label: "Amount", sortable: true, align: "right" },
+                                { key: "status", label: "Status", sortable: true },
+                                { key: "actions", label: "Actions", sortable: false, align: "right" }
+                            ]}
+                        />
                         <tbody>
                             {activeTab === 'awaiting' ? (
                                 pendingVerifications?.filter(v => v._itemType === 'expense').length === 0 ? (
@@ -280,12 +223,12 @@ export function Expenses({
                                         const Icon = getCatIcon(v.cat);
                                         return (
                                             <tr key={v.id} onClick={() => setVerifyModal(v)} style={{ cursor: "pointer", background: "rgba(239, 68, 68, 0.02)" }} className="hover-scale">
-                                                <td>
+                                                <td className="sticky-col" title={v.uId || v.id.slice(0, 8).toUpperCase()}>
                                                     <div style={{ fontWeight: 700, color: "var(--brand-primary)", fontFamily: "var(--font-mono)", fontSize: 11, background: "var(--surface-subtle)", padding: "2px 8px", borderRadius: 6, display: "inline-block" }}>
                                                         {v.uId || v.id.slice(0, 8).toUpperCase()}
                                                     </div>
                                                 </td>
-                                                <td>
+                                                <td title={truckReg(v.truck)}>
                                                     <div 
                                                         style={{ fontSize: 13, color: "var(--text-primary)", fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}
                                                     >
@@ -293,7 +236,7 @@ export function Expenses({
                                                         {truckReg(v.truck)}
                                                     </div>
                                                 </td>
-                                                <td>
+                                                <td title={v.cat}>
                                                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                                                         <div style={{ width: 28, height: 28, borderRadius: 8, background: "rgba(245, 158, 11, 0.08)", display: "flex", alignItems: "center", justifyContent: "center", color: "#f59e0b" }}>
                                                             <Icon size={14} />
@@ -301,16 +244,16 @@ export function Expenses({
                                                         <span style={{ fontWeight: 700, fontSize: 13, color: "var(--text-primary)" }}>{v.cat}</span>
                                                     </div>
                                                 </td>
-                                                <td>
+                                                <td title={v.desc || v.cat}>
                                                     <div style={{ color: "var(--text-secondary)", fontSize: 13, fontWeight: 500 }}>{v.desc || v.cat}</div>
                                                 </td>
-                                                <td>
+                                                <td title={fmtDate(v.date)}>
                                                     <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{fmtDate(v.date)}</div>
                                                 </td>
-                                                <td>
-                                                    <div style={{ fontWeight: 900, color: "var(--text-primary)", fontSize: 15 }}>{fmt(v.amount)}</div>
+                                                <td title={fmt(v.amount)}>
+                                                    <div style={{ fontWeight: 900, color: "var(--text-primary)", fontSize: 15, textAlign: "right" }}>{fmt(v.amount)}</div>
                                                 </td>
-                                                <td>
+                                                <td className="status-col" title="Pending Review">
                                                     <Badge status="Warning" text="Pending Review" />
                                                 </td>
                                                 <td style={{ textAlign: "right", verticalAlign: "middle" }}>
@@ -323,32 +266,32 @@ export function Expenses({
                                     })
                                 )
                             ) : (
-                                filtered.length === 0 ? (
+                                sortedItems.length === 0 ? (
                                     <tr>
                                         <td colSpan="8" style={{ textAlign: "center", padding: 80, color: "var(--text-dim)" }}>
                                             <div style={{ marginBottom: 16 }}><AlertCircle size={48} opacity={0.2} /></div>
                                             <div style={{ fontWeight: 600 }}>No expense records found matching your filters.</div>
                                         </td>
                                     </tr>
-                                ) : filtered.sort((a, b) => b.date.localeCompare(a.date)).map(e => {
+                                ) : sortedItems.map(e => {
                                     const Icon = getCatIcon(e.cat);
                                     return (
                                         <tr key={e.id} onClick={(ev) => openModal("expense", e)} style={{ cursor: "pointer" }} className="hover-scale">
-                                            <td>
+                                            <td className="sticky-col" title={e.uId || e.id.slice(0, 8).toUpperCase()}>
                                                 <div style={{ fontWeight: 700, color: "var(--brand-primary)", fontFamily: "var(--font-mono)", fontSize: 11, background: "var(--surface-subtle)", padding: "2px 8px", borderRadius: 6, display: "inline-block" }}>
                                                     {e.uId || e.id.slice(0, 8).toUpperCase()}
                                                 </div>
                                             </td>
-                                            <td>
+                                            <td title={e._vehicle}>
                                                 <div 
                                                     style={{ fontSize: 13, color: "var(--text-primary)", fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}
                                                     onClick={(ev) => { ev.stopPropagation(); setPanelTruckId(e.truck); }}
                                                 >
                                                     <Truck size={14} color="var(--brand-primary)" />
-                                                    {truckReg(e.truck)}
+                                                    {e._vehicle}
                                                 </div>
                                             </td>
-                                            <td>
+                                            <td title={e.cat}>
                                                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                                                     <div style={{ width: 28, height: 28, borderRadius: 8, background: "rgba(245, 158, 11, 0.08)", display: "flex", alignItems: "center", justifyContent: "center", color: "#f59e0b" }}>
                                                         <Icon size={14} />
@@ -356,7 +299,7 @@ export function Expenses({
                                                     <span style={{ fontWeight: 700, fontSize: 13, color: "var(--text-primary)" }}>{e.cat}</span>
                                                 </div>
                                             </td>
-                                            <td>
+                                            <td title={e.desc}>
                                                 {e.subCat && (
                                                     <div style={{ fontSize: 11, fontWeight: 800, color: "var(--brand-primary)", textTransform: "uppercase", marginBottom: 3 }}>
                                                         {e.subCat}
@@ -364,16 +307,16 @@ export function Expenses({
                                                 )}
                                                 <div style={{ color: "var(--text-secondary)", fontSize: 13, fontWeight: 500 }}>{e.desc}</div>
                                             </td>
-                                            <td>
+                                            <td title={fmtDate(e.date)}>
                                                 <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{fmtDate(e.date)}</div>
                                                 {e.journey && <div style={{ fontSize: 10, color: "var(--text-dim)", marginTop: 2 }}>
                                                     Linked to mission #{e.journey.slice(0, 8)}
                                                 </div>}
                                             </td>
-                                            <td>
-                                                <div style={{ fontWeight: 900, color: "var(--text-primary)", fontSize: 15 }}>{fmt(e.amount)}</div>
+                                            <td title={fmt(e.amount)}>
+                                                <div style={{ fontWeight: 900, color: "var(--text-primary)", fontSize: 15, textAlign: "right" }}>{fmt(e.amount)}</div>
                                             </td>
-                                            <td><div style={{ color: "var(--text-muted)" }}>Processed</div></td>
+                                            <td className="status-col" title="Processed"><div style={{ color: "var(--text-muted)" }}>Processed</div></td>
                                             <td style={{ textAlign: "right", verticalAlign: "middle" }}>
                                                 <TableRowActions
                                                     ariaLabel={`Actions for expense ${e.id}`}

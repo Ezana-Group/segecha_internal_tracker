@@ -56,6 +56,7 @@ export function StaffProfile({ data, setData, dark, isMobile, openModal, showToa
     const { id } = useParams();
     const navigate = useNavigate();
     const [tab, setTab] = useState("overview");
+    const [finTab, setFinTab] = useState("overview"); // "overview" or "payroll"
     const [accountBusy, setAccountBusy] = useState(false);
     const [accountStatus, setAccountStatus] = useState(null);
     const [lastCreds, setLastCreds] = useState(null);
@@ -110,7 +111,7 @@ export function StaffProfile({ data, setData, dark, isMobile, openModal, showToa
             { id: "account", label: "Account Settings" },
             { id: "settings", label: "Access & Settings" },
             { id: "documents", label: "Documents" },
-            { id: "pay", label: "Pay History" },
+            { id: "pay", label: "Financials" },
         ],
         []
     );
@@ -348,7 +349,7 @@ export function StaffProfile({ data, setData, dark, isMobile, openModal, showToa
     };
 
     return (
-        <div style={{ maxWidth: 1400, margin: "0 auto" }}>
+        <div className="page-shell">
             <div style={{ display: "flex", alignItems: "center", gap: 20, marginBottom: 32, flexWrap: "wrap" }}>
                 <Button variant="secondary" icon={ArrowLeft} onClick={() => navigate("/staff")}>
                     Back
@@ -829,63 +830,116 @@ export function StaffProfile({ data, setData, dark, isMobile, openModal, showToa
 
                         {tab === "pay" && s.tabPayHistory !== false && (
                             <div style={{ padding: 32 }}>
-                                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 24, marginBottom: 40 }}>
-                                    {(!isStaffSelfView || s.payBaseCompensationCard !== false) && (
-                                        <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)", borderRadius: 16, padding: 24, boxShadow: "var(--glass-shadow)" }}>
-                                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-                                                <div
-                                                    style={{
-                                                        fontSize: 11,
-                                                        color: "var(--text-muted)",
-                                                        fontWeight: 800,
-                                                        textTransform: "uppercase",
-                                                        letterSpacing: "0.05em",
-                                                    }}
-                                                >
-                                                    Base Compensation
-                                                </div>
-                                                <DollarSign size={18} color="#10b981" />
-                                            </div>
-                                            <div style={{ fontSize: 32, fontWeight: 900, color: "#10b981" }}>{fmt(staff.salary || 0)}</div>
-                                            <div style={{ fontSize: 13, color: "var(--text-dim)", marginTop: 8 }}>Standard monthly salary allocation</div>
-                                        </div>
-                                    )}
+                                {/* Sub-Navigation for Financials */}
+                                <div style={{ display: 'flex', gap: 24, marginBottom: 32, borderBottom: "1px solid var(--border-subtle)" }}>
+                                    {['overview', 'payroll'].map(t => (
+                                        <button
+                                            key={t}
+                                            onClick={() => setFinTab(t)}
+                                            style={{
+                                                padding: "12px 0",
+                                                background: "none",
+                                                border: "none",
+                                                borderBottom: finTab === t ? "2px solid var(--brand-primary)" : "2px solid transparent",
+                                                color: finTab === t ? "var(--text-primary)" : "var(--text-dim)",
+                                                fontSize: 14,
+                                                fontWeight: 700,
+                                                cursor: "pointer",
+                                                transition: "all 0.2s ease"
+                                            }}
+                                        >
+                                            {t === 'overview' ? 'General Overview' : 'Payroll History'}
+                                        </button>
+                                    ))}
                                 </div>
 
-                                {(!isStaffSelfView || s.payPayrollTable !== false || s.payDownloadPayslips !== false) && (
-                                    <>
-                                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-                                            <h3 style={{ fontSize: 18, fontWeight: 800, color: "var(--text-primary)" }}>Recent Payroll Allocations</h3>
-                                            {(!isStaffSelfView || s.payDownloadPayslips !== false) && (
-                                                <Button size="sm" variant="ghost" disabled>
-                                                    Download Payslips
-                                                </Button>
-                                            )}
-                                        </div>
-
-                                        {(!isStaffSelfView || s.payPayrollTable !== false) && (
-                                            <div style={{ border: "1px solid var(--border-subtle)", borderRadius: 16, overflow: "hidden" }}>
-                                                <table className="table-modern" style={{ margin: 0 }}>
-                                                    <thead>
-                                                        <tr>
-                                                            <th>Date Processed</th>
-                                                            <th>Period</th>
-                                                            <th>Type</th>
-                                                            <th>Amount</th>
-                                                            <th>Status</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody>
-                                                        <tr style={{ opacity: 0.6 }}>
-                                                            <td colSpan={5} style={{ textAlign: "center", padding: 40 }}>
-                                                                <Calendar size={24} color="var(--text-muted)" style={{ marginBottom: 12, opacity: 0.5 }} />
-                                                                <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text-muted)" }}>No payroll history generated yet.</div>
-                                                                <div style={{ fontSize: 12, color: "var(--text-dim)" }}>Past payslips and allowances will appear here.</div>
-                                                            </td>
-                                                        </tr>
-                                                    </tbody>
-                                                </table>
+                                {finTab === 'overview' ? (
+                                    <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 24, marginBottom: 40 }}>
+                                        {(!isStaffSelfView || s.payBaseCompensationCard !== false) && (
+                                            <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)", borderRadius: 16, padding: 24, boxShadow: "var(--glass-shadow)" }}>
+                                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                                                    <div
+                                                        style={{
+                                                            fontSize: 11,
+                                                            color: "var(--text-muted)",
+                                                            fontWeight: 800,
+                                                            textTransform: "uppercase",
+                                                            letterSpacing: "0.05em",
+                                                        }}
+                                                    >
+                                                        Base Compensation
+                                                    </div>
+                                                    <DollarSign size={18} color="#10b981" />
+                                                </div>
+                                                <div style={{ fontSize: 32, fontWeight: 900, color: "#10b981" }}>{fmt(staff.salary || 0)}</div>
+                                                <div style={{ fontSize: 13, color: "var(--text-dim)", marginTop: 8 }}>Standard monthly salary allocation</div>
                                             </div>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <>
+                                        {(!isStaffSelfView || s.payPayrollTable !== false || s.payDownloadPayslips !== false) && (
+                                            <>
+                                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+                                                    <h3 style={{ fontSize: 18, fontWeight: 800, color: "var(--text-primary)" }}>Recent Payroll Allocations</h3>
+                                                    {(!isStaffSelfView || s.payDownloadPayslips !== false) && (
+                                                        <Button size="sm" variant="ghost" disabled>
+                                                            Download Payslips
+                                                        </Button>
+                                                    )}
+                                                </div>
+
+                                                {(!isStaffSelfView || s.payPayrollTable !== false) && (
+                                                    <div className="table-container" style={{ border: "1px solid var(--border-subtle)", borderRadius: 16 }}>
+                                                        <table className="table-modern" style={{ margin: 0 }}>
+                                                            <thead>
+                                                                <tr>
+                                                                    <th className="sticky-col" title="Date Processed">Date Processed</th>
+                                                                    <th title="Period">Period</th>
+                                                                    <th title="Type">Type</th>
+                                                                    <th title="Amount">Amount</th>
+                                                                    <th className="status-col" title="Status">Status</th>
+                                                                    <th style={{ textAlign: "right" }} title="Actions">Actions</th>
+                                                                </tr>
+                                                            </thead>
+                                                            {(() => {
+                                                                const myPay = (data.payroll || []).filter(p => p.driver === staff.id).sort((a,b) => b.month.localeCompare(a.month));
+                                                                if (myPay.length === 0) {
+                                                                    return (
+                                                                        <tbody>
+                                                                            <tr style={{ opacity: 0.6 }}>
+                                                                                <td colSpan={6} style={{ textAlign: "center", padding: 40 }}>
+                                                                                    <Calendar size={24} color="var(--text-muted)" style={{ marginBottom: 12, opacity: 0.5 }} />
+                                                                                    <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text-muted)" }}>No payroll history generated yet.</div>
+                                                                                    <div style={{ fontSize: 12, color: "var(--text-dim)" }}>Past payslips and allowances will appear here.</div>
+                                                                                </td>
+                                                                            </tr>
+                                                                        </tbody>
+                                                                    );
+                                                                }
+                                                                return (
+                                                                    <tbody>
+                                                                        {myPay.map(p => (
+                                                                            <tr key={p.id}>
+                                                                                <td className="sticky-col">{p.paidDate ? fmtDate(p.paidDate) : '—'}</td>
+                                                                                <td style={{ fontWeight: 800, color: "var(--text-primary)" }}>{p.month}</td>
+                                                                                <td><Badge status="Salary" /></td>
+                                                                                <td style={{ fontWeight: 800, color: "var(--brand-primary)" }}>{fmt((p.baseSalary || 0) + (p.allowance || 0) - (p.deductions || 0))}</td>
+                                                                                <td className="status-col"><Badge status={p.status} /></td>
+                                                                                <td style={{ textAlign: "right" }}>
+                                                                                    {(!isStaffSelfView || s.payEditRecord !== false) && (
+                                                                                        <Button size="sm" variant="ghost" icon={Edit2} onClick={() => openModal("payroll", p)}>Edit</Button>
+                                                                                    )}
+                                                                                </td>
+                                                                            </tr>
+                                                                        ))}
+                                                                    </tbody>
+                                                                );
+                                                            })()}
+                                                        </table>
+                                                    </div>
+                                                )}
+                                            </>
                                         )}
                                     </>
                                 )}

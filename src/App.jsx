@@ -28,6 +28,7 @@ import { JourneyProfile } from "./pages/JourneyProfile";
 import { Customers } from "./pages/Customers";
 import { CustomerProfile } from "./pages/CustomerProfile";
 import { StaffProfile } from "./pages/StaffProfile";
+import { Incidents } from "./pages/Incidents";
 import { ImportReview } from "./pages/ImportReview";
 import { TyreMonitor } from "./pages/TyreMonitor";
 import { GlobalModals } from "./components/GlobalModals";
@@ -119,12 +120,28 @@ export default function App() {
         flex: 1,
         padding: !adminAuth.isAuthenticated() ? "0" : (isMobile ? "16px" : "32px"),
         marginTop: !adminAuth.isAuthenticated() ? "0" : (state.previewMode ? "calc(var(--topbar-height) + 40px)" : "var(--topbar-height)"),
-        minWidth: 0,
+        minWidth: "400px",
         width: "100%",
         display: "flex",
         flexDirection: "column",
     };
 
+
+    const isLogin = location.pathname === "/login";
+    const authed = adminAuth.isAuthenticated();
+
+    if (isLogin && !authed) {
+        return (
+            <div id="app-shell" style={layoutStyle}>
+                <main style={{ ...mainStyle, padding: 0, marginTop: 0 }}>
+                    <Routes>
+                        <Route path="/login" element={<Login showToast={state.showToast} />} />
+                    </Routes>
+                </main>
+                <ToastContainer toasts={state.toasts} />
+            </div>
+        );
+    }
 
     return (
         <div id="app-shell" style={layoutStyle}>
@@ -136,8 +153,7 @@ export default function App() {
                 />
             )}
             
-            
-            {adminAuth.isAuthenticated() && <Topbar {...p} />}
+            {authed && <Topbar {...p} />}
             <PreviewModeBanner
                 previewMode={state.previewMode}
                 label={previewLabel}
@@ -170,6 +186,7 @@ export default function App() {
                                     <Route path="/journeys/:id" element={<ErrorBoundary><JourneyProfile {...p} /></ErrorBoundary>} />
                                     <Route path="/fuel" element={<ErrorBoundary><FuelLog {...p} /></ErrorBoundary>} />
                                     <Route path="/expenses" element={<ErrorBoundary><Expenses {...p} /></ErrorBoundary>} />
+                                    <Route path="/incidents" element={<ErrorBoundary><Incidents {...p} /></ErrorBoundary>} />
                                     <Route path="/invoices" element={<ErrorBoundary><Invoices {...p} /></ErrorBoundary>} />
                                     <Route path="/payroll" element={<ErrorBoundary><Payroll {...p} /></ErrorBoundary>} />
                                     <Route path="/maintenance" element={<ErrorBoundary><Maintenance {...p} /></ErrorBoundary>} />

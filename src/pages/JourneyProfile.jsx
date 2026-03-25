@@ -83,7 +83,7 @@ export function JourneyProfile({
     const isPendingVerif = journey.status === 'Awaiting Start Verification' || journey.status === 'Awaiting Verification';
 
     return (
-        <div style={{ maxWidth: 1400, margin: "0 auto" }}>
+        <div className="page-shell">
             {/* Header / Banner */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 20, marginBottom: 32, flexWrap: 'wrap' }}>
                 <Button variant="secondary" icon={ArrowLeft} onClick={() => navigate('/journeys')}>Back</Button>
@@ -93,7 +93,7 @@ export function JourneyProfile({
                 <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 32, fontWeight: 900, color: "var(--text-primary)", lineHeight: 1.1, letterSpacing: "-0.04em" }}>{journey.origin} <ChevronRight size={24} style={{ verticalAlign: 'middle', opacity: 0.3 }} /> {journey.dest}</div>
                     <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 4 }}>
-                        Mission ID: {journey.id.split('-')[0].toUpperCase()} · {fmtDate(journey.date)} · <Badge status={journey.status} />
+                        Mission ID: {journey.id.split('-')[0].toUpperCase()} · {fmtDate(journey.date)} · <Badge status={journey._isRejected ? "Rejected" : journey.status} />
                     </div>
                 </div>
                 <div style={{ display: 'flex', gap: 12 }}>
@@ -179,7 +179,7 @@ export function JourneyProfile({
                                 { l: 'Gross Revenue',  v: fmt(journey.revenue),  c: '#10b981', i: TrendingUp },
                                 { l: 'Estimated Profit', v: fmt(netProfit),       c: netProfit >= 0 ? 'var(--brand-primary)' : '#ef4444', i: PieChart },
                                 { l: 'Mission Distance', v: `${journey.distance || 0} km`, c: "var(--text-primary)", i: Navigation },
-                                { l: 'Journey Status',   v: journey.status,        c: '#3b82f6', i: CheckCircle2 },
+                                { l: 'Journey Status',   v: journey._isRejected ? "Rejected" : journey.status,        c: journey._isRejected ? "#dc2626" : '#3b82f6', i: CheckCircle2 },
                             ].map(k => (
                                 <div key={k.l} style={{ background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: 16, padding: 20 }}>
                                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
@@ -199,8 +199,12 @@ export function JourneyProfile({
                                 </h3>
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, background: "var(--bg-surface)", padding: 24, borderRadius: 20, border: "1px solid var(--border-subtle)" }}>
                                     {[
+                                        { l: 'Consignor (Billing)', v: data.customers.find(c => c.id === journey.customerId)?.name || '—' },
+                                        { l: 'Consignee (Delivery)', v: data.customers.find(c => c.id === journey.deliveryCustomerId)?.name || '—' },
                                         { l: 'Origin Point', v: journey.origin },
                                         { l: 'Destination Point', v: journey.dest },
+                                        { l: 'Pickup Address', v: journey.pickupAddress || '—' },
+                                        { l: 'Delivery Address', v: journey.deliveryAddress || '—' },
                                         { l: 'Deployment Date', v: fmtDate(journey.date) },
                                         { l: 'Completion Date', v: fmtDate(journey.endDate) || 'Active Mission' },
                                         { l: 'Cargo Classification', v: journey.cargo || 'General Freight' },
@@ -505,8 +509,16 @@ export function JourneyProfile({
                                             {i.description || 'No additional details provided.'}
                                         </div>
                                         {i._pendingApproval && (
-                                            <div style={{ marginTop: 12 }}>
+                                            <div style={{ marginTop: 16, display: "flex", gap: 12 }}>
                                                 <Badge status="Warning" text="Pending Review" />
+                                                <Button 
+                                                    variant="primary" 
+                                                    size="small" 
+                                                    style={{ background: "#ef4444", fontSize: 12, padding: "4px 12px" }}
+                                                    onClick={() => setVerifyModal({ ...i, _itemType: 'incident' })}
+                                                >
+                                                    Review & Resolve
+                                                </Button>
                                             </div>
                                         )}
                                     </div>

@@ -59,6 +59,7 @@ export function DriverProfile({ data, setData, dark, isMobile, truckReg, openMod
     const { id } = useParams();
     const navigate = useNavigate();
     const [tab, setTab] = useState('overview');
+    const [finTab, setFinTab] = useState('ledger'); // 'ledger' or 'payroll'
     const mergedPerms = useMergedProfilePermissions();
 
     const driver = data.drivers.find(d => d.id === id);
@@ -248,7 +249,7 @@ export function DriverProfile({ data, setData, dark, isMobile, truckReg, openMod
     };
 
     return (
-        <div style={{ maxWidth: 1400, margin: "0 auto" }}>
+        <div className="page-shell">
             {/* Header / Banner */}
             <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 12 : 20, marginBottom: isMobile ? 20 : 32, flexWrap: 'wrap' }}>
                 <Button variant="secondary" icon={ArrowLeft} onClick={() => navigate('/drivers')}>Back</Button>
@@ -548,25 +549,36 @@ export function DriverProfile({ data, setData, dark, isMobile, truckReg, openMod
                             {d.journeysTable === false ? (
                                 <div style={{ color: "var(--text-dim)", padding: 40, textAlign: "center", fontSize: 14, fontWeight: 500 }}>Mission list is hidden for your account.</div>
                             ) : driverJourneys.length === 0 ? <div style={{ color: "var(--text-dim)", padding: 60, textAlign: 'center', fontSize: 14, fontWeight: 500 }}>No mission history found for this operator.</div> : (
-                                <div style={{ overflowX: "auto", margin: "0 -8px", padding: "0 8px" }} className="hide-scrollbar">
+                                <div className="table-container">
                                 <table className="table-modern" style={{ minWidth: 720 }}>
-                                    <thead><tr>{['Date', 'Strategic Route', 'Vehicle', 'Distance', 'Revenue', 'Status', 'Actions'].map(h => <th key={h}>{h}</th>)}</tr></thead>
+                                    <thead>
+                                        <tr>
+                                            <th className="sticky-col" title="Date">Date</th>
+                                            <th title="Strategic Route">Strategic Route</th>
+                                            <th title="Vehicle">Vehicle</th>
+                                            <th title="Distance">Distance</th>
+                                            <th title="Revenue">Revenue</th>
+                                            <th className="status-col" title="Status">Status</th>
+                                            <th style={{ textAlign: "right" }} title="Actions">Actions</th>
+                                        </tr>
+                                    </thead>
                                     <tbody>
                                         {driverJourneys.map(j => (
                                             <tr key={j.id}>
-                                                <td>{fmtDate(j.date)}</td>
-                                                <td style={{ fontWeight: 800, color: "var(--text-primary)" }}>{j.origin} → {j.dest}</td>
+                                                <td className="sticky-col" title={fmtDate(j.date)}>{fmtDate(j.date)}</td>
+                                                <td style={{ fontWeight: 800, color: "var(--text-primary)" }} title={`${j.origin} → ${j.dest}`}>{j.origin} → {j.dest}</td>
                                                 <td
                                                     style={{
                                                         fontWeight: 600,
                                                         color: "var(--brand-primary)",
                                                         cursor: !isDriverPreview || d.journeysOpenVehicle !== false ? "pointer" : "default",
                                                     }}
+                                                    title={truckReg(j.truck)}
                                                     onClick={() => (!isDriverPreview || d.journeysOpenVehicle !== false) && navigate(`/fleet/${j.truck}`)}
                                                 >{truckReg(j.truck)}</td>
-                                                <td style={{ fontWeight: 600 }}>{j.distance} km</td>
-                                                <td style={{ color: "#10b981", fontWeight: 800 }}>{fmt(j.revenue)}</td>
-                                                <td><Badge status={j.status} /></td>
+                                                <td style={{ fontWeight: 600 }} title={`${j.distance} km`}>{j.distance} km</td>
+                                                <td style={{ color: "#10b981", fontWeight: 800 }} title={fmt(j.revenue)}>{fmt(j.revenue)}</td>
+                                                <td className="status-col" title={j.status}><Badge status={j.status} /></td>
                                                 <td style={{ textAlign: "right", verticalAlign: "middle" }}>
                                                     <TableRowActions
                                                         ariaLabel={`Journey ${j.id}`}
@@ -602,17 +614,25 @@ export function DriverProfile({ data, setData, dark, isMobile, truckReg, openMod
                             {d.performanceFuelTable === false ? (
                                 <div style={{ color: "var(--text-dim)", padding: 40, textAlign: "center", fontWeight: 500 }}>Fuel performance data is hidden for your account.</div>
                             ) : driverFuel.length === 0 ? <div style={{ color: "var(--text-dim)", padding: 60, textAlign: 'center' }}>Insufficient data for efficiency profiling.</div> : (
-                                <div style={{ overflowX: "auto", margin: "0 -8px", padding: "0 8px" }} className="hide-scrollbar">
+                                <div className="table-container">
                                 <table className="table-modern" style={{ minWidth: 560 }}>
-                                    <thead><tr>{['Date', 'Vehicle', 'Consumption', 'Energy Cost', 'Odometer Reading'].map(h => <th key={h}>{h}</th>)}</tr></thead>
+                                    <thead>
+                                        <tr>
+                                            <th className="sticky-col" title="Date">Date</th>
+                                            <th title="Vehicle">Vehicle</th>
+                                            <th title="Consumption">Consumption</th>
+                                            <th title="Energy Cost">Energy Cost</th>
+                                            <th title="Odometer Reading">Odometer Reading</th>
+                                        </tr>
+                                    </thead>
                                     <tbody>
                                         {driverFuel.map(f => (
                                             <tr key={f.id}>
-                                                <td>{fmtDate(f.date)}</td>
-                                                <td style={{ fontWeight: 700 }}>{truckReg(f.truck)}</td>
-                                                <td style={{ fontWeight: 600 }}>{f.litres} L</td>
-                                                <td style={{ color: "#f97316", fontWeight: 800 }}>{fmt(f.litres * f.pricePerL)}</td>
-                                                <td style={{ color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>{f.odom ? `${Number(f.odom).toLocaleString()} km` : '—'}</td>
+                                                <td className="sticky-col" title={fmtDate(f.date)}>{fmtDate(f.date)}</td>
+                                                <td style={{ fontWeight: 700 }} title={truckReg(f.truck)}>{truckReg(f.truck)}</td>
+                                                <td style={{ fontWeight: 600 }} title={`${f.litres} L`}>{f.litres} L</td>
+                                                <td style={{ color: "#f97316", fontWeight: 800 }} title={fmt(f.litres * f.pricePerL)}>{fmt(f.litres * f.pricePerL)}</td>
+                                                <td style={{ color: "var(--text-dim)", fontFamily: "var(--font-mono)" }} title={f.odom ? `${Number(f.odom).toLocaleString()} km` : 'None'}>{f.odom ? `${Number(f.odom).toLocaleString()} km` : '—'}</td>
                                             </tr>
                                         ))}
                                     </tbody>
@@ -647,47 +667,140 @@ export function DriverProfile({ data, setData, dark, isMobile, truckReg, openMod
                 {/* FINANCIALS */}
                 {tab === 'pnl' && d.tabFinancials !== false && (
                     <div style={{ padding: 32 }}>
-                        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 24, marginBottom: 40 }}>
-                            {(!isDriverPreview || d.finGrossRevenueCard !== false) && (
-                            <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)", borderRadius: 16, padding: 24, boxShadow: "var(--glass-shadow)" }}>
-                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-                                    <div style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em" }}>Gross Value Generated</div>
-                                    <TrendingUp size={18} color="#10b981" />
-                                </div>
-                                <div style={{ fontSize: 32, fontWeight: 900, color: "#10b981" }}>{fmt(driverRevenue)}</div>
-                                <div style={{ fontSize: 13, color: "var(--text-dim)", marginTop: 8 }}>Cumulative revenue from all missions</div>
-                            </div>
-                            )}
-                            {(!isDriverPreview || d.finBaseSalaryCard !== false) && (
-                            <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)", borderRadius: 16, padding: 24, boxShadow: "var(--glass-shadow)" }}>
-                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-                                    <div style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em" }}>Base Compensation</div>
-                                    <DollarSign size={18} color="#ef4444" />
-                                </div>
-                                <div style={{ fontSize: 32, fontWeight: 900, color: "#ef4444" }}>{fmt(driver.salary || 0)}</div>
-                                <div style={{ fontSize: 13, color: "var(--text-dim)", marginTop: 8 }}>Standard monthly salary allocation</div>
-                            </div>
-                            )}
+                        {/* Sub-Navigation for Financials */}
+                        <div style={{ display: 'flex', gap: 24, marginBottom: 32, borderBottom: "1px solid var(--border-subtle)" }}>
+                            {['ledger', 'payroll'].map(t => (
+                                <button
+                                    key={t}
+                                    onClick={() => setFinTab(t)}
+                                    style={{
+                                        padding: "12px 0",
+                                        background: "none",
+                                        border: "none",
+                                        borderBottom: finTab === t ? "2px solid var(--brand-primary)" : "2px solid transparent",
+                                        color: finTab === t ? "var(--text-primary)" : "var(--text-dim)",
+                                        fontSize: 14,
+                                        fontWeight: 700,
+                                        cursor: "pointer",
+                                        transition: "all 0.2s ease"
+                                    }}
+                                >
+                                    {t === 'ledger' ? 'General Ledger' : 'Payroll History'}
+                                </button>
+                            ))}
                         </div>
-                        {(!isDriverPreview || d.finMissionLedger !== false) && (
-                        <>
-                        <h3 style={{ fontSize: 18, fontWeight: 800, color: "var(--text-primary)", marginBottom: 20 }}>Mission Performance Ledger</h3>
-                        <div style={{ overflowX: "auto", margin: "0 -8px", padding: "0 8px" }} className="hide-scrollbar">
-                        <table className="table-modern" style={{ minWidth: 520 }}>
-                            <thead><tr>{['Date', 'Route', 'Revenue Share', 'Mileage Allowance'].map(h => <th key={h}>{h}</th>)}</tr></thead>
-                            <tbody>
-                                {driverJourneys.map(j => (
-                                    <tr key={j.id}>
-                                        <td>{fmtDate(j.date)}</td>
-                                        <td style={{ fontWeight: 700 }}>{j.origin} → {j.dest}</td>
-                                        <td style={{ color: "#10b981", fontWeight: 800 }}>{fmt(j.revenue)}</td>
-                                        <td style={{ color: "var(--brand-primary)", fontWeight: 800 }}>{fmt(j.driverMileage || 0)}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                        </div>
-                        </>
+
+                        {finTab === 'ledger' ? (
+                            <>
+                                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 24, marginBottom: 40 }}>
+                                    {(!isDriverPreview || d.finGrossRevenueCard !== false) && (
+                                    <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)", borderRadius: 16, padding: 24, boxShadow: "var(--glass-shadow)" }}>
+                                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                                            <div style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em" }}>Gross Value Generated</div>
+                                            <TrendingUp size={18} color="#10b981" />
+                                        </div>
+                                        <div style={{ fontSize: 32, fontWeight: 900, color: "#10b981" }}>{fmt(driverRevenue)}</div>
+                                        <div style={{ fontSize: 13, color: "var(--text-dim)", marginTop: 8 }}>Cumulative revenue from all missions</div>
+                                    </div>
+                                    )}
+                                    {(!isDriverPreview || d.finBaseSalaryCard !== false) && (
+                                        <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)", borderRadius: 16, padding: 24, boxShadow: "var(--glass-shadow)" }}>
+                                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                                                <div style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em" }}>Base Compensation</div>
+                                                <DollarSign size={18} color="#ef4444" />
+                                            </div>
+                                            <div style={{ fontSize: 32, fontWeight: 900, color: "#ef4444" }}>{fmt(driver.salary || 0)}</div>
+                                            <div style={{ fontSize: 13, color: "var(--text-dim)", marginTop: 8 }}>Standard monthly salary allocation</div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {(!isDriverPreview || d.finMissionLedger !== false) && (
+                                    <>
+                                        <h3 style={{ fontSize: 18, fontWeight: 800, color: "var(--text-primary)", marginBottom: 20 }}>Mission Performance Ledger</h3>
+                                        <div className="table-container" style={{ border: "1px solid var(--border-subtle)", borderRadius: 16 }}>
+                                            <table className="table-modern" style={{ margin: 0 }}>
+                                                <thead>
+                                                    <tr>
+                                                        <th className="sticky-col" title="Date">Date</th>
+                                                        <th title="Route">Route</th>
+                                                        <th title="Revenue Share">Revenue Share</th>
+                                                        <th title="Mileage Allowance">Mileage Allowance</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {driverJourneys.map(j => (
+                                                        <tr key={j.id}>
+                                                            <td className="sticky-col" title={fmtDate(j.date)}>{fmtDate(j.date)}</td>
+                                                            <td style={{ fontWeight: 700 }} title={`${j.origin} → ${j.dest}`}>{j.origin} → {j.dest}</td>
+                                                            <td style={{ color: "#10b981", fontWeight: 800 }} title={fmt(j.revenue)}>{fmt(j.revenue)}</td>
+                                                            <td style={{ color: "var(--brand-primary)", fontWeight: 800 }} title={fmt(j.driverMileage || 0)}>{fmt(j.driverMileage || 0)}</td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </>
+                                )}
+                            </>
+                        ) : (
+                            <div>
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+                                    <h3 style={{ fontSize: 18, fontWeight: 800, color: "var(--text-primary)" }}>Monthly Compensation History</h3>
+                                </div>
+                                <div className="table-container" style={{ border: "1px solid var(--border-subtle)", borderRadius: 16 }}>
+                                    <table className="table-modern" style={{ margin: 0 }}>
+                                        <thead>
+                                            <tr>
+                                                <th className="sticky-col" title="Payment Date">Payment Date</th>
+                                                <th title="Month">Month</th>
+                                                <th title="Breakdown">Breakdown</th>
+                                                <th title="Net Total">Net Total</th>
+                                                <th className="status-col" title="Status">Status</th>
+                                                <th style={{ textAlign: "right" }} title="Actions">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        {(() => {
+                                            const drvPay = (data.payroll || []).filter(p => p.driver === driver.id).sort((a,b) => b.month.localeCompare(a.month));
+                                            if (drvPay.length === 0) {
+                                                return (
+                                                    <tbody>
+                                                        <tr style={{ opacity: 0.6 }}>
+                                                            <td colSpan={6} style={{ textAlign: "center", padding: 40 }}>
+                                                                <Calendar size={24} color="var(--text-muted)" style={{ marginBottom: 12, opacity: 0.5 }} />
+                                                                <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text-muted)" }}>No payroll history found.</div>
+                                                                <div style={{ fontSize: 12, color: "var(--text-dim)" }}>Historical payments will appear here once generated.</div>
+                                                            </td>
+                                                        </tr>
+                                                    </tbody>
+                                                );
+                                            }
+                                            return (
+                                                <tbody>
+                                                    {drvPay.map(p => (
+                                                        <tr key={p.id}>
+                                                            <td className="sticky-col">{p.paidDate ? fmtDate(p.paidDate) : '—'}</td>
+                                                            <td style={{ fontWeight: 800, color: "var(--text-primary)" }}>{p.month}</td>
+                                                            <td style={{ fontSize: 12, color: "var(--text-secondary)" }}>
+                                                                S: {fmt(p.baseSalary || 0)} · M: {fmt(p.mileage || 0)} · A: {fmt(p.allowance || 0)}
+                                                            </td>
+                                                            <td style={{ fontWeight: 800, color: "var(--brand-primary)" }}>
+                                                                {fmt((p.baseSalary || 0) + (p.mileage || 0) + (p.allowance || 0) - (p.deductions || 0))}
+                                                            </td>
+                                                            <td className="status-col"><Badge status={p.status} /></td>
+                                                            <td style={{ textAlign: "right" }}>
+                                                                {(!isDriverPreview || d.payEditRecord !== false) && (
+                                                                    <Button size="sm" variant="ghost" icon={Edit2} onClick={() => openModal("payroll", p)}>Edit</Button>
+                                                                )}
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            );
+                                        })()}
+                                    </table>
+                                </div>
+                            </div>
                         )}
                     </div>
                 )}

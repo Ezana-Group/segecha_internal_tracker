@@ -53,6 +53,23 @@ export function useAppState() {
         }
     }, [data]);
 
+    // Auto-sync to server on every data change (debounced 1.5s) so driver portal always sees latest journey statuses
+    const autoSyncTimerRef = useRef(null);
+    useEffect(() => {
+        if (!PAYMENT_API || !ADMIN_KEY) return;
+        if (autoSyncTimerRef.current) clearTimeout(autoSyncTimerRef.current);
+        autoSyncTimerRef.current = setTimeout(async () => {
+            try {
+                await fetch(`${PAYMENT_API}/api/tracker/data`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'x-admin-key': ADMIN_KEY },
+                    body: JSON.stringify(data),
+                });
+            } catch { /* silent — driver portal will catch up on next poll */ }
+        }, 1500);
+        return () => { if (autoSyncTimerRef.current) clearTimeout(autoSyncTimerRef.current); };
+    }, [data]);
+
     // Toast state
     const [toasts, setToasts] = useState([]);
 
@@ -100,6 +117,9 @@ export function useAppState() {
 
     const [waybillModalJourney, setWaybillModalJourney] = useState(null);
     const [waybillForm, setWaybillForm] = useState(null);
+
+    const [backups, setBackups] = useState([]);
+    const [backupsLoading, setBackupsLoading] = useState(false);
 
     const openModal = (type, item = {}) => { setModal(type); setForm({ ...item }); };
     const closeModal = () => { setModal(null); setForm({}); };
@@ -493,10 +513,10 @@ export function useAppState() {
                 setVerifyMsg(approved ? 'Submission approved.' : 'Submission rejected.');
                 
                 // Update local copy
-                const col = type === 'fuel' ? 'fuel' : 'expenses';
+                const col = type === 'fuel' ? 'fuel' : type === 'expense' ? 'expenses' : 'incidents';
                 setData(d => ({
                     ...d,
-                    [col]: d[col].map(item => item.id === id ? { ...item, ...result.item } : item)
+                    [col]: (d[col] || []).map(item => item.id === id ? { ...item, ...result.item } : item)
                 }));
 
                 await fetchPendingVerifications();
@@ -533,6 +553,9 @@ export function useAppState() {
             if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
             localStorage.setItem(LAST_SYNC_KEY, new Date().toISOString());
             showToast("Server snapshot updated. Driver portal and M-Pesa callbacks use tracker-data.json.", "success");
+            
+            // Refresh backups list if sync was successful (a new backup might have been triggered)
+            fetchBackups();
             return true;
         } catch (e) {
             showToast("Sync failed: " + e.message, "error");
@@ -540,8 +563,98 @@ export function useAppState() {
         }
     }, [data, showToast]);
 
+    const fetchBackups = useCallback(async () => {
+        setBackupsLoading(true);
+        try {
+            const res = await fetch(`${PAYMENT_API}/api/tracker/backups`);
+            const j = await res.json();
+            if (j.success) {
+                setBackups(j.backups || []);
+            }
+        } catch (e) {
+            console.warn("Failed to fetch backups:", e.message);
+        }
+        setBackupsLoading(false);
+    }, []);
+
+    const createManualBackup = async () => {
+        try {
+            const res = await fetch(`${PAYMENT_API}/api/tracker/backup-now`, { method: 'POST' });
+            const j = await res.json();
+            if (j.success) {
+                showToast(j.message, "success");
+                fetchBackups();
+            } else {
+                showToast("Backup failed: " + j.error, "error");
+            }
+        } catch (e) {
+            showToast("Backup connection error: " + e.message, "error");
+        }
+    };
+
+    const restoreFromBackup = async (filename) => {
+        if (!window.confirm(`Are you SURE you want to restore from "${filename}"? This will overwrite ALL current data.`)) return;
+        
+        try {
+            const res = await fetch(`${PAYMENT_API}/api/tracker/restore`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ filename, adminKey: ADMIN_KEY })
+            });
+            const j = await res.json();
+            if (j.success) {
+                showToast("System restored successfully. Reloading data...", "success");
+                // Force a reload to get the new state from server/JSON
+                setTimeout(() => window.location.reload(), 1500);
+            } else {
+                showToast("Restore failed: " + j.error, "error");
+            }
+        } catch (e) {
+            showToast("Restore connection error: " + e.message, "error");
+        }
+    };
+
+    const downloadBackup = async (filename) => {
+        try {
+            const res = await fetch(`${PAYMENT_API}/api/tracker/backups/download/${filename}`);
+            if (!res.ok) throw new Error("Download failed");
+            const blob = await res.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.click();
+            window.URL.revokeObjectURL(url);
+        } catch (e) {
+            showToast("Backup download failed: " + e.message, "error");
+        }
+    };
+
+    const uploadBackup = async (file) => {
+        try {
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                const content = e.target.result;
+                const res = await fetch(`${PAYMENT_API}/api/tracker/upload-backup`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ filename: file.name, content })
+                });
+                const j = await res.json();
+                if (j.success) {
+                    showToast("Backup uploaded successfully.", "success");
+                    fetchBackups();
+                } else {
+                    showToast("Upload failed: " + j.error, "error");
+                }
+            };
+            reader.readAsText(file);
+        } catch (e) {
+            showToast("Upload error: " + e.message, "error");
+        }
+    };
+
     const fetchPendingVerifications = useCallback(async () => {
-        if (!PAYMENT_API) return;
         try {
             const res = await fetch(`${PAYMENT_API}/api/admin/journeys/pending-verification?adminKey=${ADMIN_KEY}`);
             if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
@@ -549,6 +662,7 @@ export function useAppState() {
             const pendingJourneys = result.journeys || [];
             const pendingFuel = result.fuel || [];
             const pendingExpenses = result.expenses || [];
+            const incidents = result.incidents || [];
             const documents = result.documents || [];
             const customers = result.customers || [];
 
@@ -556,7 +670,8 @@ export function useAppState() {
             const combined = [
                 ...pendingJourneys.map(j => ({ ...j, _itemType: 'journey' })),
                 ...pendingFuel.map(f => ({ ...f, _itemType: 'fuel' })),
-                ...pendingExpenses.map(e => ({ ...e, _itemType: 'expense' }))
+                ...pendingExpenses.map(e => ({ ...e, _itemType: 'expense' })),
+                ...incidents.map(i => ({ ...i, _itemType: 'incident' }))
             ];
             setPendingVerifications(combined);
 
@@ -639,6 +754,23 @@ export function useAppState() {
                     nextData.expenses = nextExp;
                 }
 
+                if (incidents.length > 0) {
+                    const nextIncidents = [...(d.incidents || [])];
+                    incidents.forEach(pi => {
+                        const idx = nextIncidents.findIndex(i => i.id === pi.id);
+                        if (idx >= 0) {
+                            if (JSON.stringify(nextIncidents[idx]) !== JSON.stringify(pi)) {
+                                nextIncidents[idx] = { ...nextIncidents[idx], ...pi };
+                                changed = true;
+                            }
+                        } else {
+                            nextIncidents.push(pi);
+                            changed = true;
+                        }
+                    });
+                    nextData.incidents = nextIncidents;
+                }
+
                 return changed ? nextData : d;
             });
         } catch (e) {
@@ -658,7 +790,6 @@ export function useAppState() {
     }, [showToast]);
 
     const fetchImportHistory = useCallback(async () => {
-        if (!PAYMENT_API) return;
         try {
             const res = await fetch(`${PAYMENT_API}/api/admin/import-history?adminKey=${ADMIN_KEY}`);
             if (res.ok) {
@@ -751,16 +882,59 @@ export function useAppState() {
                         const rows = window.XLSX.utils.sheet_to_json(tripsSheet, {
                             header: 1, defval: null, raw: false, dateNF: 'yyyy-mm-dd'
                         });
+                        
+                        const headers = rows[1] || []; // Headers are on row 2 (index 1)
+                        const hMap = (rawHeaders, aliases) => {
+                            const map = {};
+                            rawHeaders.forEach((h, i) => {
+                                const norm = String(h || '').toLowerCase().trim();
+                                for (const [field, aliasList] of Object.entries(aliases)) {
+                                    if (aliasList.includes(norm) && !(field in map)) map[field] = i;
+                                }
+                            });
+                            return map;
+                        };
+
+                        const tripAliases = {
+                            vehicle: ['vehicle', 'truck', 'truck id', 'vehicle reg', 'reg'],
+                            date: ['date', 'departure date', 'trip date'],
+                            origin: ['origin', 'from', 'departure'],
+                            destination: ['destination', 'to', 'arrival', 'dest'],
+                            startOdo: ['start odom', 'start odometer', 'opening mileage', 'opening odom'],
+                            endOdo: ['end odom', 'end odometer', 'closing mileage', 'closing odom'],
+                            standardDist: ['standard distance', 'km', 'dist'],
+                            grossIncome: ['gross income', 'revenue', 'income', 'amount'],
+                            fuelLitres: ['fuel(l)', 'litres', 'liters', 'fuel litres'],
+                            fuelPrice: ['fuel price (per litre)', 'price per litre', 'price/l'],
+                            driverMileage: ['driver millage', 'driver mileage', 'mileage allowance'],
+                            turnboy: ['turn-boy', 'turnboy', 'turnboy allowance'],
+                            roadUsers: ['road users fee', 'road users', 'tolls'],
+                            otherExp: ['other expenses', 'additional expenses'],
+                            progressTrack: ['status', 'progress tracking', 'trip status'],
+                        };
+
+                        const col = hMap(headers, tripAliases);
                         const dataRows = rows.slice(2).filter(r => r.some(v => v !== null));
 
                         dataRows.forEach((row, idx) => {
+                            const get = (field) => row[col[field]] ?? null;
+
                             const rawRow = {
-                                vehicle:       row[1], date:          row[2], origin:        row[3], destination:   row[4],
-                                startOdo:      row[5], endOdo:        row[6], standardDist:  row[8], mileageKm:     row[9],
-                                fuelLitres:    row[10], fuelPrice:     row[11], grossIncome:   row[12], depositRecvd:  row[13],
-                                fuelCost:      row[14], driverMileage: row[15], turnboy:       row[16], roadUsers:     row[17],
-                                otherExp:      row[18], totalExpense:  row[19], netIncome:     row[20], bankDeposit:   row[21],
-                                dateDeposited: row[22], progressTrack: row[25],
+                                vehicle:       get('vehicle'), 
+                                date:          get('date'), 
+                                origin:        get('origin'), 
+                                destination:   get('destination'),
+                                startOdo:      get('startOdo'), 
+                                endOdo:        get('endOdo'), 
+                                standardDist:  get('standardDist'), 
+                                grossIncome:   get('grossIncome'),
+                                fuelLitres:    get('fuelLitres'), 
+                                fuelPrice:     get('fuelPrice'),
+                                driverMileage: get('driverMileage'), 
+                                turnboy:       get('turnboy'), 
+                                roadUsers:     get('roadUsers'),
+                                otherExp:      get('otherExp'), 
+                                progressTrack: get('progressTrack'),
                             };
 
                             const errors = [];
@@ -1107,11 +1281,19 @@ export function useAppState() {
         driverName, driverPhone, staffName, truckReg, customerName, truckStats, tyreStatus, maintenanceStatus, logMaintenance,
         toasts, showToast,
         verifyModal, setVerifyModal, pendingVerifications, rejectReason, setRejectReason, rejectedFields, setRejectedFields, verifyLoading, verifyMsg, setVerifyMsg,
-        importSession, setImportSession, importHistory, runExcelImport, commitImport,
+        importSession, setImportSession, importHistory, runExcelImport,
         fillTemplate,
         trailerReg: (id) => data.trailers?.find(t => t.id === id)?.reg || id,
         previewMode,
         setPreviewMode,
         clearPreviewMode,
+
+        backups,
+        backupsLoading,
+        fetchBackups,
+        createManualBackup,
+        restoreFromBackup,
+        downloadBackup,
+        uploadBackup,
     };
 }

@@ -1,8 +1,8 @@
 export const SEED = {
     trucks: [
-        { id: "T001", uId: "TRK-001", reg: "KCB 100A", make: "Isuzu FVR", year: 2020, type: "Rigid", capacity: 7, driver: "D001", status: "Active", odom: 142300, tyreOdom: 110000, tyreLimit: 60000 },
-        { id: "T002", uId: "TRK-002", reg: "KDA 200B", make: "Mercedes Actros", year: 2019, type: "Semi-Trailer", capacity: 28, driver: "D002", status: "Active", odom: 310500, tyreOdom: 270000, tyreLimit: 60000 },
-        { id: "T003", uId: "TRK-003", reg: "KDD 300C", make: "Man TGS", year: 2021, type: "Tipper", capacity: 20, driver: "D003", status: "Maintenance", odom: 87200, tyreOdom: 60000, tyreLimit: 60000 },
+        { id: "T001", uId: "TRK-001", reg: "KCB 100A", make: "Isuzu FVR", year: 2020, type: "Flatbed", isRigid: true, capacity: 7, driver: "D001", status: "Active", odom: 142300, tyreOdom: 110000, tyreLimit: 60000 },
+        { id: "T002", uId: "TRK-002", reg: "KDA 200B", make: "Mercedes Actros", year: 2019, type: "Prime Mover", isRigid: false, capacity: 28, driver: "D002", status: "Active", odom: 310500, tyreOdom: 270000, tyreLimit: 60000 },
+        { id: "T003", uId: "TRK-003", reg: "KDD 300C", make: "Man TGS", year: 2021, type: "Tipper", isRigid: true, capacity: 20, driver: "D003", status: "Maintenance", odom: 87200, tyreOdom: 60000, tyreLimit: 60000 },
     ],
     trailers: [
         { id: "TRL-001", uId: "TRL-001", reg: "ZEA 101", make: "Standard Flatbed", type: "Flatbed", status: "Active" },
@@ -139,6 +139,15 @@ export const SEED = {
             description: "The default template for generated PDF invoices.",
             subject: "Invoice Template",
             body: "<h1>Invoice {{invoiceId}}</h1><p>Customer: {{customerName}}</p><p>Amount: {{amount}}</p>"
+        },
+        {
+            id: "t5",
+            name: "WhatsApp Invoice Due",
+            type: "WhatsApp",
+            category: "Finance",
+            description: "WhatsApp message sent to customers for invoice due reminders.",
+            subject: "Invoice Due Reminder",
+            body: "Hi {{customerName}},\n\n{{businessName}} {{invoiceId}} — amount due KES {{amount}}. Due {{dueDate}}.\n\nThank you,\n{{businessName}} Group Ltd"
         }
     ],
 };

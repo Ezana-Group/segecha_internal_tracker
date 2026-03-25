@@ -18,6 +18,7 @@ export const SC = {
     Suspended: "#dc2626",
     "Awaiting Verification": "#6366f1",
     "Awaiting Start Verification": "#6366f1",
+    Rejected: "#dc2626",
     Success: "#22c55e",
     Warning: "#ca8a04",
     Default: "#64748b",

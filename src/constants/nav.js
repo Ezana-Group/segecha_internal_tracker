@@ -22,6 +22,7 @@ export const NAV = [
     { id: "maintenance", path: "/maintenance", label: "Maintenance" },
     { id: "tyres", path: "/tyres", label: "Tyre health" },
     { id: "pnl", path: "/pnl", label: "P&L report" },
+    { id: "incidents", path: "/incidents", label: "Incidents" },
     { id: "documents", path: "/documents", label: "Documents" },
     { id: "import", path: "/import", label: "Import" },
     { id: "settings", path: "/settings", label: "Settings" },
@@ -29,7 +30,7 @@ export const NAV = [
 
 // ─── Customizable Dropdowns ──────────────────────────────────────
 export const CATS = _S.expenseCategories?.length ? _S.expenseCategories : ["Fuel", "Maintenance", "Toll", "Permit", "Tyre", "Allowance", "Salary", "Insurance", "Other"];
-export const TRUCK_TYPES = _S.truckTypes?.length ? _S.truckTypes : ["Rigid", "Semi-Trailer", "Tipper", "Flatbed", "Tanker", "Box Body"];
+export const TRUCK_TYPES = _S.truckTypes?.length ? _S.truckTypes : ["Prime Mover", "Tipper", "Tanker", "Flatbed", "Box Body", "Refrigerated", "Other"];
 /** Snapshot at module load; use `getLicenceClasses` from `settingsStore` when options must stay in sync */
 export const LICENCE_CLASSES = readLicenceClasses();
 export const CARGO_TYPES = _S.cargoTypes?.length ? _S.cargoTypes : ["Electronics", "FMCG Goods", "Spare Parts", "Machinery", "Cement", "Fertiliser", "Fuel", "Timber", "Other"];
@@ -37,7 +38,7 @@ export const CARGO_TYPES = _S.cargoTypes?.length ? _S.cargoTypes : ["Electronics
 export const COMMON_ROUTES = readCommonRoutes();
 
 // ─── Status Enums (not customizable) ─────────────────────────────
-export const STATUSES_JOURNEY = ["Loading", "In Transit", "Awaiting Verification", "Completed", "Cancelled"];
+export const STATUSES_JOURNEY = ["Accepted", "Loading", "In Transit", "Awaiting Verification", "Completed", "Cancelled"];
 export const STATUSES_TRUCK = ["Active", "Maintenance", "Off Road"];
 
 // ─── Configurable Thresholds ─────────────────────────────────────

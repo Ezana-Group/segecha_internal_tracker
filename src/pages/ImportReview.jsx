@@ -46,7 +46,7 @@ const HistoryView = ({ history, T, S, navigate }) => {
 
     return (
         <Card style={{ padding: 0, overflow: 'hidden' }}>
-            <div style={{ overflowX: 'auto' }}>
+            <div className="table-container" style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead>
                         <tr style={{ background: 'var(--bg-main)' }}>
@@ -549,7 +549,7 @@ export const ImportReview = ({ importSession, setImportSession, importHistory, r
                         )}
                     </div>
                 ) : (
-                    <div style={{ overflowX: 'auto' }}>
+                    <div className="table-container" style={{ overflowX: 'auto' }}>
                         <table style={{ ...sTable, minWidth: activeSheet === 'trips' ? 1100 : 800 }}>
                             <thead>
                                 {activeSheet === 'trips' ? (

@@ -7,7 +7,8 @@ import {
     Edit2, 
     Trash2, 
     ExternalLink,
-    Mail
+    Mail,
+    AlertCircle
 } from "lucide-react";
 import { fmt, uid } from "../utils/formatters";
 import { validators } from "../utils/validators";
@@ -19,16 +20,34 @@ import { Badge } from "../components/Badge";
 import { Button } from "../components/Button";
 import { PageHeader } from "../components/PageHeader";
 import { TableRowActions } from "../components/TableRowActions";
+import { SortableTableHead } from "../components/SortableTableHead";
+import { useTableFilter } from "../hooks/useTableFilter";
 
 export function Drivers({ data, setData, dark, isMobile, modal, form, setForm, openModal, closeModal, saveItem, delItem, truckReg }) {
     const navigate = useNavigate();
-    const [searchTerm, setSearchTerm] = useState("");
 
-    const filteredDrivers = data.drivers.filter(d => 
-        (d.name || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (d.phone || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (d.uId || "").toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    // Refine drivers for sorting and filtering
+    const refinedDrivers = data.drivers.map(d => ({
+        ...d,
+        _salary: Number(d.salary || 0),
+        _vehicle: d.truck ? truckReg(d.truck) : "Unassigned",
+        _contact: `${d.phone} ${d.mpesa} ${d.email || ""}`
+    }));
+
+    const { 
+        filteredRows: sortedDrivers, 
+        setSort: requestSort, 
+        sortState: sortConfig,
+        filterState: driverFilters,
+        applyFilter: handleDriverFilterChange,
+        getUniqueValues: getDriverUniqueValues,
+        searchTerm,
+        setSearchTerm
+    } = useTableFilter(refinedDrivers, { 
+        namespace: "drv", 
+        initialSort: { col: "name", dir: "asc" },
+        searchColumns: ["name", "license", "uId", "phone"]
+    });
 
     return (
         <div className="page-shell">
@@ -48,41 +67,51 @@ export function Drivers({ data, setData, dark, isMobile, modal, form, setForm, o
             />
 
             <Card className="animate-fade-in" style={{ padding: 0, overflow: "hidden" }}>
-                <div style={{ padding: 20, borderBottom: "1px solid var(--border-subtle)" }}>
-                    <div style={{ position: "relative", maxWidth: 400 }}>
-                        <SearchIcon size={18} style={{ position: "absolute", left: 16, top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)" }} />
-                        <input 
-                            type="text" 
-                            placeholder="Search drivers by name, phone, or ID..." 
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            style={{ width: "100%", padding: "12px 16px 12px 48px", borderRadius: 12, border: "1px solid var(--border-subtle)", background: "var(--bg-card)", fontSize: 14, color: "var(--text-primary)", outline: "none" }}
-                        />
-                    </div>
+                <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", gap: 12 }}>
+                    <SearchIcon size={18} color="var(--text-dim)" />
+                    <input
+                        type="search"
+                        placeholder="Search drivers..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        style={{ border: "none", background: "none", padding: 0, fontSize: 14, flex: 1, color: "var(--text-primary)", fontWeight: 500 }}
+                    />
                 </div>
-                <div style={{ overflowX: "auto" }}>
+                <div className="table-container">
                     <table className="table-modern">
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>Driver Name</th>
-                                <th>Contact Information</th>
-                                <th>License & Class</th>
-                                <th>Assigned Vehicle</th>
-                                <th>Monthly Salary</th>
-                                <th>Status</th>
-                                <th style={{ textAlign: "right" }}>Actions</th>
-                            </tr>
-                        </thead>
+                        <SortableTableHead
+                            requestSort={requestSort}
+                            sortConfig={sortConfig}
+                            filterState={driverFilters}
+                            onFilterChange={handleDriverFilterChange}
+                            getUniqueValues={getDriverUniqueValues}
+                            columns={[
+                                { key: "uId", label: "ID", sortable: true },
+                                { key: "name", label: "Driver Name", sortable: true },
+                                { key: "phone", label: "Contact Information", sortable: true },
+                                { key: "license", label: "License & Class", sortable: true },
+                                { key: "_vehicle", label: "Assigned Vehicle", sortable: true },
+                                { key: "_salary", label: "Monthly Salary", sortable: true, align: "right" },
+                                { key: "status", label: "Status", sortable: true },
+                                { key: "actions", label: "Actions", sortable: false, align: "right" }
+                            ]}
+                        />
                         <tbody>
-                            {filteredDrivers.map(d => (
+                            {sortedDrivers.length === 0 ? (
+                                <tr>
+                                    <td colSpan="8" style={{ textAlign: "center", padding: 80, color: "var(--text-dim)" }}>
+                                        <div style={{ marginBottom: 16 }}><AlertCircle size={48} opacity={0.2} /></div>
+                                        <div style={{ fontWeight: 600 }}>No drivers found matching your filters.</div>
+                                    </td>
+                                </tr>
+                            ) : sortedDrivers.map(d => (
                                 <tr key={d.id} onClick={() => navigate(`/drivers/${d.id}`)} style={{ cursor: "pointer" }} className="hover-scale">
-                                    <td>
+                                    <td className="sticky-col" title={d.uId}>
                                         <div style={{ fontWeight: 800, color: "var(--brand-primary)", fontFamily: "var(--font-mono)", fontSize: 13 }}>
                                             {d.uId}
                                         </div>
                                     </td>
-                                    <td>
+                                    <td title={d.name}>
                                         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                                             <div style={{ 
                                                 width: 40, 
@@ -104,13 +133,13 @@ export function Drivers({ data, setData, dark, isMobile, modal, form, setForm, o
                                             </div>
                                         </div>
                                     </td>
-                                    <td>
+                                    <td title={d.phone}>
                                         <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)" }}>{d.phone}</div>
                                         <div style={{ fontSize: 11, color: "var(--text-dim)", display: "flex", alignItems: "center", gap: 4, marginTop: 2 }}>
                                             <CreditCard size={10} color="#10b981" /> {d.mpesa}
                                         </div>
                                     </td>
-                                    <td>
+                                    <td title={d.license}>
                                         <div style={{ fontSize: 12, fontWeight: 700, fontFamily: "var(--font-mono)", color: "var(--text-secondary)" }}>{d.license}</div>
                                         <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>
                                             {(Array.isArray(d.class) ? d.class : [d.class]).filter(Boolean).map(c => (
@@ -118,22 +147,22 @@ export function Drivers({ data, setData, dark, isMobile, modal, form, setForm, o
                                             ))}
                                         </div>
                                     </td>
-                                    <td>
+                                    <td title={d._vehicle}>
                                         <div style={{ 
                                             fontSize: 13, 
                                             fontWeight: 800, 
-                                            color: "var(--brand-primary)",
+                                            color: d.truck ? "var(--brand-primary)" : "var(--text-dim)",
                                             display: "flex",
                                             alignItems: "center",
                                             gap: 6
                                         }}>
-                                            {d.truck ? truckReg(d.truck) : <span style={{ color: "var(--text-dim)", fontWeight: 500 }}>Unassigned</span>}
+                                            {d._vehicle}
                                         </div>
                                     </td>
-                                    <td>
+                                    <td style={{ textAlign: "right" }} title={fmt(d.salary)}>
                                         <div style={{ fontSize: 14, fontWeight: 800, color: "#10b981" }}>{fmt(d.salary)}</div>
                                     </td>
-                                    <td><Badge status={d.status} /></td>
+                                    <td className="status-col" title={d.status}><Badge status={d.status} /></td>
                                     <td style={{ textAlign: "right", verticalAlign: "middle" }}>
                                         <TableRowActions
                                             ariaLabel={`Actions for ${d.name}`}

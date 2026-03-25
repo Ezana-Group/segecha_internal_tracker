@@ -28,28 +28,57 @@ import { Badge } from "../components/Badge";
 import { Button } from "../components/Button";
 import { PageHeader } from "../components/PageHeader";
 import { TableRowActions } from "../components/TableRowActions";
+import { SortableTableHead } from "../components/SortableTableHead";
+import { useTableFilter } from "../hooks/useTableFilter";
 
 export function Payroll({ data, setData, dark, isMobile, modal, form, setForm, openModal, closeModal, saveItem, delItem, markPayrollPaid, truckReg, customerName, driverName }) {
     const payrollRows = Array.isArray(data.payroll) ? data.payroll : [];
     const months = [...new Set(payrollRows.map((p) => p.month))].sort().reverse();
     const [selMonth, setSelMonth] = useState(months[0] || new Date().toISOString().slice(0, 7));
-    const [searchTerm, setSearchTerm] = useState("");
     
-    const payStatusFilter = form._payStatusFilter || "ALL";
     const monthPayroll = payrollRows.filter((p) => p.month === selMonth);
-    const filteredPayroll = monthPayroll.filter((p) => {
-        const drv = data.drivers?.find((d) => d.id === p.driver) || (data.turnboys || []).find((t) => t.id === p.driver);
-        const name = (drv?.name || p.driver || "").toLowerCase();
-        const mpesa = (drv?.mpesa || p.mpesaRef || "").toLowerCase();
-        const query = searchTerm.toLowerCase();
-        const matchesSearch = name.includes(query) || mpesa.includes(query);
-        const matchesStatus = payStatusFilter === "ALL" || p.status === payStatusFilter;
-        return matchesSearch && matchesStatus;
+
+    // Refine payroll for sorting and filtering
+    const refinedPayroll = monthPayroll.map(p => {
+        const drv = data.drivers.find(d => d.id === p.driver) || (data.turnboys || []).find(t => t.id === p.driver);
+        const journeys = data.journeys.filter(j => (j.driver === p.driver || j.turnboyId === p.driver) && j.date && j.date.startsWith(selMonth) && j.status === 'Completed');
+        const calculatedMileage = journeys.reduce((s, j) => {
+            if (j.driver === p.driver) return s + (j.driverMileage || 0);
+            if (j.turnboyId === p.driver) return s + (j.turnboyMileage || 0);
+            return s;
+        }, 0);
+
+        return {
+            ...p,
+            _name: drv?.name || p.driver,
+            _role: drv?.role || 'Staff',
+            _net: Number(p.baseSalary || 0) + Number(p.allowance || 0) - Number(p.deductions || 0),
+            _base: Number(p.baseSalary || 0),
+            _allowance: Number(p.allowance || 0),
+            _deductions: Number(p.deductions || 0),
+            _calculatedMileage: calculatedMileage,
+            _mpesa: p.mpesaRef || drv?.mpesa || ""
+        };
+    });
+
+    const { 
+        filteredRows: sortedPayroll, 
+        setSort: requestSort, 
+        sortState: sortConfig, 
+        filterState: payrollFilters, 
+        applyFilter: handlePayrollFilterChange,
+        getUniqueValues: getPayrollUniqueValues,
+        searchTerm,
+        setSearchTerm
+    } = useTableFilter(refinedPayroll, { 
+        namespace: "pay", 
+        initialSort: { col: "_name", dir: "asc" },
+        searchColumns: ["_name", "_mpesa"]
     });
         
-    const totalNet = monthPayroll.reduce((s, p) => s + +p.baseSalary + +p.allowance - +p.deductions, 0);
-    const paidAmount = monthPayroll.filter(p => p.status === "Paid").reduce((s, p) => s + +p.baseSalary + +p.allowance - +p.deductions, 0);
-    const pendingAmount = monthPayroll.filter(p => p.status === "Pending").reduce((s, p) => s + +p.baseSalary + +p.allowance - +p.deductions, 0);
+    const filteredTotalNet = sortedPayroll.reduce((s, p) => s + p._net, 0);
+    const filteredPaidAmount = sortedPayroll.filter(p => p.status === "Paid").reduce((s, p) => s + p._net, 0);
+    const filteredPendingAmount = sortedPayroll.filter(p => p.status === "Pending").reduce((s, p) => s + p._net, 0);
 
     return (
         <div className="page-shell">
@@ -72,9 +101,9 @@ export function Payroll({ data, setData, dark, isMobile, modal, form, setForm, o
             {/* Financial Summary */}
             <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)", gap: 20, marginBottom: 32 }}>
                 {[
-                    { label: "Total Net Liability", value: fmt(totalNet), icon: DollarSign, color: "var(--brand-primary)" },
-                    { label: "Successfully Paid", value: fmt(paidAmount), icon: CheckCircle2, color: "#10b981" },
-                    { label: "Pending Disbursement", value: fmt(pendingAmount), icon: Clock, color: "#ef4444" }
+                    { label: "Filtered Net Liability", value: fmt(filteredTotalNet), icon: DollarSign, color: "var(--brand-primary)" },
+                    { label: "Filtered Paid", value: fmt(filteredPaidAmount), icon: CheckCircle2, color: "#10b981" },
+                    { label: "Filtered Pending", value: fmt(filteredPendingAmount), icon: Clock, color: "#ef4444" }
                 ].map((kpi, idx) => (
                     <Card key={idx} style={{ padding: 20, background: "var(--bg-card)", border: "1px solid var(--border-subtle)", borderRadius: 16 }}>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
@@ -89,10 +118,10 @@ export function Payroll({ data, setData, dark, isMobile, modal, form, setForm, o
                 ))}
             </div>
 
-            {/* Filters and Month Selection (Premium Section) */}
+            {/* Month Selection */}
             <div style={{ 
                 display: "flex", 
-                justifyContent: "space-between", 
+                justifyContent: "flex-end", 
                 alignItems: "center", 
                 marginBottom: 24, 
                 flexWrap: "wrap", 
@@ -103,67 +132,19 @@ export function Payroll({ data, setData, dark, isMobile, modal, form, setForm, o
                 border: "1px solid var(--border-subtle)",
                 backdropFilter: "blur(12px)"
             }}>
-                <div style={{ position: "relative", flex: 1, maxWidth: 450 }}>
-                    <SearchIcon style={{ position: "absolute", left: 16, top: "50%", transform: "translateY(-50%)", color: "var(--brand-primary)" }} size={18} />
-                    <input 
-                        className="input-modern input-modern--filter"
-                        placeholder="Search staff or M-Pesa records..." 
-                        style={{ 
-                            paddingLeft: 48, 
-                            height: 48, 
-                            fontSize: 14, 
-                            borderRadius: 14,
-                            background: "var(--surface-subtle)",
-                            border: "1px solid transparent"
-                        }}
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                    />
-                </div>
-                
                 <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                    <div style={{ position: "relative" }}>
-                        <Filter style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--text-dim)", pointerEvents: "none" }} size={14} />
-                        <select 
-                            className="input-premium" 
-                            style={{ width: 140, fontSize: 13, height: 44, padding: "0 12px 0 34px", borderRadius: 12, background: "var(--surface-subtle)" }}
-                            value={payStatusFilter}
-                            onChange={e => setForm(f => ({ ...f, _payStatusFilter: e.target.value }))}
-                        >
-                            <option value="ALL">All Status</option>
-                            {["Pending", "Paid"].map(status => <option key={status} value={status}>{status}</option>)}
-                        </select>
-                    </div>
-                    <div style={{ display: "flex", gap: 6, background: "var(--surface-subtle)", padding: 4, borderRadius: 14, border: "1px solid var(--border-dim)" }}>
-                        {months.slice(0, 3).map(m => (
-                            <button 
-                                key={m}
-                                onClick={() => setSelMonth(m)}
-                                style={{ 
-                                    padding: "6px 14px", 
-                                    borderRadius: 10, 
-                                    border: "none", 
-                                    background: selMonth === m ? "var(--brand-primary)" : "transparent",
-                                    color: selMonth === m ? "#fff" : "var(--text-secondary)",
-                                    fontSize: 12,
-                                    fontWeight: 700,
-                                    cursor: "pointer",
-                                    transition: "all 0.2s"
-                                }}
-                            >
-                                {monthLabel(m).split(' ')[0]}
-                            </button>
-                        ))}
+                    <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                        <Calendar size={18} color="var(--brand-primary)" />
+                        <div style={{ fontSize: 13, fontWeight: 800, color: "var(--text-primary)" }}>Select Payroll Month:</div>
                     </div>
                     <div style={{ position: "relative" }}>
                         <Calendar style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--text-dim)", pointerEvents: "none" }} size={14} />
                         <select 
                             className="input-premium"
-                            style={{ width: 150, fontSize: 13, height: 44, padding: "0 12px 0 34px", borderRadius: 12, background: "var(--surface-subtle)" }}
+                            style={{ width: 180, fontSize: 13, height: 44, padding: "0 12px 0 34px", borderRadius: 12, background: "var(--surface-subtle)" }}
                             value={selMonth}
                             onChange={e => setSelMonth(e.target.value)}
                         >
-                            <option value={selMonth}>Historical...</option>
                             {months.map(m => <option key={m} value={m}>{monthLabel(m)}</option>)}
                         </select>
                     </div>
@@ -171,111 +152,115 @@ export function Payroll({ data, setData, dark, isMobile, modal, form, setForm, o
             </div>
 
             {/* Payroll Table */}
-            <Card style={{ padding: 0, overflow: "hidden" }}>
-                <div style={{ overflowX: "auto" }}>
+            <Card style={{ padding: 0, overflow: "hidden", borderRadius: 24 }}>
+                <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", gap: 12 }}>
+                    <SearchIcon size={18} color="var(--text-dim)" />
+                    <input
+                        type="search"
+                        placeholder="Search payroll..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        style={{ border: "none", background: "none", padding: 0, fontSize: 14, flex: 1, color: "var(--text-primary)", fontWeight: 500 }}
+                    />
+                </div>
+                <div className="table-container">
                     <table className="table-modern">
-                        <thead>
-                            <tr>
-                                <th>Staff Member</th>
-                                <th>Earnings Detail</th>
-                                <th>Deductions</th>
-                                <th>Net Amount</th>
-                                <th>M-Pesa Trace</th>
-                                <th>Status</th>
-                                <th style={{ textAlign: "right" }}>Actions</th>
-                            </tr>
-                        </thead>
+                        <SortableTableHead 
+                            requestSort={requestSort}
+                            sortConfig={sortConfig}
+                            filterState={payrollFilters}
+                            onFilterChange={handlePayrollFilterChange}
+                            getUniqueValues={getPayrollUniqueValues}
+                            columns={[
+                                { key: "_name", label: "Staff Member", sortable: true },
+                                { key: "_base", label: "Earnings Detail", sortable: true },
+                                { key: "_deductions", label: "Deductions", sortable: true, align: "right" },
+                                { key: "_net", label: "Net Amount", sortable: true, align: "right" },
+                                { key: "status", label: "Status", sortable: true },
+                                { key: "actions", label: "Actions", sortable: false, align: "right" }
+                            ]}
+                        />
                         <tbody>
-                            {filteredPayroll.length === 0 ? (
+                            {sortedPayroll.length === 0 ? (
                                 <tr>
                                     <td colSpan="7" style={{ textAlign: "center", padding: 80, color: "var(--text-dim)" }}>
                                         <div style={{ marginBottom: 16 }}><AlertCircle size={48} opacity={0.2} /></div>
-                                        <div style={{ fontWeight: 600 }}>No pay records found for the current selection.</div>
+                                        <div style={{ fontWeight: 600 }}>No pay records found matching your filters.</div>
                                     </td>
                                 </tr>
-                            ) : filteredPayroll.map(p => {
-                                const drv = data.drivers.find(d => d.id === p.driver) || (data.turnboys || []).find(t => t.id === p.driver);
-                                const journeys = data.journeys.filter(j => (j.driver === p.driver || j.turnboyId === p.driver) && j.date.startsWith(selMonth) && j.status === 'Completed');
-                                const calculatedMileage = journeys.reduce((s, j) => {
-                                    if (j.driver === p.driver) return s + (j.driverMileage || 0);
-                                    if (j.turnboyId === p.driver) return s + (j.turnboyMileage || 0);
-                                    return s;
-                                }, 0);
-                                const netPay = +p.baseSalary + +p.allowance - +p.deductions;
-                                return (
-                                    <tr key={p.id}>
-                                        <td>
-                                            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                                                <div style={{ width: 36, height: 36, borderRadius: 10, background: "rgba(255,255,255,0.03)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-secondary)" }}>
-                                                    <Users size={18} />
-                                                </div>
-                                                <div>
-                                                    <div style={{ fontWeight: 800, color: "var(--text-primary)", fontSize: 14 }}>{drv?.name || p.driver}</div>
-                                                    <div style={{ fontSize: 10, color: "var(--brand-primary)", fontWeight: 700, textTransform: "uppercase" }}>{drv?.role || 'Staff'}</div>
-                                                </div>
+                            ) : sortedPayroll.map(p => (
+                                <tr key={p.id} className="hover-scale">
+                                    <td className="sticky-col" title={p._name}>
+                                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                                            <div style={{ width: 36, height: 36, borderRadius: 10, background: "var(--surface-subtle)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-secondary)" }}>
+                                                <Users size={18} />
                                             </div>
-                                        </td>
-                                        <td>
-                                            <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-secondary)" }}>Base: {fmt(p.baseSalary)}</div>
-                                            <div style={{ fontSize: 10, color: "#10b981", fontWeight: 700 }}>+ Allowance: {fmt(p.allowance)}</div>
-                                            {calculatedMileage > 0 && (
-                                                <div style={{ fontSize: 10, color: "var(--text-dim)", fontWeight: 600 }}>
-                                                    Incl. {fmt(calculatedMileage)} mileage
-                                                </div>
-                                            )}
-                                        </td>
-                                        <td>
-                                            <div style={{ fontSize: 13, fontWeight: 700, color: "#ef4444" }}>{fmt(p.deductions)}</div>
-                                        </td>
-                                        <td>
-                                            <div style={{ fontWeight: 900, color: "var(--text-primary)", fontSize: 15 }}>{fmt(netPay)}</div>
-                                        </td>
-                                        <td>
-                                            {(p.mpesaRef || drv?.mpesa) ? (
-                                                <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--text-secondary)", fontWeight: 600 }}>
-                                                    <Smartphone size={12} color="#10b981" />
-                                                    {p.mpesaRef || drv?.mpesa}
-                                                </div>
-                                            ) : (
-                                                <span style={{ fontSize: 11, color: "var(--text-dim)", fontStyle: "italic" }}>Not Set</span>
-                                            )}
-                                        </td>
-                                        <td>
-                                            <Badge status={p.status} text={p.status} />
-                                        </td>
-                                        <td style={{ textAlign: "right", verticalAlign: "middle" }}>
-                                            <TableRowActions
-                                                ariaLabel={`Payroll actions for ${drv?.name || p.id}`}
-                                                items={[
-                                                    ...(p.status === "Pending"
-                                                        ? [
-                                                              {
-                                                                  id: "b2c",
-                                                                  label: "M-Pesa B2C pay",
-                                                                  icon: Smartphone,
-                                                                  onClick: () => markPayrollPaid(p.id),
-                                                              },
-                                                          ]
-                                                        : []),
-                                                    {
-                                                        id: "edit",
-                                                        label: "Edit payroll",
-                                                        icon: Edit2,
-                                                        onClick: () => openModal("payroll", p),
-                                                    },
-                                                    {
-                                                        id: "delete",
-                                                        label: "Delete entry",
-                                                        icon: Trash2,
-                                                        danger: true,
-                                                        onClick: () => delItem("payroll", p.id, (drv?.name || "") + " " + p.month),
-                                                    },
-                                                ]}
-                                            />
-                                        </td>
-                                    </tr>
-                                );
-                            })}
+                                            <div>
+                                                <div style={{ fontWeight: 800, color: "var(--text-primary)", fontSize: 14 }}>{p._name}</div>
+                                                <div style={{ fontSize: 10, color: "var(--brand-primary)", fontWeight: 700, textTransform: "uppercase" }}>{p._role}</div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td title={`Base: ${fmt(p._base)}, Allowance: ${fmt(p._allowance)}`}>
+                                        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-secondary)" }}>Base: {fmt(p._base)}</div>
+                                        <div style={{ fontSize: 10, color: "#10b981", fontWeight: 700 }}>+ Allowance: {fmt(p._allowance)}</div>
+                                        {p._calculatedMileage > 0 && (
+                                            <div style={{ fontSize: 10, color: "var(--text-dim)", fontWeight: 600 }}>
+                                                Incl. {fmt(p._calculatedMileage)} mileage
+                                            </div>
+                                        )}
+                                    </td>
+                                    <td title={fmt(p._deductions)}>
+                                        <div style={{ fontSize: 13, fontWeight: 700, color: "#ef4444", textAlign: "right" }}>{fmt(p._deductions)}</div>
+                                    </td>
+                                    <td title={fmt(p._net)}>
+                                        <div style={{ fontWeight: 900, color: "var(--text-primary)", fontSize: 15, textAlign: "right" }}>{fmt(p._net)}</div>
+                                    </td>
+                                    <td title={p._mpesa || "Not Set"}>
+                                        {p._mpesa ? (
+                                            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--text-secondary)", fontWeight: 600 }}>
+                                                <Smartphone size={12} color="#10b981" />
+                                                {p._mpesa}
+                                            </div>
+                                        ) : (
+                                            <span style={{ fontSize: 11, color: "var(--text-dim)", fontStyle: "italic" }}>Not Set</span>
+                                        )}
+                                    </td>
+                                    <td className="status-col" title={p.status}>
+                                        <Badge status={p.status} text={p.status} />
+                                    </td>
+                                    <td style={{ textAlign: "right", verticalAlign: "middle" }}>
+                                        <TableRowActions
+                                            ariaLabel={`Payroll actions for ${p._name}`}
+                                            items={[
+                                                ...(p.status === "Pending"
+                                                    ? [
+                                                          {
+                                                              id: "b2c",
+                                                              label: "M-Pesa B2C pay",
+                                                              icon: Smartphone,
+                                                              onClick: () => markPayrollPaid(p.id),
+                                                          },
+                                                      ]
+                                                    : []),
+                                                {
+                                                    id: "edit",
+                                                    label: "Edit payroll",
+                                                    icon: Edit2,
+                                                    onClick: () => openModal("payroll", p),
+                                                },
+                                                {
+                                                    id: "delete",
+                                                    label: "Delete entry",
+                                                    icon: Trash2,
+                                                    danger: true,
+                                                    onClick: () => delItem("payroll", p.id, (p._name || "") + " " + p.month),
+                                                },
+                                            ]}
+                                        />
+                                    </td>
+                                </tr>
+                            ))}
                         </tbody>
                     </table>
                 </div>
@@ -287,7 +272,7 @@ export function Payroll({ data, setData, dark, isMobile, modal, form, setForm, o
                         <Info size={24} />
                     </div>
                     <div>
-                        <h4 style={{ fontSize: 16, fontWeight: 800, color: "#f97316", marginBottom: 4 }}>M-Pesa B2C Disbursment</h4>
+                        <h4 style={{ fontSize: 16, fontWeight: 800, color: "#f97316", marginBottom: 4 }}>M-Pesa B2C Disbursement</h4>
                         <p style={{ fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.6 }}>
                             {(() => {
                                 try {

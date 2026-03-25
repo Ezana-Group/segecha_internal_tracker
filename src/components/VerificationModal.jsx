@@ -1,5 +1,5 @@
 import React from "react";
-import { fmt } from "../utils/formatters";
+import { fmt, fmtDate } from "../utils/formatters";
 import { X, Shield, Truck, User, MapPin, Package, CheckCircle2, AlertTriangle, ExternalLink } from "lucide-react";
 import { Button } from "./Button";
 import { Badge } from "./Badge";
@@ -27,6 +27,8 @@ export function VerificationModal({
             text = `*Fuel log rejected*\n\nTruck: ${truckReg(item.truck)}\nDate: ${item.date}\nLitres: ${item.litres}L\n\n*Reason:* ${reason}\n\nPlease correct and re-submit.`;
         } else if (type === 'expense') {
             text = `*Expense claim rejected*\n\nTruck: ${truckReg(item.truck)}\nDate: ${item.date}\nAmount: ${item.amount}\n\n*Reason:* ${reason}\n\nPlease correct and re-submit.`;
+        } else if (type === 'incident') {
+            text = `*Incident report rejected*\n\nType: ${item.incidentType}\nDate: ${item.date || item.createdAt}\n\n*Reason:* ${reason}\n\nPlease provide more details and re-submit.`;
         } else {
             const isStart = item.status === 'Awaiting Start Verification';
             text = isStart
@@ -45,6 +47,8 @@ export function VerificationModal({
             text = `*Fuel log approved*\n\nTruck: ${truckReg(item.truck)}\nDate: ${item.date}\nLitres: ${item.litres}L\n\nThank you.`;
         } else if (type === 'expense') {
             text = `*Expense claim approved*\n\nTruck: ${truckReg(item.truck)}\nDate: ${item.date}\nAmount: ${item.amount}\n\nThank you.`;
+        } else if (type === 'incident') {
+            text = `*Incident report resolved*\n\nType: ${item.incidentType}\nDate: ${item.date || item.createdAt}\n\nThank you for reporting.`;
         } else {
             const isStart = item.status === 'Awaiting Start Verification';
             text = isStart
@@ -76,10 +80,10 @@ export function VerificationModal({
                         </div>
                         <div>
                             <h2 style={{ fontSize: 17, fontWeight: 600, color: "var(--text-primary)" }}>
-                                {type === 'fuel' ? 'Verify fuel log' : type === 'expense' ? 'Verify expense claim' : isStartApproval ? 'Approve trip start' : 'Verify journey'}
+                                {type === 'fuel' ? 'Verify fuel log' : type === 'expense' ? 'Verify expense claim' : type === 'incident' ? 'Resolve incident' : isStartApproval ? 'Approve trip start' : 'Verify journey'}
                             </h2>
                             <p style={{ fontSize: 12, color: "var(--text-muted)" }}>
-                                {type === 'fuel' ? 'Review station, litres, and odometer photo.' : type === 'expense' ? 'Review expense description and receipt photo.' : isStartApproval ? 'Review trip details before start.' : 'Review odometer and POD before completion.'}
+                                {type === 'fuel' ? 'Review station, litres, and odometer photo.' : type === 'expense' ? 'Review expense description and receipt photo.' : type === 'incident' ? 'Review incident details and resolve.' : isStartApproval ? 'Review trip details before start.' : 'Review odometer and POD before completion.'}
                             </p>
                         </div>
                     </div>
@@ -143,6 +147,39 @@ export function VerificationModal({
                                 <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-dim)", textTransform: "uppercase", marginBottom: 8 }}>Receipt Photo</div>
                                 <img src={journey.receiptUrl} style={{ width: "100%", borderRadius: 12, maxHeight: 400, objectFit: "contain" }} />
                             </div>
+                        </div>
+                    )}
+
+                    {type === 'incident' && (
+                        <div>
+                            <div className="verification-modal-grid" style={{ marginBottom: 32 }}>
+                                <div>
+                                    <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-dim)", textTransform: "uppercase", marginBottom: 6 }}>Type</div>
+                                    <div style={{ fontSize: 15, fontWeight: 700, color: "#ef4444" }}>{journey.incidentType}</div>
+                                </div>
+                                <div>
+                                    <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-dim)", textTransform: "uppercase", marginBottom: 6 }}>Date</div>
+                                    <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)" }}>{fmtDate(journey.date || journey.createdAt)}</div>
+                                </div>
+                                <div>
+                                    <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-dim)", textTransform: "uppercase", marginBottom: 6 }}>Location</div>
+                                    <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)" }}>{journey.location || "N/A"}</div>
+                                </div>
+                            </div>
+                            <div style={{ marginBottom: 32 }}>
+                                <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-dim)", textTransform: "uppercase", marginBottom: 8 }}>Description</div>
+                                <div style={{ padding: 16, background: "var(--bg-surface)", borderRadius: 12, border: "1px solid var(--border-subtle)", fontSize: 14, color: "var(--text-secondary)", lineHeight: 1.5 }}>
+                                    {journey.description || "No description provided."}
+                                </div>
+                            </div>
+                            {journey.incidentPhotoUrl && (
+                                <div style={{ marginBottom: 32 }}>
+                                    <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-dim)", textTransform: "uppercase", marginBottom: 8 }}>Incident Photo</div>
+                                    <a href={journey.incidentPhotoUrl} target="_blank" rel="noreferrer" style={{ display: "block" }}>
+                                        <img src={journey.incidentPhotoUrl} style={{ width: "100%", borderRadius: 12, border: "1px solid var(--border-medium)", maxHeight: 400, objectFit: "contain" }} />
+                                    </a>
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -261,6 +298,23 @@ export function VerificationModal({
                                     {type === 'expense' && [
                                         { id: 'expenseDetails', label: 'Expense Info (Amt/Cat)' },
                                         { id: 'photo', label: 'Receipt Photo' },
+                                    ].map(area => (
+                                        <label key={area.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, background: "var(--bg-surface)", padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border-subtle)", cursor: "pointer" }}>
+                                            <input 
+                                                type="checkbox" 
+                                                checked={(journey._rejectedFields || []).includes(area.id)}
+                                                onChange={(e) => {
+                                                    const current = journey._rejectedFields || [];
+                                                    const next = e.target.checked ? [...current, area.id] : current.filter(x => x !== area.id);
+                                                    setVerifyModal({ ...journey, _rejectedFields: next });
+                                                }}
+                                            />
+                                            {area.label}
+                                        </label>
+                                    ))}
+                                    {type === 'incident' && [
+                                        { id: 'details', label: 'Incident Details' },
+                                        { id: 'photo', label: 'Incident Photo' },
                                     ].map(area => (
                                         <label key={area.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, background: "var(--bg-surface)", padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border-subtle)", cursor: "pointer" }}>
                                             <input 

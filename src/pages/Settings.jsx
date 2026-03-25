@@ -19,6 +19,7 @@ import {
     Plus,
     FileUp,
     Download,
+    Upload,
     X,
     UserPlus,
     CreditCard,
@@ -38,6 +39,7 @@ import {
     Sparkles,
     PenLine,
     MessageSquare,
+    MessageCircle,
     Sun,
     Moon,
     IdCard,
@@ -56,6 +58,7 @@ import { TableRowActions } from "../components/TableRowActions";
 import { PAYMENT_API, ADMIN_KEY } from "../utils/env";
 import { IMPORT_SCHEMAS } from "../utils/importEngine";
 import { uid, fmt, canonicalTemplateType } from "../utils/formatters";
+import { exportToExcel, exportToCSV, exportAllToCSV } from "../utils/exportUtils";
 import {
     patchSettings,
     readSettings,
@@ -215,7 +218,10 @@ function SettingsShellSectionHeader({ title, desc, icon: Icon }) {
     );
 }
 
-export function Settings({ dark, setDark, data, setData, setSettings, importSession, setImportSession, runExcelImport, isMobile, showToast, fillTemplate, syncToServer, hardResetSystem }) {
+export function Settings({ 
+    dark, setDark, data, setData, setSettings, importSession, setImportSession, runExcelImport, isMobile, showToast, fillTemplate, syncToServer, hardResetSystem,
+    backups, backupsLoading, fetchBackups, createManualBackup, restoreFromBackup, downloadBackup, uploadBackup
+}) {
     const [searchParams, setSearchParams] = useSearchParams();
     const tabFromUrl = searchParams.get("tab");
     const [activeTab, setActiveTab] = useState(() =>
@@ -252,6 +258,12 @@ export function Settings({ dark, setDark, data, setData, setSettings, importSess
         isSuperAdmin ||
         (!!operatorEmail && configuredAdminUsers.some((u) => String(u?.email || "").trim().toLowerCase() === operatorEmail));
     const canEditSettings = !hasConfiguredAccessLists || isAdmin;
+
+    useEffect(() => {
+        if (activeTab === 'data' && fetchBackups) {
+            fetchBackups();
+        }
+    }, [activeTab, fetchBackups]);
     const canRunSuperAdminActions = !hasConfiguredAccessLists || isSuperAdmin;
 
     useEffect(() => {
@@ -354,7 +366,8 @@ export function Settings({ dark, setDark, data, setData, setSettings, importSess
     // (import is handled by the dedicated Import components)
 
     // ── Forms
-    const [routeForm, setRouteForm] = useState({ origin: '', dest: '', driverRate: '', turnboyRate: '' });
+    const [routeForm, setRouteForm] = useState({ origin: '', dest: '', driverRate: '', turnboyRate: '', returnDriverRate: '', returnTurnboyRate: '' });
+
     const [quickRouteForm, setQuickRouteForm] = useState({ origin: '', dest: '', distance: '' });
     const [newLicenceClass, setNewLicenceClass] = useState("");
 
@@ -1291,6 +1304,42 @@ export function Settings({ dark, setDark, data, setData, setSettings, importSess
                                 </SettingsShellField>
                             </div>
 
+                            <h4 style={{ fontSize: 16, fontWeight: 800, color: "var(--text-primary)", marginBottom: 16 }}>International and Domestic Flat Rates</h4>
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginBottom: 32, padding: 20, background: "var(--surface-subtle)", borderRadius: 12, border: "1px solid var(--border-subtle)" }}>
+                                <div>
+                                    <p style={{ fontSize: 13, fontWeight: 700, color: "var(--brand-primary)", marginBottom: 12 }}>Inside Kenya (Domestic)</p>
+                                    <div style={{ display: "grid", gap: 12 }}>
+                                        <SettingsShellField label="Driver Flat Rate (KES)">
+                                            <SettingsShellInput type="number" value={localS.flatRateInsideDriver || 0} onChange={e => saveSettings({ flatRateInsideDriver: +e.target.value })} />
+                                        </SettingsShellField>
+                                        <SettingsShellField label="Turnboy Flat Rate (KES)">
+                                            <SettingsShellInput type="number" value={localS.flatRateInsideTurnboy || 0} onChange={e => saveSettings({ flatRateInsideTurnboy: +e.target.value })} />
+                                        </SettingsShellField>
+                                    </div>
+                                </div>
+                                <div style={{ borderLeft: "1px dashed var(--border-subtle)", paddingLeft: 24 }}>
+                                    <p style={{ fontSize: 13, fontWeight: 700, color: "var(--brand-primary)", marginBottom: 12 }}>Outside Kenya (International)</p>
+                                    <div style={{ display: "grid", gap: 12 }}>
+                                        <SettingsShellField label="Driver Flat Rate (KES)">
+                                            <SettingsShellInput type="number" value={localS.flatRateOutsideDriver || 0} onChange={e => saveSettings({ flatRateOutsideDriver: +e.target.value })} />
+                                        </SettingsShellField>
+                                        <SettingsShellField label="Turnboy Flat Rate (KES)">
+                                            <SettingsShellInput type="number" value={localS.flatRateOutsideTurnboy || 0} onChange={e => saveSettings({ flatRateOutsideTurnboy: +e.target.value })} />
+                                        </SettingsShellField>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <h4 style={{ fontSize: 16, fontWeight: 800, color: "var(--text-primary)", marginBottom: 16 }}>Road User Allowance</h4>
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginBottom: 32, padding: 20, background: "var(--surface-subtle)", borderRadius: 12, border: "1px solid var(--border-subtle)" }}>
+                                <SettingsShellField label="Standard Road User Allowance (KES)" desc="Added to journey completion expenses automatically.">
+                                    <SettingsShellInput type="number" value={localS.roadUserAllowance || 0} onChange={e => saveSettings({ roadUserAllowance: +e.target.value })} />
+                                </SettingsShellField>
+                                <SettingsShellField label="Return Road User Allowance (KES)" desc="Override for returning empty trips.">
+                                    <SettingsShellInput type="number" value={localS.roadUserAllowanceReturn || 0} onChange={e => saveSettings({ roadUserAllowanceReturn: +e.target.value })} />
+                                </SettingsShellField>
+                            </div>
+
                             <h4 style={{ fontSize: 16, fontWeight: 800, color: "var(--text-primary)", marginBottom: 8 }}>Quick routes (journey modal)</h4>
                             <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 16, lineHeight: 1.55, fontWeight: 500 }}>
                                 These presets fill the <strong>Quick route</strong> dropdown when you log or edit a journey (origin, destination, and distance). They are stored in this browser under workspace settings.
@@ -1402,26 +1451,51 @@ export function Settings({ dark, setDark, data, setData, setSettings, importSess
                                     <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, padding: 12, background: "var(--bg-card)", borderRadius: 8, border: "1px solid var(--border-subtle)" }}>
                                         <div>
                                             <div style={{ fontWeight: 800, color: "var(--text-primary)" }}>{ro.origin} → {ro.dest}</div>
-                                            <div style={{ fontSize: 12, color: "var(--text-muted)" }}>Driver: {fmt(ro.driverRate)}/km • Turnboy: {fmt(ro.turnboyRate)}/km</div>
+                                            <div style={{ fontSize: 12, color: "var(--text-muted)", display: 'flex', gap: 12, marginTop: 4 }}>
+                                                <span>Driver: <strong>{fmt(ro.driverRate)}</strong> (Ret: {fmt(ro.returnDriverRate || ro.driverRate)})</span>
+                                                <span>Turnboy: <strong>{fmt(ro.turnboyRate)}</strong> (Ret: {fmt(ro.returnTurnboyRate || ro.turnboyRate)})</span>
+                                            </div>
+
                                         </div>
                                         <Button variant="danger" size="sm" onClick={() => saveSettings({ routeOverrides: (Array.isArray(localS.routeOverrides) ? localS.routeOverrides : []).filter((_, idx) => idx !== i) })}><Trash2 size={14}/></Button>
                                     </div>
                                 ))}
                                 
-                                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr auto", gap: 12, marginTop: 16, paddingTop: 16, borderTop: "1px dashed var(--border-subtle)" }}>
-                                    <SettingsShellInput placeholder="Origin (e.g. Mombasa)" value={routeForm.origin} onChange={e => setRouteForm(prev => ({ ...prev, origin: e.target.value }))} />
-                                    <SettingsShellInput placeholder="Destination (e.g. Nairobi)" value={routeForm.dest} onChange={e => setRouteForm(prev => ({ ...prev, dest: e.target.value }))} />
-                                    <SettingsShellInput type="number" placeholder="Driver Rate" value={routeForm.driverRate} onChange={e => setRouteForm(prev => ({ ...prev, driverRate: e.target.value }))} />
-                                    <SettingsShellInput type="number" placeholder="Turnboy Rate" value={routeForm.turnboyRate} onChange={e => setRouteForm(prev => ({ ...prev, turnboyRate: e.target.value }))} />
-                                    <Button variant="premium" onClick={() => {
+                                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1.2fr 1.2fr 1fr 1fr 1fr 1fr auto", gap: 12, marginTop: 16, paddingTop: 16, borderTop: "1px dashed var(--border-subtle)", alignItems: 'end' }}>
+                                    <div>
+                                        <label style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4, display: 'block' }}>Origin</label>
+                                        <SettingsShellInput placeholder="e.g. Mombasa" value={routeForm.origin} onChange={e => setRouteForm(prev => ({ ...prev, origin: e.target.value }))} />
+                                    </div>
+                                    <div>
+                                        <label style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4, display: 'block' }}>Destination</label>
+                                        <SettingsShellInput placeholder="e.g. Nairobi" value={routeForm.dest} onChange={e => setRouteForm(prev => ({ ...prev, dest: e.target.value }))} />
+                                    </div>
+                                    <div>
+                                        <label style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4, display: 'block' }}>Driver Rate</label>
+                                        <SettingsShellInput type="number" placeholder="KES/km" value={routeForm.driverRate} onChange={e => setRouteForm(prev => ({ ...prev, driverRate: e.target.value }))} />
+                                    </div>
+                                    <div>
+                                        <label style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4, display: 'block' }}>TB Rate</label>
+                                        <SettingsShellInput type="number" placeholder="KES/km" value={routeForm.turnboyRate} onChange={e => setRouteForm(prev => ({ ...prev, turnboyRate: e.target.value }))} />
+                                    </div>
+                                    <div>
+                                        <label style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4, display: 'block' }}>Ret. Driver</label>
+                                        <SettingsShellInput type="number" placeholder="KES/km" value={routeForm.returnDriverRate} onChange={e => setRouteForm(prev => ({ ...prev, returnDriverRate: e.target.value }))} />
+                                    </div>
+                                    <div>
+                                        <label style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4, display: 'block' }}>Ret. TB</label>
+                                        <SettingsShellInput type="number" placeholder="KES/km" value={routeForm.returnTurnboyRate} onChange={e => setRouteForm(prev => ({ ...prev, returnTurnboyRate: e.target.value }))} />
+                                    </div>
+                                    <Button variant="premium" style={{ height: 42 }} onClick={() => {
                                         if (routeForm.origin && routeForm.dest) {
                                             saveSettings({ routeOverrides: [...(Array.isArray(localS.routeOverrides) ? localS.routeOverrides : []), routeForm] });
-                                            setRouteForm({ origin: '', dest: '', driverRate: '', turnboyRate: '' });
+                                            setRouteForm({ origin: '', dest: '', driverRate: '', turnboyRate: '', returnDriverRate: '', returnTurnboyRate: '' });
                                         } else {
                                             alert("Origin and Destination are required!");
                                         }
-                                    }}>+ Add Override</Button>
+                                    }}>Add</Button>
                                 </div>
+
                             </div>
                         </fieldset>
                     )}
@@ -1824,18 +1898,23 @@ export function Settings({ dark, setDark, data, setData, setSettings, importSess
                                     </p>
 
                                     <div className="template-studio-tabs" role="tablist" aria-label="Template channel">
-                                        {["Email", "PDF", "SMS"].map((tf) => (
-                                            <button
-                                                key={tf}
-                                                type="button"
-                                                role="tab"
-                                                aria-selected={templateTypeFilter === tf}
-                                                className={`template-studio-tab${templateTypeFilter === tf ? " is-active" : ""}`}
-                                                onClick={() => setTemplateTypeFilter(tf)}
-                                            >
-                                                {tf}
-                                            </button>
-                                        ))}
+                                        {["Email", "PDF", "SMS", "WhatsApp"].map((tf) => {
+                                            const TIcon = tf === "Email" ? Mail : tf === "PDF" ? FileText : tf === "SMS" ? MessageSquare : MessageCircle;
+                                            return (
+                                                <button
+                                                    key={tf}
+                                                    type="button"
+                                                    role="tab"
+                                                    aria-selected={templateTypeFilter === tf}
+                                                    className={`template-studio-tab${templateTypeFilter === tf ? " is-active" : ""}`}
+                                                    onClick={() => setTemplateTypeFilter(tf)}
+                                                    style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 18px", fontSize: 13, fontWeight: 700 }}
+                                                >
+                                                    <TIcon size={16} />
+                                                    {tf}
+                                                </button>
+                                            );
+                                        })}
                                     </div>
 
                                     <div className="template-studio-search-row">
@@ -1898,14 +1977,14 @@ export function Settings({ dark, setDark, data, setData, setSettings, importSess
                                         </Card>
                                     ) : (
                                         <Card style={{ padding: 0, overflow: "hidden", borderRadius: 20, border: "1px solid var(--border-subtle)" }}>
-                                            <div style={{ overflowX: "auto" }}>
+                                            <div className="table-container">
                                                 <table className="table-modern template-studio-table">
                                                     <thead>
                                                         <tr>
-                                                            <th>Template</th>
-                                                            <th>Description</th>
-                                                            <th>Last updated</th>
-                                                            <th style={{ textAlign: "right" }}>Actions</th>
+                                                            <th className="sticky-col" title="Template">Template</th>
+                                                            <th title="Description">Description</th>
+                                                            <th title="Last updated">Last updated</th>
+                                                            <th className="status-col" style={{ textAlign: "right" }} title="Actions">Actions</th>
                                                         </tr>
                                                     </thead>
                                                     <tbody>
@@ -1926,15 +2005,15 @@ export function Settings({ dark, setDark, data, setData, setSettings, importSess
                                                                         setLocalS((s) => ({ ...s, _activeTemplateId: t.id }));
                                                                     }}
                                                                 >
-                                                                    <td>
+                                                                    <td className="sticky-col" title={t.name}>
                                                                         <div style={{ fontWeight: 800, color: "var(--text-primary)", fontSize: 14 }}>{t.name}</div>
                                                                         <div style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 4 }}>{t.category || "General"}</div>
                                                                     </td>
-                                                                    <td style={{ color: "var(--text-secondary)", fontSize: 13, maxWidth: 360 }}>
+                                                                    <td style={{ color: "var(--text-secondary)", fontSize: 13, maxWidth: 360 }} title={t.description || "No description"}>
                                                                         {t.description || "—"}
                                                                     </td>
-                                                                    <td style={{ color: "var(--text-muted)", fontSize: 13, whiteSpace: "nowrap" }}>{updatedLabel}</td>
-                                                                    <td style={{ textAlign: "right" }}>
+                                                                    <td style={{ color: "var(--text-muted)", fontSize: 13, whiteSpace: "nowrap" }} title={updatedLabel}>{updatedLabel}</td>
+                                                                    <td className="status-col" style={{ textAlign: "right", display: "flex", justifyContent: "flex-end", gap: 12, alignItems: "center" }}>
                                                                         <button
                                                                             type="button"
                                                                             className="template-studio-edit-link"
@@ -1942,8 +2021,36 @@ export function Settings({ dark, setDark, data, setData, setSettings, importSess
                                                                                 e.stopPropagation();
                                                                                 setLocalS((s) => ({ ...s, _activeTemplateId: t.id }));
                                                                             }}
+                                                                            title="Edit template"
                                                                         >
                                                                             Edit
+                                                                        </button>
+                                                                        <button
+                                                                            type="button"
+                                                                            className="template-studio-delete-icon-btn"
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                if (window.confirm(`Delete the template "${t.name}" permanently?`)) {
+                                                                                    setData((d) => ({ ...d, templates: (d.templates || []).filter((tx) => tx.id !== t.id) }));
+                                                                                    showToast?.("Template deleted", "success");
+                                                                                }
+                                                                            }}
+                                                                            style={{ 
+                                                                                background: "none", 
+                                                                                border: "none", 
+                                                                                color: "#ef4444", 
+                                                                                cursor: "pointer", 
+                                                                                padding: "6px",
+                                                                                borderRadius: "8px",
+                                                                                display: "flex",
+                                                                                alignItems: "center",
+                                                                                transition: "background 0.2s"
+                                                                            }}
+                                                                            onMouseOver={(e) => e.currentTarget.style.background = "#fee2e2"}
+                                                                            onMouseOut={(e) => e.currentTarget.style.background = "none"}
+                                                                            title="Delete template"
+                                                                        >
+                                                                            <Trash2 size={18} />
                                                                         </button>
                                                                     </td>
                                                                 </tr>
@@ -1983,7 +2090,7 @@ export function Settings({ dark, setDark, data, setData, setSettings, importSess
                                             const tid = t.id;
                                             const tplType = canonicalTemplateType(t.type);
                                             const pdfPreview = tplType === "PDF" ? runTemplatePreview(t.subject, t.body) : null;
-                                            const Hicon = tplType === "SMS" ? MessageSquare : tplType === "PDF" ? FileText : Mail;
+                                            const Hicon = tplType === "SMS" ? MessageSquare : tplType === "WhatsApp" ? MessageCircle : tplType === "PDF" ? FileText : Mail;
 
                                             return (
                                                 <>
@@ -2057,6 +2164,7 @@ export function Settings({ dark, setDark, data, setData, setSettings, importSess
                                                                     >
                                                                         <option value="Email">Email</option>
                                                                         <option value="SMS">SMS</option>
+                                                                        <option value="WhatsApp">WhatsApp</option>
                                                                         <option value="PDF">PDF</option>
                                                                     </select>
                                                                 </div>
@@ -2278,7 +2386,13 @@ export function Settings({ dark, setDark, data, setData, setSettings, importSess
                                                                         showToast?.("Template deleted", "success");
                                                                     }
                                                                 }}
-                                                                style={{ marginLeft: "auto" }}
+                                                                style={{ 
+                                                                    marginLeft: "auto",
+                                                                    background: "#ef4444",
+                                                                    color: "white",
+                                                                    border: "none",
+                                                                    boxShadow: "0 4px 12px rgba(239, 68, 68, 0.2)"
+                                                                }}
                                                             >
                                                                 Delete template
                                                             </Button>
@@ -2650,57 +2764,157 @@ export function Settings({ dark, setDark, data, setData, setSettings, importSess
                     {activeTab === 'data' && (
                         <div>
                             <SettingsShellSectionHeader title="System Maintenance" desc="Local-first workspace: your browser is the source of truth. Push snapshots to the API for the driver portal and server-side jobs." icon={Database} />
-                            <Card accent="#2563eb" title="Sync to server" subtitle="Overwrites server/tracker-data.json with this machine’s data" style={{ marginBottom: 24, padding: 20 }}>
-                                <p style={{ fontSize: 14, color: "var(--text-muted)", lineHeight: 1.6, marginBottom: 16 }}>
-                                    After meaningful changes (journeys, drivers, invoices), push a snapshot so the driver app, journey verification, and M-Pesa callback see the same records.
-                                </p>
-                                <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12 }}>
-                                    <Button
-                                        icon={RefreshCw}
-                                        loading={syncing}
-                                        disabled={!canRunSuperAdminActions}
-                                        onClick={async () => {
-                                            if (!canRunSuperAdminActions) {
-                                                showToast?.("Only Super Admin can push snapshots.", "error");
-                                                return;
-                                            }
-                                            if (!syncToServer) {
-                                                showToast?.("Sync is not available in this build.", "error");
-                                                return;
-                                            }
-                                            setSyncing(true);
-                                            await syncToServer();
-                                            setSyncing(false);
-                                        }}
-                                    >
-                                        Push snapshot to API
-                                    </Button>
-                                    <span style={{ fontSize: 13, color: "var(--text-dim)" }}>
-                                        Last push:{" "}
-                                        <strong style={{ color: "var(--text-primary)" }}>
-                                            {(() => {
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginBottom: 24 }}>
+                                <Card accent="#2563eb" title="Sync to server" subtitle="Update server with local data" style={{ padding: 20 }}>
+                                    <p style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.5, marginBottom: 16 }}>
+                                        Push your local data to the server to sync with the driver portal and other modules.
+                                    </p>
+                                    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12 }}>
+                                        <Button
+                                            icon={RefreshCw}
+                                            loading={syncing}
+                                            disabled={!canRunSuperAdminActions}
+                                            onClick={async () => {
+                                                if (!canRunSuperAdminActions) return showToast?.("Only Super Admin can push snapshots.", "error");
+                                                setSyncing(true);
+                                                await syncToServer();
+                                                setSyncing(false);
+                                            }}
+                                        >
+                                            Push to API
+                                        </Button>
+                                        <span style={{ fontSize: 12, color: "var(--text-dim)" }}>
+                                            Last: <strong>{(() => {
                                                 try {
                                                     const t = localStorage.getItem("segecha_last_server_sync");
-                                                    return t ? new Date(t).toLocaleString() : "Never";
-                                                } catch {
-                                                    return "—";
-                                                }
-                                            })()}
-                                        </strong>
-                                    </span>
-                                </div>
+                                                    return t ? new Date(t).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : "Never";
+                                                } catch { return "—"; }
+                                            })()}</strong>
+                                        </span>
+                                    </div>
+                                </Card>
+
+                                <Card accent="#8b5cf6" title="Automated Backups" subtitle="Server-side safety scheduler" style={{ padding: 20 }}>
+                                    <p style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.5, marginBottom: 16 }}>
+                                        How often should the server create a safe copy of your data?
+                                    </p>
+                                    <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                                        <select
+                                            value={localS.backupFrequency || 'Disabled'}
+                                            onChange={(e) => saveSettings({ backupFrequency: e.target.value })}
+                                            className="input-premium"
+                                            style={{ flex: 1, padding: '0 12px', height: 40, borderRadius: 10, border: '1px solid var(--border-subtle)', background: 'var(--surface-subtle)', color: 'var(--text-primary)' }}
+                                        >
+                                            <option value="Disabled">Disabled</option>
+                                            <option value="Every 6 Hours">Every 6 Hours</option>
+                                            <option value="Daily">Daily</option>
+                                            <option value="Weekly">Weekly</option>
+                                        </select>
+                                        <Button icon={Plus} variant="secondary" onClick={createManualBackup}>Backup Now</Button>
+                                        <label style={{ cursor: "pointer", display: "inline-block" }}>
+                                            <input type="file" accept=".json" style={{ display: "none" }} onChange={(e) => {
+                                                if (e.target.files && e.target.files[0]) uploadBackup(e.target.files[0]);
+                                                e.target.value = null;
+                                            }} />
+                                            <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 16px", background: "var(--surface-subtle)", color: "var(--brand-primary)", borderRadius: 10, fontWeight: 700, fontSize: 13, border: "1px solid var(--border-subtle)", cursor: "pointer", boxShadow: "0 1px 2px rgba(0,0,0,0.05)" }}>
+                                                <Upload size={16} /> Upload Backup
+                                            </div>
+                                        </label>
+                                    </div>
+                                </Card>
+                            </div>
+
+                            <Card title="Recent Server Backups" subtitle="Restore system to a previous state" style={{ marginBottom: 32 }}>
+                                {backupsLoading ? (
+                                    <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-dim)' }}>
+                                        <RefreshCw className="animate-spin" style={{ margin: '0 auto 12px' }} />
+                                        Loading backup history...
+                                    </div>
+                                ) : backups.length === 0 ? (
+                                    <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-dim)', fontSize: 14 }}>
+                                        No backups found on server.
+                                    </div>
+                                ) : (
+                                    <div className="table-container" style={{ margin: 0, border: 'none', borderRadius: 0 }}>
+                                        <table className="table-modern">
+                                            <thead>
+                                                <tr>
+                                                    <th>Backup File</th>
+                                                    <th>Date & Time</th>
+                                                    <th>Size</th>
+                                                    <th style={{ textAlign: 'right' }}>Action</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {backups.map((b) => (
+                                                    <tr key={b.name}>
+                                                        <td style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{b.name}</td>
+                                                        <td>{new Date(b.timestamp).toLocaleString()}</td>
+                                                        <td style={{ color: 'var(--text-dim)' }}>{(b.size / 1024).toFixed(1)} KB</td>
+                                                        <td style={{ textAlign: 'right', display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                                                            <Button 
+                                                                size="sm" 
+                                                                variant="ghost" 
+                                                                icon={Download} 
+                                                                onClick={() => downloadBackup(b.name)}
+                                                                style={{ color: 'var(--text-secondary)' }}
+                                                            >
+                                                                Download
+                                                            </Button>
+                                                            <Button 
+                                                                size="sm" 
+                                                                variant="ghost" 
+                                                                icon={RefreshCw} 
+                                                                onClick={() => restoreFromBackup(b.name)}
+                                                                style={{ color: 'var(--brand-primary)' }}
+                                                            >
+                                                                Restore
+                                                            </Button>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
                             </Card>
                             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginBottom: 32 }}>
-                                <Card accent="var(--brand-primary)" title="JSON Snapshot">
-                                    <p style={{ fontSize: 13, color: "var(--text-dim)", marginBottom: 16 }}>Export all local state for offline safekeeping.</p>
-                                    <Button icon={Download} disabled={!canRunSuperAdminActions} onClick={() => {
+                                <Card accent="var(--brand-primary)" title="Universal Export">
+                                    <p style={{ fontSize: 13, color: "var(--text-dim)", marginBottom: 16 }}>Download all tables in your preferred format.</p>
+                                    <div style={{ display: "flex", gap: 12 }}>
+                                        <Button icon={FileText} onClick={() => exportToExcel(data)}>Excel (.xlsx)</Button>
+                                        <Button variant="secondary" icon={Download} onClick={() => exportAllToCSV(data)}>Bulk CSV (.csv)</Button>
+                                    </div>
+                                </Card>
+                                <Card accent="#10b981" title="JSON Snapshot">
+                                    <p style={{ fontSize: 13, color: "var(--text-dim)", marginBottom: 16 }}>Export all local state for offline JSON safekeeping.</p>
+                                    <Button icon={Download} onClick={() => {
                                         const blob = new Blob([JSON.stringify({ data, settings: localS }, null, 2)], { type: 'application/json' });
                                         const url = URL.createObjectURL(blob);
                                         const a = document.createElement('a');
                                         a.href = url;
                                         a.download = `segecha_backup_${new Date().toISOString().slice(0,10)}.json`;
                                         a.click();
-                                    }}>Export State</Button>
+                                    }}>Export JSON</Button>
+                                </Card>
+                            </div>
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginBottom: 32 }}>
+                                <Card accent="#f59e0b" title="CSV Exports">
+                                    <p style={{ fontSize: 13, color: "var(--text-dim)", marginBottom: 16 }}>Download specific tables as CSV files.</p>
+                                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                                        <Button size="sm" variant="ghost" onClick={() => exportToCSV(data.journeys, 'Journeys')}>Journeys</Button>
+                                        <Button size="sm" variant="ghost" onClick={() => exportToCSV(data.invoices, 'Invoices')}>Invoices</Button>
+                                        <Button size="sm" variant="ghost" onClick={() => exportToCSV(data.expenses, 'Expenses')}>Expenses</Button>
+                                        <Button size="sm" variant="ghost" onClick={() => exportToCSV(data.fuel, 'Fuel_Logs')}>Fuel Logs</Button>
+                                        <Button size="sm" variant="ghost" onClick={() => exportToCSV(data.drivers, 'Drivers')}>Drivers</Button>
+                                        <Button size="sm" variant="ghost" onClick={() => exportToCSV(data.staff, 'Staff')}>Staff</Button>
+                                        <Button size="sm" variant="ghost" onClick={() => exportToCSV(data.customers, 'Customers')}>Customers</Button>
+                                        <Button size="sm" variant="ghost" onClick={() => exportToCSV(data.trucks, 'Fleet')}>Fleet</Button>
+                                        <Button size="sm" variant="ghost" onClick={() => exportToCSV(data.trailers, 'Trailers')}>Trailers</Button>
+                                        <Button size="sm" variant="ghost" onClick={() => exportToCSV(data.maintenanceLogs, 'Maintenance')}>Maintenance</Button>
+                                        <Button size="sm" variant="ghost" onClick={() => exportToCSV(data.payroll, 'Payroll')}>Payroll</Button>
+                                        <Button size="sm" variant="ghost" onClick={() => exportToCSV(data.turnboys, 'Turnboys')}>Turnboys</Button>
+                                    </div>
                                 </Card>
                                 <Card accent="#ef4444" title="Hard Reset">
                                     <p style={{ fontSize: 13, color: "var(--text-dim)", marginBottom: 16 }}>Wipe all local data. Permanent action.</p>

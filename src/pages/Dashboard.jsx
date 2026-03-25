@@ -22,6 +22,8 @@ import { Card } from "../components/Card";
 import { Badge } from "../components/Badge";
 import { Button } from "../components/Button";
 import { PageHeader } from "../components/PageHeader";
+import { SortableTableHead } from "../components/SortableTableHead";
+import { useTableFilter } from "../hooks/useTableFilter";
 
 const Sparkline = ({ data, color, width = 60, height = 24 }) => {
     if (!data || data.length < 2) return null;
@@ -57,7 +59,7 @@ const BarChart = ({ data, dark }) => {
     );
 };
 
-export function Dashboard({ data, dark, truckStats, tyreStatus, truckReg, driverName, setVerifyModal, pendingVerifications }) {
+export function Dashboard({ data, dark, truckStats, tyreStatus, truckReg, driverName, setVerifyModal, pendingVerifications, isMobile }) {
     const navigate = useNavigate();
     const [expiringDocs, setExpiringDocs] = useState([]);
     
@@ -79,9 +81,6 @@ export function Dashboard({ data, dark, truckStats, tyreStatus, truckReg, driver
     const totalOtherExp = data.expenses.filter(e => e.date?.startsWith(latestMonth)).reduce((s, e) => s + +e.amount, 0);
     const totalExpenses = totalFuelCost + totalOtherExp;
     const netProfit = totalRevenue - totalExpenses;
-    const invoicesPaid = data.invoices.filter(i => i.date?.startsWith(latestMonth)).reduce((s, i) => s + (+i.paidAmount || 0), 0);
-    const invoicesPending = data.invoices.filter(i => i.date?.startsWith(latestMonth)).reduce((s, i) => s + (+i.amount - (+i.paidAmount || 0)), 0);
-
     const invList = Array.isArray(data.invoices) ? data.invoices : [];
     const invOutstanding = (i) => Math.max(0, +i.amount - (+i.paidAmount || 0));
     const invPaidList = invList.filter((i) => i.status === "Paid" && i.date?.startsWith(latestMonth));
@@ -92,16 +91,35 @@ export function Dashboard({ data, dark, truckStats, tyreStatus, truckReg, driver
     const invOverdueTotal = invOverdueList.reduce((s, i) => s + invOutstanding(i), 0);
 
     const tyreAlerts = data.trucks.filter(t => { const ts = tyreStatus(t); return ts.status !== "OK"; });
-    const overdueInv = data.invoices.filter(i => i.status === "Overdue");
     const margin = totalRevenue > 0 ? (netProfit / totalRevenue * 100).toFixed(1) : 0;
     const totalLitres = data.fuel.filter(f => f.date?.startsWith(latestMonth)).reduce((s, f) => s + f.litres, 0);
     const totalKm = data.journeys.filter(j => j.status === "Completed" && j.date?.startsWith(latestMonth)).reduce((s, j) => s + +j.distance, 0);
     const overallKmPerL = totalLitres > 0 ? (totalKm / totalLitres).toFixed(2) : 0;
 
-    const staleJourneys = data.journeys.filter(j => {
-        if (j.status !== "In Transit" || !j.date) return false;
-        return (Date.now() - new Date(j.date).getTime()) / 86400000 > STALE_TRANSIT_DAYS;
+    const staleJourneys = data.journeys.filter(j => j.status === "In Transit" && (Date.now() - new Date(j.date).getTime()) > STALE_TRANSIT_DAYS * 86400000);
+
+    // Refine data for sorting
+    const refinedTrucks = data.trucks.map(t => {
+        const st = truckStats(t.id);
+        const profPerKm = st.totalKm > 0 ? Number((st.profit / st.totalKm).toFixed(2)) : 0;
+        return {
+            ...t,
+            _rev: st.rev,
+            _profPerKm: profPerKm,
+            _kmPerL: st.kmPerL,
+            _st: st
+        };
     });
+
+    const { 
+        filteredRows: sortedTrucks, 
+        setSort: requestSort, 
+        sortState: sortConfig,
+        filterState: dashboardFilters,
+        applyFilter: handleDashboardFilterChange,
+        getUniqueValues: getDashboardUniqueValues
+    } = useTableFilter(refinedTrucks, { namespace: "db", initialSort: { col: "_rev", dir: "desc" } });
+
     const activeTrucks = data.trucks.filter(t => t.status === "Active").length;
     const fleetActivePct = data.trucks.length > 0 ? (activeTrucks / data.trucks.length) * 100 : 100;
     const fleetActiveWarning = data.trucks.length > 0 && fleetActivePct < FLEET_ACTIVE_WARN_PCT;
@@ -126,6 +144,7 @@ export function Dashboard({ data, dark, truckStats, tyreStatus, truckReg, driver
         .filter((p) => p.month === latestMonth)
         .slice()
         .sort((a, b) => (driverName(a.driver) || "").localeCompare(driverName(b.driver) || ""));
+
 
     return (
         <div className="page-shell">
@@ -176,12 +195,12 @@ export function Dashboard({ data, dark, truckStats, tyreStatus, truckReg, driver
                 </Card>
                 <Card 
                     title="Revenue Collected" 
-                    subtitle={`${fmt(invoicesPending)} outstanding`}
+                    subtitle={`${fmt(invPendingTotal)} outstanding`}
                     icon={Wallet} 
                     accent="#10b981"
                 >
                     <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
-                        <div style={{ fontSize: 28, fontWeight: 800, color: "var(--text-primary)", letterSpacing: "-0.5px" }}>{fmt(invoicesPaid)}</div>
+                        <div style={{ fontSize: 28, fontWeight: 800, color: "var(--text-primary)", letterSpacing: "-0.5px" }}>{fmt(invPaidTotal)}</div>
                         <Sparkline data={[5, 12, 18, 14, 20, 25, 30]} color="#10b981" />
                     </div>
                 </Card>
@@ -208,7 +227,7 @@ export function Dashboard({ data, dark, truckStats, tyreStatus, truckReg, driver
                 </Card>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(400px, 1fr))", gap: 24, marginBottom: 24 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 320px), 1fr))", gap: 24, marginBottom: 24 }}>
                 <Card title="Monthly Performance Comparison" subtitle="Revenue vs Expenses (KES)">
                     <BarChart data={last3Months} />
                     <div style={{ display: 'flex', gap: 16, marginTop: 12, justifyContent: 'center' }}>
@@ -241,49 +260,56 @@ export function Dashboard({ data, dark, truckStats, tyreStatus, truckReg, driver
                 </Card>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "3fr 2fr", gap: 32 }}>
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "3fr 2fr", gap: 32 }}>
                 {/* Fleet performance table */}
                 <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
                     <Card title="Vehicle Performance Summary">
-                        <div style={{ overflowX: "auto" }}>
+                        <div className="table-container">
                             <table className="table-modern">
-                                <thead>
-                                    <tr>
-                                        <th>Vehicle</th>
-                                        <th>Status</th>
-                                        <th>Revenue</th>
-                                        <th>Prof/KM</th>
-                                        <th>Efficiency</th>
-                                        <th />
-                                    </tr>
-                                </thead>
+                                <SortableTableHead 
+                                    requestSort={requestSort}
+                                    sortConfig={sortConfig}
+                                    filterState={dashboardFilters}
+                                    onFilterChange={handleDashboardFilterChange}
+                                    getUniqueValues={getDashboardUniqueValues}
+                                    columns={[
+                                        { key: "reg", label: "Vehicle", sortable: true },
+                                        { key: "status", label: "Status", sortable: true },
+                                        { key: "_rev", label: "Revenue", sortable: true, align: "right" },
+                                        { key: "_profPerKm", label: "Prof/KM", sortable: true, align: "right" },
+                                        { key: "_kmPerL", label: "Efficiency", sortable: true },
+                                        { key: "actions", label: "", sortable: false, align: "right" }
+                                    ]}
+                                />
                                 <tbody>
-                                    {data.trucks.map(t => {
-                                        const st = truckStats(t.id);
-                                        const ts = tyreStatus(t);
-                                        const profPerKm = st.totalKm > 0 ? (st.profit / st.totalKm).toFixed(2) : 0;
+                                    {sortedTrucks.length === 0 ? (
+                                        <tr>
+                                            <td colSpan="6" style={{ textAlign: "center", padding: 40, color: "var(--text-dim)" }}>No vehicles found.</td>
+                                        </tr>
+                                    ) : sortedTrucks.map(t => {
+                                        const profPerKm = t._profPerKm;
                                         return (
-                                            <tr key={t.id}>
-                                                <td>
+                                            <tr key={t.id} className="hover-scale">
+                                                <td className="sticky-col" title={t.reg}>
                                                     <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                                                        <div style={{ width: 32, height: 32, borderRadius: 8, background: "rgba(255,255,255,0.05)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                                        <div style={{ width: 32, height: 32, borderRadius: 8, background: "var(--surface-subtle)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                                                             <Truck size={16} />
                                                         </div>
                                                         <span style={{ fontWeight: 700, color: "var(--text-primary)" }}>{t.reg}</span>
                                                     </div>
                                                 </td>
-                                                <td><Badge status={t.status} /></td>
-                                                <td style={{ fontWeight: 600, color: "#10b981" }}>{fmt(st.rev)}</td>
-                                                <td style={{ fontWeight: 600 }}>{fmt(profPerKm)}</td>
-                                                <td>
+                                                <td className="status-col" title={t.status}><Badge status={t.status} /></td>
+                                                <td style={{ fontWeight: 600, color: "#10b981", textAlign: "right" }} title={fmt(t._rev)}>{fmt(t._rev)}</td>
+                                                <td style={{ fontWeight: 600, textAlign: "right" }} title={fmt(profPerKm)}>{fmt(profPerKm)}</td>
+                                                <td title={`${fmtN(t._kmPerL, 1)} km/L`}>
                                                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                                        <div style={{ flex: 1, height: 6, background: "rgba(255,255,255,0.05)", borderRadius: 10, overflow: "hidden" }}>
-                                                            <div style={{ width: `${Math.min(100, Math.max(0, (st.kmPerL / 5) * 100))}%`, height: "100%", background: "#3b82f6", borderRadius: 10 }} />
+                                                        <div style={{ flex: 1, height: 6, background: "var(--surface-subtle)", borderRadius: 10, overflow: "hidden" }}>
+                                                            <div style={{ width: `${Math.min(100, Math.max(0, (t._kmPerL / 5) * 100))}%`, height: "100%", background: "#3b82f6", borderRadius: 10 }} />
                                                         </div>
-                                                        <span style={{ fontSize: 11, fontWeight: 600 }}>{fmtN(st.kmPerL, 1)}</span>
+                                                        <span style={{ fontSize: 11, fontWeight: 600 }}>{fmtN(t._kmPerL, 1)}</span>
                                                     </div>
                                                 </td>
-                                                <td>
+                                                <td style={{ textAlign: "right", verticalAlign: "middle" }}>
                                                     <button
                                                         type="button"
                                                         className="dashboard-table-icon-btn"
