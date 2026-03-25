@@ -538,7 +538,7 @@ export function useAppState() {
     const syncToServer = useCallback(async () => {
         try {
             const s = readSettings();
-            const res = await fetch(`${PAYMENT_API}/api/tracker/sync`, {
+            const res = await fetch(`${PAYMENT_API}/api/tracker/data`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -621,7 +621,9 @@ export function useAppState() {
 
     const downloadBackup = async (filename) => {
         try {
-            const res = await fetch(`${PAYMENT_API}/api/tracker/backups/download/${filename}`);
+            const res = await fetch(`${PAYMENT_API}/api/tracker/backups/download/${filename}`, {
+                headers: { 'x-admin-key': ADMIN_KEY }
+            });
             if (!res.ok) throw new Error("Download failed");
             const blob = await res.blob();
             const url = window.URL.createObjectURL(blob);
