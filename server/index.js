@@ -7,7 +7,7 @@ const upload = multer();
 require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3002;
 
 // 1. CORS - MUST BE FIRST for production reliability
 app.use(cors({
@@ -18,14 +18,26 @@ app.use(cors({
 }));
 
 // 2. Health Check - Before auth so monitoring works
-app.get('/health', (req, res) => res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() }));
+app.get('/health', (req, res) => {
+    console.log('[DEBUG] Health check requested');
+    try {
+        res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
+    } catch (e) {
+        console.error('[DEBUG] Health check failed:', e);
+        res.status(500).send(e.message);
+    }
+});
 
 app.use(express.json());
 
 // 3. Admin Auth Middleware
 const adminAuth = (req, res, next) => {
+    console.log(`[DEBUG] adminAuth: path=${req.path}`);
     // Skip auth for login and public routes
-    if (req.path === '/api/admin/login' || req.path === '/health' || !req.path.startsWith('/api/')) return next();
+    if (req.path === '/api/admin/login' || req.path === '/health' || !req.path.startsWith('/api/')) {
+        console.log('[DEBUG] adminAuth: skipping');
+        return next();
+    }
     
     // Check key in header or body
     const adminKey = req.headers['x-admin-key'] || req.body?.adminKey || req.query?.adminKey;
@@ -40,11 +52,28 @@ const adminAuth = (req, res, next) => {
 
 app.use(adminAuth);
 
+const db = require('./db');
+const driverAuth = require('./driver-auth');
+const staffAuth = require('./staff-auth');
+const driverData = require('./driver-data');
+const bcrypt = require('bcryptjs');
+
 // JSON File paths
 const JOURNEYS_FILE = path.join(__dirname, 'tracker-data.json');
 const DRIVERS_AUTH_FILE = path.join(__dirname, 'drivers-auth.json');
 const SETTINGS_FILE = path.join(__dirname, 'cached-settings.json');
 const DOCUMENTS_FILE = path.join(__dirname, 'documents.json');
+const STAFF_AUTH_FILE = path.join(__dirname, 'staff-auth.json');
+
+// Master Backup Configuration
+const DB_TABLES = ['admins', 'superadmins'];
+const DATA_FILES = {
+    tracker: JOURNEYS_FILE,
+    drivers_auth: DRIVERS_AUTH_FILE,
+    staff_auth: STAFF_AUTH_FILE,
+    documents: DOCUMENTS_FILE,
+    settings: SETTINGS_FILE
+};
 
 // Ensure directories exist
 if (!existsSync(__dirname)) mkdirSync(__dirname);
@@ -58,8 +87,44 @@ const getData = (file, defaultVal = { journeys: [], history: [] }) => {
 };
 const saveData = (file, data) => writeFileSync(file, JSON.stringify(data, null, 2));
 
-const db = require('./db');
-const bcrypt = require('bcryptjs');
+// Master Backup Helper
+async function backupEverything() {
+    const backup = {
+        version: '4.0',
+        timestamp: new Date().toISOString(),
+        tables: {},
+        files: {}
+    };
+    for (const table of DB_TABLES) {
+        const res = await db.query(`SELECT * FROM ${table}`);
+        backup.tables[table] = res.rows;
+    }
+    for (const [key, filePath] of Object.entries(DATA_FILES)) {
+        backup.files[key] = getData(filePath, null);
+    }
+    return backup;
+}
+
+// Master Restore Helper
+async function restoreEverything(backup) {
+    if (backup.files) {
+        for (const [key, content] of Object.entries(backup.files)) {
+            if (DATA_FILES[key]) saveData(DATA_FILES[key], content);
+        }
+    }
+    if (backup.tables) {
+        for (const [table, rows] of Object.entries(backup.tables)) {
+            await db.query(`TRUNCATE TABLE ${table} CASCADE`);
+            for (const row of rows) {
+                const cols = Object.keys(row);
+                const vals = Object.values(row);
+                const query = `INSERT INTO ${table} (${cols.join(',')}) VALUES (${vals.map((_, i) => `$${i + 1}`).join(',')})`;
+                await db.query(query, vals);
+            }
+        }
+    }
+}
+
 
 // --- ADMIN ROUTES ---
 
@@ -313,38 +378,38 @@ app.post('/api/admin/submission/verify', (req, res) => {
 });
 
 // Deep Reset - Wipes all server data
-app.post('/api/admin/reset', (req, res) => {
-    const key = req.headers['x-admin-key'];
-    // In prod, this key is managed via environment variables on Railway.
-    // We expect it to match the VITE_ADMIN_KEY sent by the frontend.
-    const expectedKey = process.env.ADMIN_KEY || 'segecha-admin-key-change-this';
-    
-    if (key !== expectedKey) {
-        return res.status(403).json({ error: 'Unauthorized reset request' });
-    }
-
+app.post('/api/admin/reset', async (req, res) => {
     try {
-        // Truncate the file or reset to seed structure
-        const seedData = { 
-            trucks: [], 
-            trailers: [],
-            drivers: [],
-            journeys: [], 
-            fuel: [],
-            expenses: [],
-            customers: [],
-            payroll: [],
-            staff: [],
-            history: [], 
-            stats: {} 
-        };
-        saveData(JOURNEYS_FILE, seedData);
+        // 1. Reset all database tables
+        for (const table of DB_TABLES) {
+            await db.query(`TRUNCATE TABLE ${table} CASCADE`);
+        }
         
-        // Also clear driver auth if needed? (Maybe just journeys for now as requested)
-        // saveData(DRIVERS_AUTH_FILE, { drivers: [] });
+        // 2. Re-seed default superadmin to prevent lockout
+        const defaultEmail = 'admin@segecha.com';
+        const defaultPass = 'segecha2025';
+        const salt = bcrypt.genSaltSync(10);
+        const hash = bcrypt.hashSync(defaultPass, salt);
+        const adminId = 'adm-' + Math.random().toString(36).substr(2, 9);
+        
+        await db.query(
+            'INSERT INTO admins (id, email, password_hash, display_name, role) VALUES ($1, $2, $3, $4, $5)',
+            [adminId, defaultEmail, hash, 'System Administrator', 'superadmin']
+        );
 
-        res.json({ success: true, message: 'Server data factory-reset successful' });
+        // 3. Clear all JSON data files
+        const trackerSeed = { 
+            trucks: [], trailers: [], drivers: [], journeys: [], fuel: [],
+            expenses: [], customers: [], payroll: [], staff: [], history: [], stats: {} 
+        };
+        saveData(JOURNEYS_FILE, trackerSeed);
+        saveData(DRIVERS_AUTH_FILE, { drivers: [] });
+        saveData(STAFF_AUTH_FILE, { staff: [] });
+        saveData(DOCUMENTS_FILE, { documents: [] });
+
+        res.json({ success: true, message: 'All data destroyed. System re-seeded with default admin: admin@segecha.com' });
     } catch (e) {
+        console.error('RESET_ERROR:', e);
         res.status(500).json({ error: 'Reset failed: ' + e.message });
     }
 });
@@ -401,36 +466,42 @@ app.get('/api/tracker/backups', (req, res) => {
     }
 });
 
-// Create Manual Backup
-app.post('/api/tracker/backup-now', (req, res) => {
+// Create Manual Backup (Unified)
+app.post('/api/tracker/backup-now', async (req, res) => {
     try {
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-        const filename = `backup_${timestamp}.json`;
-        const currentData = getData(JOURNEYS_FILE, null);
-        const currentSettings = getData(SETTINGS_FILE, null);
+        const filename = `backup_master_${timestamp}.json`;
+        const backup = await backupEverything();
         
-        if (!currentData) throw new Error("No data to backup");
-        
-        saveData(path.join(BACKUPS_DIR, filename), { data: currentData, settings: currentSettings });
-        res.json({ success: true, message: 'Backup created: ' + filename });
+        saveData(path.join(BACKUPS_DIR, filename), backup);
+        res.json({ success: true, message: 'Master backup created: ' + filename });
     } catch (e) {
+        console.error('BACKUP_ERROR:', e);
         res.status(500).json({ error: 'Backup failed: ' + e.message });
     }
 });
 
-// Restore from Backup
-app.post('/api/tracker/restore', (req, res) => {
+// Restore from Backup (Unified)
+app.post('/api/tracker/restore', async (req, res) => {
     const { filename } = req.body;
     try {
         const backupPath = path.join(BACKUPS_DIR, filename);
         if (!existsSync(backupPath)) return res.status(404).json({ error: 'Backup file not found' });
         
         const backup = JSON.parse(readFileSync(backupPath, 'utf8'));
-        if (backup.data) saveData(JOURNEYS_FILE, backup.data);
-        if (backup.settings) saveData(SETTINGS_FILE, backup.settings);
+        
+        // Handle both legacy (just data/settings) and new unified format
+        if (backup.version === '4.0') {
+            await restoreEverything(backup);
+        } else {
+            // Fallback for older backups
+            if (backup.data) saveData(JOURNEYS_FILE, backup.data);
+            if (backup.settings) saveData(SETTINGS_FILE, backup.settings);
+        }
         
         res.json({ success: true, message: 'System restored from ' + filename });
     } catch (e) {
+        console.error('RESTORE_ERROR:', e);
         res.status(500).json({ error: 'Restore failed: ' + e.message });
     }
 });
@@ -520,9 +591,6 @@ try {
     console.warn('Could not start initial backup scheduler:', e.message);
 }
 
-const driverAuth = require('./driver-auth');
-const staffAuth = require('./staff-auth');
-const driverData = require('./driver-data');
 
 // --- DRIVER ACCOUNT MANAGEMENT (ADMIN) ---
 

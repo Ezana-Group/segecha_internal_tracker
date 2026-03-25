@@ -1,0 +1,15 @@
+2026-03-25T21:28:44.495Z - / - ENOENT: no such file or directory, stat '/Users/mose/Segecha_Internal_Tracker V1/segecha_internal_tracker/dist/index.html'
+Error: ENOENT: no such file or directory, stat '/Users/mose/Segecha_Internal_Tracker V1/segecha_internal_tracker/dist/index.html'
+
+2026-03-25T21:28:44.766Z - /favicon.ico - ENOENT: no such file or directory, stat '/Users/mose/Segecha_Internal_Tracker V1/segecha_internal_tracker/dist/index.html'
+Error: ENOENT: no such file or directory, stat '/Users/mose/Segecha_Internal_Tracker V1/segecha_internal_tracker/dist/index.html'
+
+2026-03-25T21:29:10.195Z - /favicon.ico - ENOENT: no such file or directory, stat '/Users/mose/Segecha_Internal_Tracker V1/segecha_internal_tracker/dist/index.html'
+Error: ENOENT: no such file or directory, stat '/Users/mose/Segecha_Internal_Tracker V1/segecha_internal_tracker/dist/index.html'
+
+2026-03-25T21:29:10.206Z - /favicon.ico - ENOENT: no such file or directory, stat '/Users/mose/Segecha_Internal_Tracker V1/segecha_internal_tracker/dist/index.html'
+Error: ENOENT: no such file or directory, stat '/Users/mose/Segecha_Internal_Tracker V1/segecha_internal_tracker/dist/index.html'
+
+2026-03-25T21:37:28.153Z - /favicon.ico - ENOENT: no such file or directory, stat '/Users/mose/Segecha_Internal_Tracker V1/segecha_internal_tracker/dist/index.html'
+Error: ENOENT: no such file or directory, stat '/Users/mose/Segecha_Internal_Tracker V1/segecha_internal_tracker/dist/index.html'
+
