@@ -275,7 +275,7 @@ export function useAppState() {
         setData(d => {
             const arr = [...(d[col] || [])];
             const i = arr.findIndex(x => x.id === item.id);
-            
+
             let finalItem = { ...item };
             if (col === 'journeys') {
                 if (finalItem.startOdom && finalItem.finalOdom) {
@@ -301,7 +301,7 @@ export function useAppState() {
                             customers: settings.customerIdPrefix || 'CST-',
                             trailers: settings.trailerIdPrefix || 'TRL-',
                         };
-                        
+
                         if (prefixes[col]) {
                             const count = (d[col] || []).length + 1;
                             uId = prefixes[col] + String(count).padStart(3, '0');
@@ -310,7 +310,7 @@ export function useAppState() {
                         console.error("Error generating uId:", e);
                     }
                 }
-                
+
                 arr.push({ ...finalItem, id: finalItem.id || uid(), uId });
             }
             return { ...d, [col]: arr };
@@ -364,9 +364,9 @@ export function useAppState() {
     const delItem = async (col, id, label) => {
         const desc = label ? `"${label}"` : 'this record';
         if (!window.confirm(`Delete ${desc}? This cannot be undone.`)) return;
-        
+
         setData(d => ({ ...d, [col]: d[col].filter(x => x.id !== id) }));
-        
+
         if (PAYMENT_API) {
             try {
                 const res = await fetch(`${PAYMENT_API}/api/admin/${col}/${id}?adminKey=${ADMIN_KEY}`, {
@@ -382,7 +382,7 @@ export function useAppState() {
                 console.warn(`Sync failed: ${err.message}. Local delete persists.`);
             }
         }
-        
+
         showToast(`${label || 'Record'} deleted`, "success");
     };
 
@@ -437,7 +437,7 @@ export function useAppState() {
                 }
             });
             const result = await res.json().catch(() => ({}));
-            
+
             if (res.ok) {
                 localStorage.removeItem(STORAGE_KEY);
                 localStorage.removeItem(LAST_SYNC_KEY);
@@ -483,10 +483,10 @@ export function useAppState() {
                 // Refresh incoming queue from server-side snapshot.
                 await fetchPendingVerifications();
 
-                setTimeout(() => { 
-                    setVerifyModal(null); 
-                    setVerifyMsg(''); 
-                    setRejectReason(''); 
+                setTimeout(() => {
+                    setVerifyModal(null);
+                    setVerifyMsg('');
+                    setRejectReason('');
                     setRejectedFields([]);
                 }, 1000);
             } else {
@@ -511,7 +511,7 @@ export function useAppState() {
             const result = await res.json();
             if (result.success) {
                 setVerifyMsg(approved ? 'Submission approved.' : 'Submission rejected.');
-                
+
                 // Update local copy
                 const col = type === 'fuel' ? 'fuel' : type === 'expense' ? 'expenses' : 'incidents';
                 setData(d => ({
@@ -553,7 +553,7 @@ export function useAppState() {
             if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
             localStorage.setItem(LAST_SYNC_KEY, new Date().toISOString());
             showToast("Server snapshot updated. Driver portal and M-Pesa callbacks use tracker-data.json.", "success");
-            
+
             // Refresh backups list if sync was successful (a new backup might have been triggered)
             fetchBackups();
             return true;
@@ -566,7 +566,9 @@ export function useAppState() {
     const fetchBackups = useCallback(async () => {
         setBackupsLoading(true);
         try {
-            const res = await fetch(`${PAYMENT_API}/api/tracker/backups`);
+            const res = await fetch(`${PAYMENT_API}/api/tracker/backups`, {
+                headers: { 'x-admin-key': ADMIN_KEY }
+            });
             const j = await res.json();
             if (j.success) {
                 setBackups(j.backups || []);
@@ -579,7 +581,10 @@ export function useAppState() {
 
     const createManualBackup = async () => {
         try {
-            const res = await fetch(`${PAYMENT_API}/api/tracker/backup-now`, { method: 'POST' });
+            const res = await fetch(`${PAYMENT_API}/api/tracker/backup-now`, {
+                method: 'POST',
+                headers: { 'x-admin-key': ADMIN_KEY }
+            });
             const j = await res.json();
             if (j.success) {
                 showToast(j.message, "success");
@@ -594,7 +599,7 @@ export function useAppState() {
 
     const restoreFromBackup = async (filename) => {
         if (!window.confirm(`Are you SURE you want to restore from "${filename}"? This will overwrite ALL current data.`)) return;
-        
+
         try {
             const res = await fetch(`${PAYMENT_API}/api/tracker/restore`, {
                 method: 'POST',
@@ -812,7 +817,7 @@ export function useAppState() {
         return () => clearInterval(id);
     }, [fetchPendingVerifications, fetchImportHistory]);
 
-// ─── EXCEL IMPORT ENGINE ─────────────────────────────────────────────────
+    // ─── EXCEL IMPORT ENGINE ─────────────────────────────────────────────────
 
     const parseExcelDate = (val) => {
         if (!val) return null;
@@ -870,8 +875,8 @@ export function useAppState() {
                         fileName: file.name,
                         parsedAt: new Date().toISOString(),
                         sheets: {
-                            trips:       { valid: [], errors: [] },
-                            expenses:    { valid: [], errors: [] },
+                            trips: { valid: [], errors: [] },
+                            expenses: { valid: [], errors: [] },
                             maintenance: { valid: [], errors: [] },
                         },
                         committed: false,
@@ -882,7 +887,7 @@ export function useAppState() {
                         const rows = window.XLSX.utils.sheet_to_json(tripsSheet, {
                             header: 1, defval: null, raw: false, dateNF: 'yyyy-mm-dd'
                         });
-                        
+
                         const headers = rows[1] || []; // Headers are on row 2 (index 1)
                         const hMap = (rawHeaders, aliases) => {
                             const map = {};
@@ -920,20 +925,20 @@ export function useAppState() {
                             const get = (field) => row[col[field]] ?? null;
 
                             const rawRow = {
-                                vehicle:       get('vehicle'), 
-                                date:          get('date'), 
-                                origin:        get('origin'), 
-                                destination:   get('destination'),
-                                startOdo:      get('startOdo'), 
-                                endOdo:        get('endOdo'), 
-                                standardDist:  get('standardDist'), 
-                                grossIncome:   get('grossIncome'),
-                                fuelLitres:    get('fuelLitres'), 
-                                fuelPrice:     get('fuelPrice'),
-                                driverMileage: get('driverMileage'), 
-                                turnboy:       get('turnboy'), 
-                                roadUsers:     get('roadUsers'),
-                                otherExp:      get('otherExp'), 
+                                vehicle: get('vehicle'),
+                                date: get('date'),
+                                origin: get('origin'),
+                                destination: get('destination'),
+                                startOdo: get('startOdo'),
+                                endOdo: get('endOdo'),
+                                standardDist: get('standardDist'),
+                                grossIncome: get('grossIncome'),
+                                fuelLitres: get('fuelLitres'),
+                                fuelPrice: get('fuelPrice'),
+                                driverMileage: get('driverMileage'),
+                                turnboy: get('turnboy'),
+                                roadUsers: get('roadUsers'),
+                                otherExp: get('otherExp'),
                                 progressTrack: get('progressTrack'),
                             };
 
@@ -957,23 +962,23 @@ export function useAppState() {
                             if (!revenue || revenue <= 0) errors.push({ field: 'Gross Income', msg: 'Gross income is missing or zero' });
 
                             const fuelLitres = parseNumeric(rawRow.fuelLitres);
-                            const fuelPrice  = parseNumeric(rawRow.fuelPrice);
+                            const fuelPrice = parseNumeric(rawRow.fuelPrice);
                             if (fuelLitres && !fuelPrice) warnings.push({ field: 'Fuel Price', msg: 'Fuel litres present but price missing' });
 
                             const mapped = {
-                                _rowNum:      idx + 3,
-                                _sheetName:   'Trips_2025',
-                                _rawVehicle:  rawRow.vehicle,
+                                _rowNum: idx + 3,
+                                _sheetName: 'Trips_2025',
+                                _rawVehicle: rawRow.vehicle,
 
-                                journeyId:   uid(), truck:       truck?.id || '', date:        date || '',
-                                origin:      rawRow.origin || '', dest:        rawRow.destination || '', distance:    distance || 0,
-                                revenue:     revenue || 0, status:      tripStatusMap(rawRow.progressTrack),
-                                startOdom:   parseNumeric(rawRow.startOdo), endOdom:     parseNumeric(rawRow.endOdo),
+                                journeyId: uid(), truck: truck?.id || '', date: date || '',
+                                origin: rawRow.origin || '', dest: rawRow.destination || '', distance: distance || 0,
+                                revenue: revenue || 0, status: tripStatusMap(rawRow.progressTrack),
+                                startOdom: parseNumeric(rawRow.startOdo), endOdom: parseNumeric(rawRow.endOdo),
 
-                                hasFuel:     !!(fuelLitres && fuelPrice), fuelLitres:  fuelLitres || 0, fuelPrice:   fuelPrice || 0,
+                                hasFuel: !!(fuelLitres && fuelPrice), fuelLitres: fuelLitres || 0, fuelPrice: fuelPrice || 0,
 
-                                driverMileage: parseNumeric(rawRow.driverMileage) || 0, turnboy:       parseNumeric(rawRow.turnboy) || 0,
-                                roadUsers:     parseNumeric(rawRow.roadUsers) || 0, otherExp:      parseNumeric(rawRow.otherExp) || 0,
+                                driverMileage: parseNumeric(rawRow.driverMileage) || 0, turnboy: parseNumeric(rawRow.turnboy) || 0,
+                                roadUsers: parseNumeric(rawRow.roadUsers) || 0, otherExp: parseNumeric(rawRow.otherExp) || 0,
 
                                 errors, warnings,
                                 accepted: errors.length === 0,
@@ -988,8 +993,8 @@ export function useAppState() {
                     const fixedSheet = wb.Sheets['Fixed_Expenses'];
                     if (fixedSheet) {
                         const rows = window.XLSX.utils.sheet_to_json(fixedSheet, { header: 1, defval: null, raw: true });
-                        const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-                        const monthDates = months.map((_, i) => `2025-${String(i+1).padStart(2,'0')}-01`);
+                        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                        const monthDates = months.map((_, i) => `2025-${String(i + 1).padStart(2, '0')}-01`);
                         const dataRows = rows.slice(2).filter(r => r[0] !== null);
 
                         dataRows.forEach((row, idx) => {
@@ -1002,11 +1007,11 @@ export function useAppState() {
 
                                 const errors = [];
                                 const mapped = {
-                                    _rowNum:    idx + 3, _sheetName: 'Fixed_Expenses', _monthName: month,
-                                    expenseId:  uid(), truck:      '', date:       monthDates[mIdx],
-                                    cat:        expenseCatFromDesc(itemName), amount:     Math.round(amount),
-                                    desc:       `${itemName} (${month} 2025)`,
-                                    errors, warnings: [], accepted: true, edited:   false,
+                                    _rowNum: idx + 3, _sheetName: 'Fixed_Expenses', _monthName: month,
+                                    expenseId: uid(), truck: '', date: monthDates[mIdx],
+                                    cat: expenseCatFromDesc(itemName), amount: Math.round(amount),
+                                    desc: `${itemName} (${month} 2025)`,
+                                    errors, warnings: [], accepted: true, edited: false,
                                 };
                                 if (errors.length > 0) session.sheets.expenses.errors.push(mapped);
                                 else session.sheets.expenses.valid.push(mapped);
@@ -1044,12 +1049,12 @@ export function useAppState() {
                             const allNotes = [rawRow.notes, rawRow.addlNotes].filter(Boolean).join(' · ');
 
                             const mapped = {
-                                _rowNum:    idx + 4, _sheetName: 'Maintenance', _rawVehicle: rawRow.vehicleReg,
-                                expenseId:  uid(), truck:      truck?.id || '', date:       date || '',
-                                cat:        'Maintenance', amount:     cost || 0, desc:       `${task}${allNotes ? ' — ' + allNotes : ''}`,
-                                odom:       parseNumeric(rawRow.odomReading) || 0, _maintenanceTask: task,
+                                _rowNum: idx + 4, _sheetName: 'Maintenance', _rawVehicle: rawRow.vehicleReg,
+                                expenseId: uid(), truck: truck?.id || '', date: date || '',
+                                cat: 'Maintenance', amount: cost || 0, desc: `${task}${allNotes ? ' — ' + allNotes : ''}`,
+                                odom: parseNumeric(rawRow.odomReading) || 0, _maintenanceTask: task,
                                 _maintenanceDetails: { task, notes: allNotes, odomReading: parseNumeric(rawRow.odomReading) || 0, cost: cost || 0 },
-                                errors, warnings, accepted: errors.length === 0, edited:   false,
+                                errors, warnings, accepted: errors.length === 0, edited: false,
                             };
                             if (errors.length > 0) session.sheets.maintenance.errors.push(mapped);
                             else session.sheets.maintenance.valid.push(mapped);
@@ -1067,12 +1072,12 @@ export function useAppState() {
     };
 
     const commitImport = async (session) => {
-        const allTrips     = [...session.sheets.trips.valid, ...session.sheets.trips.errors].filter(r => r.accepted);
-        const allExpenses  = [...session.sheets.expenses.valid, ...session.sheets.expenses.errors].filter(r => r.accepted);
-        const allMaint     = [...session.sheets.maintenance.valid, ...session.sheets.maintenance.errors].filter(r => r.accepted);
+        const allTrips = [...session.sheets.trips.valid, ...session.sheets.trips.errors].filter(r => r.accepted);
+        const allExpenses = [...session.sheets.expenses.valid, ...session.sheets.expenses.errors].filter(r => r.accepted);
+        const allMaint = [...session.sheets.maintenance.valid, ...session.sheets.maintenance.errors].filter(r => r.accepted);
 
-        const newJourneys  = [];
-        const newFuel      = [];
+        const newJourneys = [];
+        const newFuel = [];
         const sheetExpenseToRecord = (row) => ({
             id: row.expenseId || uid(),
             truck: row.truck || '',
@@ -1085,7 +1090,7 @@ export function useAppState() {
             ...(row._maintenanceTask != null ? { _maintenanceTask: row._maintenanceTask } : {}),
             ...(row._maintenanceDetails ? { _maintenanceDetails: row._maintenanceDetails } : {}),
         });
-        const newExpenses  = [...allExpenses, ...allMaint].map(sheetExpenseToRecord);
+        const newExpenses = [...allExpenses, ...allMaint].map(sheetExpenseToRecord);
 
         const settings = readSettings();
         const journeyPrefix = settings.journeyIdPrefix || 'JRN-';
@@ -1096,26 +1101,26 @@ export function useAppState() {
             const uId = journeyPrefix + String(journeyCount).padStart(4, '0');
 
             newJourneys.push({
-                id:       row.journeyId, 
-                uId:      uId,
-                truck:    row.truck, 
-                date:     row.date, 
-                origin:   row.origin, 
-                dest:     row.dest,
-                distance: row.distance, 
-                revenue:  row.revenue, 
-                status:   row.status, 
-                startOdom: row.startOdom, 
-                endOdom:   row.endOdom,
-                cargo:    '', 
-                weight:   '', 
-                notes:    `Imported from ${session.fileName}`,
+                id: row.journeyId,
+                uId: uId,
+                truck: row.truck,
+                date: row.date,
+                origin: row.origin,
+                dest: row.dest,
+                distance: row.distance,
+                revenue: row.revenue,
+                status: row.status,
+                startOdom: row.startOdom,
+                endOdom: row.endOdom,
+                cargo: '',
+                weight: '',
+                notes: `Imported from ${session.fileName}`,
             });
 
             if (row.hasFuel && row.fuelLitres > 0 && row.fuelPrice > 0) {
                 newFuel.push({
-                    id:        uid(), truck:     row.truck, date:      row.date, litres:    row.fuelLitres,
-                    pricePerL: row.fuelPrice, station:   'Imported', journey:   row.journeyId, odom:      row.endOdom || 0,
+                    id: uid(), truck: row.truck, date: row.date, litres: row.fuelLitres,
+                    pricePerL: row.fuelPrice, station: 'Imported', journey: row.journeyId, odom: row.endOdom || 0,
                 });
             }
 
@@ -1148,7 +1153,7 @@ export function useAppState() {
         setData(d => ({
             ...d,
             journeys: [...d.journeys, ...newJourneys],
-            fuel:     [...d.fuel,     ...newFuel],
+            fuel: [...d.fuel, ...newFuel],
             expenses: [...d.expenses, ...newExpenses],
         }));
 
@@ -1205,10 +1210,10 @@ export function useAppState() {
     const maintenanceStatus = useCallback((truck, typeId) => {
         const setting = data.maintenanceSettings.find(s => s.id === typeId);
         if (!setting) return { status: "OK", remaining: 999999 };
-        
+
         const logs = data.maintenanceLogs.filter(l => l.truck === truck.id && l.type === typeId).sort((a, b) => new Date(b.date) - new Date(a.date));
         const lastLog = logs[0];
-        
+
         if (setting.unit === "km") {
             const lastOdom = lastLog ? +lastLog.odom : (typeId === "m15" || typeId === "m16" ? +truck.tyreOdom : 0);
             const kmSince = +truck.odom - lastOdom;
@@ -1222,12 +1227,12 @@ export function useAppState() {
             const now = new Date();
             const diffMs = now - lastDate;
             const diffDays = diffMs / (1000 * 60 * 60 * 24);
-            
+
             let limitDays = 0;
             if (setting.unit === "weeks") limitDays = setting.val * 7;
             else if (setting.unit === "months") limitDays = setting.val * 30.44;
             else if (setting.unit === "years") limitDays = setting.val * 365.25;
-            
+
             const remaining = limitDays - diffDays;
             const status = remaining <= 0 ? "Overdue" : remaining <= (limitDays * 0.15) ? "Due Soon" : "OK";
             return { daysSince: diffDays, remaining, status, pct: Math.min(100, (diffDays / limitDays) * 100), unit: setting.unit };
@@ -1237,7 +1242,7 @@ export function useAppState() {
     const logMaintenance = (truckId, typeId, cost, desc, odom, date) => {
         const log = { id: 'ml' + uid().slice(0, 6), truck: truckId, type: typeId, cost: +cost, desc, odom: +odom, date: date || today() };
         const expense = { id: 'e' + uid().slice(0, 6), truck: truckId, cat: "Maintenance", amount: +cost, date: date || today(), desc: `${data.maintenanceSettings.find(s => s.id === typeId)?.name}: ${desc}`, journey: "" };
-        
+
         setData(d => ({
             ...d,
             maintenanceLogs: [log, ...d.maintenanceLogs],
@@ -1247,7 +1252,7 @@ export function useAppState() {
     };
 
     const tyreStatus = (truck) => maintenanceStatus(truck, "m16"); // Default to tyre replacement setting
-    
+
     const fillTemplate = useCallback((templateStr, context = {}) => {
         if (!templateStr) return "";
         let result = templateStr;
