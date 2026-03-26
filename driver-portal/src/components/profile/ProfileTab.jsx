@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { COLORS, S } from '../../constants/theme';
-import { API_URL as API } from '../../utils/api';
+import { API_URL } from '../../utils/api';
+
 
 export const ProfileTab = ({ driver, truck, portalPerm, token, fetchDriverData, apiPost, setTab }) => {
     const [phone, setPhone] = useState(driver.phone || '');
@@ -36,7 +37,7 @@ export const ProfileTab = ({ driver, truck, portalPerm, token, fetchDriverData, 
         }
         setResetBusy(true);
         try {
-            const res = await fetch(`${API}/api/driver/forgot-password`, {
+            const res = await fetch(`${API_URL}/api/driver/forgot-password`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ identifier: accountId }),

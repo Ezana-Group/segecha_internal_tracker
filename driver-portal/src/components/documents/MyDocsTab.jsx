@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { COLORS, S, API_URL } from '../../constants/theme'; // API_URL actually comes from utils/api.js, let me fix theme.js or use relative
+import { COLORS, S } from '../../constants/theme';
 
-// API_URL is actually in utils/api.js
-import { API_URL as API } from '../../utils/api';
+import { API_URL } from '../../utils/api';
+
 
 export const MyDocsTab = ({ token, portalPerm }) => {
     const [docs, setDocs] = useState([]);
@@ -20,7 +20,7 @@ export const MyDocsTab = ({ token, portalPerm }) => {
     const fetchMyDocs = useCallback(async () => {
         setLoading(true);
         try {
-            const res = await fetch(`${API}/api/documents/mine`, {
+            const res = await fetch(`${API_URL}/api/documents/mine`, {
                 headers: { Authorization: `Bearer ${token}` },
             });
             const d = await res.json();
@@ -49,7 +49,7 @@ export const MyDocsTab = ({ token, portalPerm }) => {
             formData.append('label', uploadForm.label || file.name);
             if (uploadForm.expiryDate) formData.append('expiryDate', uploadForm.expiryDate);
 
-            const res = await fetch(`${API}/api/documents/driver-upload`, {
+            const res = await fetch(`${API_URL}/api/documents/driver-upload`, {
                 method: 'POST',
                 headers: { Authorization: `Bearer ${token}` },
                 body: formData,
