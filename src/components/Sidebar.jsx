@@ -73,7 +73,7 @@ export function Sidebar({ sideOpen, setSideOpen, isMobile, tyreAlertCount, verif
         >
             <div className="sidebar-brand" style={{ padding: '24px 20px', borderBottom: '1px solid var(--border-subtle)' }}>
                 <div className="sidebar-brand-mark" style={{ background: 'transparent', padding: 0, boxShadow: 'none' }}>
-                    <img src="/logo.png" alt="Logo" style={{ height: 38, width: 'auto', objectFit: 'contain' }} />
+                    <img src={s.companyLogo || "/logo.png"} alt="Logo" style={{ height: 38, width: 'auto', objectFit: 'contain' }} />
                 </div>
                 <div style={{ marginLeft: 12 }}>
                     <div className="sidebar-brand-name" style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>

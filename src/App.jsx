@@ -91,6 +91,18 @@ export default function App() {
         document.head.appendChild(script);
     }, []);
 
+    // Apply branding (Favicon)
+    useEffect(() => {
+        const settings = JSON.parse(localStorage.getItem("segecha_settings") || "{}");
+        if (settings.companyFavicon) {
+            const link = document.querySelector("link[rel*='icon']") || document.createElement('link');
+            link.type = 'image/x-icon';
+            link.rel = 'shortcut icon';
+            link.href = settings.companyFavicon;
+            document.getElementsByTagName('head')[0].appendChild(link);
+        }
+    }, [location.pathname]); // Update on navigation or when settings might have changed
+
     const tyreAlertCount = state.data.trucks.filter(t => state.tyreStatus(t).status !== "OK").length;
     const verifyAlertCount = (state.pendingVerifications || []).length;
 

@@ -829,9 +829,61 @@ export function Settings({
                                 <SettingsShellField label="Email Address">
                                     <SettingsShellInput value={localS.email || ''} onChange={e => saveSettings({ email: e.target.value })} placeholder="ops@segecha.com" />
                                 </SettingsShellField>
-                                <SettingsShellField label="Phone Support">
+                                 <SettingsShellField label="Phone Support">
                                     <SettingsShellInput value={localS.phone || ''} onChange={e => saveSettings({ phone: e.target.value })} placeholder="+254 7XX XXX XXX" />
                                 </SettingsShellField>
+                                <SettingsShellField label="Corporate WhatsApp No.">
+                                    <SettingsShellInput value={localS.whatsappNumber || ''} onChange={e => saveSettings({ whatsappNumber: e.target.value })} placeholder="2547XXXXXXXX" />
+                                </SettingsShellField>
+
+                                <div style={{ gridColumn: "1/-1", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, background: "var(--brand-primary)05", padding: 20, borderRadius: 16, border: "1px dashed var(--brand-primary)30" }}>
+                                    <SettingsShellField label="Organization Logo" sub="Shows in sidebar & documents">
+                                        <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
+                                            <div style={{ width: 60, height: 60, borderRadius: 12, border: "1px solid var(--border-subtle)", background: "var(--surface-primary)", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                                                {localS.companyLogo ? <img src={localS.companyLogo} style={{ width: "100%", height: "100%", objectFit: "contain" }} /> : <Building2 size={24} style={{ opacity: 0.2 }} />}
+                                            </div>
+                                            <label className="btn-premium btn-ghost" style={{ fontSize: 12, padding: "8px 12px", cursor: "pointer" }}>
+                                                <Upload size={14} style={{ marginRight: 6 }} /> Upload Logo
+                                                <input type="file" accept="image/*" style={{ display: "none" }} onChange={e => {
+                                                    const file = e.target.files[0];
+                                                    if (file) {
+                                                        const reader = new FileReader();
+                                                        reader.onload = (ev) => saveSettings({ companyLogo: ev.target.result });
+                                                        reader.readAsDataURL(file);
+                                                    }
+                                                }} />
+                                            </label>
+                                        </div>
+                                    </SettingsShellField>
+
+                                    <SettingsShellField label="Browser Favicon" sub="Icon in browser tab">
+                                        <div style={{ display: "flex", alignItems: "center", gap: 15 }}>
+                                            <div style={{ width: 40, height: 40, borderRadius: 8, border: "1px solid var(--border-subtle)", background: "var(--surface-primary)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                                {localS.companyFavicon ? <img src={localS.companyFavicon} style={{ width: 24, height: 24, objectFit: "contain" }} /> : <div style={{ width: 16, height: 16, background: "var(--brand-primary)", borderRadius: 2 }} />}
+                                            </div>
+                                            <label className="btn-premium btn-ghost" style={{ fontSize: 12, padding: "8px 12px", cursor: "pointer" }}>
+                                                <Upload size={14} style={{ marginRight: 6 }} /> Change Icon
+                                                <input type="file" accept="image/*" style={{ display: "none" }} onChange={e => {
+                                                    const file = e.target.files[0];
+                                                    if (file) {
+                                                        const reader = new FileReader();
+                                                        reader.onload = (ev) => {
+                                                            const base64 = ev.target.result;
+                                                            saveSettings({ companyFavicon: base64 });
+                                                            // Immediate UI apply
+                                                            const link = document.querySelector("link[rel*='icon']") || document.createElement('link');
+                                                            link.type = 'image/x-icon';
+                                                            link.rel = 'shortcut icon';
+                                                            link.href = base64;
+                                                            document.getElementsByTagName('head')[0].appendChild(link);
+                                                        };
+                                                        reader.readAsDataURL(file);
+                                                    }
+                                                }} />
+                                            </label>
+                                        </div>
+                                    </SettingsShellField>
+                                </div>
                                 <div style={{ gridColumn: "1/-1" }}>
                                     <SettingsShellField label="Physical Address">
                                         <textarea 
