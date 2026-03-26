@@ -34,18 +34,18 @@ RUN npm run build
 FROM node:20-alpine
 WORKDIR /app
 
-# Copy built frontend assets
+# Copy built frontend assets from previous stages
 COPY --from=build-admin /app/dist ./dist
 COPY --from=build-driver /app/dist ./driver-portal/dist
 COPY --from=build-payment /app/dist ./payment-portal/dist
 COPY --from=build-track /app/dist ./track-portal/dist
 
-# Setup Server
-WORKDIR /app/server
-COPY server/package*.json ./
-RUN npm install
-COPY server/ .
+# Copy and setup server
+COPY server/package*.json ./server/
+RUN cd server && npm install --production
+COPY server/ ./server/
 
-# Expose port and start
+# Expose port and start explicitly
 EXPOSE 3001
-CMD ["npm", "start"]
+WORKDIR /app/server
+CMD ["node", "index.js"]
