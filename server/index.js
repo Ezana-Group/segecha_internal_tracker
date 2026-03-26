@@ -29,20 +29,46 @@ app.get('/health', (req, res) => {
 app.use(express.json());
 
 // 3. Admin Auth Middleware
+const jwt = require('jsonwebtoken');
+const JWT_SECRET = process.env.JWT_SECRET;
+const ADMIN_KEY = process.env.ADMIN_KEY || process.env.VITE_ADMIN_KEY;
+
+if (!JWT_SECRET || !ADMIN_KEY) {
+    console.warn('[SECURITY] CRITICAL: JWT_SECRET or ADMIN_KEY not set. Using insecure defaults is dangerous.');
+}
+
+const PUBLIC_ROUTES = ['/health', '/api/admin/login', '/api/driver/login', '/api/staff/login'];
+
 const adminAuth = (req, res, next) => {
-    // Skip auth for login and public routes
-    if (req.path.includes('/login') || req.path === '/health' || !req.path.startsWith('/api/')) {
+    // 1. Whitelist public routes
+    if (PUBLIC_ROUTES.some(route => req.path === route || req.path.startsWith(route + '/'))) {
         return next();
     }
 
-    // Check key in header or body
+    // 2. Check for Admin Key (Legacy/Internal) or JWT Token
     const adminKey = req.headers['x-admin-key'] || req.body?.adminKey || req.query?.adminKey;
-    const expectedKey = process.env.VITE_ADMIN_KEY || process.env.ADMIN_KEY || 'segecha-admin-key-change-this';
+    const authHeader = req.headers.authorization;
 
-    if (adminKey !== expectedKey) {
-        return res.status(403).json({ error: 'Unauthorized access' });
+    // Check Admin Key
+    if (adminKey && adminKey === ADMIN_KEY) {
+        return next();
     }
-    next();
+
+    // Check JWT Token
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.slice(7);
+        try {
+            const decoded = jwt.verify(token, JWT_SECRET || 'segecha-driver-secret-change-in-production');
+            if (decoded.role === 'superadmin' || decoded.role === 'admin') {
+                req.admin = decoded;
+                return next();
+            }
+        } catch (e) {
+            return res.status(401).json({ error: 'Session expired or invalid' });
+        }
+    }
+
+    return res.status(403).json({ error: 'Unauthorized access' });
 };
 
 app.use(adminAuth);
@@ -168,21 +194,43 @@ async function backupEverything() {
 
 // Master Restore Helper
 async function restoreEverything(backup) {
-    if (backup.tables) {
+    if (!backup.tables) return;
+    
+    // Use a single transaction for atomicity and performance
+    const client = await db.pool.connect();
+    try {
+        await client.query('BEGIN');
+        
         for (const [table, rows] of Object.entries(backup.tables)) {
-            // Check if table exists in our DB_TABLES to prevent injection or errors
             if (!DB_TABLES.includes(table)) continue;
             
-            await db.query(`TRUNCATE TABLE ${table} CASCADE`);
+            await client.query(`TRUNCATE TABLE ${table} CASCADE`);
             if (!rows || rows.length === 0) continue;
 
-            for (const row of rows) {
-                const cols = Object.keys(row);
-                const vals = Object.values(row);
-                const query = `INSERT INTO ${table} (${cols.join(',')}) VALUES (${vals.map((_, i) => `$${i + 1}`).join(',')})`;
-                await db.query(query, vals);
+            const CHUNK_SIZE = 500;
+            for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
+                const chunk = rows.slice(i, i + CHUNK_SIZE);
+                const cols = Object.keys(chunk[0]);
+                const validCols = cols.filter(c => /^[a-z0-9_]+$/.test(c));
+                if (validCols.length !== cols.length) {
+                    throw new Error(`Invalid column names detected in table ${table}`);
+                }
+
+                const placeholders = chunk.map((_, rowIndex) => 
+                    `(${validCols.map((_, colIndex) => `$${rowIndex * validCols.length + colIndex + 1}`).join(',')})`
+                ).join(',');
+
+                const values = chunk.flatMap(row => validCols.map(c => row[c]));
+                const query = `INSERT INTO ${table} (${validCols.join(',')}) VALUES ${placeholders}`;
+                await client.query(query, values);
             }
         }
+        await client.query('COMMIT');
+    } catch (e) {
+        await client.query('ROLLBACK');
+        throw e;
+    } finally {
+        client.release();
     }
 }
 
@@ -205,8 +253,15 @@ app.post('/api/admin/login', async (req, res) => {
             return res.status(401).json({ error: 'Invalid credentials' });
         }
 
+        // Real JWT Token
+        const token = jwt.sign(
+            { id: admin.id, email: admin.email, displayName: admin.display_name, role: admin.role },
+            JWT_SECRET || 'segecha-driver-secret-change-in-production',
+            { expiresIn: '12h' }
+        );
+
         res.json({
-            token: 'mock-token-' + admin.id,
+            token,
             user: {
                 id: admin.id,
                 email: admin.email,
@@ -367,43 +422,34 @@ app.post('/api/admin/journey/:id/verify', async (req, res) => {
     }
 });
 
-// Admin verification for fuel/expenses
-app.post('/api/admin/submission/verify', (req, res) => {
-    const { adminKey, id, type, approved, reason, rejectedFields } = req.body;
-    const expectedKey = process.env.VITE_ADMIN_KEY || process.env.ADMIN_KEY || 'segecha-admin-key-change-this';
-    if (adminKey !== expectedKey) return res.status(403).json({ error: 'Unauthorized' });
-
+// Admin verification for fuel/expenses (Now strictly DB-driven internally)
+// NOTE: Logic moved to specific endpoints or handled via metadata updates in DB
+app.post('/api/admin/submission/verify', async (req, res) => {
+    const { id, type, approved, reason, rejectedFields } = req.body;
+    
     try {
-        const data = getData(JOURNEYS_FILE);
-        let item;
-        let col;
+        let table = '';
+        if (type === 'fuel') table = 'fuel_logs';
+        else if (type === 'expense') table = 'expenses';
+        else if (type === 'incident') table = 'incidents';
+        else return res.status(400).json({ error: 'Invalid type' });
 
-        if (type === 'fuel') {
-            col = 'fuel';
-            item = data.fuel.find(x => x.id === id);
-        } else if (type === 'expense') {
-            col = 'expenses';
-            item = data.expenses.find(x => x.id === id);
-        } else if (type === 'incident') {
-            col = 'incidents';
-            item = data.incidents.find(x => x.id === id);
-        }
+        const status = approved ? (type === 'incident' ? 'Resolved' : 'Approved') : (type === 'incident' ? 'Rejected' : 'Rejected');
+        
+        await db.query(`
+            UPDATE ${table} SET 
+                metadata = jsonb_set(
+                    jsonb_set(
+                        jsonb_set(metadata, '{_pendingApproval}', 'false'),
+                        '{_isRejected}', $1
+                    ),
+                    '{_rejectionReason}', $2
+                ),
+                status = $3
+            WHERE id = $4
+        `, [JSON.stringify(!approved), JSON.stringify(reason || ''), status, id]);
 
-        if (!item) return res.status(404).json({ error: 'Submission not found' });
-
-        if (approved) {
-            item._pendingApproval = false;
-            item._isRejected = false;
-            if (type === 'incident') item.status = 'Resolved';
-        } else {
-            item._isRejected = true;
-            item._rejectionReason = reason;
-            item._rejectedFields = rejectedFields || [];
-            if (type === 'incident') item.status = 'Rejected';
-        }
-
-        saveData(JOURNEYS_FILE, data);
-        res.json({ success: true, item });
+        res.json({ success: true });
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
@@ -509,12 +555,11 @@ app.post('/api/tracker/restore', async (req, res) => {
         const backup = JSON.parse(readFileSync(backupPath, 'utf8'));
 
         // Handle both legacy (just data/settings) and new unified format
-        if (backup.version === '4.0') {
+        if (backup.version === '5.0' || backup.version === '4.0') {
             await restoreEverything(backup);
         } else {
-            // Fallback for older backups
-            if (backup.data) saveData(JOURNEYS_FILE, backup.data);
-            if (backup.settings) saveData(SETTINGS_FILE, backup.settings);
+            console.warn('[RESTORE] Attempted to restore legacy JSON format which is no longer supported.');
+            return res.status(400).json({ error: 'Legacy backup format no longer supported. Please use a version 4.0 or 5.0 master backup.' });
         }
 
         res.json({ success: true, message: 'System restored from ' + filename });
@@ -789,23 +834,25 @@ app.post('/api/driver/upload', driverAuth.authMiddleware, (req, res) => {
     res.json({ success: true, url: 'https://res.cloudinary.com/demo/image/upload/sample.jpg' });
 });
 
-app.get('/api/documents/mine', driverAuth.authMiddleware, (req, res) => {
+app.get('/api/documents/mine', driverAuth.authMiddleware, async (req, res) => {
     try {
-        const data = getData(DOCUMENTS_FILE, { documents: [] });
-        const docs = Array.isArray(data.documents) ? data.documents : [];
-        const mine = docs.filter(d => (d.driverId || d.entityId) === req.driver.driverId);
-        res.json({ success: true, documents: mine });
+        const result = await db.query(
+            'SELECT * FROM documents WHERE entity_id = $1 OR metadata->>\'driverId\' = $1',
+            [req.driver.driverId]
+        );
+        res.json({ success: true, documents: result.rows });
     } catch (e) {
         console.error('DOCUMENTS_MINE_ERROR:', e);
         res.status(500).json({ error: e.message });
     }
 });
 
-app.post('/api/documents/driver-upload', driverAuth.authMiddleware, upload.any(), (req, res) => {
+app.post('/api/documents/driver-upload', driverAuth.authMiddleware, upload.any(), async (req, res) => {
     try {
         const body = req.body || {};
+        const id = Date.now().toString();
         const doc = {
-            id: Date.now().toString(),
+            id,
             driverId: req.driver.driverId,
             entityType: 'driver',
             entityId: req.driver.driverId,
@@ -813,10 +860,13 @@ app.post('/api/documents/driver-upload', driverAuth.authMiddleware, upload.any()
             ...body,
             uploadedAt: new Date().toISOString()
         };
-        const data = getData(DOCUMENTS_FILE, { documents: [] });
-        const docs = Array.isArray(data.documents) ? data.documents : [];
-        docs.push(doc);
-        saveData(DOCUMENTS_FILE, { documents: docs });
+        
+        const { entityType, entityId, label, url, expiryDate, ...metadata } = doc;
+        await db.query(
+            'INSERT INTO documents (id, entity_type, entity_id, label, url, expiry_date, metadata) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+            [id, entityType, entityId, label || 'Driver Upload', url, expiryDate || null, JSON.stringify(metadata)]
+        );
+
         res.json({ success: true, document: doc });
     } catch (e) {
         console.error('DRIVER_UPLOAD_ERROR:', e);
@@ -870,11 +920,27 @@ app.post('/api/staff/set-password', async (req, res) => {
 
 // Serve static assets from the frontend build
 app.use(express.static(path.join(__dirname, '../dist')));
+app.use('/driver', express.static(path.join(__dirname, '../driver-portal/dist')));
+app.use('/track', express.static(path.join(__dirname, '../track-portal/dist')));
+app.use('/pay', express.static(path.join(__dirname, '../payment-portal/dist')));
 
 // Handle React routing, return all requests to React app
 app.use((req, res, next) => {
     if (req.method !== 'GET') return next();
     if (req.path.startsWith('/api/')) return next();
+    
+    // Portal specific routing
+    if (req.path.startsWith('/driver')) {
+        return res.sendFile(path.join(__dirname, '../driver-portal/dist/index.html'));
+    }
+    if (req.path.startsWith('/track')) {
+        return res.sendFile(path.join(__dirname, '../track-portal/dist/index.html'));
+    }
+    if (req.path.startsWith('/pay')) {
+        return res.sendFile(path.join(__dirname, '../payment-portal/dist/index.html'));
+    }
+    
+    // Default Admin Panel
     res.sendFile(path.join(__dirname, '../dist/index.html'));
 });
 
@@ -888,3 +954,6 @@ app.use((err, req, res, next) => {
 app.listen(PORT, '0.0.0.0', () => {
     console.log('Server running on port ' + PORT);
 });
+
+export { app, db };
+

@@ -1,2 +1,1 @@
-web: npm run build && npx -y serve -s dist -l $PORT
-api: node server/index.js
+web: npm run build:all && node server/index.js

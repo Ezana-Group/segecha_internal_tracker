@@ -2,52 +2,25 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const db = require('./db');
+const {
+    JWT_SECRET,
+    normalizePhone,
+    normalizeSegechaEmail,
+    hashValue,
+    generateOtp,
+    generateTempPassword,
+    issueSetupTokenData,
+    OTP_EXPIRY_MINUTES
+} = require('./auth-utils');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'segecha-driver-secret-change-in-production';
-const TOKEN_EXPIRY_HOURS = 72;
-const OTP_EXPIRY_MINUTES = 30;
-
-function normalizeSegechaEmail(email, fallbackSeed = '') {
-    const raw = String(email || fallbackSeed || '').trim().toLowerCase();
-    const localPart = (raw.includes('@') ? raw.split('@')[0] : raw)
-        .replace(/[^a-z0-9._-]/g, '.')
-        .replace(/\.{2,}/g, '.')
-        .replace(/^\.+|\.+$/g, '');
-    return `${localPart || 'staff'}@segecha.com`;
+function normalizeStaffEmail(email, fallbackSeed = '') {
+    return normalizeSegechaEmail(email, fallbackSeed, 'staff');
 }
 
-function normalizePhone(phone) {
-    const digits = String(phone || '').replace(/\D+/g, '');
-    if (!digits) return '';
-    if (digits.startsWith('254') && digits.length === 12) return `0${digits.slice(3)}`;
-    if (digits.length === 9 && digits.startsWith('7')) return `0${digits}`;
-    return digits;
-}
-
-function hashValue(v) {
-    return crypto.createHash('sha256').update(String(v)).digest('hex');
-}
-
-function generateOtp() {
-    return String(Math.floor(100000 + Math.random() * 900000));
-}
-
-function generateTempPassword() {
-    const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
-    let out = 'Sg-';
-    for (let i = 0; i < 9; i++) out += alphabet[Math.floor(Math.random() * alphabet.length)];
-    return out;
-}
-
-function issueSetupTokenData() {
-    const resetToken = crypto.randomBytes(32).toString('hex');
-    const hash = hashValue(resetToken);
-    const expiry = new Date(Date.now() + TOKEN_EXPIRY_HOURS * 3600 * 1000);
-    return { resetToken, hash, expiry };
-}
+// Helper functions moved to auth-utils.js
 
 async function createStaffAccount(staffId, email, phone = '') {
-    const canonicalEmail = normalizeSegechaEmail(email);
+    const canonicalEmail = normalizeStaffEmail(email);
     const canonicalPhone = normalizePhone(phone);
     const otp = generateOtp();
     const tempPassword = generateTempPassword();
@@ -76,7 +49,7 @@ async function regenerateStaffCredentials(staffId, { email, phone, forcePassword
     const record = res.rows[0];
     if (!record) return createStaffAccount(staffId, email || staffId, phone || '');
 
-    const canonicalEmail = normalizeSegechaEmail(email || record.email);
+    const canonicalEmail = normalizeStaffEmail(email || record.email);
     const canonicalPhone = normalizePhone(phone || record.phone);
     const otp = generateOtp();
     const tempPassword = generateTempPassword();
@@ -203,7 +176,7 @@ async function deleteStaffAccount(staffId) {
 }
 
 module.exports = {
-    normalizeSegechaEmail, createStaffAccount, regenerateStaffCredentials,
+    normalizeStaffEmail, createStaffAccount, regenerateStaffCredentials,
     resetStaffPasswordWithToken, requestStaffPasswordReset, loginStaff,
     getStaffAccountStatus, exportStaffAccount, deleteStaffAccount,
 };

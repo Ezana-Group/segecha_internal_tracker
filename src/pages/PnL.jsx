@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import DOMPurify from "dompurify";
 import { 
     FileText, 
     Printer, 
@@ -88,7 +89,7 @@ export function PnL({ data, dark, isMobile, truckStats, truckReg, customerName, 
             .statement-box { border: 2px solid #10b981; padding: 30px; border-radius: 12px; }
             .green-text { color: #10b981; }
             .orange-text { color: #f97316; }
-        </style></head><body>${printContent.innerHTML}</body></html>`);
+        </style></head><body>${DOMPurify.sanitize(printContent.innerHTML)}</body></html>`);
         w.document.close();
         w.print();
     };

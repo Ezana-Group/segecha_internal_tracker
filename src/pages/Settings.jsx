@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
+import DOMPurify from "dompurify";
 import { 
     Settings as SettingsIcon, 
     Building2, 
@@ -2421,7 +2422,7 @@ export function Settings({
                                                                                     {pdfPreview.subject ? (
                                                                                         <header className="template-pdf-doc-title">{pdfPreview.subject}</header>
                                                                                     ) : null}
-                                                                                    <div className="template-pdf-html" dangerouslySetInnerHTML={{ __html: pdfPreview.body || "" }} />
+                                                                                    <div className="template-pdf-html" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(pdfPreview.body || "") }} />
                                                                                 </article>
                                                                             </div>
                                                                         </div>
@@ -2753,7 +2754,7 @@ export function Settings({
                                                             <div className="template-pdf-shadow">
                                                                 <article className="template-pdf-page">
                                                                     {rendered.subject ? <header className="template-pdf-doc-title">{rendered.subject}</header> : null}
-                                                                    <div className="template-pdf-html" dangerouslySetInnerHTML={{ __html: rendered.body || "" }} />
+                                                                    <div className="template-pdf-html" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(rendered.body || "") }} />
                                                                 </article>
                                                             </div>
                                                         </div>

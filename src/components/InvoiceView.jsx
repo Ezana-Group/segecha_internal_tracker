@@ -1,4 +1,5 @@
 import React from "react";
+import DOMPurify from "dompurify";
 import { 
     FileText, 
     Download, 
@@ -62,7 +63,7 @@ export function InvoiceView({ inv, data, dark, fillTemplate }) {
                     boxShadow: "0 0 20px rgba(0,0,0,0.1)",
                     borderRadius: 8
                 }}
-                dangerouslySetInnerHTML={{ __html: renderedBody }}
+                dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(renderedBody) }}
             />
         );
     }

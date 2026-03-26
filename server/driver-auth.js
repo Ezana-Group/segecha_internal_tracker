@@ -2,35 +2,28 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const db = require('./db');
+const {
+    JWT_SECRET,
+    normalizePhone,
+    normalizeSegechaEmail,
+    hashValue,
+    generateOtp,
+    generateTempPassword,
+    issueSetupTokenData,
+    OTP_EXPIRY_MINUTES
+} = require('./auth-utils');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'segecha-driver-secret-change-in-production';
-const TOKEN_EXPIRY_HOURS = 72;
-const OTP_EXPIRY_MINUTES = 30;
-
-function normalizeSegechaEmail(email, fallbackSeed = '') {
-    const raw = String(email || fallbackSeed || '').trim().toLowerCase();
-    const localPart = (raw.includes('@') ? raw.split('@')[0] : raw)
-        .replace(/[^a-z0-9._-]/g, '.')
-        .replace(/\.{2,}/g, '.')
-        .replace(/^\.+|\.+$/g, '');
-    return `${localPart || 'driver'}.@segecha.com`.replace('.@', '@');
-}
-
-function normalizePhone(phone) {
-    const digits = String(phone || '').replace(/\D+/g, '');
-    if (!digits) return '';
-    if (digits.startsWith('254') && digits.length === 12) return `0${digits.slice(3)}`;
-    if (digits.length === 9 && digits.startsWith('7')) return `0${digits}`;
-    return digits;
+function normalizeDriverEmail(email, fallbackSeed = '') {
+    return normalizeSegechaEmail(email, fallbackSeed, 'driver');
 }
 
 function emailCandidates(identifier) {
     const raw = String(identifier || '').trim().toLowerCase();
     if (!raw) return [];
-    const set = new Set([raw, normalizeSegechaEmail(raw, raw)]);
+    const set = new Set([raw, normalizeDriverEmail(raw, raw)]);
     if (raw.includes('@')) {
         const local = raw.split('@')[0];
-        set.add(normalizeSegechaEmail(local, local));
+        set.add(normalizeDriverEmail(local, local));
     }
     return Array.from(set).filter(Boolean);
 }
@@ -50,30 +43,10 @@ async function findDriverRecord(identifier) {
     return res.rows[0];
 }
 
-function hashValue(v) {
-    return crypto.createHash('sha256').update(String(v)).digest('hex');
-}
-
-function generateOtp() {
-    return String(Math.floor(100000 + Math.random() * 900000));
-}
-
-function generateTempPassword() {
-    const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
-    let out = 'Sg-';
-    for (let i = 0; i < 9; i++) out += alphabet[Math.floor(Math.random() * alphabet.length)];
-    return out;
-}
-
-function issueSetupTokenData() {
-    const resetToken = crypto.randomBytes(32).toString('hex');
-    const hash = hashValue(resetToken);
-    const expiry = new Date(Date.now() + TOKEN_EXPIRY_HOURS * 3600 * 1000).toISOString();
-    return { resetToken, hash, expiry };
-}
+// Helper functions moved to auth-utils.js
 
 async function createDriverAccount(driverId, email, phone = '') {
-    const canonicalEmail = normalizeSegechaEmail(email);
+    const canonicalEmail = normalizeDriverEmail(email);
     const canonicalPhone = normalizePhone(phone);
     const otp = generateOtp();
     const tempPassword = generateTempPassword();
@@ -110,7 +83,7 @@ async function setDriverPassword(driverId, email, password) {
             require_password_change = FALSE,
             account_status = 'active',
             updated_at = CURRENT_TIMESTAMP
-    `, [driverId, normalizeSegechaEmail(email), passwordHash]);
+    `, [driverId, normalizeDriverEmail(email), passwordHash]);
     return { success: true };
 }
 
@@ -163,7 +136,7 @@ async function regenerateDriverCredentials(driverId, { email, phone, forcePasswo
     const record = res.rows[0];
     if (!record) return createDriverAccount(driverId, email || driverId, phone || '');
 
-    const canonicalEmail = normalizeSegechaEmail(email || record.email);
+    const canonicalEmail = normalizeDriverEmail(email || record.email);
     const canonicalPhone = normalizePhone(phone || record.phone);
     const otp = generateOtp();
     const tempPassword = generateTempPassword();
@@ -265,7 +238,7 @@ async function deleteDriverAccount(driverId) {
 }
 
 module.exports = {
-    normalizeSegechaEmail, normalizePhone, createDriverAccount, setDriverPassword,
+    normalizeDriverEmail, normalizePhone, createDriverAccount, setDriverPassword,
     resetPasswordWithToken, requestPasswordReset, regenerateDriverCredentials,
     loginDriver, verifyToken, authMiddleware, getDriverAccountStatus,
     exportDriverAccount, deleteDriverAccount,
