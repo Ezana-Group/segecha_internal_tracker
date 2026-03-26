@@ -71,7 +71,16 @@ const adminAuth = (req, res, next) => {
     return res.status(403).json({ error: 'Unauthorized access' });
 };
 
+
+// --- PUBLIC FRONTEND & STATIC ASSETS ---
+app.use(express.static(path.join(__dirname, '../dist')));
+app.use('/driver', express.static(path.join(__dirname, '../driver-portal/dist')));
+app.use('/track', express.static(path.join(__dirname, '../track-portal/dist')));
+app.use('/pay', express.static(path.join(__dirname, '../payment-portal/dist')));
+
+// Public API Routes (no auth needed for login/health)
 app.use(adminAuth);
+
 
 // --- SYSTEM & MAINTENANCE (High Priority) ---
 
@@ -944,6 +953,7 @@ app.use((req, res, next) => {
     // Default Admin Panel
     res.sendFile(path.join(__dirname, '../dist/index.html'));
 });
+
 
 // Global Error Handler
 app.use((err, req, res, next) => {
