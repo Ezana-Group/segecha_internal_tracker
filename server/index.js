@@ -72,6 +72,13 @@ if (!JWT_SECRET || !ADMIN_KEY) {
 
 const PUBLIC_ROUTES = ['/admin/login', '/driver/login', '/staff/login'];
 
+if (ADMIN_KEY) {
+    const maskedKey = ADMIN_KEY.substring(0, 4) + '...' + ADMIN_KEY.substring(ADMIN_KEY.length - 4);
+    console.log(`[AUTH] SERVER_ADMIN_KEY initialized: ${maskedKey} (Length: ${ADMIN_KEY.length})`);
+} else {
+    console.warn('[AUTH] SERVER_ADMIN_KEY is EMPTY or NOT SET');
+}
+
 const adminAuth = (req, res, next) => {
     // 0. Skip for preflight
     if (req.method === 'OPTIONS') return next();
@@ -91,6 +98,11 @@ const adminAuth = (req, res, next) => {
         return next();
     }
 
+    // Diagnostic logging for auth failure
+    if (adminKey) {
+        console.warn(`[AUTH] Admin key mismatch for ${req.method} ${req.path}. Received: "${adminKey}", Expected: "${ADMIN_KEY}"`);
+    }
+
     // Check JWT Token
     if (authHeader && authHeader.startsWith('Bearer ')) {
         const token = authHeader.slice(7);
@@ -101,8 +113,13 @@ const adminAuth = (req, res, next) => {
                 return next();
             }
         } catch (e) {
+            console.warn(`[AUTH] JWT Verification failed for ${req.path}: ${e.message}`);
             return res.status(401).json({ error: 'Session expired or invalid' });
         }
+    }
+
+    if (authHeader) {
+        console.warn(`[AUTH] Unauthorized access (token missing or invalid role) for ${req.method} ${req.path}`);
     }
 
     return res.status(403).json({ error: 'Unauthorized access' });
@@ -501,6 +518,19 @@ app.get(['/api/admin/history', '/api/admin/import-history'], async (req, res) =>
         const journeys = (await db.query("SELECT * FROM journeys ORDER BY created_at DESC LIMIT 500")).rows;
         res.json({ success: true, history: journeys });
     } catch (e) { res.status(500).json({ error: 'Failed to fetch history' }); }
+});
+
+// Record import history (Called by Excel Import Engine)
+app.post('/api/admin/import-history', async (req, res) => {
+    const { record } = req.body;
+    try {
+        console.log('[IMPORT] History record received:', record);
+        // For now, we just log it as primary journey data is already in PostgreSQL.
+        // If we want a separate table for import events, we'd insert here.
+        res.json({ success: true, message: 'Import history recorded' });
+    } catch (e) {
+        res.status(500).json({ error: 'Failed to record import history: ' + e.message });
+    }
 });
 
 // Stats (Aggregated from DB)

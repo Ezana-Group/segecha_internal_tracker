@@ -61,6 +61,11 @@ export function useAppState() {
             const res = await fetch(`${PAYMENT_API}/api/tracker/data-full?adminKey=${ADMIN_KEY}`, {
                 headers: token ? { 'Authorization': `Bearer ${token}` } : {}
             });
+            if (res.status === 401) {
+                console.warn("Session expired. Clearing token.");
+                adminAuth.clearSession();
+                return;
+            }
             if (res.ok) {
                 const result = await res.json();
                 if (result.success && result.data) {
@@ -508,6 +513,7 @@ export function useAppState() {
                 },
                 body: JSON.stringify({ adminKey: ADMIN_KEY, approved, rejectionReason, rejectedFields: rejectedFieldsToPass }),
             });
+            if (res.status === 401) { adminAuth.clearSession(); return; }
             const result = await res.json();
             resultPayload = result;
             if (result.success) {
@@ -559,6 +565,7 @@ export function useAppState() {
                 },
                 body: JSON.stringify({ adminKey: ADMIN_KEY, id, type, approved, reason, rejectedFields }),
             });
+            if (res.status === 401) { adminAuth.clearSession(); return; }
             const result = await res.json();
             if (result.success) {
                 setVerifyMsg(approved ? 'Submission approved.' : 'Submission rejected.');
@@ -628,6 +635,7 @@ export function useAppState() {
                     ...(token ? { 'Authorization': `Bearer ${token}` } : {})
                 }
             });
+            if (res.status === 401) { adminAuth.clearSession(); return; }
             const j = await res.json();
             if (j.success) {
                 setBackups(j.backups || []);
@@ -742,6 +750,10 @@ export function useAppState() {
             const res = await fetch(`${PAYMENT_API}/api/admin/journeys/pending-verification?adminKey=${ADMIN_KEY}`, {
                 headers: token ? { 'Authorization': `Bearer ${token}` } : {}
             });
+            if (res.status === 401) {
+                adminAuth.clearSession();
+                return;
+            }
             if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
             const result = await res.json();
             const pendingJourneys = result.journeys || [];
@@ -880,6 +892,10 @@ export function useAppState() {
             const res = await fetch(`${PAYMENT_API}/api/admin/import-history?adminKey=${ADMIN_KEY}`, {
                 headers: token ? { 'Authorization': `Bearer ${token}` } : {}
             });
+            if (res.status === 401) {
+                adminAuth.clearSession();
+                return;
+            }
             if (res.ok) {
                 const result = await res.json();
                 setImportHistory(result.history || []);
