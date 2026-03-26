@@ -16,9 +16,11 @@ if (process.env.DATABASE_URL) {
       ssl: { rejectUnauthorized: false }
     });
   } else {
+    const errorMsg = 'CRITICAL: DATABASE_URL not set in process.env or server/.env. Database features will be unavailable.';
+    console.error(`[DB] ${errorMsg}`);
     pool = { 
-      query: () => { throw new Error('DATABASE_URL not set in process.env or server/.env'); },
-      connect: () => { throw new Error('DATABASE_URL not set in process.env or server/.env'); }
+      query: () => { throw new Error(errorMsg); },
+      connect: () => { throw new Error(errorMsg); }
     };
   }
 }
