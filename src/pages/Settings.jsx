@@ -72,6 +72,10 @@ import {
 import { buildSmsUrl } from "../utils/contactLinks.js";
 import { expandMessageTemplateContext } from "../utils/templateContext.js";
 import { SettingsProfilePermissions } from "../components/SettingsProfilePermissions.jsx";
+import { adminAuth } from "../utils/adminAuth";
+import { Eye, EyeOff, Lock, MessageCircle } from "lucide-react";
+
+
 
 const SETTINGS_MENU = [
     {
@@ -250,7 +254,13 @@ export function Settings({
         body: { start: 0, end: 0 },
     });
 
-    const operatorEmail = String(localS.operatorWorkEmail || "").trim().toLowerCase();
+    // Password change state
+    const [passForm, setPassForm] = useState({ old: '', new: '', confirm: '' });
+    const [passLoading, setPassLoading] = useState(false);
+    const [showPass, setShowPass] = useState(false);
+
+    const currentUser = adminAuth.getUser();
+    const operatorEmail = String(currentUser?.email || "").trim().toLowerCase();
     const configuredAdminUsers = Array.isArray(localS.adminUsers) ? localS.adminUsers : [];
     const configuredSuperAdminUsers = Array.isArray(localS.superAdminUsers) ? localS.superAdminUsers : [];
     const hasConfiguredAccessLists = configuredAdminUsers.length > 0 || configuredSuperAdminUsers.length > 0;
@@ -259,6 +269,49 @@ export function Settings({
         isSuperAdmin ||
         (!!operatorEmail && configuredAdminUsers.some((u) => String(u?.email || "").trim().toLowerCase() === operatorEmail));
     const canEditSettings = !hasConfiguredAccessLists || isAdmin;
+
+    const handlePasswordChange = async (e) => {
+        e.preventDefault();
+        if (!passForm.old || !passForm.new || !passForm.confirm) {
+            showToast?.("All password fields are required.", "warning");
+            return;
+        }
+        if (passForm.new !== passForm.confirm) {
+            showToast?.("New passwords do not match.", "warning");
+            return;
+        }
+        if (passForm.new.length < 5) {
+            showToast?.("Password is too short (min 5 characters).", "warning");
+            return;
+        }
+
+        setPassLoading(true);
+        try {
+            const res = await fetch(`${PAYMENT_API}/api/admin/change-password`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    email: operatorEmail,
+                    oldPassword: passForm.old,
+                    newPassword: passForm.new,
+                    adminKey: ADMIN_KEY
+                }),
+            });
+            const d = await res.json();
+            if (d.success) {
+                showToast?.("Password updated successfully.", "success");
+                setPassForm({ old: '', new: '', confirm: '' });
+            } else {
+                showToast?.(d.error || "Failed to update password.", "error");
+            }
+        } catch (err) {
+            showToast?.("Network error resetting password.", "error");
+        } finally {
+            setPassLoading(false);
+        }
+    };
+
+
 
     useEffect(() => {
         if (activeTab === 'data' && fetchBackups) {
@@ -812,8 +865,51 @@ export function Settings({
                                     </SettingsShellField>
                                 </div>
                             </div>
+
+                            <div style={{ marginTop: 24, paddingTop: 24, borderTop: "1px solid var(--border-subtle)" }}>
+                                <SettingsShellSectionHeader title="Security & Login" desc="Manage your password and account security." icon={Lock} />
+                                <form onSubmit={handlePasswordChange} style={{ maxWidth: 400 }}>
+                                    <div style={{ position: 'relative' }}>
+                                        <SettingsShellField label="Current Password">
+                                            <SettingsShellInput 
+                                                type={showPass ? "text" : "password"}
+                                                value={passForm.old} 
+                                                onChange={e => setPassForm(p => ({ ...p, old: e.target.value }))} 
+                                                placeholder="Enter current password"
+                                            />
+                                        </SettingsShellField>
+                                        <button 
+                                            type="button"
+                                            onClick={() => setShowPass(!showPass)}
+                                            style={{ position: 'absolute', right: 10, top: 38, border: 'none', background: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                                        >
+                                            {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
+                                        </button>
+                                    </div>
+                                    <SettingsShellField label="New Password">
+                                        <SettingsShellInput 
+                                            type="password"
+                                            value={passForm.new} 
+                                            onChange={e => setPassForm(p => ({ ...p, new: e.target.value }))} 
+                                            placeholder="Enter new password"
+                                        />
+                                    </SettingsShellField>
+                                    <SettingsShellField label="Confirm New Password">
+                                        <SettingsShellInput 
+                                            type="password"
+                                            value={passForm.confirm} 
+                                            onChange={e => setPassForm(p => ({ ...p, confirm: e.target.value }))} 
+                                            placeholder="Confirm new password"
+                                        />
+                                    </SettingsShellField>
+                                    <Button type="submit" variant="primary" disabled={passLoading} style={{ width: '100%' }}>
+                                        {passLoading ? "Updating..." : "Update Password"}
+                                    </Button>
+                                </form>
+                            </div>
                         </fieldset>
                     )}
+
 
                     {/* ── GENERAL ── */}
                     {activeTab === 'general' && (

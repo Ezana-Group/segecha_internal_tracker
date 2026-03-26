@@ -142,9 +142,13 @@ export function GlobalModals(props) {
         showToast,
         openWaybillGenerator,
     } = props;
+    const [creationResult, setCreationResult] = useState(null);
 
     const [, bumpSettingsDerived] = useState(0);
+
     useEffect(() => subscribeSettings(() => bumpSettingsDerived((n) => n + 1)), []);
+    useEffect(() => { setCreationResult(null); }, [modal]);
+
     const licenceClasses = getLicenceClasses();
     const commonRoutes = getCommonRoutes();
 
@@ -1310,19 +1314,70 @@ export function GlobalModals(props) {
                     });
                     const result = await res.json();
                     if (result.success) {
-                        const otpHint = result.otp ? ` OTP: ${result.otp}` : "";
-                        const tempHint = result.tempPassword ? ` Temp password: ${result.tempPassword}` : "";
-                        showToast?.(`Staff account created.${otpHint}${tempHint}`, "success");
+                        setCreationResult(result);
+                        showToast?.(`Staff account created successfully.`, "success");
+                    } else {
+                        showToast?.(`Account sync failed: ${result.error || 'Server error'}`, "error");
                     }
                 } catch (err) {
                     console.warn("Staff account creation failed:", err.message);
+                    showToast?.("Account sync network error.", "error");
                 }
+            } else {
+                closeModal();
             }
         };
 
+
         return (
             <Modal title={form.id ? "Edit Staff Member" : "Add Staff Member"} onSave={handleStaffSave} S={S} closeModal={closeModal} saveDisabled={hasErrors}>
-                <div style={S.fgg(2)}>
+                {creationResult ? (
+                    <div style={{ padding: '4px 0' }}>
+                        <div style={{ background: 'rgba(16, 185, 129, 0.05)', border: '1px solid rgba(16, 185, 129, 0.2)', borderRadius: 12, padding: 20, marginBottom: 20 }}>
+                            <div style={{ color: '#059669', fontWeight: 800, fontSize: 13, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <div style={{ width: 8, height: 8, borderRadius: 4, background: '#059669' }} />
+                                Account Ready For User
+                            </div>
+                            <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 16 }}>
+                                Provide these temporary credentials to the staff member. They will be required to change their password on first login.
+                            </p>
+                            
+                            <div style={{ display: 'grid', gap: 12 }}>
+                                <div style={{ background: 'var(--surface-subtle)', border: '1px solid var(--border-subtle)', borderRadius: 8, padding: '12px 14px' }}>
+                                    <div style={{ fontSize: 10, color: 'var(--text-dim)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 4 }}>Login Email</div>
+                                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--brand-primary)', fontFamily: 'var(--font-mono)' }}>{creationResult.email}</div>
+                                </div>
+                                {creationResult.tempPassword && (
+                                    <div style={{ background: 'var(--surface-subtle)', border: '1px solid var(--border-subtle)', borderRadius: 8, padding: '12px 14px' }}>
+                                        <div style={{ fontSize: 10, color: 'var(--text-dim)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 4 }}>Temporary Password</div>
+                                        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)', letterSpacing: '0.05em' }}>{creationResult.tempPassword}</div>
+                                    </div>
+                                )}
+                                {creationResult.otp && (
+                                    <div style={{ background: 'var(--surface-subtle)', border: '1px solid var(--border-subtle)', borderRadius: 8, padding: '12px 14px' }}>
+                                        <div style={{ fontSize: 10, color: 'var(--text-dim)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 4 }}>Mobile OTP</div>
+                                        <div style={{ fontSize: 13, fontWeight: 700, color: '#f59e0b', fontFamily: 'var(--font-mono)' }}>{creationResult.otp}</div>
+                                    </div>
+                                )}
+                            </div>
+                            
+                            <Button 
+                                variant="ghost" 
+                                style={{ width: '100%', marginTop: 16, border: '1px dashed var(--border-subtle)' }}
+                                onClick={() => {
+                                    const text = `Email: ${creationResult.email}${creationResult.tempPassword ? `\nPassword: ${creationResult.tempPassword}` : ''}${creationResult.otp ? `\nOTP: ${creationResult.otp}` : ''}`;
+                                    navigator.clipboard.writeText(text);
+                                    showToast?.("Credentials copied to clipboard", "success");
+                                }}
+                            >
+                                Copy All Credentials
+                            </Button>
+                        </div>
+                        <Button variant="primary" style={{ width: '100%' }} onClick={closeModal}>Done</Button>
+                    </div>
+                ) : (
+                    <div style={S.fgg(2)}>
+
                     <div style={{ ...S.fg, gridColumn: "1/-1" }}>
                         <label style={S.lbl}>Internal ID Number</label>
                         <div style={{ ...S.inp, background: "var(--surface-subtle)", color: "var(--brand-primary)", fontWeight: 800, fontFamily: "var(--font-mono)", border: "1px dashed var(--brand-primary)40", display: "flex", alignItems: "center", padding: "0 14px", height: 42 }}>
@@ -1375,9 +1430,11 @@ export function GlobalModals(props) {
                         </div>
                     )}
                 </div>
+                )}
             </Modal>
         );
     }
+
 
     // ── TEMPLATE SELECTOR MODAL ──
     if (modal === "templateSelector") {
