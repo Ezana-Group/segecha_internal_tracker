@@ -7,7 +7,7 @@ const upload = multer();
 require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
 const app = express();
-const PORT = process.env.PORT || 3002;
+const PORT = process.env.PORT || 3001;
 
 // 1. CORS - MUST BE FIRST for production reliability
 app.use(cors({
@@ -17,9 +17,7 @@ app.use(cors({
     maxAge: 86400 // Cache preflight for 24h
 }));
 
-// 2. Health Check - Before auth so monitoring works
 app.get('/health', (req, res) => {
-    console.log('[DEBUG] Health check requested');
     try {
         res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
     } catch (e) {
@@ -32,10 +30,8 @@ app.use(express.json());
 
 // 3. Admin Auth Middleware
 const adminAuth = (req, res, next) => {
-    console.log(`[DEBUG] adminAuth: path=${req.path}`);
     // Skip auth for login and public routes
     if (req.path.includes('/login') || req.path === '/health' || !req.path.startsWith('/api/')) {
-        console.log('[DEBUG] adminAuth: skipping');
         return next();
     }
 
@@ -44,7 +40,6 @@ const adminAuth = (req, res, next) => {
     const expectedKey = process.env.VITE_ADMIN_KEY || process.env.ADMIN_KEY || 'segecha-admin-key-change-this';
 
     if (adminKey !== expectedKey) {
-        console.warn(`[AUTH_FAILURE] ip=${req.ip} path=${req.path} key=${adminKey?.substring(0, 3)}...`);
         return res.status(403).json({ error: 'Unauthorized access' });
     }
     next();
