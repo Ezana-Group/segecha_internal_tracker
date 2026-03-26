@@ -115,12 +115,25 @@ const TRACK_DIST = resolveDistPath('track-portal');
 const PAY_DIST = resolveDistPath('payment-portal');
 const ADMIN_DIST = resolveDistPath('admin');
 
-console.log(`[SERVER] Static paths resolved:
-  - Admin: ${ADMIN_DIST}
-  - Driver: ${DRIVER_DIST}
-  - Track: ${TRACK_DIST}
-  - Pay: ${PAY_DIST}
-`);
+// Diagnostic logging for production debugging
+console.log(`[SERVER] Static paths resolved at ${new Date().toISOString()}:`);
+[
+    { name: 'Admin', path: ADMIN_DIST },
+    { name: 'Driver', path: DRIVER_DIST },
+    { name: 'Track', path: TRACK_DIST },
+    { name: 'Pay', path: PAY_DIST }
+].forEach(p => {
+    const exists = existsSync(p.path);
+    console.log(`  - ${p.name}: ${p.path} [${exists ? 'EXISTS' : 'MISSING'}]`);
+    if (exists) {
+        try {
+            const files = require('fs').readdirSync(p.path);
+            console.log(`    (Contains: ${files.join(', ')})`);
+        } catch (e) {
+            console.log(`    (Error reading: ${e.message})`);
+        }
+    }
+});
 
 // --- PUBLIC FRONTEND & STATIC ASSETS ---
 // 1. Specific Portals first (more specific routes)
@@ -137,8 +150,11 @@ app.use((req, res, next) => {
     if (req.path.startsWith('/api/')) return next();
 
     // Prevent sending index.html for missing assets (avoids MIME type errors)
-    const isAsset = req.path.includes('/assets/') || req.path.match(/\.(css|js|png|jpg|jpeg|svg|ico|json|txt|woff2?|ttf|eot)$/i);
-    if (isAsset) return next();
+    const isAsset = req.path.includes('/assets/') || req.path.match(/\.(css|js|png|jpg|jpeg|svg|ico|json|txt|woff2?|ttf|eot|webp)$/i);
+    if (isAsset) {
+        console.warn(`[SERVER] Asset not found: ${req.path}`);
+        return res.status(404).set('Content-Type', 'text/plain').send('Asset not found');
+    }
     
     if (req.path.startsWith('/driver')) {
         return res.sendFile(path.join(DRIVER_DIST, 'index.html'));
