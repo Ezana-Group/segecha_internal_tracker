@@ -64,11 +64,14 @@ import { IMPORT_SCHEMAS } from "../utils/importEngine";
 import { uid, fmt, canonicalTemplateType } from "../utils/formatters";
 import { exportToExcel, exportToCSV, exportAllToCSV } from "../utils/exportUtils";
 import {
-    patchSettings,
+    writeSettings,
     readSettings,
     subscribeSettings,
-    writeSettings,
+    patchSettings,
     DEFAULT_LICENCE_CLASSES,
+    DEFAULT_TRUCK_TYPES,
+    DEFAULT_CARGO_TYPES,
+    DEFAULT_EXPENSE_CATEGORIES,
     DEFAULT_COMMON_ROUTES,
     DEFAULT_CROSS_BORDER_RULES,
 } from "../utils/settingsStore.js";
@@ -427,6 +430,9 @@ export function Settings({
 
     const [quickRouteForm, setQuickRouteForm] = useState({ origin: '', dest: '', distance: '' });
     const [newLicenceClass, setNewLicenceClass] = useState("");
+    const [newTruckType, setNewTruckType] = useState("");
+    const [newCargoType, setNewCargoType] = useState("");
+    const [newExpenseCategory, setNewExpenseCategory] = useState("");
 
     const unlockWorkspaceTab = useCallback(() => {
         if (!canEditSettings) {
@@ -1298,6 +1304,76 @@ export function Settings({
                                         </p>
                                     ) : null}
                                 </SettingsShellField>
+
+                                <SettingsShellField label="Invoice/Payment Terms (Days)" sub="Grace period before invoice is marked overdue.">
+                                    <SettingsShellInput type="number" value={localS.paymentTermsDays || 14} onChange={e => saveSettings({ paymentTermsDays: +e.target.value })} />
+                                </SettingsShellField>
+                            </div>
+
+                            <div style={{ marginTop: 32 }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                                    <div style={{ width: 36, height: 36, borderRadius: 10, background: "var(--brand-primary)12", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--brand-primary)" }}>
+                                        <Wallet size={18} aria-hidden />
+                                    </div>
+                                    <div>
+                                        <h4 style={{ fontSize: 16, fontWeight: 800, color: "var(--text-primary)", margin: 0 }}>Expense categories</h4>
+                                        <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "4px 0 0", fontWeight: 500 }}>
+                                            Standard labels for classification of fleet and operational costs.
+                                        </p>
+                                    </div>
+                                </div>
+                                <div style={{ background: "var(--surface-subtle)", borderRadius: 12, border: "1px solid var(--border-subtle)", padding: 20 }}>
+                                    {(() => {
+                                        const expenseCatList = Array.isArray(localS.expenseCategories)
+                                            ? localS.expenseCategories
+                                            : [...DEFAULT_EXPENSE_CATEGORIES];
+                                        const persistExpenseCats = (next) => saveSettings({ expenseCategories: next });
+                                        return (
+                                            <>
+                                                {expenseCatList.map((cat, i) => (
+                                                    <div key={`${cat}-${i}`} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, padding: "12px 14px", background: "var(--bg-card)", borderRadius: 10, border: "1px solid var(--border-subtle)" }}>
+                                                        <span style={{ fontWeight: 700, color: "var(--text-primary)", fontSize: 14 }}>{cat}</span>
+                                                        <Button variant="danger" size="sm" onClick={() => persistExpenseCats(expenseCatList.filter((_, idx) => idx !== i))}>
+                                                            <Trash2 size={14} aria-hidden />
+                                                        </Button>
+                                                    </div>
+                                                ))}
+                                                <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 16, paddingTop: 16, borderTop: "1px dashed var(--border-subtle)", alignItems: "center" }}>
+                                                    <SettingsShellInput
+                                                        style={{ flex: "1 1 200px", minWidth: 160 }}
+                                                        placeholder="e.g. Parking, Fines, Loading"
+                                                        value={newExpenseCategory}
+                                                        onChange={(e) => setNewExpenseCategory(e.target.value)}
+                                                        onKeyDown={(e) => {
+                                                            if (e.key === "Enter") {
+                                                                e.preventDefault();
+                                                                const t = newExpenseCategory.trim();
+                                                                if (!t) return;
+                                                                persistExpenseCats([...expenseCatList, t]);
+                                                                setNewExpenseCategory("");
+                                                            }
+                                                        }}
+                                                    />
+                                                    <Button variant="premium" onClick={() => {
+                                                        const t = newExpenseCategory.trim();
+                                                        if (!t) return;
+                                                        persistExpenseCats([...expenseCatList, t]);
+                                                        setNewExpenseCategory("");
+                                                    }}>
+                                                        <Plus size={16} aria-hidden style={{ marginRight: 6 }} />
+                                                        Add category
+                                                    </Button>
+                                                    <Button variant="ghost" onClick={() => {
+                                                        persistExpenseCats([...DEFAULT_EXPENSE_CATEGORIES]);
+                                                        showToast?.("Expense categories reset to defaults", "success");
+                                                    }}>
+                                                        Restore defaults
+                                                    </Button>
+                                                </div>
+                                            </>
+                                        );
+                                    })()}
+                                </div>
                             </div>
                         </fieldset>
                     )}
@@ -1316,13 +1392,25 @@ export function Settings({
                                 </SettingsShellField>
                                 <div style={{ gridColumn: "1/-1" }}>
                                     <div style={{ background: "var(--brand-primary)08", borderRadius: 16, padding: 24, border: "1px solid var(--brand-primary)20" }}>
-                                        <h4 style={{ fontSize: 15, fontWeight: 800, color: "var(--brand-primary)", marginBottom: 16 }}>Critical Maintenance Thresholds</h4>
+                                        <h4 style={{ fontSize: 15, fontWeight: 800, color: "var(--brand-primary)", marginBottom: 16 }}>Critical Maintenance & Fleet Thresholds</h4>
                                         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
                                             <SettingsShellField label="Standard Warning Distance (km)">
                                                 <SettingsShellInput type="number" value={localS.maintWarningKm || 1000} onChange={e => saveSettings({ maintWarningKm: +e.target.value })} />
                                             </SettingsShellField>
                                             <SettingsShellField label="Critical Alert Distance (km)">
                                                 <SettingsShellInput type="number" value={localS.maintCriticalKm || 200} onChange={e => saveSettings({ maintCriticalKm: +e.target.value })} />
+                                            </SettingsShellField>
+                                            <SettingsShellField label="Tyre Warning Threshold (km)" sub="Alert when reached (e.g. 5000km before lifespan)">
+                                                <SettingsShellInput type="number" value={localS.tyreWarnKm || 5000} onChange={e => saveSettings({ tyreWarnKm: +e.target.value })} />
+                                            </SettingsShellField>
+                                            <SettingsShellField label="Default Tyre Interval (km)" sub="Fallback for new tyres">
+                                                <SettingsShellInput type="number" value={localS.defaultTyreInterval || 60000} onChange={e => saveSettings({ defaultTyreInterval: +e.target.value })} />
+                                            </SettingsShellField>
+                                            <SettingsShellField label="Max Fuel Tank Capacity (L)" sub="Used for abnormal fuel log validation">
+                                                <SettingsShellInput type="number" value={localS.maxFuelLitres || 2000} onChange={e => saveSettings({ maxFuelLitres: +e.target.value })} />
+                                            </SettingsShellField>
+                                            <SettingsShellField label="Fleet Activity Alert (%)" sub="Warn if active fleet falls below this %">
+                                                <SettingsShellInput type="number" value={localS.fleetActiveWarnPct || 50} onChange={e => saveSettings({ fleetActiveWarnPct: +e.target.value })} />
                                             </SettingsShellField>
                                         </div>
                                     </div>
@@ -1441,6 +1529,141 @@ export function Settings({
                                                             showToast?.("Licence classes reset to defaults", "success");
                                                         }}
                                                     >
+                                                        Restore defaults
+                                                    </Button>
+                                                </div>
+                                            </>
+                                        );
+                                    })()}
+                                </div>
+
+                                {/* ── VEHICLE / TRUCK TYPES ── */}
+                                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, marginTop: 32 }}>
+                                    <div style={{ width: 36, height: 36, borderRadius: 10, background: "var(--brand-primary)12", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--brand-primary)" }}>
+                                        <Truck size={18} aria-hidden />
+                                    </div>
+                                    <div>
+                                        <h4 style={{ fontSize: 16, fontWeight: 800, color: "var(--text-primary)", margin: 0 }}>Vehicle / Truck types</h4>
+                                        <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "4px 0 0", fontWeight: 500 }}>
+                                            Define the categories of vehicles in your fleet (e.g. Tipper, Tanker, Flatbed).
+                                        </p>
+                                    </div>
+                                </div>
+                                <div style={{ background: "var(--surface-subtle)", borderRadius: 12, border: "1px solid var(--border-subtle)", padding: 20 }}>
+                                    {(() => {
+                                        const truckTypeList = Array.isArray(localS.truckTypes)
+                                            ? localS.truckTypes
+                                            : [...DEFAULT_TRUCK_TYPES];
+                                        const persistTruckTypes = (next) => saveSettings({ truckTypes: next });
+                                        return (
+                                            <>
+                                                {truckTypeList.length === 0 && (
+                                                    <p style={{ margin: "0 0 16px", fontSize: 13, color: "var(--text-muted)", fontWeight: 500, lineHeight: 1.5 }}>
+                                                        No truck types defined. Add labels below, or use <strong>Restore defaults</strong>.
+                                                    </p>
+                                                )}
+                                                {truckTypeList.map((type, i) => (
+                                                    <div key={`${type}-${i}`} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, padding: "12px 14px", background: "var(--bg-card)", borderRadius: 10, border: "1px solid var(--border-subtle)" }}>
+                                                        <span style={{ fontWeight: 700, color: "var(--text-primary)", fontSize: 14 }}>{type}</span>
+                                                        <Button variant="danger" size="sm" onClick={() => persistTruckTypes(truckTypeList.filter((_, idx) => idx !== i))}>
+                                                            <Trash2 size={14} aria-hidden />
+                                                        </Button>
+                                                    </div>
+                                                ))}
+                                                <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 16, paddingTop: 16, borderTop: "1px dashed var(--border-subtle)", alignItems: "center" }}>
+                                                    <SettingsShellInput
+                                                        style={{ flex: "1 1 200px", minWidth: 160 }}
+                                                        placeholder="e.g. Low Loader, Crane Truck"
+                                                        value={newTruckType}
+                                                        onChange={(e) => setNewTruckType(e.target.value)}
+                                                        onKeyDown={(e) => {
+                                                            if (e.key === "Enter") {
+                                                                e.preventDefault();
+                                                                const t = newTruckType.trim();
+                                                                if (!t) return;
+                                                                persistTruckTypes([...truckTypeList, t]);
+                                                                setNewTruckType("");
+                                                            }
+                                                        }}
+                                                    />
+                                                    <Button variant="premium" onClick={() => {
+                                                        const t = newTruckType.trim();
+                                                        if (!t) return;
+                                                        persistTruckTypes([...truckTypeList, t]);
+                                                        setNewTruckType("");
+                                                    }}>
+                                                        <Plus size={16} aria-hidden style={{ marginRight: 6 }} />
+                                                        Add type
+                                                    </Button>
+                                                    <Button variant="ghost" onClick={() => {
+                                                        persistTruckTypes([...DEFAULT_TRUCK_TYPES]);
+                                                        showToast?.("Truck types reset to defaults", "success");
+                                                    }}>
+                                                        Restore defaults
+                                                    </Button>
+                                                </div>
+                                            </>
+                                        );
+                                    })()}
+                                </div>
+
+                                {/* ── CARGO TYPES ── */}
+                                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, marginTop: 32 }}>
+                                    <div style={{ width: 36, height: 36, borderRadius: 10, background: "var(--brand-primary)12", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--brand-primary)" }}>
+                                        <Package size={18} aria-hidden />
+                                    </div>
+                                    <div>
+                                        <h4 style={{ fontSize: 16, fontWeight: 800, color: "var(--text-primary)", margin: 0 }}>Cargo types</h4>
+                                        <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "4px 0 0", fontWeight: 500 }}>
+                                            Define the types of goods you transport.
+                                        </p>
+                                    </div>
+                                </div>
+                                <div style={{ background: "var(--surface-subtle)", borderRadius: 12, border: "1px solid var(--border-subtle)", padding: 20 }}>
+                                    {(() => {
+                                        const cargoTypeList = Array.isArray(localS.cargoTypes)
+                                            ? localS.cargoTypes
+                                            : [...DEFAULT_CARGO_TYPES];
+                                        const persistCargoTypes = (next) => saveSettings({ cargoTypes: next });
+                                        return (
+                                            <>
+                                                {cargoTypeList.map((type, i) => (
+                                                    <div key={`${type}-${i}`} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, padding: "12px 14px", background: "var(--bg-card)", borderRadius: 10, border: "1px solid var(--border-subtle)" }}>
+                                                        <span style={{ fontWeight: 700, color: "var(--text-primary)", fontSize: 14 }}>{type}</span>
+                                                        <Button variant="danger" size="sm" onClick={() => persistCargoTypes(cargoTypeList.filter((_, idx) => idx !== i))}>
+                                                            <Trash2 size={14} aria-hidden />
+                                                        </Button>
+                                                    </div>
+                                                ))}
+                                                <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 16, paddingTop: 16, borderTop: "1px dashed var(--border-subtle)", alignItems: "center" }}>
+                                                    <SettingsShellInput
+                                                        style={{ flex: "1 1 200px", minWidth: 160 }}
+                                                        placeholder="e.g. Hazardous Materials, Milk"
+                                                        value={newCargoType}
+                                                        onChange={(e) => setNewCargoType(e.target.value)}
+                                                        onKeyDown={(e) => {
+                                                            if (e.key === "Enter") {
+                                                                e.preventDefault();
+                                                                const t = newCargoType.trim();
+                                                                if (!t) return;
+                                                                persistCargoTypes([...cargoTypeList, t]);
+                                                                setNewCargoType("");
+                                                            }
+                                                        }}
+                                                    />
+                                                    <Button variant="premium" onClick={() => {
+                                                        const t = newCargoType.trim();
+                                                        if (!t) return;
+                                                        persistCargoTypes([...cargoTypeList, t]);
+                                                        setNewCargoType("");
+                                                    }}>
+                                                        <Plus size={16} aria-hidden style={{ marginRight: 6 }} />
+                                                        Add type
+                                                    </Button>
+                                                    <Button variant="ghost" onClick={() => {
+                                                        persistCargoTypes([...DEFAULT_CARGO_TYPES]);
+                                                        showToast?.("Cargo types reset to defaults", "success");
+                                                    }}>
                                                         Restore defaults
                                                     </Button>
                                                 </div>
@@ -1711,11 +1934,17 @@ export function Settings({
                                     />
                                 </SettingsShellField>
                             </div>
-                            <div style={{ background: "var(--surface-subtle)", borderRadius: 12, padding: "12px 16px", fontSize: 13, color: "var(--text-muted)", marginBottom: 32 }}>
+                            <div style={{ background: "var(--surface-subtle)", borderRadius: 12, padding: "12px 16px", fontSize: 13, color: "var(--text-muted)", marginBottom: 20 }}>
                                 Next waybill will be:{" "}
                                 <span style={{ fontFamily: "ui-monospace, monospace", fontWeight: 800, color: "var(--text-primary)" }}>
                                     {(localS.wbPrefix || localS.waybillPrefix || 'WB')}-{new Date().getFullYear()}-{String(localS.waybillCounter ?? 1).padStart(5, '0')}
                                 </span>
+                            </div>
+
+                            <div style={{ marginBottom: 32 }}>
+                                <SettingsShellField label="Stale Transit Warning (Days)" sub="Journeys in transit longer than this will be flagged as stale.">
+                                    <SettingsShellInput type="number" value={localS.staleTransitDays || 5} onChange={e => saveSettings({ staleTransitDays: +e.target.value })} />
+                                </SettingsShellField>
                             </div>
 
                             <SettingsShellSectionHeader
@@ -1833,6 +2062,12 @@ export function Settings({
                         <fieldset disabled={!workspaceTabEditable.maintenance || !canEditSettings} className="settings-workspace-fieldset">
                             <legend className="settings-fieldset-sr-only">Maintenance schedule</legend>
                             <SettingsShellSectionHeader title="Preventive Maintenance Schedule" desc="Define recurring service tasks and their kilometer intervals." icon={Wrench} />
+                            
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginBottom: 32 }}>
+                                <SettingsShellField label="Maintenance Overdue Threshold (Days)" sub="Grace period after scheduled service date before status turns critical.">
+                                    <SettingsShellInput type="number" value={localS.maintenanceOverdueDays || 7} onChange={e => saveSettings({ maintenanceOverdueDays: +e.target.value })} />
+                                </SettingsShellField>
+                            </div>
                             <div style={{ background: "var(--surface-subtle)", borderRadius: 16, border: "1px solid var(--border-subtle)", padding: 24 }}>
                                 <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 16, marginBottom: 12, padding: "0 12px", fontSize: 11, fontWeight: 800, color: "var(--text-dim)", textTransform: "uppercase" }}>
                                     <div>Service Task</div>

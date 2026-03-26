@@ -98,15 +98,22 @@ const adminAuth = (req, res, next) => {
 
 
 // --- PUBLIC FRONTEND & STATIC ASSETS ---
-app.use(express.static(path.join(__dirname, '../dist')));
+// 1. Specific Portals first (more specific routes)
 app.use('/driver', express.static(path.join(__dirname, '../driver-portal/dist')));
 app.use('/track', express.static(path.join(__dirname, '../track-portal/dist')));
 app.use('/pay', express.static(path.join(__dirname, '../payment-portal/dist')));
+
+// 2. Root Admin Panel
+app.use(express.static(path.join(__dirname, '../dist')));
 
 // Handle React routing (SPA) - Protected by React internal logic, but publicly reachable
 app.use((req, res, next) => {
     if (req.method !== 'GET') return next();
     if (req.path.startsWith('/api/')) return next();
+
+    // Prevent sending index.html for missing assets (avoids MIME type errors)
+    const isAsset = req.path.includes('/assets/') || req.path.match(/\.(css|js|png|jpg|jpeg|svg|ico|json|txt|woff2?|ttf|eot)$/i);
+    if (isAsset) return next();
     
     if (req.path.startsWith('/driver')) {
         return res.sendFile(path.join(__dirname, '../driver-portal/dist/index.html'));
