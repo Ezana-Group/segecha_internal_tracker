@@ -193,22 +193,40 @@ async function restoreEverything(backup) {
 app.post('/api/admin/login', async (req, res) => {
     const { email, password } = req.body;
     try {
-        const result = await db.query('SELECT * FROM admins WHERE email = $1', [email.toLowerCase().trim()]);
+        // Query staff_auth joined with staff for name/role
+        const result = await db.query(`
+            SELECT sa.*, s.name as display_name, s.role 
+            FROM staff_auth sa
+            JOIN staff s ON sa.staff_id = s.id
+            WHERE sa.email = $1
+        `, [email.toLowerCase().trim()]);
+
         if (result.rows.length === 0) {
             return res.status(401).json({ error: 'Invalid credentials' });
         }
 
         const admin = result.rows[0];
-        const valid = bcrypt.compareSync(password, admin.password_hash);
+        
+        // Support both re-seeded raw password and hashed passwords
+        let valid = false;
+        if (password === admin.password_hash) {
+            valid = true; // Raw match for initial seed
+        } else {
+            try {
+                valid = bcrypt.compareSync(password, admin.password_hash);
+            } catch (e) {
+                valid = false;
+            }
+        }
 
         if (!valid) {
             return res.status(401).json({ error: 'Invalid credentials' });
         }
 
         res.json({
-            token: 'mock-token-' + admin.id,
+            token: 'admin-session-' + admin.staff_id,
             user: {
-                id: admin.id,
+                id: admin.staff_id,
                 email: admin.email,
                 displayName: admin.display_name,
                 role: admin.role
