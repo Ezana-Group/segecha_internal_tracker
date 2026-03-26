@@ -7,7 +7,18 @@ const upload = multer();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
-require('dotenv').config({ path: path.join(__dirname, '../.env') });
+// Load environment variables from both root and server directory
+// server/.env takes precedence for backend-specific configs
+const envPaths = [
+    path.join(__dirname, '.env'),
+    path.join(__dirname, '../.env')
+];
+
+envPaths.forEach(envPath => {
+    if (existsSync(envPath)) {
+        require('dotenv').config({ path: envPath, override: true });
+    }
+});
 
 const app = express();
 const PORT = process.env.PORT || 3001;
