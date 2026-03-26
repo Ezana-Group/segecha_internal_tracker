@@ -20,7 +20,6 @@ const driverData = require('./driver-data');
 
 
 // 1. CORS - MUST BE FIRST for production reliability
-// 1. CORS - MUST BE FIRST for production reliability
 app.use(cors({
     origin: true, // Reflect the request origin
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -29,7 +28,6 @@ app.use(cors({
     maxAge: 86400
 }));
 
-app.options('*', cors()); // Enable pre-flight for all routes
 
 
 app.get('/health', (req, res) => {
