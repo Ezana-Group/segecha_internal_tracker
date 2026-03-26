@@ -58,8 +58,8 @@ export const SEED = {
     ],
     turnboys: [],
     staff: [
-        { id: "S001", uId: "EMP-001", name: "Alice Wambui", email: "alice.wambui@segecha.com", phone: "0722 111 222", role: "Office Admin", salary: 65000, joined: "2021-01-05", status: "Active", firstLogin: true, otp: "123456" },
-        { id: "S002", uId: "EMP-002", name: "Bob Otieno", email: "bob.otieno@segecha.com", phone: "0733 333 444", role: "Fleet Manager", salary: 85000, joined: "2020-11-12", status: "Active", firstLogin: true, otp: "654321" },
+        { id: "S001", uId: "EMP-001", name: "Alice Wambui", email: "alice.wambui@example.com", phone: "0722 111 222", role: "Office Admin", salary: 65000, joined: "2021-01-05", status: "Active", firstLogin: true, otp: "123456" },
+        { id: "S002", uId: "EMP-002", name: "Bob Otieno", email: "bob.otieno@example.com", phone: "0733 333 444", role: "Fleet Manager", salary: 85000, joined: "2020-11-12", status: "Active", firstLogin: true, otp: "654321" },
     ],
     mileageRates: {
         driverPerKm: 10,

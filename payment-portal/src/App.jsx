@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 
-const API = import.meta.env.VITE_API_URL || '';
+const API = import.meta.env.VITE_API_URL;
 const fmt = n => `KES ${Number(n || 0).toLocaleString('en-KE')}`;
 const STEPS = {
     SELECT: 'select',

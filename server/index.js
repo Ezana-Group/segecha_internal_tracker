@@ -21,7 +21,8 @@ envPaths.forEach(envPath => {
 });
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT;
+if (!PORT) console.warn('WARNING: PORT not set, some environments may fail to bind.');
 
 // Core Dependencies (Must be before autoSeed)
 const db = require('./db');
@@ -65,6 +66,7 @@ app.use(express.json());
 const JWT_SECRET = process.env.JWT_SECRET;
 const ADMIN_KEY_SOURCE = process.env.ADMIN_KEY ? 'process.env.ADMIN_KEY' : (process.env.VITE_ADMIN_KEY ? 'process.env.VITE_ADMIN_KEY' : 'NONE');
 const ADMIN_KEY = (process.env.ADMIN_KEY || process.env.VITE_ADMIN_KEY || '').trim();
+if (!ADMIN_KEY) console.error('CRITICAL: ADMIN_KEY not set in environment.');
 
 if (!JWT_SECRET || !ADMIN_KEY) {
     console.warn('[SECURITY] CRITICAL: JWT_SECRET or ADMIN_KEY not set. Using insecure defaults is dangerous.');
@@ -106,7 +108,7 @@ const adminAuth = (req, res, next) => {
     if (authHeader && authHeader.startsWith('Bearer ')) {
         const token = authHeader.slice(7);
         try {
-            const decoded = jwt.verify(token, JWT_SECRET || 'segecha-driver-secret-change-in-production');
+            const decoded = jwt.verify(token, JWT_SECRET);
             if (decoded.role === 'superadmin' || decoded.role === 'admin') {
                 req.admin = decoded;
                 return next();
@@ -208,10 +210,10 @@ app.use('/api', adminAuth);
 
 async function autoSeed() {
     try {
-        const initialAdminEmail = process.env.INITIAL_ADMIN_EMAIL || 'admin@segecha.com';
+        const initialAdminEmail = process.env.INITIAL_ADMIN_EMAIL;
         const initialAdminPhone = process.env.INITIAL_ADMIN_PHONE || '+254700000000';
         const staffId = 'staff-admin-init';
-        const initialHash = bcrypt.hashSync(process.env.ADMIN_KEY || 'segecha-default-change-me', 10);
+        const initialHash = bcrypt.hashSync(process.env.ADMIN_KEY, 10);
 
         console.log(`[SEED] Syncing superadmin (${initialAdminEmail})...`);
 
@@ -241,11 +243,11 @@ async function autoSeed() {
         await db.query(`
             INSERT INTO system_settings (key, value) 
             VALUES 
-            ('companyName', '"Segecha Group Ltd"'),
-            ('companyEmail', '"ops@segecha.com"'),
+            ('companyName', $1),
+            ('companyEmail', $2),
             ('defaultCurrency', '"KES"')
             ON CONFLICT (key) DO NOTHING
-        `);
+        `, [JSON.stringify(process.env.COMPANY_NAME), JSON.stringify(process.env.EMAIL_FROM)]);
 
         console.log(`[SEED] SUCCESS: Superadmin created (${initialAdminEmail}). Password is your ADMIN_KEY.`);
     } catch (e) {
@@ -299,8 +301,8 @@ app.post('/api/admin/reset', async (req, res) => {
             await db.query(`TRUNCATE TABLE ${table} RESTART IDENTITY CASCADE`);
         }
 
-        const initialAdminEmail = process.env.INITIAL_ADMIN_EMAIL || 'admin@segecha.com';
-        const initialAdminPhone = process.env.INITIAL_ADMIN_PHONE || '+254700000000';
+        const initialAdminEmail = process.env.INITIAL_ADMIN_EMAIL;
+        const initialAdminPhone = process.env.INITIAL_ADMIN_PHONE;
         
         // 1. Create a dummy staff record for the superadmin (satisfies foreign key)
         const staffId = 'staff-admin-init';
@@ -311,7 +313,7 @@ app.post('/api/admin/reset', async (req, res) => {
         `, [staffId, initialAdminEmail, initialAdminPhone]);
 
         // 2. Create the auth record with a secure hashed password
-        const initialHash = bcrypt.hashSync(ADMIN_KEY || 'segecha-default-change-me', 10);
+        const initialHash = bcrypt.hashSync(ADMIN_KEY, 10);
         await db.query(`
             INSERT INTO staff_auth (staff_id, email, phone, password_hash, account_status)
             VALUES ($1, $2, $3, $4, 'active')
@@ -322,11 +324,11 @@ app.post('/api/admin/reset', async (req, res) => {
         await db.query(`
             INSERT INTO system_settings (key, value) 
             VALUES 
-            ('companyName', '"Segecha Group Ltd"'),
-            ('companyEmail', '"ops@segecha.com"'),
+            ('companyName', $2),
+            ('companyEmail', $3),
             ('defaultCurrency', '"KES"'),
             ('admin_email', $1)
-        `, [JSON.stringify(initialAdminEmail)]);
+        `, [JSON.stringify(initialAdminEmail), JSON.stringify(process.env.COMPANY_NAME), JSON.stringify(process.env.EMAIL_FROM)]);
         res.json({ success: true, message: 'All database data destroyed and re-seeded.' });
     } catch (e) {
         console.error('RESET_FAILED:', e);
@@ -467,7 +469,7 @@ app.post('/api/admin/login', async (req, res) => {
         // Real JWT Token
         const token = jwt.sign(
             { id: admin.id, email: admin.email, displayName: admin.display_name, role: admin.role },
-            JWT_SECRET || 'segecha-driver-secret-change-in-production',
+            JWT_SECRET,
             { expiresIn: '12h' }
         );
 
@@ -605,7 +607,7 @@ app.delete('/api/documents/:id', async (req, res) => {
 
 // Admin upload placeholder (deprecated, use /api/documents/upload)
 app.post('/api/admin/upload', (req, res) => {
-    res.json({ success: true, url: 'https://cdn.segecha.com/uploads/fallback.png' });
+    res.json({ success: true, url: 'https://cdn.example.com/uploads/fallback.png' });
 });
 
 // Generic update for collections
@@ -692,7 +694,7 @@ app.post('/api/admin/reset', async (req, res) => {
         }
 
         // 2. Re-seed default superadmin to prevent lockout
-        const defaultEmail = 'admin@segecha.com';
+        const defaultEmail = process.env.INITIAL_ADMIN_EMAIL || 'admin@example.com';
         const defaultPass = 'segecha2025';
         const salt = bcrypt.genSaltSync(10);
         const hash = bcrypt.hashSync(defaultPass, salt);

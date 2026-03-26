@@ -24,7 +24,7 @@ export const LoginPage = ({
                 <div style={{ textAlign: 'center', marginBottom: 32 }}>
                     <img src="/logo.png" alt="Logo" style={{ height: 100, marginBottom: 16, objectFit: 'contain' }} />
                     <div style={{ fontSize: 22, fontWeight: 800, color: COLORS.primary, marginBottom: 4 }}>{view === 'forgot' ? 'Reset Password' : 'Segecha Group Ltd'}</div>
-                    <div style={{ fontSize: 13, color: COLORS.textFaint }}>Driver Portal · driver.segecha.com</div>
+                    <div style={{ fontSize: 13, color: COLORS.textFaint }}>Driver Portal · driver.example.com</div>
                 </div>
                 
                 {loginError && <div style={S.errBox()}>{loginError}</div>}

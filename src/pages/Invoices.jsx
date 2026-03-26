@@ -30,7 +30,7 @@ import { Badge } from "../components/Badge";
 import { Button } from "../components/Button";
 import { InvoiceView } from "../components/InvoiceView";
 import { PaymentRequestModal } from "../components/PaymentRequestModal";
-import { PAYMENT_API, ADMIN_KEY } from "../utils/env";
+import { PAYMENT_API, ADMIN_KEY, PORTAL_URL } from "../utils/env";
 import { readSettings } from "../utils/settingsStore.js";
 import { PageHeader } from "../components/PageHeader";
 import { TableRowActions } from "../components/TableRowActions";
@@ -38,7 +38,7 @@ import { CommunicationChannelMenu } from "../components/CommunicationChannelMenu
 import { SortableTableHead } from "../components/SortableTableHead";
 import { useTableFilter } from "../hooks/useTableFilter";
 
-const PORTAL_URL = 'https://payment.segecha.com';
+// const PORTAL_URL = 'https://payment.example.com'; removed, imported from env.js above
 
 export function Invoices({ data, setData, dark, isMobile, modal, form, setForm, openModal, closeModal, saveItem, delItem, markInvoicePaid, invoicePreview, setInvoicePreview, customerName, ...props }) {
     const navigate = useNavigate();

@@ -51,25 +51,20 @@ export const DEFAULT_CROSS_BORDER_RULES = [
     { id: "cb-seed-12", keywordsText: "lusaka", borderPoint: "" },
 ];
 
-/** Default SendGrid sender/reply-to identities (used by email.js). */
 export const DEFAULT_EMAIL_IDENTITIES = {
     client: {
-        // Invoice payment request + payment receipt emails to clients.
-        fromEmail: "payments@segecha.com",
-        fromName: "Segecha Group Ltd",
-        replyToEmail: "payments@segecha.com",
-        replyToName: "Payments (Segecha)",
-        // Additional verified "from" addresses to try if the active sender isn't verified in SendGrid.
+        fromEmail: "",
+        fromName: "",
+        replyToEmail: "",
+        replyToName: "",
         fromFallbackEmails: [],
     },
     driverPortal: {
-        // Driver welcome + password reset emails.
-        fromEmail: "welcome@segecha.com",
-        fromName: "Segecha Driver Portal",
-        replyToEmail: "drivers@segecha.com",
-        replyToName: "Drivers (Segecha)",
-        // If welcome@ isn't verified in SendGrid yet, fallback to payments@ automatically.
-        fromFallbackEmails: ["payments@segecha.com"],
+        fromEmail: "",
+        fromName: "",
+        replyToEmail: "",
+        replyToName: "",
+        fromFallbackEmails: [],
     },
     backupFrequency: "Disabled",
 };

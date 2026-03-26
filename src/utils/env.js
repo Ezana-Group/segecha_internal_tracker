@@ -12,7 +12,7 @@ const getApiUrl = () => {
 };
 
 export const PAYMENT_API = getApiUrl();
-export const PORTAL_URL  = import.meta.env.VITE_PAYMENT_URL || '';
-export const DRIVER_PORTAL_URL = import.meta.env.VITE_DRIVER_URL || '';
-export const TRACK_URL   = import.meta.env.VITE_TRACK_URL || '';
-export const ADMIN_KEY   = import.meta.env.VITE_ADMIN_KEY || '';
+export const PORTAL_URL  = import.meta.env.VITE_PAYMENT_URL;
+export const DRIVER_PORTAL_URL = import.meta.env.VITE_DRIVER_URL;
+export const TRACK_URL   = import.meta.env.VITE_TRACK_URL;
+export const ADMIN_KEY   = import.meta.env.VITE_ADMIN_KEY;

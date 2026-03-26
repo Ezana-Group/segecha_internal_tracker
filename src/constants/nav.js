@@ -42,7 +42,7 @@ export const STATUSES_JOURNEY = ["Accepted", "Loading", "In Transit", "Awaiting 
 export const STATUSES_TRUCK = ["Active", "Maintenance", "Off Road"];
 
 // ─── Configurable Thresholds ─────────────────────────────────────
-export const TYRE_WARN_KM = _S.tyreWarnKm ? +_S.tyreWarnKm : Number(import.meta.env.VITE_TYRE_WARNING_KM) || 5000;
+export const TYRE_WARN_KM = _S.tyreWarnKm ? +_S.tyreWarnKm : Number(import.meta.env.VITE_TYRE_WARNING_KM);
 export const DEFAULT_TYRE_INTERVAL = _S.defaultTyreInterval ? +_S.defaultTyreInterval : 60000;
 export const DEFAULT_FUEL_PRICE = _S.defaultFuelPrice ? +_S.defaultFuelPrice : 0;
 export const MAX_FUEL_LITRES = _S.maxFuelLitres ? +_S.maxFuelLitres : 2000;

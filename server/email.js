@@ -8,18 +8,18 @@ const SETTINGS_PATH = path.join(__dirname, 'settings.json');
 
 const DEFAULT_EMAIL_IDENTITIES = {
     client: {
-        fromEmail: 'payments@segecha.com',
-        fromName: 'Segecha Group Ltd',
-        replyToEmail: 'payments@segecha.com',
-        replyToName: 'Payments (Segecha)',
+        fromEmail: process.env.EMAIL_FROM,
+        fromName: process.env.COMPANY_NAME,
+        replyToEmail: process.env.EMAIL_FROM,
+        replyToName: process.env.COMPANY_NAME,
         fromFallbackEmails: [],
     },
     driverPortal: {
-        fromEmail: 'welcome@segecha.com',
-        fromName: 'Segecha Driver Portal',
-        replyToEmail: 'drivers@segecha.com',
-        replyToName: 'Drivers (Segecha)',
-        fromFallbackEmails: ['payments@segecha.com'],
+        fromEmail: process.env.DRIVER_EMAIL_FROM || process.env.EMAIL_FROM,
+        fromName: process.env.DRIVER_EMAIL_FROM_NAME || process.env.COMPANY_NAME,
+        replyToEmail: process.env.DRIVER_EMAIL_FROM || process.env.EMAIL_FROM,
+        replyToName: process.env.DRIVER_EMAIL_FROM_NAME || process.env.COMPANY_NAME,
+        fromFallbackEmails: [process.env.EMAIL_FROM],
     },
 };
 
@@ -105,13 +105,11 @@ function resolveClientEmailIdentity(rootSettings) {
     const client = emailIdentities?.client || {};
 
     const fromEmail =
-        String(client.fromEmail || '').trim().toLowerCase() ||
-        DEFAULT_EMAIL_IDENTITIES.client.fromEmail;
+        String(client.fromEmail || '').trim().toLowerCase();
     const fromName =
         String(client.fromName || '').trim() ||
         process.env.COMPANY_NAME ||
-        process.env.EMAIL_FROM_NAME ||
-        DEFAULT_EMAIL_IDENTITIES.client.fromName;
+        process.env.EMAIL_FROM_NAME;
     const replyToEmail =
         String(client.replyToEmail || '').trim().toLowerCase() ||
         fromEmail;
@@ -136,13 +134,11 @@ function resolveDriverPortalEmailIdentity(rootSettings) {
     const paymentsIdentity = resolveClientEmailIdentity(rootSettings);
 
     const fromEmail =
-        String(driverPortal.fromEmail || '').trim().toLowerCase() ||
-        DEFAULT_EMAIL_IDENTITIES.driverPortal.fromEmail;
+        String(driverPortal.fromEmail || '').trim().toLowerCase();
     const fromName =
         String(driverPortal.fromName || '').trim() ||
         process.env.DRIVER_EMAIL_FROM_NAME ||
-        process.env.EMAIL_FROM_NAME ||
-        DEFAULT_EMAIL_IDENTITIES.driverPortal.fromName;
+        process.env.EMAIL_FROM_NAME;
 
     const replyToEmail =
         String(driverPortal.replyToEmail || '').trim().toLowerCase() ||
@@ -221,7 +217,7 @@ function buildHTML({ invoice, portalUrl, companyName, paybillNumber, bankName, b
     </div>
     <div class="cta">
       <a href="${portalUrl}" class="cta-btn">Pay Now — KES ${Number(invoice.amount).toLocaleString('en-KE')}</a>
-      <div class="cta-sub">Secure payment portal · payment.segecha.com</div>
+      <div class="cta-sub">Secure payment portal · payment.example.com</div>
       <div class="pills">
         <span class="pill">💚 M-Pesa</span>
         <span class="pill">🏦 Bank Transfer</span>
@@ -257,7 +253,7 @@ function buildHTML({ invoice, portalUrl, companyName, paybillNumber, bankName, b
 async function sendInvoiceEmail({ to, invoice, portalUrl, settings }) {
     const rootSettings = { ...loadServerSettings(), ...(settings || {}) };
     const companyName =
-        settings?.companyName || rootSettings?.companyName || process.env.COMPANY_NAME || DEFAULT_EMAIL_IDENTITIES.client.fromName;
+        settings?.companyName || rootSettings?.companyName || process.env.COMPANY_NAME;
 
     const html = buildHTML({
         invoice,
@@ -340,7 +336,7 @@ body{font-family:'Helvetica Neue',Arial,sans-serif;background:#f4f4f4;padding:20
     </div>
     <div class="info-box">
       <b>Your login email:</b> ${to}<br>
-      <b>Portal address:</b> driver.segecha.com<br><br>
+      <b>Portal address:</b> driver.example.com<br><br>
       If you did not expect this email, contact your office manager.
     </div>
   </div>

@@ -107,7 +107,7 @@ export function InvoiceView({ inv, data, dark, fillTemplate }) {
                     </div>
                 </div>
                 <div style={{ textAlign: "right" }}>
-                    <div style={{ fontWeight: 800, fontSize: 20, color: "var(--text-primary)", marginBottom: 6 }}>{s.companyName || 'Segecha Group Ltd'}</div>
+                    <div style={{ fontWeight: 800, fontSize: 20, color: "var(--text-primary)", marginBottom: 6 }}>{s.companyName}</div>
                     <div style={{ fontSize: 14, color: "var(--text-secondary)", whiteSpace: "pre-line", lineHeight: 1.5 }}>{s.companyAddress || 'Nairobi, Kenya'}</div>
                     <div style={{ fontSize: 14, color: "var(--brand-primary)", fontWeight: 600, marginTop: 4 }}>{s.companyPhone || '+254 700 000 000'}</div>
                 </div>

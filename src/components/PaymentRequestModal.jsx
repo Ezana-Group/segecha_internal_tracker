@@ -27,7 +27,7 @@ export function PaymentRequestModal({ inv, onClose, payReqStatus, setPayReqStatu
         const lines = [
             `Hi ${invCopy.client},`,
             ``,
-            `Payment request from *${s.companyName || 'Segecha Group Ltd'}*.`,
+            `Payment request from *${s.companyName}*.`,
             ``,
             `📋 *Invoice:* ${invCopy.id}`,
             `💰 *Amount Due:* KES ${Number(invCopy.amount).toLocaleString('en-KE')}`,

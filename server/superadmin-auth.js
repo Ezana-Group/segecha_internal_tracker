@@ -48,7 +48,7 @@ async function loginSuperAdmin(email, password) {
 
   const token = jwt.sign(
     { id: user.id, email: user.email, role: 'superadmin' },
-    process.env.JWT_SECRET || 'segecha-secret',
+    process.env.JWT_SECRET,
     { expiresIn: '24h' }
   );
 

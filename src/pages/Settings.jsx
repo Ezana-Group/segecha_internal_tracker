@@ -269,7 +269,7 @@ export function Settings({
     const hasConfiguredAccessLists = configuredAdminUsers.length > 0 || configuredSuperAdminUsers.length > 0;
     const isSuperAdmin =
         (!!operatorEmail && configuredSuperAdminUsers.some((u) => String(u?.email || "").trim().toLowerCase() === operatorEmail)) ||
-        operatorEmail === 'admin@segecha.com';
+        operatorEmail === 'admin@example.com';
     const isAdmin =
         isSuperAdmin ||
         (!!operatorEmail && configuredAdminUsers.some((u) => String(u?.email || "").trim().toLowerCase() === operatorEmail));
@@ -486,7 +486,7 @@ export function Settings({
             resetUrl: "https://driver.segecha.example/reset",
             loginEmail: "james.kamau@example.com",
             footer: `${co} · ${addr}`,
-            baseUrl: "https://operations.segecha.com",
+            baseUrl: "https://operations.example.com",
             site: "Segecha Internal Tracker",
             loyaltyPoints: "1,250",
         });
@@ -861,7 +861,7 @@ export function Settings({
                                         type="email"
                                         value={localS.operatorWorkEmail || ''} 
                                         onChange={e => saveSettings({ operatorWorkEmail: e.target.value })} 
-                                        placeholder="moses@segecha.com" 
+                                        placeholder="moses@example.com" 
                                     />
                                 </SettingsShellField>
                                 <div style={{ gridColumn: "1/-1" }}>
@@ -933,7 +933,7 @@ export function Settings({
                                     <SettingsShellInput value={localS.pinNumber || ''} onChange={e => saveSettings({ pinNumber: e.target.value })} placeholder="KRA PIN" />
                                 </SettingsShellField>
                                 <SettingsShellField label="Email Address">
-                                    <SettingsShellInput value={localS.email || ''} onChange={e => saveSettings({ email: e.target.value })} placeholder="ops@segecha.com" />
+                                    <SettingsShellInput value={localS.email || ''} onChange={e => saveSettings({ email: e.target.value })} placeholder="ops@example.com" />
                                 </SettingsShellField>
                                  <SettingsShellField label="Phone Support">
                                     <SettingsShellInput value={localS.phone || ''} onChange={e => saveSettings({ phone: e.target.value })} placeholder="+254 7XX XXX XXX" />
@@ -1097,7 +1097,7 @@ export function Settings({
                                                                 },
                                                             })
                                                         }
-                                                        placeholder="payments@segecha.com"
+                                                        placeholder="payments@example.com"
                                                     />
                                                 </SettingsShellField>
                                                 <SettingsShellField label="From name">
@@ -1126,7 +1126,7 @@ export function Settings({
                                                                 },
                                                             })
                                                         }
-                                                        placeholder="payments@segecha.com"
+                                                        placeholder="payments@example.com"
                                                     />
                                                 </SettingsShellField>
                                                 <SettingsShellField label="Reply-to name">
@@ -1162,7 +1162,7 @@ export function Settings({
                                                             },
                                                         });
                                                     }}
-                                                    placeholder="e.g. ops@segecha.com, billing@segecha.com"
+                                                    placeholder="e.g. ops@example.com, billing@example.com"
                                                 />
                                             </SettingsShellField>
                                         </div>
@@ -1185,7 +1185,7 @@ export function Settings({
                                                                 },
                                                             })
                                                         }
-                                                        placeholder="welcome@segecha.com"
+                                                        placeholder="welcome@example.com"
                                                     />
                                                 </SettingsShellField>
                                                 <SettingsShellField label="From name">
@@ -1214,7 +1214,7 @@ export function Settings({
                                                                 },
                                                             })
                                                         }
-                                                        placeholder="drivers@segecha.com"
+                                                        placeholder="drivers@example.com"
                                                     />
                                                 </SettingsShellField>
                                                 <SettingsShellField label="Reply-to name">
@@ -1234,7 +1234,7 @@ export function Settings({
                                             </div>
                                             <SettingsShellField
                                                 label="Additional from emails (fallback)"
-                                                sub="Comma-separated; default includes payments@segecha.com for safe fallback."
+                                                sub="Comma-separated; default includes payments@example.com for safe fallback."
                                             >
                                                 <SettingsShellInput
                                                     value={(localS.emailIdentities?.driverPortal?.fromFallbackEmails || []).join(", ")}
@@ -1253,14 +1253,14 @@ export function Settings({
                                                             },
                                                         });
                                                     }}
-                                                    placeholder="e.g. payments@segecha.com, ops@segecha.com"
+                                                    placeholder="e.g. payments@example.com, ops@example.com"
                                                 />
                                             </SettingsShellField>
                                         </div>
                                     </div>
 
                                     <p style={{ fontSize: 12, color: "var(--text-dim)", lineHeight: 1.5, margin: "14px 0 0" }}>
-                                        Note: carrier email for printed waybills lives under <strong>Waybill defaults → Carrier</strong> (enter `operations@segecha.com` once the inbox exists).
+                                        Note: carrier email for printed waybills lives under <strong>Waybill defaults → Carrier</strong> (enter `operations@example.com` once the inbox exists).
                                     </p>
                                 </div>
                             </div>
@@ -1910,7 +1910,7 @@ export function Settings({
                                     <SettingsShellInput value={localS.wbCarrierPhone || ''} onChange={e => saveSettings({ wbCarrierPhone: e.target.value })} placeholder="+254700000000" />
                                 </SettingsShellField>
                                 <SettingsShellField label="Office email">
-                                    <SettingsShellInput type="email" value={localS.wbCarrierEmail || ''} onChange={e => saveSettings({ wbCarrierEmail: e.target.value })} placeholder="operations@segecha.com" />
+                                    <SettingsShellInput type="email" value={localS.wbCarrierEmail || ''} onChange={e => saveSettings({ wbCarrierEmail: e.target.value })} placeholder="operations@example.com" />
                                 </SettingsShellField>
                             </div>
 

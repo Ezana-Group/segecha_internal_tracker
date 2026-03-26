@@ -18,7 +18,7 @@ async function sendPaymentSMS({ phone, clientName, invoiceId, amount, portalUrl 
 
     const message = [
         `Hi ${clientName},`,
-        `Payment request from Segecha Group Ltd.`,
+        `Payment request from ${process.env.COMPANY_NAME || 'Segecha Group Ltd'}.`,
         `Invoice: ${invoiceId}`,
         `Amount: KES ${Number(amount).toLocaleString('en-KE')}`,
         `Pay here: ${portalUrl}`,
@@ -28,7 +28,7 @@ async function sendPaymentSMS({ phone, clientName, invoiceId, amount, portalUrl 
     await getAT().SMS.send({
         to: [normalised],
         message,
-        from: process.env.AT_SENDER_ID || 'SEGECHA',
+        from: process.env.AT_SENDER_ID,
     });
 }
 
@@ -38,7 +38,7 @@ async function sendRawSMS({ phone, message }) {
     await getAT().SMS.send({
         to: [normalised],
         message: String(message).slice(0, 480),
-        from: process.env.AT_SENDER_ID || 'SEGECHA',
+        from: process.env.AT_SENDER_ID,
     });
 }
 

@@ -6,12 +6,12 @@ const r2 = new S3Client({
     region: 'auto',
     endpoint: `https://${process.env.CF_ACCOUNT_ID}.r2.cloudflarestorage.com`,
     credentials: {
-        accessKeyId: process.env.R2_ACCESS_KEY_ID || 'dummy_key',
-        secretAccessKey: process.env.R2_SECRET_ACCESS_KEY || 'dummy_secret',
+        accessKeyId: process.env.R2_ACCESS_KEY_ID,
+        secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
     },
 });
 
-const BUCKET = process.env.R2_BUCKET_NAME || 'segecha-documents';
+const BUCKET = process.env.R2_BUCKET_NAME;
 const PUBLIC_URL = process.env.R2_PUBLIC_URL || '';
 
 // Mock bypass for testing if credentials are missing

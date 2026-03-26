@@ -1,7 +1,8 @@
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'segecha-driver-secret-change-in-production';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) console.error('CRITICAL: JWT_SECRET not set in environment.');
 const TOKEN_EXPIRY_HOURS = 72;
 const OTP_EXPIRY_MINUTES = 30;
 
@@ -19,7 +20,8 @@ function normalizeSegechaEmail(email, fallbackSeed = '', prefix = 'user') {
         .replace(/[^a-z0-9._-]/g, '.')
         .replace(/\.{2,}/g, '.')
         .replace(/^\.+|\.+$/g, '');
-    return `${localPart || prefix}@segecha.com`;
+    const domain = process.env.EMAIL_DOMAIN || 'example.com';
+    return `${localPart || prefix}@${domain}`;
 }
 
 function hashValue(v) {

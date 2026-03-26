@@ -1093,7 +1093,7 @@ export function GlobalModals(props) {
                 .replace(/[^a-z0-9._-]/g, ".")
                 .replace(/\.{2,}/g, ".")
                 .replace(/^\.+|\.+$/g, "");
-            return `${local || "driver"}@segecha.com`;
+            return `${local || "driver"}@example.com`;
         };
         const assignedElsewhere = new Set(
             data.drivers
@@ -1262,7 +1262,7 @@ export function GlobalModals(props) {
                 .replace(/[^a-z0-9._-]/g, ".")
                 .replace(/\.{2,}/g, ".")
                 .replace(/^\.+|\.+$/g, "");
-            return `${local || "staff"}@segecha.com`;
+            return `${local || "staff"}@example.com`;
         };
         const isDrivingRole = form.role === "Driver" || form.role === "Turnboy";
         const getErrors = () => {
@@ -1409,7 +1409,7 @@ export function GlobalModals(props) {
                         label="Email Address"
                         k="email"
                         type="email"
-                        placeholder="name@segecha.com"
+                        placeholder="name@example.com"
                         form={form}
                         setForm={setForm}
                         S={S}
@@ -1433,7 +1433,7 @@ export function GlobalModals(props) {
                             <div style={{ background: "rgba(245, 158, 11, 0.1)", border: "1px solid rgba(245, 158, 11, 0.3)", borderRadius: 12, padding: 16 }}>
                                 <div style={{ fontSize: 11, fontWeight: 800, color: "#d97706", textTransform: "uppercase", marginBottom: 4 }}>One-Time Password (OTP)</div>
                                 <div style={{ fontSize: 24, fontWeight: 900, color: "var(--text-primary)", letterSpacing: "0.2em" }}>{form.otp}</div>
-                                <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 8 }}>Provide this to the employee for their initial login at portal.segecha.com</div>
+                                <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 8 }}>Provide this to the employee for their initial login at portal.example.com</div>
                             </div>
                         </div>
                     )}
