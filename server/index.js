@@ -11,10 +11,10 @@ const PORT = process.env.PORT || 3002;
 
 // 1. CORS - MUST BE FIRST for production reliability
 app.use(cors({
-  origin: '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-admin-key'],
-  maxAge: 86400 // Cache preflight for 24h
+    origin: '*',
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-admin-key'],
+    maxAge: 86400 // Cache preflight for 24h
 }));
 
 // 2. Health Check - Before auth so monitoring works
@@ -34,17 +34,17 @@ app.use(express.json());
 const adminAuth = (req, res, next) => {
     console.log(`[DEBUG] adminAuth: path=${req.path}`);
     // Skip auth for login and public routes
-    if (req.path === '/api/admin/login' || req.path === '/health' || !req.path.startsWith('/api/')) {
+    if (req.path.includes('/login') || req.path === '/health' || !req.path.startsWith('/api/')) {
         console.log('[DEBUG] adminAuth: skipping');
         return next();
     }
-    
+
     // Check key in header or body
     const adminKey = req.headers['x-admin-key'] || req.body?.adminKey || req.query?.adminKey;
     const expectedKey = process.env.VITE_ADMIN_KEY || process.env.ADMIN_KEY || 'segecha-admin-key-change-this';
-    
+
     if (adminKey !== expectedKey) {
-        console.warn(`[AUTH_FAILURE] ip=${req.ip} path=${req.path} key=${adminKey?.substring(0,3)}...`);
+        console.warn(`[AUTH_FAILURE] ip=${req.ip} path=${req.path} key=${adminKey?.substring(0, 3)}...`);
         return res.status(403).json({ error: 'Unauthorized access' });
     }
     next();
@@ -139,19 +139,19 @@ app.post('/api/admin/login', async (req, res) => {
 
         const admin = result.rows[0];
         const valid = bcrypt.compareSync(password, admin.password_hash);
-        
+
         if (!valid) {
             return res.status(401).json({ error: 'Invalid credentials' });
         }
 
-        res.json({ 
-            token: 'mock-token-' + admin.id, 
-            user: { 
+        res.json({
+            token: 'mock-token-' + admin.id,
+            user: {
                 id: admin.id,
-                email: admin.email, 
-                displayName: admin.display_name, 
-                role: admin.role 
-            } 
+                email: admin.email,
+                displayName: admin.display_name,
+                role: admin.role
+            }
         });
     } catch (e) {
         console.error('Login error:', e);
@@ -165,7 +165,7 @@ app.get(['/api/admin/journeys/pending', '/api/admin/journeys/pending-verificatio
         const data = getData(JOURNEYS_FILE);
         const journeys = Array.isArray(data.journeys) ? data.journeys : [];
         const pending = journeys.filter(j => j.status === 'Awaiting Start Verification' || j.status === 'Awaiting Verification');
-        
+
         // Also include other sections the admin needs for sync
         const fuel = (data.fuel || []).filter(f => f._pendingApproval);
         const expenses = (data.expenses || []).filter(e => e._pendingApproval);
@@ -174,8 +174,8 @@ app.get(['/api/admin/journeys/pending', '/api/admin/journeys/pending-verificatio
         const customers = data.customers || [];
         const incidents = (data.incidents || []).filter(i => i.status === 'Open');
 
-        res.json({ 
-            success: true, 
+        res.json({
+            success: true,
             journeys: pending,
             fuel,
             expenses,
@@ -183,9 +183,9 @@ app.get(['/api/admin/journeys/pending', '/api/admin/journeys/pending-verificatio
             customers,
             incidents
         });
-    } catch (e) { 
+    } catch (e) {
         console.error('Pending fetch error:', e);
-        res.status(500).json({ error: 'Failed to access journey data' }); 
+        res.status(500).json({ error: 'Failed to access journey data' });
     }
 });
 
@@ -283,7 +283,7 @@ app.delete('/api/documents/:id', (req, res) => {
         const data = getData(DOCUMENTS_FILE, { documents: [] });
         const docs = Array.isArray(data.documents) ? data.documents : [];
         const filtered = docs.filter(d => d.id !== req.params.id);
-        
+
         saveData(DOCUMENTS_FILE, { documents: filtered });
         res.json({ success: true });
     } catch (e) {
@@ -315,7 +315,7 @@ app.post('/api/admin/journey/:id/verify', (req, res) => {
         const isStart = j.status === 'Awaiting Start Verification';
         const now = new Date();
         const ts = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-        
+
         if (approved) {
             j.status = isStart ? 'Approved' : 'Verified';
             j._isRejected = false;
@@ -327,7 +327,7 @@ app.post('/api/admin/journey/:id/verify', (req, res) => {
             j._isRejected = true;
             j.notes = (j.notes || '') + (j.notes ? '\n' : '') + `[REJECTED @ ${ts}]: ${rejectionReason}`;
         }
-        
+
         saveData(JOURNEYS_FILE, data);
         res.json({ success: true, action: isStart ? 'start' : 'completion', journey: j });
     } catch (e) {
@@ -384,23 +384,23 @@ app.post('/api/admin/reset', async (req, res) => {
         for (const table of DB_TABLES) {
             await db.query(`TRUNCATE TABLE ${table} CASCADE`);
         }
-        
+
         // 2. Re-seed default superadmin to prevent lockout
         const defaultEmail = 'admin@segecha.com';
         const defaultPass = 'segecha2025';
         const salt = bcrypt.genSaltSync(10);
         const hash = bcrypt.hashSync(defaultPass, salt);
         const adminId = 'adm-' + Math.random().toString(36).substr(2, 9);
-        
+
         await db.query(
             'INSERT INTO admins (id, email, password_hash, display_name, role) VALUES ($1, $2, $3, $4, $5)',
             [adminId, defaultEmail, hash, 'System Administrator', 'superadmin']
         );
 
         // 3. Clear all JSON data files
-        const trackerSeed = { 
+        const trackerSeed = {
             trucks: [], trailers: [], drivers: [], journeys: [], fuel: [],
-            expenses: [], customers: [], payroll: [], staff: [], history: [], stats: {} 
+            expenses: [], customers: [], payroll: [], staff: [], history: [], stats: {}
         };
         saveData(JOURNEYS_FILE, trackerSeed);
         saveData(DRIVERS_AUTH_FILE, { drivers: [] });
@@ -422,7 +422,7 @@ app.post('/api/tracker/snapshot', (req, res) => {
     try {
         if (data) saveData(JOURNEYS_FILE, data);
         if (settings) saveData(SETTINGS_FILE, settings);
-        
+
         // After sync, check if we need to update the scheduler (frequency might have changed)
         const frequency = settings?.backupFrequency || 'Disabled';
         updateBackupScheduler(frequency);
@@ -472,7 +472,7 @@ app.post('/api/tracker/backup-now', async (req, res) => {
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
         const filename = `backup_master_${timestamp}.json`;
         const backup = await backupEverything();
-        
+
         saveData(path.join(BACKUPS_DIR, filename), backup);
         res.json({ success: true, message: 'Master backup created: ' + filename });
     } catch (e) {
@@ -487,9 +487,9 @@ app.post('/api/tracker/restore', async (req, res) => {
     try {
         const backupPath = path.join(BACKUPS_DIR, filename);
         if (!existsSync(backupPath)) return res.status(404).json({ error: 'Backup file not found' });
-        
+
         const backup = JSON.parse(readFileSync(backupPath, 'utf8'));
-        
+
         // Handle both legacy (just data/settings) and new unified format
         if (backup.version === '4.0') {
             await restoreEverything(backup);
@@ -498,7 +498,7 @@ app.post('/api/tracker/restore', async (req, res) => {
             if (backup.data) saveData(JOURNEYS_FILE, backup.data);
             if (backup.settings) saveData(SETTINGS_FILE, backup.settings);
         }
-        
+
         res.json({ success: true, message: 'System restored from ' + filename });
     } catch (e) {
         console.error('RESTORE_ERROR:', e);
@@ -524,13 +524,13 @@ app.post('/api/tracker/upload-backup', (req, res) => {
     try {
         const { filename, content } = req.body;
         if (!filename || !content) return res.status(400).json({ error: 'Missing filename or content' });
-        
+
         const safeName = path.basename(filename);
         if (!safeName.endsWith('.json')) return res.status(400).json({ error: 'Only JSON backup files are allowed' });
-        
+
         const backupPath = path.join(BACKUPS_DIR, safeName);
         writeFileSync(backupPath, content, 'utf8');
-        
+
         res.json({ success: true, message: 'Backup uploaded successfully' });
     } catch (e) {
         res.status(500).json({ error: 'Upload failed: ' + e.message });
@@ -560,7 +560,7 @@ function performAutoBackup() {
 function updateBackupScheduler(frequency) {
     if (frequency === currentFrequency) return;
     currentFrequency = frequency;
-    
+
     if (backupInterval) {
         clearInterval(backupInterval);
         backupInterval = null;
@@ -788,14 +788,14 @@ app.get('/api/documents/mine', driverAuth.authMiddleware, (req, res) => {
 app.post('/api/documents/driver-upload', driverAuth.authMiddleware, upload.any(), (req, res) => {
     try {
         const body = req.body || {};
-        const doc = { 
-            id: Date.now().toString(), 
+        const doc = {
+            id: Date.now().toString(),
             driverId: req.driver.driverId,
             entityType: 'driver',
             entityId: req.driver.driverId,
-            url: body.url || 'https://res.cloudinary.com/demo/image/upload/sample.jpg', 
-            ...body, 
-            uploadedAt: new Date().toISOString() 
+            url: body.url || 'https://res.cloudinary.com/demo/image/upload/sample.jpg',
+            ...body,
+            uploadedAt: new Date().toISOString()
         };
         const data = getData(DOCUMENTS_FILE, { documents: [] });
         const docs = Array.isArray(data.documents) ? data.documents : [];
@@ -812,7 +812,7 @@ app.post('/api/documents/driver-upload', driverAuth.authMiddleware, upload.any()
 app.post('/api/driver/login', async (req, res) => {
     const { identifier, password, method } = req.body;
     const result = await driverAuth.loginDriver(identifier, password, method);
-    if (!result.success) return res.status(200).json(result); 
+    if (!result.success) return res.status(200).json(result);
     res.json(result);
 });
 
