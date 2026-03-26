@@ -7,6 +7,7 @@ import { readSettings, getCrossBorderRules } from "../utils/settingsStore.js";
 import { mergeProfilePermissions } from "../utils/profilePermissions.js";
 import { expandMessageTemplateContext } from "../utils/templateContext.js";
 import { readPreviewFromSession, writePreviewToSession } from "../constants/previewNav.js";
+import { adminAuth } from "../utils/adminAuth";
 
 const LAST_SYNC_KEY = "segecha_last_server_sync";
 
@@ -56,7 +57,10 @@ export function useAppState() {
         if (!PAYMENT_API || !ADMIN_KEY) return;
         setLoading(true);
         try {
-            const res = await fetch(`${PAYMENT_API}/api/tracker/data-full?adminKey=${ADMIN_KEY}`);
+            const token = adminAuth.getToken();
+            const res = await fetch(`${PAYMENT_API}/api/tracker/data-full?adminKey=${ADMIN_KEY}`, {
+                headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+            });
             if (res.ok) {
                 const result = await res.json();
                 if (result.success && result.data) {
@@ -92,9 +96,14 @@ export function useAppState() {
         if (autoSyncTimerRef.current) clearTimeout(autoSyncTimerRef.current);
         autoSyncTimerRef.current = setTimeout(async () => {
             try {
+                const token = adminAuth.getToken();
                 await fetch(`${PAYMENT_API}/api/tracker/data`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'x-admin-key': ADMIN_KEY },
+                    headers: { 
+                        'Content-Type': 'application/json', 
+                        'x-admin-key': ADMIN_KEY,
+                        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                    },
                     body: JSON.stringify(data),
                 });
             } catch { /* silent */ }
@@ -401,8 +410,10 @@ export function useAppState() {
 
         if (PAYMENT_API) {
             try {
+                const token = adminAuth.getToken();
                 const res = await fetch(`${PAYMENT_API}/api/admin/${col}/${id}?adminKey=${ADMIN_KEY}`, {
-                    method: 'DELETE'
+                    method: 'DELETE',
+                    headers: token ? { 'Authorization': `Bearer ${token}` } : {}
                 });
                 const j = await res.json().catch(() => ({}));
                 if (res.ok && j.success) {
@@ -488,9 +499,13 @@ export function useAppState() {
         setVerifyMsg('');
         let resultPayload = null;
         try {
+            const token = adminAuth.getToken();
             const res = await fetch(`${PAYMENT_API}/api/admin/journey/${journeyId}/verify`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                },
                 body: JSON.stringify({ adminKey: ADMIN_KEY, approved, rejectionReason, rejectedFields: rejectedFieldsToPass }),
             });
             const result = await res.json();
@@ -535,9 +550,13 @@ export function useAppState() {
         setVerifyLoading(true);
         setVerifyMsg('');
         try {
+            const token = adminAuth.getToken();
             const res = await fetch(`${PAYMENT_API}/api/admin/submission/verify`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                },
                 body: JSON.stringify({ adminKey: ADMIN_KEY, id, type, approved, reason, rejectedFields }),
             });
             const result = await res.json();
@@ -570,9 +589,13 @@ export function useAppState() {
     const syncToServer = useCallback(async () => {
         try {
             const s = readSettings();
+            const token = adminAuth.getToken();
             const res = await fetch(`${PAYMENT_API}/api/tracker/data`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: { 
+                    "Content-Type": "application/json",
+                    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                },
                 body: JSON.stringify({
                     data,
                     adminKey: ADMIN_KEY,
@@ -598,8 +621,12 @@ export function useAppState() {
     const fetchBackups = useCallback(async () => {
         setBackupsLoading(true);
         try {
+            const token = adminAuth.getToken();
             const res = await fetch(`${PAYMENT_API}/api/tracker/backups`, {
-                headers: { 'x-admin-key': ADMIN_KEY }
+                headers: { 
+                    'x-admin-key': ADMIN_KEY,
+                    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                }
             });
             const j = await res.json();
             if (j.success) {
@@ -613,9 +640,13 @@ export function useAppState() {
 
     const createManualBackup = async () => {
         try {
+            const token = adminAuth.getToken();
             const res = await fetch(`${PAYMENT_API}/api/tracker/backup-now`, {
                 method: 'POST',
-                headers: { 'x-admin-key': ADMIN_KEY }
+                headers: { 
+                    'x-admin-key': ADMIN_KEY,
+                    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                }
             });
             const j = await res.json();
             if (j.success) {
@@ -633,9 +664,13 @@ export function useAppState() {
         if (!window.confirm(`Are you SURE you want to restore from "${filename}"? This will overwrite ALL current data.`)) return;
 
         try {
+            const token = adminAuth.getToken();
             const res = await fetch(`${PAYMENT_API}/api/tracker/restore`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                },
                 body: JSON.stringify({ filename, adminKey: ADMIN_KEY })
             });
             const j = await res.json();
@@ -653,8 +688,12 @@ export function useAppState() {
 
     const downloadBackup = async (filename) => {
         try {
+            const token = adminAuth.getToken();
             const res = await fetch(`${PAYMENT_API}/api/tracker/backups/download/${filename}`, {
-                headers: { 'x-admin-key': ADMIN_KEY }
+                headers: { 
+                    'x-admin-key': ADMIN_KEY,
+                    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                }
             });
             if (!res.ok) throw new Error("Download failed");
             const blob = await res.blob();
@@ -674,9 +713,13 @@ export function useAppState() {
             const reader = new FileReader();
             reader.onload = async (e) => {
                 const content = e.target.result;
+                const token = adminAuth.getToken();
                 const res = await fetch(`${PAYMENT_API}/api/tracker/upload-backup`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                    },
                     body: JSON.stringify({ filename: file.name, content })
                 });
                 const j = await res.json();
@@ -695,7 +738,10 @@ export function useAppState() {
 
     const fetchPendingVerifications = useCallback(async () => {
         try {
-            const res = await fetch(`${PAYMENT_API}/api/admin/journeys/pending-verification?adminKey=${ADMIN_KEY}`);
+            const token = adminAuth.getToken();
+            const res = await fetch(`${PAYMENT_API}/api/admin/journeys/pending-verification?adminKey=${ADMIN_KEY}`, {
+                headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+            });
             if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
             const result = await res.json();
             const pendingJourneys = result.journeys || [];
@@ -830,7 +876,10 @@ export function useAppState() {
 
     const fetchImportHistory = useCallback(async () => {
         try {
-            const res = await fetch(`${PAYMENT_API}/api/admin/import-history?adminKey=${ADMIN_KEY}`);
+            const token = adminAuth.getToken();
+            const res = await fetch(`${PAYMENT_API}/api/admin/import-history?adminKey=${ADMIN_KEY}`, {
+                headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+            });
             if (res.ok) {
                 const result = await res.json();
                 setImportHistory(result.history || []);

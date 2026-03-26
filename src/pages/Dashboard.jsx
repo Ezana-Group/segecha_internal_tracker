@@ -8,13 +8,15 @@ import {
     Clock, 
     Truck, 
     Wallet, 
-    ArrowUpRight,
-    ChevronRight,
-    LayoutDashboard,
-    ClipboardList,
-    FileText,
+    ArrowUpRight, 
+    ChevronRight, 
+    LayoutDashboard, 
+    ClipboardList, 
+    FileText, 
     CreditCard,
+    Mail, Briefcase, Users, CheckCircle2, CheckCircle
 } from "lucide-react";
+import { adminAuth } from '../utils/adminAuth';
 import { fmt, fmtN, monthLabel } from "../utils/formatters";
 import { STALE_TRANSIT_DAYS, FLEET_ACTIVE_WARN_PCT } from "../constants/nav";
 import { PAYMENT_API } from "../utils/env";
@@ -70,7 +72,10 @@ export function Dashboard({ data, dark, truckStats, tyreStatus, truckReg, driver
         : new Date().toISOString().substring(0, 7);
 
     useEffect(() => {
-        fetch(`${PAYMENT_API}/api/documents/expiring?days=30&adminKey=${import.meta.env.VITE_ADMIN_KEY}`)
+        const token = adminAuth.getToken();
+        fetch(`${PAYMENT_API}/api/documents/expiring?days=30&adminKey=${import.meta.env.VITE_ADMIN_KEY}`, {
+            headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+        })
             .then(res => res.json())
             .then(d => setExpiringDocs(d.documents || []))
             .catch(() => setExpiringDocs([]));

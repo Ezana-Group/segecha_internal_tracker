@@ -70,14 +70,15 @@ if (!JWT_SECRET || !ADMIN_KEY) {
     console.warn('[SECURITY] CRITICAL: JWT_SECRET or ADMIN_KEY not set. Using insecure defaults is dangerous.');
 }
 
-const PUBLIC_ROUTES = ['/health', '/api/admin/login', '/api/driver/login', '/api/staff/login'];
+const PUBLIC_ROUTES = ['/admin/login', '/driver/login', '/staff/login'];
 
 const adminAuth = (req, res, next) => {
     // 0. Skip for preflight
     if (req.method === 'OPTIONS') return next();
 
-    // 1. Whitelist public routes
-    if (PUBLIC_ROUTES.some(route => req.path === route || req.path.startsWith(route + '/'))) {
+    // 1. Whitelist public routes (relative to /api mount point)
+    const path = req.path.replace(/\/$/, '');
+    if (PUBLIC_ROUTES.includes(path)) {
         return next();
     }
 
@@ -86,7 +87,7 @@ const adminAuth = (req, res, next) => {
     const authHeader = req.headers.authorization;
 
     // Check Admin Key
-    if (adminKey && adminKey.trim() === ADMIN_KEY) {
+    if (adminKey && adminKey.trim() === ADMIN_KEY && ADMIN_KEY !== '') {
         return next();
     }
 
