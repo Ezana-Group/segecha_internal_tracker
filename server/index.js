@@ -97,14 +97,39 @@ const adminAuth = (req, res, next) => {
 };
 
 
+// Helper to resolve static paths correctly in both local and production (Railway) environments
+const resolveDistPath = (folderName) => {
+    const rootPath = folderName === 'admin' ? path.join(__dirname, '..', 'dist') : path.join(__dirname, '..', folderName, 'dist');
+    const localPath = folderName === 'admin' ? path.join(__dirname, 'dist') : path.join(__dirname, folderName, 'dist');
+    
+    if (existsSync(rootPath)) return rootPath;
+    if (existsSync(localPath)) return localPath;
+    
+    // Fallback to process.cwd() as last resort
+    const cwdPath = folderName === 'admin' ? path.join(process.cwd(), 'dist') : path.join(process.cwd(), folderName, 'dist');
+    return cwdPath;
+};
+
+const DRIVER_DIST = resolveDistPath('driver-portal');
+const TRACK_DIST = resolveDistPath('track-portal');
+const PAY_DIST = resolveDistPath('payment-portal');
+const ADMIN_DIST = resolveDistPath('admin');
+
+console.log(`[SERVER] Static paths resolved:
+  - Admin: ${ADMIN_DIST}
+  - Driver: ${DRIVER_DIST}
+  - Track: ${TRACK_DIST}
+  - Pay: ${PAY_DIST}
+`);
+
 // --- PUBLIC FRONTEND & STATIC ASSETS ---
 // 1. Specific Portals first (more specific routes)
-app.use('/driver', express.static(path.join(__dirname, '../driver-portal/dist')));
-app.use('/track', express.static(path.join(__dirname, '../track-portal/dist')));
-app.use('/pay', express.static(path.join(__dirname, '../payment-portal/dist')));
+app.use('/driver', express.static(DRIVER_DIST));
+app.use('/track', express.static(TRACK_DIST));
+app.use('/pay', express.static(PAY_DIST));
 
 // 2. Root Admin Panel
-app.use(express.static(path.join(__dirname, '../dist')));
+app.use(express.static(ADMIN_DIST));
 
 // Handle React routing (SPA) - Protected by React internal logic, but publicly reachable
 app.use((req, res, next) => {
@@ -116,17 +141,17 @@ app.use((req, res, next) => {
     if (isAsset) return next();
     
     if (req.path.startsWith('/driver')) {
-        return res.sendFile(path.join(__dirname, '../driver-portal/dist/index.html'));
+        return res.sendFile(path.join(DRIVER_DIST, 'index.html'));
     }
     if (req.path.startsWith('/track')) {
-        return res.sendFile(path.join(__dirname, '../track-portal/dist/index.html'));
+        return res.sendFile(path.join(TRACK_DIST, 'index.html'));
     }
     if (req.path.startsWith('/pay')) {
-        return res.sendFile(path.join(__dirname, '../payment-portal/dist/index.html'));
+        return res.sendFile(path.join(PAY_DIST, 'index.html'));
     }
     
     // Default Admin Panel
-    res.sendFile(path.join(__dirname, '../dist/index.html'));
+    res.sendFile(path.join(ADMIN_DIST, 'index.html'));
 });
 
 // --- AUTHENTICATED API ROUTES ---
