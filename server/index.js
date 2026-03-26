@@ -20,17 +20,16 @@ const driverData = require('./driver-data');
 
 
 // 1. CORS - MUST BE FIRST for production reliability
+// 1. CORS - MUST BE FIRST for production reliability
 app.use(cors({
-    origin: (origin, callback) => {
-        // Echo back the request origin or allow all if no origin (non-browser)
-        callback(null, origin || true);
-    },
+    origin: true, // Reflect the request origin
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'x-admin-key'],
     credentials: true,
     maxAge: 86400
 }));
 
+app.options('*', cors()); // Enable pre-flight for all routes
 
 
 app.get('/health', (req, res) => {
@@ -55,7 +54,7 @@ app.use(express.json());
 
 // 3. Admin Auth Middleware
 const JWT_SECRET = process.env.JWT_SECRET;
-const ADMIN_KEY = process.env.ADMIN_KEY || process.env.VITE_ADMIN_KEY;
+const ADMIN_KEY = (process.env.ADMIN_KEY || process.env.VITE_ADMIN_KEY || '').trim();
 
 
 if (!JWT_SECRET || !ADMIN_KEY) {
@@ -65,6 +64,9 @@ if (!JWT_SECRET || !ADMIN_KEY) {
 const PUBLIC_ROUTES = ['/health', '/api/admin/login', '/api/driver/login', '/api/staff/login'];
 
 const adminAuth = (req, res, next) => {
+    // 0. Skip for preflight
+    if (req.method === 'OPTIONS') return next();
+
     // 1. Whitelist public routes
     if (PUBLIC_ROUTES.some(route => req.path === route || req.path.startsWith(route + '/'))) {
         return next();
@@ -75,7 +77,7 @@ const adminAuth = (req, res, next) => {
     const authHeader = req.headers.authorization;
 
     // Check Admin Key
-    if (adminKey && adminKey === ADMIN_KEY) {
+    if (adminKey && adminKey.trim() === ADMIN_KEY) {
         return next();
     }
 
@@ -130,7 +132,8 @@ app.use((req, res, next) => {
 });
 
 // --- AUTHENTICATED API ROUTES ---
-app.use(adminAuth);
+// Apply AUTH to all /api routes except public ones
+app.use('/api', adminAuth);
 
 
 
@@ -187,7 +190,7 @@ autoSeed();
 // --- AUTHENTICATED ENDPOINTS ---
 
 // Change Own Password
-app.post('/api/admin/change-password', adminAuth, async (req, res) => {
+app.post('/api/admin/change-password', async (req, res) => {
     const { oldPassword, newPassword } = req.body;
     const adminId = req.admin.id;
     const email = req.admin.email;
@@ -217,7 +220,7 @@ app.post('/api/admin/change-password', adminAuth, async (req, res) => {
 
 
 // MASTER RESET - Truncates all Neon PostgreSQL tables
-app.post('/api/admin/reset', adminAuth, async (req, res) => {
+app.post('/api/admin/reset', async (req, res) => {
     try {
         console.log(`[${new Date().toISOString()}] SYSTEM RESET REQUESTED BY ADMIN`);
         const tables = [
@@ -265,7 +268,7 @@ app.post('/api/admin/reset', adminAuth, async (req, res) => {
 });
 
 // FULL DATA VIEW (Unified)
-app.get('/api/tracker/data-full', adminAuth, async (req, res) => {
+app.get('/api/tracker/data-full', async (req, res) => {
     try {
         const data = await backupEverything();
         res.json({ success: true, data });
@@ -834,7 +837,7 @@ app.delete('/api/driver/account/:id', (req, res) => {
 
 // --- STAFF ACCOUNT MANAGEMENT (ADMIN) ---
 
-app.post('/api/staff/create-account', adminAuth, async (req, res) => {
+app.post('/api/staff/create-account', async (req, res) => {
     const { staffId, email, phone } = req.body;
     try {
         const result = await staffAuth.createStaffAccount(staffId, email, phone);
@@ -844,7 +847,7 @@ app.post('/api/staff/create-account', adminAuth, async (req, res) => {
     }
 });
 
-app.get('/api/staff/account-status/:id', adminAuth, async (req, res) => {
+app.get('/api/staff/account-status/:id', async (req, res) => {
     try {
         const status = await staffAuth.getStaffAccountStatus(req.params.id);
         res.json(status);
@@ -853,7 +856,7 @@ app.get('/api/staff/account-status/:id', adminAuth, async (req, res) => {
     }
 });
 
-app.post('/api/staff/account/regenerate-credentials', adminAuth, async (req, res) => {
+app.post('/api/staff/account/regenerate-credentials', async (req, res) => {
     const { staffId, email, phone, forcePasswordReset } = req.body;
     try {
         const result = await staffAuth.regenerateStaffCredentials(staffId, { email, phone, forcePasswordReset });
@@ -863,7 +866,7 @@ app.post('/api/staff/account/regenerate-credentials', adminAuth, async (req, res
     }
 });
 
-app.get('/api/staff/account-export/:id', adminAuth, async (req, res) => {
+app.get('/api/staff/account-export/:id', async (req, res) => {
     try {
         const exportData = await staffAuth.exportStaffAccount(req.params.id);
         if (!exportData) return res.status(404).json({ error: 'Account not found' });
@@ -873,7 +876,7 @@ app.get('/api/staff/account-export/:id', adminAuth, async (req, res) => {
     }
 });
 
-app.delete('/api/staff/account/:id', adminAuth, async (req, res) => {
+app.delete('/api/staff/account/:id', async (req, res) => {
     try {
         const success = await staffAuth.deleteStaffAccount(req.params.id);
         res.json({ success });
