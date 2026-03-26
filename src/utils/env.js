@@ -1,23 +1,14 @@
 // Segecha Frontend Environment Constants
 const getApiUrl = () => {
-    let envUrl = import.meta.env.VITE_API_URL;
+    const envUrl = import.meta.env.VITE_API_URL;
     
-    // If we have a specific non-localhost URL, use it
-    if (envUrl && !envUrl.includes('localhost:3001')) {
-        // Ensure protocol is present
-        if (!envUrl.startsWith('http')) {
-            return `https://${envUrl.replace(/^\/*/, '')}`;
-        }
-        return envUrl;
+    // If we have an absolute URL via env, use it
+    if (envUrl && envUrl.startsWith('http')) {
+        return envUrl.replace(/\/+$/, '');
     }
-    
-    // In production, default to current origin for same-domain API calls
-    if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-        return window.location.origin;
-    }
-    
-    // Local development fallback
-    return 'http://localhost:3001';
+
+    // Default to empty string for relative paths (supports Vite proxy in dev & same-origin in prod)
+    return '';
 };
 
 export const PAYMENT_API = getApiUrl();
