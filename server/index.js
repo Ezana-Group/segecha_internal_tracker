@@ -47,18 +47,78 @@ const adminAuth = (req, res, next) => {
 
 app.use(adminAuth);
 
+// --- SYSTEM & MAINTENANCE (High Priority) ---
+
+// MASTER RESET - Truncates all Neon PostgreSQL tables
+app.post('/api/admin/reset', adminAuth, async (req, res) => {
+    try {
+        console.log(`[${new Date().toISOString()}] SYSTEM RESET REQUESTED BY ADMIN`);
+        const tables = [
+            'invoices', 'payroll', 'fuel_logs', 'expenses', 'incidents', 'maintenance_logs', 'tyre_logs',
+            'documents', 'journeys', 'driver_auth', 'staff_auth',
+            'trucks', 'trailers', 'drivers', 'staff', 'customers', 'admins', 'superadmins', 'system_settings'
+        ];
+        for (const table of tables) {
+            await db.query(`TRUNCATE TABLE ${table} RESTART IDENTITY CASCADE`);
+        }
+
+        const initialAdminEmail = process.env.INITIAL_ADMIN_EMAIL || 'admin@segecha.com';
+        const initialAdminPhone = process.env.INITIAL_ADMIN_PHONE || '+254700000000';
+        
+        // 1. Create a dummy staff record for the superadmin (satisfies foreign key)
+        const staffId = 'staff-admin-init';
+        await db.query(`
+            INSERT INTO staff (id, name, email, phone, role)
+            VALUES ($1, 'System Admin', $2, $3, 'superadmin')
+            ON CONFLICT (id) DO NOTHING
+        `, [staffId, initialAdminEmail, initialAdminPhone]);
+
+        // 2. Create the auth record
+        await db.query(`
+            INSERT INTO staff_auth (staff_id, email, phone, password_hash, account_status)
+            VALUES ($1, $2, $3, $4, 'active')
+            ON CONFLICT (staff_id) DO NOTHING
+        `, [staffId, initialAdminEmail, initialAdminPhone, 'segecha2025']);
+
+        // 3. Populate base settings
+        await db.query(`
+            INSERT INTO system_settings (key, value) 
+            VALUES 
+            ('companyName', '"Segecha Group Ltd"'),
+            ('companyEmail', '"ops@segecha.com"'),
+            ('defaultCurrency', '"KES"'),
+            ('admin_email', $1)
+        `, [JSON.stringify(initialAdminEmail)]);
+        res.json({ success: true, message: 'All database data destroyed and re-seeded.' });
+    } catch (e) {
+        console.error('RESET_FAILED:', e);
+        res.status(500).json({ error: 'Reset failed: ' + e.message });
+    }
+});
+
+// FULL DATA VIEW (Unified)
+app.get('/api/tracker/data-full', adminAuth, async (req, res) => {
+    try {
+        const data = await backupEverything();
+        res.json({ success: true, data });
+    } catch (e) {
+        console.error('DATA_FULL_ERROR:', e);
+        res.status(500).json({ error: 'Failed to fetch full data: ' + e.message });
+    }
+});
+
+const bcrypt = require('bcryptjs');
 const db = require('./db');
 const driverAuth = require('./driver-auth');
 const staffAuth = require('./staff-auth');
 const driverData = require('./driver-data');
-const bcrypt = require('bcryptjs');
 
 // Database Configuration
 const DB_TABLES = [
     'admins', 'superadmins', 'trucks', 'trailers', 'drivers', 
     'staff', 'customers', 'journeys', 'fuel_logs', 'expenses', 
     'invoices', 'payroll', 'maintenance_logs', 'tyre_logs', 
-    'incidents', 'documents', 'system_settings'
+    'incidents', 'documents', 'system_settings', 'staff_auth', 'driver_auth'
 ];
 
 // Helper to get all data for a specific entity (replaces getData for JSON)
@@ -395,7 +455,8 @@ app.post('/api/tracker/snapshot', async (req, res) => {
     }
 });
 
-// Auto-sync from admin (Legacy catch-all, now basically a health check for data)
+// FULL DATA VIEW logic moved to top
+
 app.post('/api/tracker/data', (req, res) => {
     res.json({ success: true, message: 'Live data is handled via PostgreSQL' });
 });
@@ -437,6 +498,8 @@ app.post('/api/tracker/backup-now', async (req, res) => {
 });
 
 // Restore from Backup (Unified)
+// MASTER RESET logic moved to top for middleware reachability
+
 app.post('/api/tracker/restore', async (req, res) => {
     const { filename } = req.body;
     try {

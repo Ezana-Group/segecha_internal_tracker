@@ -30,20 +30,49 @@ export function useAppState() {
     const [data, setData] = useState(() => {
         try {
             const saved = localStorage.getItem(STORAGE_KEY);
-            const parsed = saved ? JSON.parse(saved) : SEED;
-            const merged = { ...SEED, ...parsed };
-            merged.templates = mergeTemplateList(SEED.templates, merged.templates);
-            merged.journeys = (merged.journeys || []).map((j) => ({
-                ...j,
-                waybillNo: j.waybillNo ?? null,
-                waybillGenerated: j.waybillGenerated ?? false,
-                waybillData: j.waybillData ?? null,
-            }));
-            return merged;
+            // If we have saved data, use it; otherwise, check if we should start fresh
+            // or use SEED. For production alignment, we prefer empty if reset was called.
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                return { 
+                    ...SEED, 
+                    ...parsed,
+                    templates: mergeTemplateList(SEED.templates, parsed.templates)
+                };
+            }
+            // If no saved data, check if we just did a reset
+            const lastSync = localStorage.getItem(LAST_SYNC_KEY);
+            if (lastSync === 'CLEAN_WIPE') return { ...SEED, trucks: [], drivers: [], journeys: [], fuel: [], expenses: [], incidents: [], customers: [], trailers: [], staff: [], payroll: [], invoices: [], documents: [] };
+            
+            return SEED;
         } catch {
             return SEED;
         }
     });
+
+    const [loading, setLoading] = useState(false);
+
+    const fetchTrackerData = useCallback(async () => {
+        if (!PAYMENT_API || !ADMIN_KEY) return;
+        setLoading(true);
+        try {
+            const res = await fetch(`${PAYMENT_API}/api/tracker/data-full?adminKey=${ADMIN_KEY}`);
+            if (res.ok) {
+                const result = await res.json();
+                if (result.success && result.data) {
+                    setData(d => ({ ...d, ...result.data }));
+                }
+            }
+        } catch (e) {
+            console.warn("Initial data sync failed:", e.message);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchTrackerData();
+    }, [fetchTrackerData]);
 
     useEffect(() => {
         try {
@@ -53,10 +82,13 @@ export function useAppState() {
         }
     }, [data]);
 
-    // Auto-sync to server on every data change (debounced 1.5s) so driver portal always sees latest journey statuses
+    // Auto-sync to server on every data change (debounced 1.5s)
     const autoSyncTimerRef = useRef(null);
     useEffect(() => {
         if (!PAYMENT_API || !ADMIN_KEY) return;
+        // Don't auto-sync back "empty" state if we are still loading or if data matches SEED too closely
+        if (loading) return;
+
         if (autoSyncTimerRef.current) clearTimeout(autoSyncTimerRef.current);
         autoSyncTimerRef.current = setTimeout(async () => {
             try {
@@ -65,10 +97,10 @@ export function useAppState() {
                     headers: { 'Content-Type': 'application/json', 'x-admin-key': ADMIN_KEY },
                     body: JSON.stringify(data),
                 });
-            } catch { /* silent — driver portal will catch up on next poll */ }
+            } catch { /* silent */ }
         }, 1500);
         return () => { if (autoSyncTimerRef.current) clearTimeout(autoSyncTimerRef.current); };
-    }, [data]);
+    }, [data, loading]);
 
     // Toast state
     const [toasts, setToasts] = useState([]);
@@ -440,7 +472,7 @@ export function useAppState() {
 
             if (res.ok) {
                 localStorage.removeItem(STORAGE_KEY);
-                localStorage.removeItem(LAST_SYNC_KEY);
+                localStorage.setItem(LAST_SYNC_KEY, 'CLEAN_WIPE');
                 showToast("System reset successful. Reloading...", "success");
                 setTimeout(() => window.location.reload(), 1500);
             } else {
