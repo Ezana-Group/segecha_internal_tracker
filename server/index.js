@@ -62,6 +62,7 @@ process.on('unhandledRejection', (reason, promise) => {
 app.use(express.json());
 
 // 3. Admin Auth Middleware
+const JWT_SECRET = process.env.JWT_SECRET;
 const ADMIN_KEY_SOURCE = process.env.ADMIN_KEY ? 'process.env.ADMIN_KEY' : (process.env.VITE_ADMIN_KEY ? 'process.env.VITE_ADMIN_KEY' : 'NONE');
 const ADMIN_KEY = (process.env.ADMIN_KEY || process.env.VITE_ADMIN_KEY || '').trim();
 
@@ -73,13 +74,6 @@ if (!JWT_SECRET || !ADMIN_KEY) {
 }
 
 const PUBLIC_ROUTES = ['/admin/login', '/driver/login', '/staff/login'];
-
-if (ADMIN_KEY) {
-    const maskedKey = ADMIN_KEY.substring(0, 4) + '...' + ADMIN_KEY.substring(ADMIN_KEY.length - 4);
-    console.log(`[AUTH] SERVER_ADMIN_KEY initialized: ${maskedKey} (Length: ${ADMIN_KEY.length})`);
-} else {
-    console.warn('[AUTH] SERVER_ADMIN_KEY is EMPTY or NOT SET');
-}
 
 const adminAuth = (req, res, next) => {
     // 0. Skip for preflight
