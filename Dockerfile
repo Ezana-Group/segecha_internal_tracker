@@ -47,5 +47,5 @@ COPY server/ ./server/
 
 # Expose port and start explicitly
 EXPOSE 3001
-WORKDIR /app/server
-CMD ["node", "index.js"]
+WORKDIR /app
+CMD ["node", "server/index.js"]
