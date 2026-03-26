@@ -1,4 +1,4 @@
-export const API_URL = import.meta.env.VITE_API_URL || 'https://api.segecha.com';
+export const API_URL = import.meta.env.VITE_API_URL || '';
 
 export async function uploadFile(file, folder, filename, token) {
     const formData = new FormData();

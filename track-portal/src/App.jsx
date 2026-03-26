@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Search, Package, MapPin, Clock, ArrowRight, ShieldCheck, Box } from 'lucide-react';
 
-const API = import.meta.env.VITE_API_URL || 'https://api.segecha.com';
+const API = import.meta.env.VITE_API_URL || '';
 
 const COLORS = {
   primary: '#1B3A6B',

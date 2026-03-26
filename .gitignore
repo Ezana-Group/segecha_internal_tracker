@@ -12,6 +12,7 @@ track-portal/.env.local
 server/.env
 # env_backup/
 env_backup/
+archive/
 
 # Server data files — managed on Render, not in git
 server/drivers-auth.json
