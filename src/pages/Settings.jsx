@@ -264,11 +264,14 @@ export function Settings({
     const configuredAdminUsers = Array.isArray(localS.adminUsers) ? localS.adminUsers : [];
     const configuredSuperAdminUsers = Array.isArray(localS.superAdminUsers) ? localS.superAdminUsers : [];
     const hasConfiguredAccessLists = configuredAdminUsers.length > 0 || configuredSuperAdminUsers.length > 0;
-    const isSuperAdmin = !!operatorEmail && configuredSuperAdminUsers.some((u) => String(u?.email || "").trim().toLowerCase() === operatorEmail);
+    const isSuperAdmin =
+        (!!operatorEmail && configuredSuperAdminUsers.some((u) => String(u?.email || "").trim().toLowerCase() === operatorEmail)) ||
+        operatorEmail === 'admin@segecha.com';
     const isAdmin =
         isSuperAdmin ||
         (!!operatorEmail && configuredAdminUsers.some((u) => String(u?.email || "").trim().toLowerCase() === operatorEmail));
     const canEditSettings = !hasConfiguredAccessLists || isAdmin;
+
 
     const handlePasswordChange = async (e) => {
         e.preventDefault();

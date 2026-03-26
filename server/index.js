@@ -812,7 +812,7 @@ app.delete('/api/driver/account/:id', (req, res) => {
 
 // --- STAFF ACCOUNT MANAGEMENT (ADMIN) ---
 
-app.post('/api/staff/create-account', async (req, res) => {
+app.post('/api/staff/create-account', adminAuth, async (req, res) => {
     const { staffId, email, phone } = req.body;
     try {
         const result = await staffAuth.createStaffAccount(staffId, email, phone);
@@ -822,12 +822,16 @@ app.post('/api/staff/create-account', async (req, res) => {
     }
 });
 
-app.get('/api/staff/account-status/:id', (req, res) => {
-    const status = staffAuth.getStaffAccountStatus(req.params.id);
-    res.json(status);
+app.get('/api/staff/account-status/:id', adminAuth, async (req, res) => {
+    try {
+        const status = await staffAuth.getStaffAccountStatus(req.params.id);
+        res.json(status);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
 });
 
-app.post('/api/staff/account/regenerate-credentials', async (req, res) => {
+app.post('/api/staff/account/regenerate-credentials', adminAuth, async (req, res) => {
     const { staffId, email, phone, forcePasswordReset } = req.body;
     try {
         const result = await staffAuth.regenerateStaffCredentials(staffId, { email, phone, forcePasswordReset });
@@ -837,16 +841,25 @@ app.post('/api/staff/account/regenerate-credentials', async (req, res) => {
     }
 });
 
-app.get('/api/staff/account-export/:id', (req, res) => {
-    const exportData = staffAuth.exportStaffAccount(req.params.id);
-    if (!exportData) return res.status(404).json({ error: 'Account not found' });
-    res.json(exportData);
+app.get('/api/staff/account-export/:id', adminAuth, async (req, res) => {
+    try {
+        const exportData = await staffAuth.exportStaffAccount(req.params.id);
+        if (!exportData) return res.status(404).json({ error: 'Account not found' });
+        res.json(exportData);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
 });
 
-app.delete('/api/staff/account/:id', (req, res) => {
-    const success = staffAuth.deleteStaffAccount(req.params.id);
-    res.json({ success });
+app.delete('/api/staff/account/:id', adminAuth, async (req, res) => {
+    try {
+        const success = await staffAuth.deleteStaffAccount(req.params.id);
+        res.json({ success });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
 });
+
 
 // --- DRIVER PORTAL ENDPOINTS (Authenticated) ---
 
