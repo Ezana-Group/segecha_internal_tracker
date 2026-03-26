@@ -20,31 +20,17 @@ const driverData = require('./driver-data');
 
 
 // 1. CORS - MUST BE FIRST for production reliability
-const ALLOWED_ORIGINS = [
-    'https://app.segecha.com',
-    'https://segecha.com',
-    'https://admin.segecha.com',
-    'https://api.segecha.com',
-    'http://localhost:3000',
-    'http://localhost:3001',
-    'http://localhost:5173'
-];
-
 app.use(cors({
     origin: (origin, callback) => {
-        if (!origin || ALLOWED_ORIGINS.includes(origin)) {
-            callback(null, true);
-        } else {
-            // Allow subdomains or fallback to * in production if needed
-            // callback(new Error('Not allowed by CORS'));
-            callback(null, true); // Permissive fallback to debug 503
-        }
+        // Echo back the request origin or allow all if no origin (non-browser)
+        callback(null, origin || true);
     },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'x-admin-key'],
     credentials: true,
     maxAge: 86400
 }));
+
 
 
 app.get('/health', (req, res) => {
