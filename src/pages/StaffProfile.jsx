@@ -27,7 +27,8 @@ import { fmt, fmtDate } from "../utils/formatters";
 import { Card } from "../components/Card";
 import { Badge } from "../components/Badge";
 import { adminAuth } from "../utils/adminAuth";
-import { API_URL } from "../utils/env";
+import { PAYMENT_API } from "../utils/env";
+
 import { Button } from "../components/Button";
 import { DocumentPanel } from "../components/DocumentPanel";
 import { ProfileQuickActionTile } from "../components/ProfileQuickActionTile";
@@ -157,7 +158,8 @@ export function StaffProfile({ data, setData, dark, isMobile, openModal, showToa
 
         try {
             setPassBusy(true);
-            const res = await fetch(`${API_URL}/api/admin/change-password`, {
+            const res = await fetch(`${PAYMENT_API}/api/admin/change-password`, {
+
                 method: "POST",
                 headers: { 
                     "Content-Type": "application/json",
