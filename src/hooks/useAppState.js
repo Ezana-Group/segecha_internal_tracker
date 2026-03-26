@@ -58,8 +58,11 @@ export function useAppState() {
         setLoading(true);
         try {
             const token = adminAuth.getToken();
-            const res = await fetch(`${PAYMENT_API}/api/tracker/data-full?adminKey=${ADMIN_KEY}`, {
-                headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+            const res = await fetch(`${PAYMENT_API}/api/tracker/data-full`, {
+                headers: {
+                    'x-admin-key': ADMIN_KEY,
+                    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                }
             });
             if (res.status === 401) {
                 console.warn("Session expired. Clearing token.");
@@ -416,9 +419,12 @@ export function useAppState() {
         if (PAYMENT_API) {
             try {
                 const token = adminAuth.getToken();
-                const res = await fetch(`${PAYMENT_API}/api/admin/${col}/${id}?adminKey=${ADMIN_KEY}`, {
+                const res = await fetch(`${PAYMENT_API}/api/admin/${col}/${id}`, {
                     method: 'DELETE',
-                    headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+                    headers: {
+                        'x-admin-key': ADMIN_KEY,
+                        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                    }
                 });
                 const j = await res.json().catch(() => ({}));
                 if (res.ok && j.success) {
@@ -509,9 +515,10 @@ export function useAppState() {
                 method: 'POST',
                 headers: { 
                     'Content-Type': 'application/json',
+                    'x-admin-key': ADMIN_KEY,
                     ...(token ? { 'Authorization': `Bearer ${token}` } : {})
                 },
-                body: JSON.stringify({ adminKey: ADMIN_KEY, approved, rejectionReason, rejectedFields: rejectedFieldsToPass }),
+                body: JSON.stringify({ approved, rejectionReason, rejectedFields: rejectedFieldsToPass }),
             });
             if (res.status === 401) { adminAuth.clearSession(); return; }
             const result = await res.json();
@@ -561,9 +568,10 @@ export function useAppState() {
                 method: 'POST',
                 headers: { 
                     'Content-Type': 'application/json',
+                    'x-admin-key': ADMIN_KEY,
                     ...(token ? { 'Authorization': `Bearer ${token}` } : {})
                 },
-                body: JSON.stringify({ adminKey: ADMIN_KEY, id, type, approved, reason, rejectedFields }),
+                body: JSON.stringify({ id, type, approved, reason, rejectedFields }),
             });
             if (res.status === 401) { adminAuth.clearSession(); return; }
             const result = await res.json();
@@ -601,6 +609,7 @@ export function useAppState() {
                 method: "POST",
                 headers: { 
                     "Content-Type": "application/json",
+                    "x-admin-key": ADMIN_KEY,
                     ...(token ? { 'Authorization': `Bearer ${token}` } : {})
                 },
                 body: JSON.stringify({
@@ -677,9 +686,10 @@ export function useAppState() {
                 method: 'POST',
                 headers: { 
                     'Content-Type': 'application/json',
+                    'x-admin-key': ADMIN_KEY,
                     ...(token ? { 'Authorization': `Bearer ${token}` } : {})
                 },
-                body: JSON.stringify({ filename, adminKey: ADMIN_KEY })
+                body: JSON.stringify({ filename })
             });
             const j = await res.json();
             if (j.success) {
@@ -726,6 +736,7 @@ export function useAppState() {
                     method: 'POST',
                     headers: { 
                         'Content-Type': 'application/json',
+                        'x-admin-key': ADMIN_KEY,
                         ...(token ? { 'Authorization': `Bearer ${token}` } : {})
                     },
                     body: JSON.stringify({ filename: file.name, content })
@@ -747,8 +758,11 @@ export function useAppState() {
     const fetchPendingVerifications = useCallback(async () => {
         try {
             const token = adminAuth.getToken();
-            const res = await fetch(`${PAYMENT_API}/api/admin/journeys/pending-verification?adminKey=${ADMIN_KEY}`, {
-                headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+            const res = await fetch(`${PAYMENT_API}/api/admin/journeys/pending-verification`, {
+                headers: {
+                    'x-admin-key': ADMIN_KEY,
+                    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                }
             });
             if (res.status === 401) {
                 adminAuth.clearSession();
@@ -889,8 +903,11 @@ export function useAppState() {
     const fetchImportHistory = useCallback(async () => {
         try {
             const token = adminAuth.getToken();
-            const res = await fetch(`${PAYMENT_API}/api/admin/import-history?adminKey=${ADMIN_KEY}`, {
-                headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+            const res = await fetch(`${PAYMENT_API}/api/admin/import-history`, {
+                headers: {
+                    'x-admin-key': ADMIN_KEY,
+                    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                }
             });
             if (res.status === 401) {
                 adminAuth.clearSession();
@@ -1271,10 +1288,15 @@ export function useAppState() {
                     maintenance: allMaint.length,
                     totalRows: allTrips.length + allExpenses.length + allMaint.length
                 };
+                const token = adminAuth.getToken();
                 await fetch(`${PAYMENT_API}/api/admin/import-history`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ adminKey: ADMIN_KEY, record })
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        'x-admin-key': ADMIN_KEY,
+                        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                    },
+                    body: JSON.stringify({ record })
                 });
                 fetchImportHistory();
             } catch (err) {

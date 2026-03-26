@@ -62,12 +62,14 @@ process.on('unhandledRejection', (reason, promise) => {
 app.use(express.json());
 
 // 3. Admin Auth Middleware
-const JWT_SECRET = process.env.JWT_SECRET;
+const ADMIN_KEY_SOURCE = process.env.ADMIN_KEY ? 'process.env.ADMIN_KEY' : (process.env.VITE_ADMIN_KEY ? 'process.env.VITE_ADMIN_KEY' : 'NONE');
 const ADMIN_KEY = (process.env.ADMIN_KEY || process.env.VITE_ADMIN_KEY || '').trim();
-
 
 if (!JWT_SECRET || !ADMIN_KEY) {
     console.warn('[SECURITY] CRITICAL: JWT_SECRET or ADMIN_KEY not set. Using insecure defaults is dangerous.');
+} else {
+    const maskedKey = ADMIN_KEY.substring(0, 4) + '...' + ADMIN_KEY.substring(ADMIN_KEY.length - 4);
+    console.log(`[AUTH] ADMIN_KEY loaded from ${ADMIN_KEY_SOURCE}: ${maskedKey} (Length: ${ADMIN_KEY.length})`);
 }
 
 const PUBLIC_ROUTES = ['/admin/login', '/driver/login', '/staff/login'];
@@ -99,8 +101,11 @@ const adminAuth = (req, res, next) => {
     }
 
     // Diagnostic logging for auth failure
-    if (adminKey) {
-        console.warn(`[AUTH] Admin key mismatch for ${req.method} ${req.path}. Received: "${adminKey}", Expected: "${ADMIN_KEY}"`);
+    if (adminKey || authHeader) {
+        console.warn(`[AUTH] Authentication failure for ${req.method} ${req.path}`);
+        console.warn(`  - Admin Key received: "${adminKey || '(none)'}" (Matches server? ${adminKey?.trim() === ADMIN_KEY})`);
+        console.warn(`  - Auth Header: "${authHeader || '(none)'}"`);
+        console.warn(`  - Full Headers: ${JSON.stringify(req.headers)}`);
     }
 
     // Check JWT Token
@@ -643,6 +648,8 @@ app.post('/api/admin/journey/:id/verify', async (req, res) => {
 
         res.json({ success: true, action: isStart ? 'start' : 'completion', journey: { ...j, status: newStatus, notes, metadata } });
     } catch (e) {
+        console.error('Journey verification error:', e);
+        console.error('Request headers on failure:', req.headers);
         res.status(500).json({ error: e.message });
     }
 });
@@ -676,6 +683,8 @@ app.post('/api/admin/submission/verify', async (req, res) => {
 
         res.json({ success: true });
     } catch (e) {
+        console.error('Submission verification error:', e);
+        console.error('Request headers on failure:', req.headers);
         res.status(500).json({ error: e.message });
     }
 });
