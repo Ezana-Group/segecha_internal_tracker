@@ -35,6 +35,8 @@ import {
     FileText,
     Copy,
     Eye,
+    EyeOff,
+    Lock,
     ClipboardList,
     Mail,
     Sparkles,
@@ -49,6 +51,7 @@ import {
     Send,
     UserRoundCog,
 } from "lucide-react";
+
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { ImportUploadButton } from "./ImportReview";
 import { Card } from "../components/Card";
@@ -73,9 +76,6 @@ import { buildSmsUrl } from "../utils/contactLinks.js";
 import { expandMessageTemplateContext } from "../utils/templateContext.js";
 import { SettingsProfilePermissions } from "../components/SettingsProfilePermissions.jsx";
 import { adminAuth } from "../utils/adminAuth";
-import { Eye, EyeOff, Lock, MessageCircle } from "lucide-react";
-
-
 
 const SETTINGS_MENU = [
     {
