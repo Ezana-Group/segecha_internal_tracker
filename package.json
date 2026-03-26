@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
-    "build:all": "npm run build && cd driver-portal && npm install && npm run build && cd ../track-portal && npm install && npm run build && cd ../payment-portal && npm install && npm run build",
+    "build": "npm run build:all",
+    "build:all": "vite build && cd driver-portal && npm install && npm run build && cd ../track-portal && npm install && npm run build && cd ../payment-portal && npm install && npm run build",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest",
