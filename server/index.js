@@ -4,10 +4,20 @@ const { readFileSync, writeFileSync, existsSync, mkdirSync } = require('fs');
 const path = require('path');
 const multer = require('multer');
 const upload = multer();
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+
 require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+
+// Core Dependencies (Must be before autoSeed)
+const db = require('./db');
+const driverAuth = require('./driver-auth');
+const staffAuth = require('./staff-auth');
+const driverData = require('./driver-data');
+
 
 // 1. CORS - MUST BE FIRST for production reliability
 app.use(cors({
@@ -29,9 +39,9 @@ app.get('/health', (req, res) => {
 app.use(express.json());
 
 // 3. Admin Auth Middleware
-const jwt = require('jsonwebtoken');
 const JWT_SECRET = process.env.JWT_SECRET;
 const ADMIN_KEY = process.env.ADMIN_KEY || process.env.VITE_ADMIN_KEY;
+
 
 if (!JWT_SECRET || !ADMIN_KEY) {
     console.warn('[SECURITY] CRITICAL: JWT_SECRET or ADMIN_KEY not set. Using insecure defaults is dangerous.');
@@ -243,11 +253,10 @@ app.get('/api/tracker/data-full', adminAuth, async (req, res) => {
     }
 });
 
-const bcrypt = require('bcryptjs');
-const db = require('./db');
-const driverAuth = require('./driver-auth');
-const staffAuth = require('./staff-auth');
-const driverData = require('./driver-data');
+// Auth Utilities (already required above)
+
+// Core Dependencies already required at top level
+
 
 // Database Configuration
 const DB_TABLES = [
