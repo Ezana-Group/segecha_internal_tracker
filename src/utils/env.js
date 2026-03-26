@@ -1,14 +1,23 @@
 // Segecha Frontend Environment Constants
 const getApiUrl = () => {
-    const envUrl = import.meta.env.VITE_API_URL;
+    let envUrl = import.meta.env.VITE_API_URL;
+    
     // If we have a specific non-localhost URL, use it
-    if (envUrl && !envUrl.includes('localhost:3001')) return envUrl;
+    if (envUrl && !envUrl.includes('localhost:3001')) {
+        // Ensure protocol is present
+        if (!envUrl.startsWith('http')) {
+            return `https://${envUrl.replace(/^\/*/, '')}`;
+        }
+        return envUrl;
+    }
+    
     // In production, default to current origin for same-domain API calls
-    if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
+    if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
         return window.location.origin;
     }
+    
     // Local development fallback
-    return envUrl || 'http://localhost:3001';
+    return 'http://localhost:3001';
 };
 
 export const PAYMENT_API = getApiUrl();
