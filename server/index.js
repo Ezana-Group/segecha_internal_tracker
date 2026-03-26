@@ -78,8 +78,28 @@ app.use('/driver', express.static(path.join(__dirname, '../driver-portal/dist'))
 app.use('/track', express.static(path.join(__dirname, '../track-portal/dist')));
 app.use('/pay', express.static(path.join(__dirname, '../payment-portal/dist')));
 
-// Public API Routes (no auth needed for login/health)
+// Handle React routing (SPA) - Protected by React internal logic, but publicly reachable
+app.use((req, res, next) => {
+    if (req.method !== 'GET') return next();
+    if (req.path.startsWith('/api/')) return next();
+    
+    if (req.path.startsWith('/driver')) {
+        return res.sendFile(path.join(__dirname, '../driver-portal/dist/index.html'));
+    }
+    if (req.path.startsWith('/track')) {
+        return res.sendFile(path.join(__dirname, '../track-portal/dist/index.html'));
+    }
+    if (req.path.startsWith('/pay')) {
+        return res.sendFile(path.join(__dirname, '../payment-portal/dist/index.html'));
+    }
+    
+    // Default Admin Panel
+    res.sendFile(path.join(__dirname, '../dist/index.html'));
+});
+
+// --- AUTHENTICATED API ROUTES ---
 app.use(adminAuth);
+
 
 
 // --- SYSTEM & MAINTENANCE (High Priority) ---
@@ -928,34 +948,9 @@ app.post('/api/staff/set-password', async (req, res) => {
     res.json(result);
 });
 
-// Serve static assets from the frontend build
-app.use(express.static(path.join(__dirname, '../dist')));
-app.use('/driver', express.static(path.join(__dirname, '../driver-portal/dist')));
-app.use('/track', express.static(path.join(__dirname, '../track-portal/dist')));
-app.use('/pay', express.static(path.join(__dirname, '../payment-portal/dist')));
-
-// Handle React routing, return all requests to React app
-app.use((req, res, next) => {
-    if (req.method !== 'GET') return next();
-    if (req.path.startsWith('/api/')) return next();
-    
-    // Portal specific routing
-    if (req.path.startsWith('/driver')) {
-        return res.sendFile(path.join(__dirname, '../driver-portal/dist/index.html'));
-    }
-    if (req.path.startsWith('/track')) {
-        return res.sendFile(path.join(__dirname, '../track-portal/dist/index.html'));
-    }
-    if (req.path.startsWith('/pay')) {
-        return res.sendFile(path.join(__dirname, '../payment-portal/dist/index.html'));
-    }
-    
-    // Default Admin Panel
-    res.sendFile(path.join(__dirname, '../dist/index.html'));
-});
-
 
 // Global Error Handler
+
 app.use((err, req, res, next) => {
     console.error('SERVER_ERROR:', err);
     writeFileSync(path.join(__dirname, 'error.log'), `${new Date().toISOString()} - ${req.url} - ${err.message}\n${err.stack}\n\n`, { flag: 'a' });
