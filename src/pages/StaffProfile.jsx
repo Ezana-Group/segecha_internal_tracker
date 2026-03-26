@@ -14,6 +14,11 @@ import {
     Calendar,
     Settings as SettingsIcon,
     Lock,
+    AlertCircle,
+    Users,
+    Search as SearchIcon,
+    Eye,
+    EyeOff,
     MessageSquare,
     Download,
     Trash2,
@@ -21,6 +26,8 @@ import {
 import { fmt, fmtDate } from "../utils/formatters";
 import { Card } from "../components/Card";
 import { Badge } from "../components/Badge";
+import { adminAuth } from "../utils/adminAuth";
+import { API_URL } from "../utils/env";
 import { Button } from "../components/Button";
 import { DocumentPanel } from "../components/DocumentPanel";
 import { ProfileQuickActionTile } from "../components/ProfileQuickActionTile";
@@ -136,7 +143,45 @@ export function StaffProfile({ data, setData, dark, isMobile, openModal, showToa
             .catch((err) => showAccountErr(err, "Could not load account status"));
     }, [tab, staff?.id, showAccountErr]);
 
+    const [confPass, setConfPass] = useState("");
+    const [passBusy, setPassBusy] = useState(false);
+    const [showPassForm, setShowPassForm] = useState(false);
+
+    const currentUser = adminAuth.getUser();
+    const isActuallyMe = currentUser?.id === staff?.id;
+
+    const handleChangePassword = async (e) => {
+        e.preventDefault();
+        if (newPass !== confPass) return showToast?.("New passwords do not match", "error");
+        if (newPass.length < 6) return showToast?.("Password must be at least 6 characters", "error");
+
+        try {
+            setPassBusy(true);
+            const res = await fetch(`${API_URL}/api/admin/change-password`, {
+                method: "POST",
+                headers: { 
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${adminAuth.getToken()}`
+                },
+                body: JSON.stringify({ oldPassword: oldPass, newPassword: newPass }),
+            });
+            const j = await res.json();
+            if (!res.ok) throw new Error(j.error || "Failed to update password");
+            
+            showToast?.("Password updated successfully!", "success");
+            setOldPass("");
+            setNewPass("");
+            setConfPass("");
+            setShowPassForm(false);
+        } catch (err) {
+            showToast?.(err.message, "error");
+        } finally {
+            setPassBusy(false);
+        }
+    };
+
     if (!staff)
+
         return (
             <div style={{ padding: 80, textAlign: "center" }}>
                 <h2 style={{ color: "var(--text-primary)", fontSize: 24, fontWeight: 800 }}>Profile Not Found</h2>
@@ -642,11 +687,60 @@ export function StaffProfile({ data, setData, dark, isMobile, openModal, showToa
                                         </div>
                                     )}
                                     <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
+                                        {isActuallyMe && (
+                                            <Button variant="premium" icon={Lock} onClick={() => setShowPassForm(!showPassForm)}>
+                                                {showPassForm ? "Cancel Change" : "Change My Password"}
+                                            </Button>
+                                        )}
                                         <Button variant="secondary" icon={Key} onClick={regenerateOtpAndTemp} disabled={accountBusy}>Create New OTP + Temp Password</Button>
                                         <Button variant="secondary" icon={Key} onClick={handleResetPassword} disabled={accountBusy}>Reset Password</Button>
                                         <Button variant="ghost" icon={Download} onClick={exportAccount} disabled={accountBusy}>Download Account</Button>
                                         <Button variant="danger" icon={Trash2} onClick={handleDeleteAccount} disabled={accountBusy}>Delete Account</Button>
                                     </div>
+
+                                    {showPassForm && isActuallyMe && (
+                                        <form onSubmit={handleChangePassword} style={{ marginBottom: 20, padding: 20, background: "var(--bg-card)", borderRadius: 16, border: "1px solid var(--brand-primary)" }} className="animate-fade-in">
+                                            <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 16, color: "var(--brand-primary)" }}>Update Login Password</div>
+                                            <div style={{ display: "grid", gap: 16 }}>
+                                                <div>
+                                                    <label style={{ fontSize: 12, color: "var(--text-dim)", fontWeight: 700, display: "block", marginBottom: 6 }}>Current Password</label>
+                                                    <input 
+                                                        type="password" 
+                                                        value={oldPass} 
+                                                        onChange={e => setOldPass(e.target.value)}
+                                                        required
+                                                        style={{ width: "100%", padding: "10px 14px", borderRadius: 8, border: "1px solid var(--border-subtle)", background: "var(--bg-shell)", color: "var(--text-primary)" }}
+                                                    />
+                                                </div>
+                                                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                                                    <div>
+                                                        <label style={{ fontSize: 12, color: "var(--text-dim)", fontWeight: 700, display: "block", marginBottom: 6 }}>New Password</label>
+                                                        <input 
+                                                            type="password" 
+                                                            value={newPass} 
+                                                            onChange={e => setNewPass(e.target.value)}
+                                                            required
+                                                            style={{ width: "100%", padding: "10px 14px", borderRadius: 8, border: "1px solid var(--border-subtle)", background: "var(--bg-shell)", color: "var(--text-primary)" }}
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label style={{ fontSize: 12, color: "var(--text-dim)", fontWeight: 700, display: "block", marginBottom: 6 }}>Confirm New Password</label>
+                                                        <input 
+                                                            type="password" 
+                                                            value={confPass} 
+                                                            onChange={e => setConfPass(e.target.value)}
+                                                            required
+                                                            style={{ width: "100%", padding: "10px 14px", borderRadius: 8, border: "1px solid var(--border-subtle)", background: "var(--bg-shell)", color: "var(--text-primary)" }}
+                                                        />
+                                                    </div>
+                                                </div>
+                                                <Button type="submit" variant="premium" disabled={passBusy} style={{ width: "100%" }}>
+                                                    {passBusy ? "Updating..." : "Confirm Password Change"}
+                                                </Button>
+                                            </div>
+                                        </form>
+                                    )}
+
                                     {(lastCreds || (staff.firstLogin && (staff.otp || staff.tempPassword))) && (
                                         <div style={{ padding: 12, background: "rgba(245, 158, 11, 0.1)", borderRadius: 10, border: "1px solid rgba(245, 158, 11, 0.3)", fontSize: 13 }}>
                                             <div style={{ fontWeight: 800, marginBottom: 4 }}>Temporary credentials</div>

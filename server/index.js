@@ -103,30 +103,41 @@ app.use(adminAuth);
 
 
 
+
 // --- INITIAL ADMIN SEEDING ---
 async function autoSeed() {
     try {
-        const check = await db.query('SELECT 1 FROM staff LIMIT 1');
+        const check = await db.query('SELECT 1 FROM admins LIMIT 1');
         if (check.rows.length > 0) return; // Already seeded
 
-        console.log('[SEED] No accounts found. Performing initial superadmin seeding...');
+        console.log('[SEED] No admin accounts found. Performing initial superadmin seeding...');
         const initialAdminEmail = process.env.INITIAL_ADMIN_EMAIL || 'admin@segecha.com';
         const initialAdminPhone = process.env.INITIAL_ADMIN_PHONE || '+254700000000';
         const staffId = 'staff-admin-init';
+        const initialHash = bcrypt.hashSync(ADMIN_KEY || 'segecha-default-change-me', 10);
 
+        // 1. Core Admin Login
+        await db.query(`
+            INSERT INTO admins (id, email, password_hash, role, display_name)
+            VALUES ($1, $2, $3, 'superadmin', 'System Admin')
+            ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash
+        `, [staffId, initialAdminEmail, initialHash]);
+
+        // 2. Staff Record (for profile view)
         await db.query(`
             INSERT INTO staff (id, name, email, phone, role)
             VALUES ($1, 'System Admin', $2, $3, 'superadmin')
             ON CONFLICT (id) DO NOTHING
         `, [staffId, initialAdminEmail, initialAdminPhone]);
 
-        const initialHash = bcrypt.hashSync(ADMIN_KEY || 'segecha-default-change-me', 10);
+        // 3. Staff Portal Auth
         await db.query(`
             INSERT INTO staff_auth (staff_id, email, phone, password_hash, account_status)
             VALUES ($1, $2, $3, $4, 'active')
             ON CONFLICT (staff_id) DO NOTHING
         `, [staffId, initialAdminEmail, initialAdminPhone, initialHash]);
 
+        // 4. Base Settings
         await db.query(`
             INSERT INTO system_settings (key, value) 
             VALUES 
@@ -143,7 +154,37 @@ async function autoSeed() {
 }
 autoSeed();
 
+// --- AUTHENTICATED ENDPOINTS ---
+
+// Change Own Password
+app.post('/api/admin/change-password', adminAuth, async (req, res) => {
+    const { oldPassword, newPassword } = req.body;
+    const adminId = req.admin.id;
+    const email = req.admin.email;
+
+    try {
+        // Find in admins table
+        const result = await db.query('SELECT * FROM admins WHERE id = $1', [adminId]);
+        if (result.rows.length === 0) return res.status(404).json({ error: 'Admin not found' });
+        
+        const admin = result.rows[0];
+        const valid = bcrypt.compareSync(oldPassword, admin.password_hash);
+        if (!valid) return res.status(401).json({ error: 'Incorrect current password' });
+
+        const newHash = bcrypt.hashSync(newPassword, 10);
+        await db.query('UPDATE admins SET password_hash = $1 WHERE id = $2', [newHash, adminId]);
+        
+        // Also update staff_auth if exists for same user
+        await db.query('UPDATE staff_auth SET password_hash = $1 WHERE staff_id = $2', [newHash, adminId]);
+
+        res.json({ success: true, message: 'Password updated successfully' });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 // --- SYSTEM & MAINTENANCE (High Priority) ---
+
 
 // MASTER RESET - Truncates all Neon PostgreSQL tables
 app.post('/api/admin/reset', adminAuth, async (req, res) => {
