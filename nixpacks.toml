@@ -1,4 +1,3 @@
-cat > nixpacks.toml << 'EOF'
 [phases.setup]
 nixPkgs = ["nodejs_20"]
 
@@ -10,4 +9,3 @@ cmds = ["npm run build:all"]
 
 [start]
 cmd = "node server/index.js"
-EOF
