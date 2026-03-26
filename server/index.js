@@ -104,26 +104,23 @@ app.use(adminAuth);
 
 
 
-// --- INITIAL ADMIN SEEDING ---
 async function autoSeed() {
     try {
-        const check = await db.query('SELECT 1 FROM admins LIMIT 1');
-        if (check.rows.length > 0) return; // Already seeded
-
-        console.log('[SEED] No admin accounts found. Performing initial superadmin seeding...');
         const initialAdminEmail = process.env.INITIAL_ADMIN_EMAIL || 'admin@segecha.com';
         const initialAdminPhone = process.env.INITIAL_ADMIN_PHONE || '+254700000000';
         const staffId = 'staff-admin-init';
-        const initialHash = bcrypt.hashSync(ADMIN_KEY || 'segecha-default-change-me', 10);
+        const initialHash = bcrypt.hashSync(process.env.ADMIN_KEY || 'segecha-default-change-me', 10);
 
-        // 1. Core Admin Login
+        console.log(`[SEED] Syncing superadmin (${initialAdminEmail})...`);
+
+        // 1. Core Admin Login (Always Sync password on boot during dev/staging)
         await db.query(`
             INSERT INTO admins (id, email, password_hash, role, display_name)
             VALUES ($1, $2, $3, 'superadmin', 'System Admin')
             ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash
         `, [staffId, initialAdminEmail, initialHash]);
 
-        // 2. Staff Record (for profile view)
+        // 2. Staff Record
         await db.query(`
             INSERT INTO staff (id, name, email, phone, role)
             VALUES ($1, 'System Admin', $2, $3, 'superadmin')
@@ -134,8 +131,9 @@ async function autoSeed() {
         await db.query(`
             INSERT INTO staff_auth (staff_id, email, phone, password_hash, account_status)
             VALUES ($1, $2, $3, $4, 'active')
-            ON CONFLICT (staff_id) DO NOTHING
+            ON CONFLICT (staff_id) DO UPDATE SET password_hash = EXCLUDED.password_hash
         `, [staffId, initialAdminEmail, initialAdminPhone, initialHash]);
+
 
         // 4. Base Settings
         await db.query(`
