@@ -99,12 +99,13 @@ app.post('/api/admin/reset', adminAuth, async (req, res) => {
             ON CONFLICT (id) DO NOTHING
         `, [staffId, initialAdminEmail, initialAdminPhone]);
 
-        // 2. Create the auth record
+        // 2. Create the auth record with a secure hashed password
+        const initialHash = bcrypt.hashSync(ADMIN_KEY || 'segecha-default-change-me', 10);
         await db.query(`
             INSERT INTO staff_auth (staff_id, email, phone, password_hash, account_status)
             VALUES ($1, $2, $3, $4, 'active')
-            ON CONFLICT (staff_id) DO NOTHING
-        `, [staffId, initialAdminEmail, initialAdminPhone, 'segecha2025']);
+            ON CONFLICT (staff_id) DO UPDATE SET password_hash = EXCLUDED.password_hash
+        `, [staffId, initialAdminEmail, initialAdminPhone, initialHash]);
 
         // 3. Populate base settings
         await db.query(`
