@@ -743,30 +743,45 @@ export function StaffProfile({ data, setData, dark, isMobile, openModal, showToa
                                         </form>
                                     )}
 
-                                    {(lastCreds || (staff.firstLogin && (staff.otp || staff.tempPassword))) && (
+                                    {(lastCreds || (staff.firstLogin && (staff.otp || staff.tempPassword || accountStatus?.hasOtp || accountStatus?.hasTempPassword))) && (
                                         <div style={{ padding: 12, background: "rgba(245, 158, 11, 0.1)", borderRadius: 10, border: "1px solid rgba(245, 158, 11, 0.3)", fontSize: 13 }}>
                                             <div style={{ fontWeight: 800, marginBottom: 4 }}>Temporary credentials</div>
                                             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
                                                 <Button size="sm" variant="ghost" onClick={() => setShowCreds((v) => !v)}>
                                                     {showCreds ? "Hide" : "Show"}
                                                 </Button>
-                                                <Button size="sm" variant="ghost" onClick={() => copyText(lastCreds?.otp || staff.otp, "OTP copied")}>Copy OTP</Button>
-                                                <Button size="sm" variant="ghost" onClick={() => copyText(lastCreds?.tempPassword || staff.tempPassword, "Temporary password copied")}>Copy Temp Password</Button>
-                                                <Button
-                                                    size="sm"
-                                                    variant="ghost"
-                                                    onClick={() =>
-                                                        copyText(
-                                                            `OTP: ${lastCreds?.otp || staff.otp}\nTemporary password: ${lastCreds?.tempPassword || staff.tempPassword}`,
-                                                            "Credentials copied"
-                                                        )
-                                                    }
-                                                >
-                                                    Copy Both
-                                                </Button>
+                                                {(lastCreds?.otp || staff.otp) && <Button size="sm" variant="ghost" onClick={() => copyText(lastCreds?.otp || staff.otp, "OTP copied")}>Copy OTP</Button>}
+                                                {(lastCreds?.tempPassword || staff.tempPassword) && <Button size="sm" variant="ghost" onClick={() => copyText(lastCreds?.tempPassword || staff.tempPassword, "Temporary password copied")}>Copy Temp Password</Button>}
+                                                {(lastCreds?.otp || staff.otp) && (lastCreds?.tempPassword || staff.tempPassword) && (
+                                                    <Button
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        onClick={() =>
+                                                            copyText(
+                                                                `OTP: ${lastCreds?.otp || staff.otp}\nTemporary password: ${lastCreds?.tempPassword || staff.tempPassword}`,
+                                                                "Credentials copied"
+                                                            )
+                                                        }
+                                                    >
+                                                        Copy Both
+                                                    </Button>
+                                                )}
                                             </div>
-                                            {(lastCreds?.otp || staff.otp) && <div>OTP: <b>{showCreds ? (lastCreds?.otp || staff.otp) : mask(lastCreds?.otp || staff.otp)}</b></div>}
-                                            {(lastCreds?.tempPassword || staff.tempPassword) && <div>Temp password: <b>{showCreds ? (lastCreds?.tempPassword || staff.tempPassword) : mask(lastCreds?.tempPassword || staff.tempPassword)}</b></div>}
+                                            {(lastCreds?.otp || staff.otp) && (
+                                                <div style={{ marginBottom: 4 }}>
+                                                    OTP: <b>{showCreds ? (lastCreds?.otp || staff.otp) : mask(lastCreds?.otp || staff.otp)}</b>
+                                                </div>
+                                            )}
+                                            {(lastCreds?.tempPassword || staff.tempPassword) && (
+                                                <div>
+                                                    Temp password: <b>{showCreds ? (lastCreds?.tempPassword || staff.tempPassword) : mask(lastCreds?.tempPassword || staff.tempPassword)}</b>
+                                                </div>
+                                            )}
+                                            {!(lastCreds?.tempPassword || staff.tempPassword) && accountStatus?.hasTempPassword && (
+                                                <div style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 4, fontStyle: "italic" }}>
+                                                    Temp password active but not cached. Regenerate to view again.
+                                                </div>
+                                            )}
                                         </div>
                                     )}
                                 </div>

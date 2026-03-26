@@ -1295,6 +1295,7 @@ export function GlobalModals(props) {
                     ...next,
                     firstLogin: true,
                     otp: next.otp || Math.floor(100000 + Math.random() * 900000).toString(),
+                    tempPassword: next.tempPassword || "",
                 };
             }
             saveItem("staff", next);
@@ -1315,6 +1316,13 @@ export function GlobalModals(props) {
                     const result = await res.json();
                     if (result.success) {
                         setCreationResult(result);
+                        // Sync credentials back to global state so they are available in Staff Profile immediately
+                        setData(prev => ({
+                            ...prev,
+                            staff: (prev.staff || []).map(s => 
+                                s.id === staffId ? { ...s, otp: result.otp, tempPassword: result.tempPassword } : s
+                            )
+                        }));
                         showToast?.(`Staff account created successfully.`, "success");
                     } else {
                         showToast?.(`Account sync failed: ${result.error || 'Server error'}`, "error");
