@@ -1,22 +1,11 @@
-const fs = require('fs');
-const path = require('path');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
+const db = require('./db');
 
-const DB_PATH = path.join(__dirname, 'drivers-auth.json');
 const JWT_SECRET = process.env.JWT_SECRET || 'segecha-driver-secret-change-in-production';
 const TOKEN_EXPIRY_HOURS = 72;
 const OTP_EXPIRY_MINUTES = 30;
-
-function readDB() {
-    try { return JSON.parse(fs.readFileSync(DB_PATH, 'utf8')); }
-    catch { return { drivers: [] }; }
-}
-
-function writeDB(data) {
-    fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2));
-}
 
 function normalizeSegechaEmail(email, fallbackSeed = '') {
     const raw = String(email || fallbackSeed || '').trim().toLowerCase();
@@ -46,15 +35,19 @@ function emailCandidates(identifier) {
     return Array.from(set).filter(Boolean);
 }
 
-function findDriverRecord(db, identifier) {
+async function findDriverRecord(identifier) {
     const emails = emailCandidates(identifier);
     const phone = normalizePhone(identifier);
-    return db.drivers.find((d) => {
-        const accountEmail = String(d.email || '').trim().toLowerCase();
-        const emailMatch = emails.includes(accountEmail);
-        const phoneMatch = !!phone && normalizePhone(d.phone) === phone;
-        return emailMatch || phoneMatch;
-    });
+    
+    // Find by any of the email candidates or phone
+    const query = `
+        SELECT * FROM driver_auth 
+        WHERE email = ANY($1) 
+        OR (phone IS NOT NULL AND phone = $2)
+        LIMIT 1
+    `;
+    const res = await db.query(query, [emails, phone]);
+    return res.rows[0];
 }
 
 function hashValue(v) {
@@ -72,299 +65,208 @@ function generateTempPassword() {
     return out;
 }
 
-function issueSetupToken(record) {
+function issueSetupTokenData() {
     const resetToken = crypto.randomBytes(32).toString('hex');
-    record.resetTokenHash = hashValue(resetToken);
-    record.resetTokenExpiry = new Date(Date.now() + TOKEN_EXPIRY_HOURS * 3600 * 1000).toISOString();
-    return resetToken;
+    const hash = hashValue(resetToken);
+    const expiry = new Date(Date.now() + TOKEN_EXPIRY_HOURS * 3600 * 1000).toISOString();
+    return { resetToken, hash, expiry };
 }
 
-// ── Create or update a driver account (called when admin saves a driver)
-// If the driver already has a password, preserve it.
-// If new, create account without password and issue a reset token.
 async function createDriverAccount(driverId, email, phone = '') {
-    const db = readDB();
-    const existing = db.drivers.find(d => d.driverId === driverId);
     const canonicalEmail = normalizeSegechaEmail(email);
     const canonicalPhone = normalizePhone(phone);
     const otp = generateOtp();
     const tempPassword = generateTempPassword();
     const otpExpiry = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000).toISOString();
     const tempPasswordHash = await bcrypt.hash(tempPassword, 10);
+    const tokenData = issueSetupTokenData();
 
-    let resetToken = '';
-    if (existing) {
-        existing.email = canonicalEmail;
-        existing.phone = canonicalPhone || existing.phone || '';
-        existing.otpHash = hashValue(otp);
-        existing.otpExpiry = otpExpiry;
-        existing.tempPasswordHash = tempPasswordHash;
-        existing.requirePasswordChange = true;
-        resetToken = issueSetupToken(existing);
-        existing.updatedAt = new Date().toISOString();
-    } else {
-        const record = {
-            driverId,
-            email: canonicalEmail,
-            phone: canonicalPhone,
-            passwordHash: null,
-            tempPasswordHash,
-            otpHash: hashValue(otp),
-            otpExpiry,
-            requirePasswordChange: true,
-            accountStatus: 'pending',
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-        };
-        resetToken = issueSetupToken(record);
-        db.drivers.push(record);
-    }
+    await db.query(`
+        INSERT INTO driver_auth (driver_id, email, phone, temp_password_hash, otp_hash, otp_expiry, reset_token_hash, reset_token_expiry, require_password_change, account_status, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, TRUE, 'pending', CURRENT_TIMESTAMP)
+        ON CONFLICT (driver_id) DO UPDATE SET
+            email = EXCLUDED.email,
+            phone = EXCLUDED.phone,
+            otp_hash = EXCLUDED.otp_hash,
+            otp_expiry = EXCLUDED.otp_expiry,
+            temp_password_hash = EXCLUDED.temp_password_hash,
+            reset_token_hash = EXCLUDED.reset_token_hash,
+            reset_token_expiry = EXCLUDED.reset_token_expiry,
+            require_password_change = TRUE,
+            updated_at = CURRENT_TIMESTAMP
+    `, [driverId, canonicalEmail, canonicalPhone, tempPasswordHash, hashValue(otp), otpExpiry, tokenData.hash, tokenData.expiry]);
 
-    writeDB(db);
-    return { success: true, resetToken, otp, tempPassword, email: canonicalEmail, phone: canonicalPhone };
+    return { success: true, resetToken: tokenData.resetToken, otp, tempPassword, email: canonicalEmail, phone: canonicalPhone };
 }
 
-// ── Admin manually sets a password (legacy — still supported)
 async function setDriverPassword(driverId, email, password) {
-    const db = readDB();
     const passwordHash = await bcrypt.hash(password, 10);
-    const existing = db.drivers.findIndex(d => d.driverId === driverId);
-    const record = {
-        driverId,
-        email: normalizeSegechaEmail(email),
-        passwordHash,
-        resetTokenHash: null,
-        resetTokenExpiry: null,
-        otpHash: null,
-        otpExpiry: null,
-        tempPasswordHash: null,
-        requirePasswordChange: false,
-        accountStatus: 'active',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-    };
-    if (existing >= 0) db.drivers[existing] = { ...db.drivers[existing], ...record };
-    else db.drivers.push(record);
-    writeDB(db);
+    await db.query(`
+        INSERT INTO driver_auth (driver_id, email, password_hash, require_password_change, account_status, updated_at)
+        VALUES ($1, $2, $3, FALSE, 'active', CURRENT_TIMESTAMP)
+        ON CONFLICT (driver_id) DO UPDATE SET
+            email = EXCLUDED.email,
+            password_hash = EXCLUDED.password_hash,
+            require_password_change = FALSE,
+            account_status = 'active',
+            updated_at = CURRENT_TIMESTAMP
+    `, [driverId, normalizeSegechaEmail(email), passwordHash]);
     return { success: true };
 }
 
-// ── Validate a reset token and set a new password
 async function resetPasswordWithToken(token, newPassword) {
     if (!token || !newPassword || newPassword.length < 8) {
         return { success: false, error: 'Password must be at least 8 characters' };
     }
-    const db = readDB();
-    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
-    const record = db.drivers.find(d => d.resetTokenHash === tokenHash);
+    const tokenHash = hashValue(token);
+    const res = await db.query('SELECT * FROM driver_auth WHERE reset_token_hash = $1 AND reset_token_expiry > CURRENT_TIMESTAMP', [tokenHash]);
+    const record = res.rows[0];
 
     if (!record) return { success: false, error: 'Invalid or expired reset link. Request a new one.' };
-    if (new Date(record.resetTokenExpiry) < new Date()) {
-        return { success: false, error: 'This link has expired. Please request a new password reset.' };
-    }
 
-    record.passwordHash = await bcrypt.hash(newPassword, 10);
-    record.resetTokenHash = null;
-    record.resetTokenExpiry = null;
-    record.tempPasswordHash = null;
-    record.otpHash = null;
-    record.otpExpiry = null;
-    record.requirePasswordChange = false;
-    record.accountStatus = 'active';
-    record.updatedAt = new Date().toISOString();
-    writeDB(db);
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    await db.query(`
+        UPDATE driver_auth SET 
+            password_hash = $1, 
+            reset_token_hash = NULL, 
+            reset_token_expiry = NULL,
+            temp_password_hash = NULL,
+            otp_hash = NULL,
+            otp_expiry = NULL,
+            require_password_change = FALSE,
+            account_status = 'active',
+            updated_at = CURRENT_TIMESTAMP
+        WHERE driver_id = $2
+    `, [passwordHash, record.driver_id]);
 
-    // Issue a JWT so driver is logged in immediately after setting password
     const loginToken = jwt.sign(
-        { driverId: record.driverId, email: record.email },
+        { driverId: record.driver_id, email: record.email },
         JWT_SECRET,
         { expiresIn: '12h' }
     );
-    return { success: true, token: loginToken, driverId: record.driverId };
+    return { success: true, token: loginToken, driverId: record.driver_id };
 }
 
-// ── Forgot password — issue a new reset token for an existing account
 async function requestPasswordReset(identifier) {
-    const db = readDB();
-    const record = findDriverRecord(db, identifier);
+    const record = await findDriverRecord(identifier);
     if (!record) {
         return { success: true, message: 'If that email is registered, a reset link has been sent.' };
     }
-    const resetToken = issueSetupToken(record);
-    record.updatedAt = new Date().toISOString();
-    writeDB(db);
+    const tokenData = issueSetupTokenData();
+    await db.query('UPDATE driver_auth SET reset_token_hash = $1, reset_token_expiry = $2, updated_at = CURRENT_TIMESTAMP WHERE driver_id = $3', [tokenData.hash, tokenData.expiry, record.driver_id]);
 
-    return { success: true, resetToken, email: record.email, driverId: record.driverId };
+    return { success: true, resetToken: tokenData.resetToken, email: record.email, driverId: record.driver_id };
 }
 
 async function regenerateDriverCredentials(driverId, { email, phone, forcePasswordReset = true } = {}) {
-    const db = readDB();
-    const record = db.drivers.find(d => d.driverId === driverId);
-    if (!record) {
-        return createDriverAccount(driverId, email || driverId, phone || '');
-    }
+    const res = await db.query('SELECT * FROM driver_auth WHERE driver_id = $1', [driverId]);
+    const record = res.rows[0];
+    if (!record) return createDriverAccount(driverId, email || driverId, phone || '');
+
     const canonicalEmail = normalizeSegechaEmail(email || record.email);
     const canonicalPhone = normalizePhone(phone || record.phone);
     const otp = generateOtp();
     const tempPassword = generateTempPassword();
+    const tokenData = issueSetupTokenData();
 
-    record.email = canonicalEmail;
-    record.phone = canonicalPhone;
-    record.otpHash = hashValue(otp);
-    record.otpExpiry = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000).toISOString();
-    record.tempPasswordHash = await bcrypt.hash(tempPassword, 10);
-    record.requirePasswordChange = true;
-    record.preferredMethod = null; // Reset preference on credential regeneration
-    if (forcePasswordReset) record.passwordHash = null;
-    const resetToken = issueSetupToken(record);
-    record.updatedAt = new Date().toISOString();
-    writeDB(db);
+    const passwordUpdate = forcePasswordReset ? 'password_hash = NULL,' : '';
+    await db.query(`
+        UPDATE driver_auth SET 
+            email = $1, phone = $2, 
+            otp_hash = $3, otp_expiry = $4,
+            temp_password_hash = $5,
+            require_password_change = TRUE,
+            preferred_method = NULL,
+            ${passwordUpdate}
+            reset_token_hash = $6, reset_token_expiry = $7,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE driver_id = $8
+    `, [canonicalEmail, canonicalPhone, hashValue(otp), new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000).toISOString(), await bcrypt.hash(tempPassword, 10), tokenData.hash, tokenData.expiry, driverId]);
 
-    return { success: true, otp, tempPassword, resetToken, email: canonicalEmail, phone: canonicalPhone };
+    return { success: true, otp, tempPassword, resetToken: tokenData.resetToken, email: canonicalEmail, phone: canonicalPhone };
 }
 
-// ── Login with phone/email + password/otp/temp password
-// method: 'email' | 'phone'
 async function loginDriver(identifier, secret, method) {
-    const db = readDB();
-    const record = findDriverRecord(db, identifier);
+    const record = await findDriverRecord(identifier);
     if (!record) return { success: false, error: 'Account not found. Contact your office.' };
 
     const secretRaw = String(secret || '');
     const now = new Date();
 
-    // Check preferred method lock
-    if (record.preferredMethod && method && record.preferredMethod !== method) {
-        return {
-            success: false,
-            error: `Your account is set up for login via ${record.preferredMethod}. Please use the ${record.preferredMethod} tab.`,
-        };
+    if (record.preferred_method && method && record.preferred_method !== method) {
+        return { success: false, error: `Account set up for ${record.preferred_method} login.` };
     }
 
-    if (record.requirePasswordChange) {
-        // Enforce specific secrets per tab during first login
+    if (record.require_password_change) {
         if (method === 'email') {
-            const tempValid = !!(record.tempPasswordHash && await bcrypt.compare(secretRaw, record.tempPasswordHash));
-            if (!tempValid) return { success: false, error: 'Incorrect temporary password. Use the one provided by the office for Email login.' };
+            const valid = !!(record.temp_password_hash && await bcrypt.compare(secretRaw, record.temp_password_hash));
+            if (!valid) return { success: false, error: 'Incorrect temporary password.' };
         } else if (method === 'phone') {
-            const otpValid = !!(record.otpHash && record.otpExpiry && new Date(record.otpExpiry) > now && hashValue(secretRaw) === record.otpHash);
-            if (!otpValid) return { success: false, error: 'Invalid or expired OTP. Use the latest one sent to your phone or from the office.' };
-        } else {
-            // Fallback for older clients or mixed logic
-            const otpValid = !!(record.otpHash && record.otpExpiry && new Date(record.otpExpiry) > now && hashValue(secretRaw) === record.otpHash);
-            const tempValid = !!(record.tempPasswordHash && await bcrypt.compare(secretRaw, record.tempPasswordHash));
-            if (!otpValid && !tempValid) {
-                return {
-                    success: false,
-                    error: 'Use the latest OTP or temporary password from the office. Older credentials expire after regeneration.',
-                };
-            }
+            const valid = !!(record.otp_hash && record.otp_expiry && new Date(record.otp_expiry) > now && hashValue(secretRaw) === record.otp_hash);
+            if (!valid) return { success: false, error: 'Invalid or expired OTP.' };
         }
+        
+        if (method) await db.query('UPDATE driver_auth SET preferred_method = $1 WHERE driver_id = $2', [method, record.driver_id]);
+        const tokenData = issueSetupTokenData();
+        await db.query('UPDATE driver_auth SET reset_token_hash = $1, reset_token_expiry = $2 WHERE driver_id = $3', [tokenData.hash, tokenData.expiry, record.driver_id]);
 
-        // Lock the preferred method on first success
-        if (method) record.preferredMethod = method;
-
-        const setupToken = issueSetupToken(record);
-        record.updatedAt = new Date().toISOString();
-        writeDB(db);
-        return {
-            success: true,
-            requirePasswordChange: true,
-            setupToken,
-            driverId: record.driverId,
-            email: record.email,
-        };
+        return { success: true, requirePasswordChange: true, setupToken: tokenData.resetToken, driverId: record.driver_id, email: record.email };
     }
 
-    if (!record.passwordHash) {
-        return { success: false, error: 'Your account is pending setup. Contact your office for OTP / temporary password.' };
-    }
-    const match = await bcrypt.compare(secretRaw, record.passwordHash);
-    if (!match) return { success: false, error: 'Incorrect password. If this is your first login, ask admin for the latest OTP/temp password.' };
+    if (!record.password_hash) return { success: false, error: 'Pending setup. Use OTP/Temp password.' };
+    const match = await bcrypt.compare(secretRaw, record.password_hash);
+    if (!match) return { success: false, error: 'Incorrect password.' };
 
-    const token = jwt.sign(
-        { driverId: record.driverId, email: record.email },
-        JWT_SECRET,
-        { expiresIn: '12h' }
-    );
-    return { success: true, token, driverId: record.driverId };
+    const token = jwt.sign({ driverId: record.driver_id, email: record.email }, JWT_SECRET, { expiresIn: '12h' });
+    return { success: true, token, driverId: record.driver_id };
 }
 
-// ── Verify JWT token
 function verifyToken(token) {
     try { return jwt.verify(token, JWT_SECRET); }
     catch { return null; }
 }
 
-// ── Express middleware
 function authMiddleware(req, res, next) {
-    try {
-        const auth = req.headers.authorization;
-        if (!auth?.startsWith('Bearer ')) return res.status(401).json({ error: 'Authentication required' });
-        const payload = verifyToken(auth.slice(7));
-        if (!payload) return res.status(401).json({ error: 'Session expired — please log in again' });
-        req.driver = payload;
-        next();
-    } catch (e) {
-        console.error('AUTH_MIDDLEWARE_ERROR:', e);
-        next(e); // Pass to global error handler
-    }
+    const auth = req.headers.authorization;
+    if (!auth?.startsWith('Bearer ')) return res.status(401).json({ error: 'Authentication required' });
+    const payload = verifyToken(auth.slice(7));
+    if (!payload) return res.status(401).json({ error: 'Session expired' });
+    req.driver = payload;
+    next();
 }
 
-// ── Get account status for a driver (used by tracker Settings page)
-function getDriverAccountStatus(driverId) {
-    const db = readDB();
-    const record = db.drivers.find(d => d.driverId === driverId);
+async function getDriverAccountStatus(driverId) {
+    const res = await db.query('SELECT * FROM driver_auth WHERE driver_id = $1', [driverId]);
+    const record = res.rows[0];
     if (!record) return { exists: false };
     return {
         exists: true,
         email: record.email,
         phone: record.phone || '',
-        accountStatus: record.accountStatus,
-        hasPassword: !!record.passwordHash,
-        requiresPasswordChange: !!record.requirePasswordChange,
-        hasOtp: !!(record.otpHash && new Date(record.otpExpiry) > new Date()),
-        hasTempPassword: !!record.tempPasswordHash,
-        hasPendingReset: !!(record.resetTokenHash && new Date(record.resetTokenExpiry) > new Date()),
+        accountStatus: record.account_status,
+        hasPassword: !!record.password_hash,
+        requiresPasswordChange: !!record.require_password_change,
+        hasOtp: !!(record.otp_hash && new Date(record.otp_expiry) > new Date()),
+        hasTempPassword: !!record.temp_password_hash,
+        hasPendingReset: !!(record.reset_token_hash && new Date(record.reset_token_expiry) > new Date()),
     };
 }
 
-function exportDriverAccount(driverId) {
-    const db = readDB();
-    const record = db.drivers.find(d => d.driverId === driverId);
+async function exportDriverAccount(driverId) {
+    const res = await db.query('SELECT * FROM driver_auth WHERE driver_id = $1', [driverId]);
+    const record = res.rows[0];
     if (!record) return null;
-    return {
-        driverId: record.driverId,
-        email: record.email,
-        phone: record.phone || '',
-        accountStatus: record.accountStatus || 'pending',
-        requirePasswordChange: !!record.requirePasswordChange,
-        createdAt: record.createdAt,
-        updatedAt: record.updatedAt,
-    };
+    return record;
 }
 
-function deleteDriverAccount(driverId) {
-    const db = readDB();
-    const before = db.drivers.length;
-    db.drivers = db.drivers.filter(d => d.driverId !== driverId);
-    if (db.drivers.length === before) return false;
-    writeDB(db);
-    return true;
+async function deleteDriverAccount(driverId) {
+    const res = await db.query('DELETE FROM driver_auth WHERE driver_id = $1', [driverId]);
+    return res.rowCount > 0;
 }
 
 module.exports = {
-    normalizeSegechaEmail,
-    normalizePhone,
-    createDriverAccount,
-    setDriverPassword,
-    resetPasswordWithToken,
-    requestPasswordReset,
-    regenerateDriverCredentials,
-    loginDriver,
-    verifyToken,
-    authMiddleware,
-    getDriverAccountStatus,
-    exportDriverAccount,
-    deleteDriverAccount,
+    normalizeSegechaEmail, normalizePhone, createDriverAccount, setDriverPassword,
+    resetPasswordWithToken, requestPasswordReset, regenerateDriverCredentials,
+    loginDriver, verifyToken, authMiddleware, getDriverAccountStatus,
+    exportDriverAccount, deleteDriverAccount,
 };

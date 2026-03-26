@@ -1,22 +1,11 @@
-const fs = require('fs');
-const path = require('path');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
+const db = require('./db');
 
-const DB_PATH = path.join(__dirname, 'staff-auth.json');
 const JWT_SECRET = process.env.JWT_SECRET || 'segecha-driver-secret-change-in-production';
 const TOKEN_EXPIRY_HOURS = 72;
 const OTP_EXPIRY_MINUTES = 30;
-
-function readDB() {
-    try { return JSON.parse(fs.readFileSync(DB_PATH, 'utf8')); }
-    catch { return { staff: [] }; }
-}
-
-function writeDB(data) {
-    fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2));
-}
 
 function normalizeSegechaEmail(email, fallbackSeed = '') {
     const raw = String(email || fallbackSeed || '').trim().toLowerCase();
@@ -50,220 +39,171 @@ function generateTempPassword() {
     return out;
 }
 
-function issueSetupToken(record) {
+function issueSetupTokenData() {
     const resetToken = crypto.randomBytes(32).toString('hex');
-    record.resetTokenHash = hashValue(resetToken);
-    record.resetTokenExpiry = new Date(Date.now() + TOKEN_EXPIRY_HOURS * 3600 * 1000).toISOString();
-    return resetToken;
+    const hash = hashValue(resetToken);
+    const expiry = new Date(Date.now() + TOKEN_EXPIRY_HOURS * 3600 * 1000);
+    return { resetToken, hash, expiry };
 }
 
 async function createStaffAccount(staffId, email, phone = '') {
-    const db = readDB();
-    const existing = db.staff.find(s => s.staffId === staffId);
     const canonicalEmail = normalizeSegechaEmail(email);
     const canonicalPhone = normalizePhone(phone);
     const otp = generateOtp();
     const tempPassword = generateTempPassword();
-    const otpExpiry = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000).toISOString();
-    const tempPasswordHash = await bcrypt.hash(tempPassword, 10);
-    let resetToken = '';
+    const tokenData = issueSetupTokenData();
 
-    if (existing) {
-        existing.email = canonicalEmail;
-        existing.phone = canonicalPhone || existing.phone || '';
-        existing.otpHash = hashValue(otp);
-        existing.otpExpiry = otpExpiry;
-        existing.tempPasswordHash = tempPasswordHash;
-        existing.requirePasswordChange = true;
-        resetToken = issueSetupToken(existing);
-        existing.updatedAt = new Date().toISOString();
-    } else {
-        const record = {
-            staffId,
-            email: canonicalEmail,
-            phone: canonicalPhone,
-            passwordHash: null,
-            tempPasswordHash,
-            otpHash: hashValue(otp),
-            otpExpiry,
-            requirePasswordChange: true,
-            accountStatus: 'pending',
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-        };
-        resetToken = issueSetupToken(record);
-        db.staff.push(record);
-    }
-    writeDB(db);
-    return { success: true, resetToken, otp, tempPassword, email: canonicalEmail, phone: canonicalPhone };
+    await db.query(`
+        INSERT INTO staff_auth (staff_id, email, phone, temp_password_hash, otp_hash, otp_expiry, reset_token_hash, reset_token_expiry, require_password_change, account_status, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, TRUE, 'pending', CURRENT_TIMESTAMP)
+        ON CONFLICT (staff_id) DO UPDATE SET
+            email = EXCLUDED.email,
+            phone = EXCLUDED.phone,
+            otp_hash = EXCLUDED.otp_hash,
+            otp_expiry = EXCLUDED.otp_expiry,
+            temp_password_hash = EXCLUDED.temp_password_hash,
+            reset_token_hash = EXCLUDED.reset_token_hash,
+            reset_token_expiry = EXCLUDED.reset_token_expiry,
+            require_password_change = TRUE,
+            updated_at = CURRENT_TIMESTAMP
+    `, [staffId, canonicalEmail, canonicalPhone, await bcrypt.hash(tempPassword, 10), hashValue(otp), new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000), tokenData.hash, tokenData.expiry]);
+
+    return { success: true, resetToken: tokenData.resetToken, otp, tempPassword, email: canonicalEmail, phone: canonicalPhone };
 }
 
 async function regenerateStaffCredentials(staffId, { email, phone, forcePasswordReset = true } = {}) {
-    const db = readDB();
-    const record = db.staff.find(s => s.staffId === staffId);
-    if (!record) {
-        return createStaffAccount(staffId, email || staffId, phone || '');
-    }
+    const res = await db.query('SELECT * FROM staff_auth WHERE staff_id = $1', [staffId]);
+    const record = res.rows[0];
+    if (!record) return createStaffAccount(staffId, email || staffId, phone || '');
 
     const canonicalEmail = normalizeSegechaEmail(email || record.email);
     const canonicalPhone = normalizePhone(phone || record.phone);
     const otp = generateOtp();
     const tempPassword = generateTempPassword();
+    const tokenData = issueSetupTokenData();
 
-    record.email = canonicalEmail;
-    record.phone = canonicalPhone;
-    record.otpHash = hashValue(otp);
-    record.otpExpiry = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000).toISOString();
-    record.tempPasswordHash = await bcrypt.hash(tempPassword, 10);
-    record.requirePasswordChange = true;
-    record.preferredMethod = null; // Reset preference on credential regeneration
-    if (forcePasswordReset) record.passwordHash = null;
-    const resetToken = issueSetupToken(record);
-    record.updatedAt = new Date().toISOString();
-    writeDB(db);
-    return { success: true, resetToken, otp, tempPassword, email: canonicalEmail, phone: canonicalPhone };
+    const passwordUpdate = forcePasswordReset ? 'password_hash = NULL,' : '';
+    await db.query(`
+        UPDATE staff_auth SET 
+            email = $1, phone = $2, 
+            otp_hash = $3, otp_expiry = $4,
+            temp_password_hash = $5,
+            require_password_change = TRUE,
+            preferred_method = NULL,
+            ${passwordUpdate}
+            reset_token_hash = $6, reset_token_expiry = $7,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE staff_id = $8
+    `, [canonicalEmail, canonicalPhone, hashValue(otp), new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000), await bcrypt.hash(tempPassword, 10), tokenData.hash, tokenData.expiry, staffId]);
+
+    return { success: true, resetToken: tokenData.resetToken, otp, tempPassword, email: canonicalEmail, phone: canonicalPhone };
 }
 
 async function resetStaffPasswordWithToken(token, newPassword) {
     if (!token || !newPassword || newPassword.length < 8) {
         return { success: false, error: 'Password must be at least 8 characters' };
     }
-    const db = readDB();
     const tokenHash = hashValue(token);
-    const record = db.staff.find(s => s.resetTokenHash === tokenHash);
-    if (!record) return { success: false, error: 'Invalid or expired reset link. Request a new one.' };
-    if (new Date(record.resetTokenExpiry) < new Date()) return { success: false, error: 'This link has expired.' };
+    const res = await db.query('SELECT * FROM staff_auth WHERE reset_token_hash = $1 AND reset_token_expiry > CURRENT_TIMESTAMP', [tokenHash]);
+    const record = res.rows[0];
+    if (!record) return { success: false, error: 'Invalid or expired reset link.' };
 
-    record.passwordHash = await bcrypt.hash(newPassword, 10);
-    record.resetTokenHash = null;
-    record.resetTokenExpiry = null;
-    record.tempPasswordHash = null;
-    record.otpHash = null;
-    record.otpExpiry = null;
-    record.requirePasswordChange = false;
-    record.accountStatus = 'active';
-    record.updatedAt = new Date().toISOString();
-    writeDB(db);
+    await db.query(`
+        UPDATE staff_auth SET 
+            password_hash = $1, 
+            reset_token_hash = NULL, 
+            reset_token_expiry = NULL,
+            temp_password_hash = NULL,
+            otp_hash = NULL,
+            otp_expiry = NULL,
+            require_password_change = FALSE,
+            account_status = 'active',
+            updated_at = CURRENT_TIMESTAMP
+        WHERE staff_id = $2
+    `, [await bcrypt.hash(newPassword, 10), record.staff_id]);
 
-    const tokenOut = jwt.sign({ staffId: record.staffId, email: record.email, role: 'staff' }, JWT_SECRET, { expiresIn: '12h' });
-    return { success: true, token: tokenOut, staffId: record.staffId };
+    const tokenOut = jwt.sign({ staffId: record.staff_id, email: record.email, role: 'staff' }, JWT_SECRET, { expiresIn: '12h' });
+    return { success: true, token: tokenOut, staffId: record.staff_id };
 }
 
-// ── Login Staff with phone/email + password/otp/temp password
-// method: 'email' | 'phone'
 async function loginStaff(identifier, secret, method) {
-    const db = readDB();
     const id = String(identifier || '').trim().toLowerCase();
     const phone = normalizePhone(identifier);
-    const record = db.staff.find(s => s.email === id || normalizePhone(s.phone) === phone);
-    if (!record) return { success: false, error: 'Account not found. Contact your office.' };
+    const res = await db.query('SELECT * FROM staff_auth WHERE email = $1 OR (phone IS NOT NULL AND phone = $2) LIMIT 1', [id, phone]);
+    const record = res.rows[0];
+    if (!record) return { success: false, error: 'Account not found.' };
 
     const secretRaw = String(secret || '');
     const now = new Date();
 
-    // Check preferred method lock
-    if (record.preferredMethod && method && record.preferredMethod !== method) {
-        return {
-            success: false,
-            error: `Your account is set up for login via ${record.preferredMethod}. Please use the ${record.preferredMethod} tab.`,
-        };
+    if (record.preferred_method && method && record.preferred_method !== method) {
+        return { success: false, error: `Account set up for ${record.preferred_method} login.` };
     }
 
-    if (record.requirePasswordChange) {
-        // Enforce specific secrets per tab during first login
+    if (record.require_password_change) {
         if (method === 'email') {
-            const tempValid = !!(record.tempPasswordHash && await bcrypt.compare(secretRaw, record.tempPasswordHash));
-            if (!tempValid) return { success: false, error: 'Incorrect temporary password. Use the one provided by the office for Email login.' };
+            const valid = !!(record.temp_password_hash && await bcrypt.compare(secretRaw, record.temp_password_hash));
+            if (!valid) return { success: false, error: 'Incorrect temporary password.' };
         } else if (method === 'phone') {
-            const otpValid = !!(record.otpHash && record.otpExpiry && new Date(record.otpExpiry) > now && hashValue(secretRaw) === record.otpHash);
-            if (!otpValid) return { success: false, error: 'Invalid or expired OTP. Use the latest one sent to your phone or from the office.' };
-        } else {
-            // Fallback
-            const otpValid = !!(record.otpHash && record.otpExpiry && new Date(record.otpExpiry) > now && hashValue(secretRaw) === record.otpHash);
-            const tempValid = !!(record.tempPasswordHash && await bcrypt.compare(secretRaw, record.tempPasswordHash));
-            if (!otpValid && !tempValid) {
-                return { success: false, error: 'Use the temporary password or OTP from the office, then set a new password.' };
-            }
+            const valid = !!(record.otp_hash && record.otp_expiry && new Date(record.otp_expiry) > now && hashValue(secretRaw) === record.otp_hash);
+            if (!valid) return { success: false, error: 'Invalid or expired OTP.' };
         }
-
-        // Lock the preferred method on first success
-        if (method) record.preferredMethod = method;
-
-        const setupToken = issueSetupToken(record);
-        record.updatedAt = new Date().toISOString();
-        writeDB(db);
-        return { success: true, requirePasswordChange: true, setupToken, staffId: record.staffId, email: record.email };
+        
+        if (method) await db.query('UPDATE staff_auth SET preferred_method = $1 WHERE staff_id = $2', [method, record.staff_id]);
+        const tokenData = issueSetupTokenData();
+        await db.query('UPDATE staff_auth SET reset_token_hash = $1, reset_token_expiry = $2 WHERE staff_id = $3', [tokenData.hash, tokenData.expiry, record.staff_id]);
+        return { success: true, requirePasswordChange: true, setupToken: tokenData.resetToken, staffId: record.staff_id, email: record.email };
     }
 
-    if (!record.passwordHash) return { success: false, error: 'Your account is pending setup.' };
-    const match = await bcrypt.compare(secretRaw, record.passwordHash);
+    if (!record.password_hash) return { success: false, error: 'Pending setup.' };
+    const match = await bcrypt.compare(secretRaw, record.password_hash);
     if (!match) return { success: false, error: 'Incorrect password.' };
 
-    const token = jwt.sign({ staffId: record.staffId, email: record.email, role: 'staff' }, JWT_SECRET, { expiresIn: '12h' });
-    return { success: true, token, staffId: record.staffId };
+    const token = jwt.sign({ staffId: record.staff_id, email: record.email, role: 'staff' }, JWT_SECRET, { expiresIn: '12h' });
+    return { success: true, token, staffId: record.staff_id };
 }
 
 async function requestStaffPasswordReset(identifier) {
-    const db = readDB();
     const id = String(identifier || '').trim().toLowerCase();
     const phone = normalizePhone(identifier);
-    const record = db.staff.find(s => s.email === id || normalizePhone(s.phone) === phone);
-    if (!record) return { success: true, message: 'If that account is registered, a reset link has been sent.' };
-    const resetToken = issueSetupToken(record);
-    record.updatedAt = new Date().toISOString();
-    writeDB(db);
-    return { success: true, resetToken, email: record.email, staffId: record.staffId };
+    const res = await db.query('SELECT * FROM staff_auth WHERE email = $1 OR (phone IS NOT NULL AND phone = $2) LIMIT 1', [id, phone]);
+    const record = res.rows[0];
+    if (!record) return { success: true, message: 'If account exists, link sent.' };
+    
+    const tokenData = issueSetupTokenData();
+    await db.query('UPDATE staff_auth SET reset_token_hash = $1, reset_token_expiry = $2, updated_at = CURRENT_TIMESTAMP WHERE staff_id = $3', [tokenData.hash, tokenData.expiry, record.staff_id]);
+    return { success: true, resetToken: tokenData.resetToken, email: record.email, staffId: record.staff_id };
 }
 
-function getStaffAccountStatus(staffId) {
-    const db = readDB();
-    const record = db.staff.find(s => s.staffId === staffId);
+async function getStaffAccountStatus(staffId) {
+    const res = await db.query('SELECT * FROM staff_auth WHERE staff_id = $1', [staffId]);
+    const record = res.rows[0];
     if (!record) return { exists: false };
     return {
         exists: true,
         email: record.email,
         phone: record.phone || '',
-        accountStatus: record.accountStatus || 'pending',
-        hasPassword: !!record.passwordHash,
-        requiresPasswordChange: !!record.requirePasswordChange,
-        hasOtp: !!(record.otpHash && new Date(record.otpExpiry) > new Date()),
-        hasTempPassword: !!record.tempPasswordHash,
-        hasPendingReset: !!(record.resetTokenHash && new Date(record.resetTokenExpiry) > new Date()),
+        accountStatus: record.account_status || 'pending',
+        hasPassword: !!record.password_hash,
+        requiresPasswordChange: !!record.require_password_change,
+        hasOtp: !!(record.otp_hash && new Date(record.otp_expiry) > new Date()),
+        hasTempPassword: !!record.temp_password_hash,
+        hasPendingReset: !!(record.reset_token_hash && new Date(record.reset_token_expiry) > new Date()),
     };
 }
 
-function exportStaffAccount(staffId) {
-    const db = readDB();
-    const record = db.staff.find(s => s.staffId === staffId);
-    if (!record) return null;
-    return {
-        staffId: record.staffId,
-        email: record.email,
-        phone: record.phone || '',
-        accountStatus: record.accountStatus || 'pending',
-        requirePasswordChange: !!record.requirePasswordChange,
-        createdAt: record.createdAt,
-        updatedAt: record.updatedAt,
-    };
+async function exportStaffAccount(staffId) {
+    const res = await db.query('SELECT * FROM staff_auth WHERE staff_id = $1', [staffId]);
+    return res.rows[0] || null;
 }
 
-function deleteStaffAccount(staffId) {
-    const db = readDB();
-    const before = db.staff.length;
-    db.staff = db.staff.filter(s => s.staffId !== staffId);
-    if (db.staff.length === before) return false;
-    writeDB(db);
-    return true;
+async function deleteStaffAccount(staffId) {
+    const res = await db.query('DELETE FROM staff_auth WHERE staff_id = $1', [staffId]);
+    return res.rowCount > 0;
 }
 
 module.exports = {
-    normalizeSegechaEmail,
-    createStaffAccount,
-    regenerateStaffCredentials,
-    resetStaffPasswordWithToken,
-    requestStaffPasswordReset,
-    loginStaff,
-    getStaffAccountStatus,
-    exportStaffAccount,
-    deleteStaffAccount,
+    normalizeSegechaEmail, createStaffAccount, regenerateStaffCredentials,
+    resetStaffPasswordWithToken, requestStaffPasswordReset, loginStaff,
+    getStaffAccountStatus, exportStaffAccount, deleteStaffAccount,
 };

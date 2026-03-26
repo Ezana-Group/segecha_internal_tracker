@@ -53,22 +53,32 @@ const staffAuth = require('./staff-auth');
 const driverData = require('./driver-data');
 const bcrypt = require('bcryptjs');
 
-// JSON File paths
-const JOURNEYS_FILE = path.join(__dirname, 'tracker-data.json');
-const DRIVERS_AUTH_FILE = path.join(__dirname, 'drivers-auth.json');
-const SETTINGS_FILE = path.join(__dirname, 'cached-settings.json');
-const DOCUMENTS_FILE = path.join(__dirname, 'documents.json');
-const STAFF_AUTH_FILE = path.join(__dirname, 'staff-auth.json');
+// Database Configuration
+const DB_TABLES = [
+    'admins', 'superadmins', 'trucks', 'trailers', 'drivers', 
+    'staff', 'customers', 'journeys', 'fuel_logs', 'expenses', 
+    'invoices', 'payroll', 'maintenance_logs', 'tyre_logs', 
+    'incidents', 'documents', 'system_settings'
+];
 
-// Master Backup Configuration
-const DB_TABLES = ['admins', 'superadmins'];
-const DATA_FILES = {
-    tracker: JOURNEYS_FILE,
-    drivers_auth: DRIVERS_AUTH_FILE,
-    staff_auth: STAFF_AUTH_FILE,
-    documents: DOCUMENTS_FILE,
-    settings: SETTINGS_FILE
-};
+// Helper to get all data for a specific entity (replaces getData for JSON)
+async function getEntityData(table) {
+    const res = await db.query(`SELECT * FROM ${table}`);
+    return res.rows;
+}
+
+// Helper to save settings to DB
+async function saveSetting(key, value) {
+    await db.query('INSERT INTO system_settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = $2', [key, JSON.stringify(value)]);
+}
+
+// Helper to get settings from DB
+async function getSettings() {
+    const res = await db.query('SELECT * FROM system_settings');
+    const settings = {};
+    res.rows.forEach(r => settings[r.key] = r.value);
+    return settings;
+}
 
 // Ensure directories exist
 if (!existsSync(__dirname)) mkdirSync(__dirname);
@@ -85,31 +95,27 @@ const saveData = (file, data) => writeFileSync(file, JSON.stringify(data, null, 
 // Master Backup Helper
 async function backupEverything() {
     const backup = {
-        version: '4.0',
+        version: '5.0',
         timestamp: new Date().toISOString(),
-        tables: {},
-        files: {}
+        tables: {}
     };
     for (const table of DB_TABLES) {
         const res = await db.query(`SELECT * FROM ${table}`);
         backup.tables[table] = res.rows;
-    }
-    for (const [key, filePath] of Object.entries(DATA_FILES)) {
-        backup.files[key] = getData(filePath, null);
     }
     return backup;
 }
 
 // Master Restore Helper
 async function restoreEverything(backup) {
-    if (backup.files) {
-        for (const [key, content] of Object.entries(backup.files)) {
-            if (DATA_FILES[key]) saveData(DATA_FILES[key], content);
-        }
-    }
     if (backup.tables) {
         for (const [table, rows] of Object.entries(backup.tables)) {
+            // Check if table exists in our DB_TABLES to prevent injection or errors
+            if (!DB_TABLES.includes(table)) continue;
+            
             await db.query(`TRUNCATE TABLE ${table} CASCADE`);
+            if (!rows || rows.length === 0) continue;
+
             for (const row of rows) {
                 const cols = Object.keys(row);
                 const vals = Object.values(row);
@@ -155,23 +161,18 @@ app.post('/api/admin/login', async (req, res) => {
 });
 
 // Pending verification (Used by Admin Panel)
-app.get(['/api/admin/journeys/pending', '/api/admin/journeys/pending-verification'], (req, res) => {
+app.get(['/api/admin/journeys/pending', '/api/admin/journeys/pending-verification'], async (req, res) => {
     try {
-        const data = getData(JOURNEYS_FILE);
-        const journeys = Array.isArray(data.journeys) ? data.journeys : [];
-        const pending = journeys.filter(j => j.status === 'Awaiting Start Verification' || j.status === 'Awaiting Verification');
-
-        // Also include other sections the admin needs for sync
-        const fuel = (data.fuel || []).filter(f => f._pendingApproval);
-        const expenses = (data.expenses || []).filter(e => e._pendingApproval);
-        const docsData = getData(DOCUMENTS_FILE, { documents: [] });
-        const docs = Array.isArray(docsData.documents) ? docsData.documents : [];
-        const customers = data.customers || [];
-        const incidents = (data.incidents || []).filter(i => i.status === 'Open');
+        const journeys = (await db.query("SELECT * FROM journeys WHERE status IN ('Awaiting Start Verification', 'Awaiting Verification')")).rows;
+        const fuel = (await db.query("SELECT * FROM fuel_logs WHERE metadata->>'_pendingApproval' = 'true'")).rows;
+        const expenses = (await db.query("SELECT * FROM expenses WHERE metadata->>'_pendingApproval' = 'true'")).rows;
+        const docs = (await db.query("SELECT * FROM documents")).rows;
+        const customers = (await db.query("SELECT * FROM customers")).rows;
+        const incidents = (await db.query("SELECT * FROM incidents WHERE status = 'Open'")).rows;
 
         res.json({
             success: true,
-            journeys: pending,
+            journeys,
             fuel,
             expenses,
             documents: docs,
@@ -184,102 +185,79 @@ app.get(['/api/admin/journeys/pending', '/api/admin/journeys/pending-verificatio
     }
 });
 
-// Import history
-app.get(['/api/admin/history', '/api/admin/import-history'], (req, res) => {
+// Import history (Now using DB journeys)
+app.get(['/api/admin/history', '/api/admin/import-history'], async (req, res) => {
     try {
-        const data = getData(JOURNEYS_FILE);
-        res.json({ success: true, history: data.history || [] });
-    } catch (e) { res.status(500).json({ error: 'Failed' }); }
+        const journeys = (await db.query("SELECT * FROM journeys ORDER BY created_at DESC LIMIT 500")).rows;
+        res.json({ success: true, history: journeys });
+    } catch (e) { res.status(500).json({ error: 'Failed to fetch history' }); }
 });
 
-// Stats
-app.get('/api/admin/stats', (req, res) => {
+// Stats (Aggregated from DB)
+app.get('/api/admin/stats', async (req, res) => {
     try {
-        const data = getData(JOURNEYS_FILE);
-        res.json({ success: true, stats: data.stats || {} });
-    } catch (e) { res.status(500).json({ error: 'Failed' }); }
+        const journeyCount = (await db.query("SELECT COUNT(*) FROM journeys")).rows[0].count;
+        const activeTrucks = (await db.query("SELECT COUNT(*) FROM trucks WHERE status = 'Active'")).rows[0].count;
+        const totalRevenue = (await db.query("SELECT SUM(amount) FROM invoices")).rows[0].sum || 0;
+        
+        res.json({ 
+            success: true, 
+            stats: {
+                totalJourneys: parseInt(journeyCount),
+                activeTrucks: parseInt(activeTrucks),
+                totalRevenue: parseFloat(totalRevenue)
+            } 
+        });
+    } catch (e) { res.status(500).json({ error: 'Failed to compute stats' }); }
 });
 
 // --- DOCUMENTS MANAGEMENT ---
 
-app.get('/api/documents', (req, res) => {
+app.get('/api/documents', async (req, res) => {
     try {
-        const { entityType, entityId, adminKey } = req.query;
-        const expectedKey = process.env.VITE_ADMIN_KEY || process.env.ADMIN_KEY || 'segecha-admin-key-change-this';
-        if (adminKey !== expectedKey) return res.status(403).json({ error: 'Unauthorized' });
-
-        const data = getData(DOCUMENTS_FILE, { documents: [] });
-        let docs = Array.isArray(data.documents) ? data.documents : [];
-
-        // Apply filters if provided
-        if (entityType) docs = docs.filter(d => d.entityType === entityType);
-        if (entityId) docs = docs.filter(d => d.entityId === entityId || d.driverId === entityId);
-
-        res.json({ success: true, documents: docs });
+        const { entityType, entityId } = req.query;
+        let query = 'SELECT * FROM documents WHERE 1=1';
+        const params = [];
+        if (entityType) { params.push(entityType); query += ` AND entity_type = $${params.length}`; }
+        if (entityId) { params.push(entityId); query += ` AND (entity_id = $${params.length} OR metadata->>'driverId' = $${params.length})`; }
+        
+        const result = await db.query(query, params);
+        res.json({ success: true, documents: result.rows });
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
 });
 
-app.get('/api/documents/expiring', (req, res) => {
+app.get('/api/documents/expiring', async (req, res) => {
     try {
-        const { adminKey, days = 30 } = req.query;
-        const expectedKey = process.env.VITE_ADMIN_KEY || process.env.ADMIN_KEY || 'segecha-admin-key-change-this';
-        if (adminKey !== expectedKey) return res.status(403).json({ error: 'Unauthorized' });
-
-        const data = getData(DOCUMENTS_FILE, { documents: [] });
-        const docs = Array.isArray(data.documents) ? data.documents : [];
-        const threshold = new Date();
-        threshold.setDate(threshold.getDate() + parseInt(days));
-
-        const expiring = docs.filter(d => {
-            if (!d.expiryDate) return false;
-            return new Date(d.expiryDate) <= threshold;
-        });
-
-        res.json({ success: true, documents: expiring });
+        const { days = 30 } = req.query;
+        const result = await db.query("SELECT * FROM documents WHERE expiry_date <= CURRENT_DATE + interval '1 day' * $1", [parseInt(days)]);
+        res.json({ success: true, documents: result.rows });
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
 });
 
-app.post('/api/documents/upload', upload.any(), (req, res) => {
+app.post('/api/documents/upload', upload.any(), async (req, res) => {
     try {
         const body = req.body || {};
-        const { adminKey } = body;
-        const expectedKey = process.env.VITE_ADMIN_KEY || process.env.ADMIN_KEY || 'segecha-admin-key-change-this';
-        if (adminKey !== expectedKey) return res.status(403).json({ error: 'Unauthorized' });
+        const id = Date.now().toString();
+        const { entityType, entityId, label, url, expiryDate, ...rest } = body;
+        
+        await db.query(
+            'INSERT INTO documents (id, entity_type, entity_id, label, url, expiry_date, metadata) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+            [id, entityType, entityId, label, url || 'https://res.cloudinary.com/demo/image/upload/sample.jpg', expiryDate, JSON.stringify(rest)]
+        );
 
-        const doc = {
-            id: Date.now().toString(),
-            url: body.url || 'https://res.cloudinary.com/demo/image/upload/sample.jpg',
-            ...body,
-            uploadedAt: new Date().toISOString()
-        };
-        delete doc.adminKey;
-
-        const data = getData(DOCUMENTS_FILE, { documents: [] });
-        const docs = Array.isArray(data.documents) ? data.documents : [];
-        docs.push(doc);
-        saveData(DOCUMENTS_FILE, { documents: docs });
-
-        res.json({ success: true, document: doc });
+        res.json({ success: true, document: { id, ...body, url: url || 'https://res.cloudinary.com/demo/image/upload/sample.jpg' } });
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
 });
 
-app.delete('/api/documents/:id', (req, res) => {
+app.delete('/api/documents/:id', async (req, res) => {
     try {
-        const { adminKey } = req.body;
-        const expectedKey = process.env.VITE_ADMIN_KEY || process.env.ADMIN_KEY || 'segecha-admin-key-change-this';
-        if (adminKey !== expectedKey) return res.status(403).json({ error: 'Unauthorized' });
-
-        const data = getData(DOCUMENTS_FILE, { documents: [] });
-        const docs = Array.isArray(data.documents) ? data.documents : [];
-        const filtered = docs.filter(d => d.id !== req.params.id);
-
-        saveData(DOCUMENTS_FILE, { documents: filtered });
+        await db.query('DELETE FROM documents WHERE id = $1', [req.params.id]);
         res.json({ success: true });
     } catch (e) {
         res.status(500).json({ error: e.message });
@@ -297,34 +275,33 @@ app.put('/api/admin/:col/:id', (req, res) => {
 });
 
 // Admin verification for journeys (start or completion)
-app.post('/api/admin/journey/:id/verify', (req, res) => {
-    const { adminKey, approved, rejectionReason, rejectedFields } = req.body;
-    const expectedKey = process.env.VITE_ADMIN_KEY || process.env.ADMIN_KEY || 'segecha-admin-key-change-this';
-    if (adminKey !== expectedKey) return res.status(403).json({ error: 'Unauthorized' });
+app.post('/api/admin/journey/:id/verify', async (req, res) => {
+    const { approved, rejectionReason, rejectedFields } = req.body;
 
     try {
-        const data = getData(JOURNEYS_FILE);
-        const j = data.journeys.find(x => x.id === req.params.id);
-        if (!j) return res.status(404).json({ error: 'Journey not found' });
+        const result = await db.query('SELECT * FROM journeys WHERE id = $1', [req.params.id]);
+        if (result.rows.length === 0) return res.status(404).json({ error: 'Journey not found' });
+        const j = result.rows[0];
 
         const isStart = j.status === 'Awaiting Start Verification';
         const now = new Date();
-        const ts = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+        const ts = now.toISOString();
 
-        if (approved) {
-            j.status = isStart ? 'Approved' : 'Verified';
-            j._isRejected = false;
-            j.notes = (j.notes || '') + (j.notes ? '\n' : '') + `[APPROVED @ ${ts}]`;
-        } else {
-            j.status = isStart ? 'Loading' : 'In Transit';
-            j._rejectionReason = rejectionReason;
-            j._rejectedFields = rejectedFields || [];
-            j._isRejected = true;
-            j.notes = (j.notes || '') + (j.notes ? '\n' : '') + `[REJECTED @ ${ts}]: ${rejectionReason}`;
+        let newStatus = approved ? (isStart ? 'Approved' : 'Verified') : (isStart ? 'Loading' : 'In Transit');
+        const metadata = j.metadata || {};
+        metadata._isRejected = !approved;
+        if (!approved) {
+            metadata._rejectionReason = rejectionReason;
+            metadata._rejectedFields = rejectedFields || [];
         }
+        const notes = (j.notes || '') + (j.notes ? '\n' : '') + `[${approved ? 'APPROVED' : 'REJECTED'} @ ${ts}]${!approved ? ': ' + rejectionReason : ''}`;
 
-        saveData(JOURNEYS_FILE, data);
-        res.json({ success: true, action: isStart ? 'start' : 'completion', journey: j });
+        await db.query(
+            'UPDATE journeys SET status = $1, notes = $2, metadata = $3 WHERE id = $4',
+            [newStatus, notes, JSON.stringify(metadata), req.params.id]
+        );
+
+        res.json({ success: true, action: isStart ? 'start' : 'completion', journey: { ...j, status: newStatus, notes, metadata } });
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
@@ -375,7 +352,7 @@ app.post('/api/admin/submission/verify', (req, res) => {
 // Deep Reset - Wipes all server data
 app.post('/api/admin/reset', async (req, res) => {
     try {
-        // 1. Reset all database tables
+        // 1. Reset all database tables (CASCADE handles order)
         for (const table of DB_TABLES) {
             await db.query(`TRUNCATE TABLE ${table} CASCADE`);
         }
@@ -392,17 +369,7 @@ app.post('/api/admin/reset', async (req, res) => {
             [adminId, defaultEmail, hash, 'System Administrator', 'superadmin']
         );
 
-        // 3. Clear all JSON data files
-        const trackerSeed = {
-            trucks: [], trailers: [], drivers: [], journeys: [], fuel: [],
-            expenses: [], customers: [], payroll: [], staff: [], history: [], stats: {}
-        };
-        saveData(JOURNEYS_FILE, trackerSeed);
-        saveData(DRIVERS_AUTH_FILE, { drivers: [] });
-        saveData(STAFF_AUTH_FILE, { staff: [] });
-        saveData(DOCUMENTS_FILE, { documents: [] });
-
-        res.json({ success: true, message: 'All data destroyed. System re-seeded with default admin: admin@segecha.com' });
+        res.json({ success: true, message: 'All database data destroyed and re-seeded.' });
     } catch (e) {
         console.error('RESET_ERROR:', e);
         res.status(500).json({ error: 'Reset failed: ' + e.message });
@@ -411,33 +378,26 @@ app.post('/api/admin/reset', async (req, res) => {
 
 // --- TRACKER SYNC & BACKUP ---
 
-// Sync Snapshot (Local -> Server)
-app.post('/api/tracker/snapshot', (req, res) => {
-    const { data, settings } = req.body;
+// Sync Snapshot (Local -> Server) - Now only for settings as primary data is in DB
+app.post('/api/tracker/snapshot', async (req, res) => {
+    const { settings } = req.body;
     try {
-        if (data) saveData(JOURNEYS_FILE, data);
-        if (settings) saveData(SETTINGS_FILE, settings);
-
-        // After sync, check if we need to update the scheduler (frequency might have changed)
-        const frequency = settings?.backupFrequency || 'Disabled';
-        updateBackupScheduler(frequency);
-
-        res.json({ success: true, message: 'Server snapshot updated' });
+        if (settings) {
+            for (const [key, val] of Object.entries(settings)) {
+                await saveSetting(key, val);
+            }
+            const frequency = settings?.backupFrequency || 'Disabled';
+            updateBackupScheduler(frequency);
+        }
+        res.json({ success: true, message: 'Server settings updated' });
     } catch (e) {
         res.status(500).json({ error: 'Sync failed: ' + e.message });
     }
 });
 
-// Auto-sync from admin (lightweight)
+// Auto-sync from admin (Legacy catch-all, now basically a health check for data)
 app.post('/api/tracker/data', (req, res) => {
-    try {
-        if (req.body && Object.keys(req.body).length) {
-            saveData(JOURNEYS_FILE, req.body);
-        }
-        res.json({ success: true });
-    } catch (e) {
-        res.status(500).json({ error: e.message });
-    }
+    res.json({ success: true, message: 'Live data is handled via PostgreSQL' });
 });
 
 // List Backups
@@ -536,17 +496,13 @@ app.post('/api/tracker/upload-backup', (req, res) => {
 let backupInterval = null;
 let currentFrequency = 'Disabled';
 
-function performAutoBackup() {
-    console.log(`[${new Date().toISOString()}] Running automated backup...`);
+async function performAutoBackup() {
+    console.log(`[${new Date().toISOString()}] Running automated database backup...`);
     try {
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-        const filename = `auto_backup_${timestamp}.json`;
-        const currentData = getData(JOURNEYS_FILE, null);
-        const currentSettings = getData(SETTINGS_FILE, null);
-        if (currentData) {
-            saveData(path.join(BACKUPS_DIR, filename), { data: currentData, settings: currentSettings });
-            console.log(`Automated backup saved: ${filename}`);
-        }
+        const filename = `auto_backup_db_${timestamp}.json`;
+        const backup = await backupEverything();
+        saveData(path.join(BACKUPS_DIR, filename), backup);
     } catch (e) {
         console.error('Automated backup failed:', e.message);
     }
@@ -577,14 +533,16 @@ function updateBackupScheduler(frequency) {
 }
 
 // Initial scheduler start
-try {
-    const initialSettings = getData(SETTINGS_FILE, null);
-    if (initialSettings?.backupFrequency) {
-        updateBackupScheduler(initialSettings.backupFrequency);
+(async () => {
+    try {
+        const settings = await getSettings();
+        if (settings?.backupFrequency) {
+            updateBackupScheduler(settings.backupFrequency);
+        }
+    } catch (e) {
+        console.warn('Could not start initial backup scheduler:', e.message);
     }
-} catch (e) {
-    console.warn('Could not start initial backup scheduler:', e.message);
-}
+})();
 
 
 // --- DRIVER ACCOUNT MANAGEMENT (ADMIN) ---
