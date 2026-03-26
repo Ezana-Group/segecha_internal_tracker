@@ -75,7 +75,7 @@ if (!JWT_SECRET || !ADMIN_KEY) {
     console.log(`[AUTH] ADMIN_KEY loaded from ${ADMIN_KEY_SOURCE}: ${maskedKey} (Length: ${ADMIN_KEY.length})`);
 }
 
-const PUBLIC_ROUTES = ['/admin/login', '/driver/login', '/staff/login'];
+const PUBLIC_ROUTES = ['/admin/login', '/driver/login', '/staff/login', '/health'];
 
 const adminAuth = (req, res, next) => {
     // 0. Skip for preflight
