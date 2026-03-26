@@ -10,7 +10,7 @@ driver-portal/.env.local
 track-portal/.env
 track-portal/.env.local
 server/.env
-*.md
+# env_backup/
 env_backup/
 
 # Server data files — managed on Render, not in git
