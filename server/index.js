@@ -504,6 +504,18 @@ async function upsertEntity(table, item) {
         else if (k === 'plateNumber') dbKey = 'registration_number';
         else if (k === 'registrationNumber') dbKey = 'registration_number';
         else if (k === 'reg') dbKey = 'registration_number';
+        else if (k === 'odom') dbKey = 'current_mileage';
+        else if (k === 'license') dbKey = 'license_number';
+        else if (k === 'truck') dbKey = 'truck_id';
+        else if (k === 'driver') dbKey = 'entity_id';
+        else if (k === 'journey') dbKey = 'journey_id';
+        else if (k === 'date') dbKey = 'start_date';
+        else if (k === 'dest') dbKey = 'destination';
+        else if (k === 'cargo') dbKey = 'cargo_type';
+        else if (k === 'cat') dbKey = 'category';
+        else if (k === 'desc') dbKey = 'description';
+        else if (k === 'due') dbKey = 'due_date';
+        else if (k === 'pricePerL') dbKey = 'amount';
         else if (k === 'currentMileage') dbKey = 'current_mileage';
         else if (k === 'startDate') dbKey = 'start_date';
         else if (k === 'endDate') dbKey = 'end_date';
