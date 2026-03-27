@@ -791,7 +791,6 @@ app.post('/api/admin/upload', upload.single('file'), async (req, res) => {
         const isDoc = ['.pdf', '.doc', '.docx'].includes(ext);
         const folder = req.body.folder || 'admin_uploads';
 
-        console.log(`[UPLOAD] Received ${req.file.originalname} (${req.file.mimetype}, ${req.file.size} bytes) for folder: ${folder}`);
 
         if (isDoc) {
             // Upload to Cloudflare R2
@@ -803,13 +802,10 @@ app.post('/api/admin/upload', upload.single('file'), async (req, res) => {
             const result = await uploadBuffer(req.file.buffer, folder, req.file.originalname);
             return res.json({ success: true, url: result.secure_url });
         } else {
-            console.warn(`[UPLOAD] Unsupported file type rejected: ${ext}`);
             return res.status(400).json({ error: 'Unsupported file type. Use PDF, DOC, or Images.' });
         }
     } catch (e) {
-        console.error('ADMIN_UPLOAD_ERROR:', e);
-        const errorMessage = e.http_code ? `Cloudinary Error (${e.http_code}): ${e.message}` : e.message;
-        res.status(500).json({ error: errorMessage, details: e });
+        res.status(500).json({ error: 'File upload failed' });
     }
 });
 

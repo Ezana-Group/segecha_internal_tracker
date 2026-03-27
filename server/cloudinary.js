@@ -14,8 +14,7 @@ if (!isMock) {
             api_secret: process.env.CLOUDINARY_API_SECRET,
         });
     }
-    const config = cloudinary.config();
-    console.log(`[CLOUDINARY] Initialized for cloud: ${config.cloud_name}`);
+    cloudinary.config();
 }
 
 // Upload a buffer (from multer memory storage) to Cloudinary
@@ -29,7 +28,6 @@ function uploadBuffer(buffer, folder, filename) {
     }
 
     if (!cloudinary.config().cloud_name) {
-        console.error('[CLOUDINARY] ERROR: Cloudinary is not configured! Check your environment variables.');
         return Promise.reject(new Error('Cloudinary is not configured on the server.'));
     }
 
@@ -44,10 +42,8 @@ function uploadBuffer(buffer, folder, filename) {
             },
             (error, result) => {
                 if (error) {
-                    console.error('[CLOUDINARY] Upload Stream Error:', error);
                     reject(error);
                 } else {
-                    console.log(`[CLOUDINARY] Upload success: ${result.secure_url}`);
                     resolve(result);
                 }
             }
