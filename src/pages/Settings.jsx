@@ -1801,10 +1801,10 @@ export function Settings({
                             <SettingsShellSectionHeader title="Mileage & Allowances" desc="Define standard pay rates per kilometer." icon={Navigation} />
                             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginBottom: 32 }}>
                                 <SettingsShellField label="Driver Rate (KES/km)">
-                                    <SettingsShellInput type="number" value={localS.driverPerKm || 10} onChange={e => saveSettings({ driverPerKm: +e.target.value })} />
+                                    <SettingsShellInput type="number" value={localS.driverPerKm ?? 10} onChange={e => saveSettings({ driverPerKm: +e.target.value })} />
                                 </SettingsShellField>
                                 <SettingsShellField label="Turnboy Rate (KES/km)">
-                                    <SettingsShellInput type="number" value={localS.turnboyPerKm || 6} onChange={e => saveSettings({ turnboyPerKm: +e.target.value })} />
+                                    <SettingsShellInput type="number" value={localS.turnboyPerKm ?? 6} onChange={e => saveSettings({ turnboyPerKm: +e.target.value })} />
                                 </SettingsShellField>
                             </div>
 

@@ -530,7 +530,7 @@ export function GlobalModals(props) {
     // ── JOURNEY MODAL ──
     if (modal === "journey") {
         const errors = {};
-        errors.revenue = validators.required(form.revenue) || validators.positiveNumber(form.revenue);
+        errors.revenue = form.revenue !== "" && form.revenue !== null ? validators.positiveNumber(form.revenue, true) : null; 
         // errors.distance = validators.required(form.distance) || validators.positiveNumber(form.distance);
         errors.endDate = validators.dateOrder(form.date, form.endDate);
         if (!form.returningEmpty) {
@@ -602,7 +602,14 @@ export function GlobalModals(props) {
             }
 
             // Road User Allowance calculation
-            const rua = isReturning ? (_S.roadUserAllowanceReturn || _S.roadUserAllowance || 0) : (_S.roadUserAllowance || 0);
+            let rua = 0;
+            if (isReturning) {
+                rua = (_S.roadUserAllowanceReturn !== undefined && _S.roadUserAllowanceReturn !== null && _S.roadUserAllowanceReturn !== "") 
+                    ? +_S.roadUserAllowanceReturn 
+                    : (+(_S.roadUserAllowance || 0));
+            } else {
+                rua = +(_S.roadUserAllowance || 0);
+            }
 
             return {
                 driver: dRate,

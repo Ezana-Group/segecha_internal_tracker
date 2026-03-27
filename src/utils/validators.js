@@ -26,8 +26,10 @@ export const validators = {
         return /^PSV\/LIC\/\d{4}\/\d{5}$/.test(String(v)) ? null : 'Format must be PSV/LIC/YYYY/NNNNN';
     },
 
-    positiveNumber: (v) => {
-        return v && Number(v) > 0 ? null : 'Must be a number greater than zero';
+    positiveNumber: (v, allowZero = false) => {
+        const n = Number(v);
+        if (allowZero && n === 0) return null;
+        return v && n > 0 ? null : (allowZero ? 'Must be a number 0 or greater' : 'Must be a number greater than zero');
     },
 
     dateOrder: (start, end) => {
