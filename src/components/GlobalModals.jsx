@@ -575,8 +575,20 @@ export function GlobalModals(props) {
                 tRate = oTRate;
             } else {
                 // If no route override, check for International/Domestic Flat Rates
-                const flatDriver = isInternational ? (_S.flatRateOutsideDriver || 0) : (_S.flatRateInsideDriver || 0);
-                const flatTurnboy = isInternational ? (_S.flatRateOutsideTurnboy || 0) : (_S.flatRateInsideTurnboy || 0);
+                let flatDriver, flatTurnboy;
+                if (isReturning) {
+                    flatDriver = isInternational ? (_S.flatRateOutsideDriverReturn || 0) : (_S.flatRateInsideDriverReturn || 0);
+                    flatTurnboy = isInternational ? (_S.flatRateOutsideTurnboyReturn || 0) : (_S.flatRateInsideTurnboyReturn || 0);
+                    
+                    // Fallback to standard flat rates if return rates are 0
+                    if (flatDriver === 0) {
+                        flatDriver = isInternational ? (_S.flatRateOutsideDriver || 0) : (_S.flatRateInsideDriver || 0);
+                        flatTurnboy = isInternational ? (_S.flatRateOutsideTurnboy || 0) : (_S.flatRateInsideTurnboy || 0);
+                    }
+                } else {
+                    flatDriver = isInternational ? (_S.flatRateOutsideDriver || 0) : (_S.flatRateInsideDriver || 0);
+                    flatTurnboy = isInternational ? (_S.flatRateOutsideTurnboy || 0) : (_S.flatRateInsideTurnboy || 0);
+                }
                 
                 if (flatDriver > 0) {
                     dRate = flatDriver;

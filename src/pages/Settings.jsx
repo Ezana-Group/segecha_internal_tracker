@@ -1816,8 +1816,14 @@ export function Settings({
                                         <SettingsShellField label="Driver Flat Rate (KES)">
                                             <SettingsShellInput type="number" value={localS.flatRateInsideDriver || 0} onChange={e => saveSettings({ flatRateInsideDriver: +e.target.value })} />
                                         </SettingsShellField>
+                                        <SettingsShellField label="Ret. Driver Flat Rate (KES)">
+                                            <SettingsShellInput type="number" value={localS.flatRateInsideDriverReturn || 0} onChange={e => saveSettings({ flatRateInsideDriverReturn: +e.target.value })} />
+                                        </SettingsShellField>
                                         <SettingsShellField label="Turnboy Flat Rate (KES)">
                                             <SettingsShellInput type="number" value={localS.flatRateInsideTurnboy || 0} onChange={e => saveSettings({ flatRateInsideTurnboy: +e.target.value })} />
+                                        </SettingsShellField>
+                                        <SettingsShellField label="Ret. Turnboy Flat Rate (KES)">
+                                            <SettingsShellInput type="number" value={localS.flatRateInsideTurnboyReturn || 0} onChange={e => saveSettings({ flatRateInsideTurnboyReturn: +e.target.value })} />
                                         </SettingsShellField>
                                     </div>
                                 </div>
@@ -1827,8 +1833,14 @@ export function Settings({
                                         <SettingsShellField label="Driver Flat Rate (KES)">
                                             <SettingsShellInput type="number" value={localS.flatRateOutsideDriver || 0} onChange={e => saveSettings({ flatRateOutsideDriver: +e.target.value })} />
                                         </SettingsShellField>
+                                        <SettingsShellField label="Ret. Driver Flat Rate (KES)">
+                                            <SettingsShellInput type="number" value={localS.flatRateOutsideDriverReturn || 0} onChange={e => saveSettings({ flatRateOutsideDriverReturn: +e.target.value })} />
+                                        </SettingsShellField>
                                         <SettingsShellField label="Turnboy Flat Rate (KES)">
                                             <SettingsShellInput type="number" value={localS.flatRateOutsideTurnboy || 0} onChange={e => saveSettings({ flatRateOutsideTurnboy: +e.target.value })} />
+                                        </SettingsShellField>
+                                        <SettingsShellField label="Ret. Turnboy Flat Rate (KES)">
+                                            <SettingsShellInput type="number" value={localS.flatRateOutsideTurnboyReturn || 0} onChange={e => saveSettings({ flatRateOutsideTurnboyReturn: +e.target.value })} />
                                         </SettingsShellField>
                                     </div>
                                 </div>
