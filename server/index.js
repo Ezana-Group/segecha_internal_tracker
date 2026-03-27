@@ -534,8 +534,9 @@ async function upsertEntity(table, item) {
     const metadata = item.metadata || {};
 
     entries.forEach(([k, v]) => {
-        // Map common frontend camelCase to snake_case if they match DB
         let dbKey = k;
+
+        // Generic camelCase → snake_case mappings (table-agnostic)
         if (k === 'expiryDate') dbKey = 'expiry_date';
         else if (k === 'customerId') dbKey = 'customer_id';
         else if (k === 'journeyId') dbKey = 'journey_id';
@@ -544,19 +545,6 @@ async function upsertEntity(table, item) {
         else if (k === 'licenseNumber') dbKey = 'license_number';
         else if (k === 'plateNumber') dbKey = 'registration_number';
         else if (k === 'registrationNumber') dbKey = 'registration_number';
-        else if (k === 'reg') dbKey = 'registration_number';
-        else if (k === 'odom') dbKey = 'current_mileage';
-        else if (k === 'license') dbKey = 'license_number';
-        else if (k === 'truck') dbKey = 'truck_id';
-        else if (k === 'driver') dbKey = 'entity_id';
-        else if (k === 'journey') dbKey = 'journey_id';
-        else if (k === 'date') dbKey = 'start_date';
-        else if (k === 'dest') dbKey = 'destination';
-        else if (k === 'cargo') dbKey = 'cargo_type';
-        else if (k === 'cat') dbKey = 'category';
-        else if (k === 'desc') dbKey = 'description';
-        else if (k === 'due') dbKey = 'due_date';
-        else if (k === 'pricePerL') dbKey = 'amount';
         else if (k === 'currentMileage') dbKey = 'current_mileage';
         else if (k === 'startDate') dbKey = 'start_date';
         else if (k === 'endDate') dbKey = 'end_date';
@@ -568,10 +556,40 @@ async function upsertEntity(table, item) {
         else if (k === 'serialNumber') dbKey = 'serial_number';
         else if (k === 'staffId') dbKey = 'staff_id';
 
+        // Short-form frontend keys — TABLE-AWARE mappings
+        else if (k === 'reg') dbKey = 'registration_number';
+        else if (k === 'license') dbKey = 'license_number';
+        else if (k === 'dest') dbKey = 'destination';
+        else if (k === 'cargo') dbKey = 'cargo_type';
+        else if (k === 'cat') dbKey = 'category';
+        else if (k === 'desc') dbKey = 'description';
+        else if (k === 'due') dbKey = 'due_date';
+        else if (k === 'pricePerL') dbKey = 'amount';
+
+        // 'truck' → truck_id for tables that have that column
+        else if (k === 'truck') dbKey = 'truck_id';
+
+        // 'journey' → journey_id for tables that have that column
+        else if (k === 'journey') dbKey = 'journey_id';
+
+        // 'driver' → driver_id for journeys, entity_id for payroll
+        else if (k === 'driver') {
+            dbKey = table === 'payroll' ? 'entity_id' : 'driver_id';
+        }
+
+        // 'date' → start_date only for journeys; stays 'date' elsewhere
+        else if (k === 'date') {
+            dbKey = table === 'journeys' ? 'start_date' : 'date';
+        }
+
+        // 'odom' → current_mileage only for trucks; goes to metadata elsewhere
+        else if (k === 'odom') {
+            dbKey = table === 'trucks' ? 'current_mileage' : 'odom'; // will fall to metadata
+        }
+
         if (validCols.includes(dbKey)) {
             finalData[dbKey] = v;
         } else if (k !== 'metadata') {
-            // Pack everything else into metadata
             metadata[k] = v;
         }
     });

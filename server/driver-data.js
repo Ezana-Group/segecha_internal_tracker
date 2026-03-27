@@ -6,7 +6,7 @@ const db = require('./db');
  */
 async function upsertEntity(table, item) {
     if (!item || !item.id) throw new Error('Item ID is required for upsert');
-    
+
     // 1. Get existing columns for this table
     const colRes = await db.query(
         "SELECT column_name FROM information_schema.columns WHERE table_name = $1",
@@ -20,16 +20,39 @@ async function upsertEntity(table, item) {
 
     Object.entries(item).forEach(([k, v]) => {
         if (['created_at', 'updated_at', '_type', '_Salary', '_contact', '_joined'].includes(k)) return;
-        
         let dbKey = k;
-        // Basic mapping for common driver-portal keys to DB columns
         if (k === 'expiryDate') dbKey = 'expiry_date';
         else if (k === 'customerId') dbKey = 'customer_id';
         else if (k === 'deliveryCustomerId') dbKey = 'delivery_customer_id';
         else if (k === 'journeyId') dbKey = 'journey_id';
         else if (k === 'truckId') dbKey = 'truck_id';
         else if (k === 'driverId') dbKey = 'driver_id';
-
+        else if (k === 'licenseNumber') dbKey = 'license_number';
+        else if (k === 'plateNumber') dbKey = 'registration_number';
+        else if (k === 'registrationNumber') dbKey = 'registration_number';
+        else if (k === 'currentMileage') dbKey = 'current_mileage';
+        else if (k === 'startDate') dbKey = 'start_date';
+        else if (k === 'endDate') dbKey = 'end_date';
+        else if (k === 'cargoType') dbKey = 'cargo_type';
+        else if (k === 'nextServiceMileage') dbKey = 'next_service_mileage';
+        else if (k === 'entityId') dbKey = 'entity_id';
+        else if (k === 'entityType') dbKey = 'entity_type';
+        else if (k === 'dueDate') dbKey = 'due_date';
+        else if (k === 'serialNumber') dbKey = 'serial_number';
+        else if (k === 'staffId') dbKey = 'staff_id';
+        else if (k === 'reg') dbKey = 'registration_number';
+        else if (k === 'license') dbKey = 'license_number';
+        else if (k === 'dest') dbKey = 'destination';
+        else if (k === 'cargo') dbKey = 'cargo_type';
+        else if (k === 'cat') dbKey = 'category';
+        else if (k === 'desc') dbKey = 'description';
+        else if (k === 'due') dbKey = 'due_date';
+        else if (k === 'pricePerL') dbKey = 'amount';
+        else if (k === 'truck') dbKey = 'truck_id';
+        else if (k === 'journey') dbKey = 'journey_id';
+        else if (k === 'driver') { dbKey = table === 'payroll' ? 'entity_id' : 'driver_id'; }
+        else if (k === 'date') { dbKey = table === 'journeys' ? 'start_date' : 'date'; }
+        else if (k === 'odom') { dbKey = table === 'trucks' ? 'current_mileage' : 'odom'; }
         if (validCols.includes(dbKey)) {
             finalData[dbKey] = v;
         } else if (k !== 'metadata') {
@@ -42,10 +65,10 @@ async function upsertEntity(table, item) {
     }
 
     const keys = Object.keys(finalData);
-    const values = Object.values(finalData).map(v => 
+    const values = Object.values(finalData).map(v =>
         (typeof v === 'object' && v !== null) ? JSON.stringify(v) : v
     );
-    
+
     const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
     const updates = keys.map((k, i) => k === 'id' ? null : `${k} = EXCLUDED.${k}`).filter(Boolean).join(', ');
 
@@ -54,7 +77,7 @@ async function upsertEntity(table, item) {
         VALUES (${placeholders})
         ON CONFLICT (id) DO UPDATE SET ${updates}
     `;
-    
+
     return db.query(query, values);
 }
 
@@ -76,7 +99,7 @@ async function generateUId(collection) {
         journeys: 'J',
         incidents: 'INC-',
     };
-    
+
     const prefix = prefixes[collection] || '';
     if (!prefix) return '';
 
@@ -94,7 +117,7 @@ async function generateUId(collection) {
 function enrichJourneyForPortal(j, customers = [], trailers = [], drivers = []) {
     const trailer = j.trailer && trailers.find((t) => t.id === j.trailer);
     const trailerReg = trailer?.reg || "";
-    
+
     const cust = customers.find((c) => c.id === j.customer_id || c.id === j.customerId);
     const del = customers.find((c) => c.id === j.delivery_customer_id || c.id === j.deliveryCustomerId);
     const drv = drivers.find((d) => d.id === j.driver);
@@ -147,14 +170,14 @@ async function getDriverData(driverId) {
     const customers = customersRes.rows;
     const trailers = trailersRes.rows;
     const payroll = payrollRes.rows.sort((a, b) => (b.month || "").localeCompare(a.month || ""));
-    
+
     const settings = {};
     settingsRes.rows.forEach(r => settings[r.key] = r.value);
 
     const truck = driver.truck ? trucks.find(t => t.id === driver.truck) : null;
 
     const ACTIVE_STATUSES = ['Loading', 'Approved', 'In Transit', 'Awaiting Start Verification', 'Awaiting Verification'];
-    
+
     const activeJourneys = journeys
         .filter(j => ACTIVE_STATUSES.includes(j.status))
         .map(j => enrichJourneyForPortal(j, customers, trailers, [driver]));
@@ -201,7 +224,7 @@ async function updateJourneyPartyCustomers(driverId, journeyId, body = {}) {
         db.query("SELECT * FROM journeys WHERE id = $1 AND driver = $2", [journeyId, driverId]),
         db.query("SELECT * FROM customers")
     ]);
-    
+
     const journey = journeyRes.rows[0];
     if (!journey) return { success: false, error: 'Journey not found' };
     if (journey.status !== 'Loading') return { success: false, error: 'Customers can only be set while trip is Loading' };
@@ -232,7 +255,7 @@ async function updateJourneyPartyCustomers(driverId, journeyId, body = {}) {
     if (!billingId || !deliveryId) return { success: false, error: 'Both customers required' };
 
     await db.query("UPDATE journeys SET customer_id = $1, delivery_customer_id = $2 WHERE id = $3", [billingId, deliveryId, journeyId]);
-    
+
     // Refresh and return
     const updated = (await db.query("SELECT * FROM journeys WHERE id = $1", [journeyId])).rows[0];
     return { success: true, journey: enrichJourneyForPortal(updated, customersRes.rows) };
@@ -248,7 +271,7 @@ async function createJourneyStartRequest(driverId, payload = {}) {
 
     const id = Date.now().toString(36).toUpperCase() + Math.random().toString(36).substr(2, 3).toUpperCase();
     const uId = await generateUId('journeys');
-    
+
     const journey = {
         id,
         uId,
@@ -268,7 +291,7 @@ async function createJourneyStartRequest(driverId, payload = {}) {
     };
 
     await upsertEntity('journeys', journey);
-    
+
     // If customers are in payload, update them
     if (payload.customerId || payload.newBillingCustomer) {
         await updateJourneyPartyCustomers(driverId, id, payload);
@@ -346,7 +369,7 @@ async function verifyJourneyCompletion(journeyId, approved, rejectionReason = ''
     }
 
     await db.query("UPDATE journeys SET status = $1, metadata = $2 WHERE id = $3", [newStatus, JSON.stringify(metadata), journeyId]);
-    
+
     // If completed, update truck odom
     if (approved && newStatus === 'Completed' && journey.end_odom) {
         await db.query("UPDATE trucks SET odom = $1 WHERE id = $2 AND odom < $1", [journey.end_odom, journey.truck]);
@@ -358,7 +381,7 @@ async function verifyJourneyCompletion(journeyId, approved, rejectionReason = ''
 async function addPendingSubmission(driverId, type, payload) {
     const uId = await generateUId(type === 'fuel' ? 'fuel_logs' : (type === 'expense' ? 'expenses' : (type === 'incident' ? 'incidents' : 'expenses')));
     const id = Date.now().toString(36).toUpperCase() + Math.random().toString(36).substr(2, 3).toUpperCase();
-    
+
     const driverRes = await db.query("SELECT truck FROM drivers WHERE id = $1", [driverId]);
     const truckId = driverRes.rows[0]?.truck;
 
