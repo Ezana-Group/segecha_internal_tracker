@@ -126,7 +126,7 @@ export function VehicleProfile({ data, setData, dark, isMobile, openModal, maint
                                 { l: 'Distance',       v: `${totalKm.toLocaleString()} km`, c: "var(--text-primary)", i: Navigation },
                                 { l: 'Fuel Used',      v: `${totalLitres.toLocaleString()} L`, c: "var(--text-primary)", i: Fuel },
                                 { l: 'Efficiency',     v: `${avgKmPerL} km/L`, c: '#a78bfa', i: ArrowUpRight },
-                                { l: 'Max Payload',    v: `${truck.capacity} T`, c: "var(--text-primary)", i: Truck },
+                                { l: 'Max Payload',    v: `${truck.capacity} kg`, c: "var(--text-primary)", i: Truck },
                             ].map(k => (
                                 <div key={k.l} style={{ background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: 16, padding: 20 }}>
                                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
@@ -149,7 +149,7 @@ export function VehicleProfile({ data, setData, dark, isMobile, openModal, maint
                                         ['Make / Model', truck.make],
                                         ['Year of Manufacture', truck.year],
                                         ['Body Type', truck.type],
-                                        ['Payload Capacity', `${truck.capacity} T`],
+                                        ['Payload Capacity', `${truck.capacity} kg`],
                                         ['Live Odometer', `${Number(truck.odom || 0).toLocaleString()} km`],
                                         ['Assigned Operator', driverName(truck.driver)],
                                         ['KRA PIN Ref', truck.kraPin || 'Unset'],

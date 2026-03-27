@@ -422,7 +422,7 @@ export function WaybillModal({ waybillModalJourney, waybillForm, setWaybillForm,
                             mono: true,
                         })}
                         {fieldCell("Vehicle type", f.vehicleType, (v) => set("vehicleType", v))}
-                        {fieldCell("Max payload (tonnes)", f.maxPayload, (v) => set("maxPayload", v), {
+                        {fieldCell("Max payload (kg)", f.maxPayload, (v) => set("maxPayload", v), {
                             mono: true,
                         })}
                     </div>

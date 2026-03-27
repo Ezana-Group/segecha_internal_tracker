@@ -887,7 +887,7 @@ export function GlobalModals(props) {
                         </datalist>
                     </div>
 
-                    <Field label="Weight (Tonnes)" k="weight" type="number" form={form} setForm={setForm} S={S} />
+                    <Field label="Weight (kg)" k="weight" type="number" form={form} setForm={setForm} S={S} />
                     
                     <Field label="Distance (km)" k="distance" type="number" form={form} setForm={setForm} S={S} />
                     <Field label="Revenue (KES)" k="revenue" type="number" form={form} setForm={setForm} S={S} error={errors.revenue} />
@@ -1229,7 +1229,7 @@ export function GlobalModals(props) {
                         </label>
                     </div>
                     <Field label="Year" k="year" type="number" form={form} setForm={setForm} S={S} T={T} />
-                    <Field label="Capacity (tonnes)" k="capacity" type="number" form={form} setForm={setForm} S={S} T={T} error={errors.capacity} />
+                    <Field label="Capacity (kg)" k="capacity" type="number" form={form} setForm={setForm} S={S} T={T} error={errors.capacity} />
                     <Field label="Vehicle Type" k="type" options={getTruckTypes()} form={form} setForm={setForm} S={S} T={T} />
                     <Field label="Status" k="status" options={STATUSES_TRUCK} form={form} setForm={setForm} S={S} T={T} />
                     <Field label="Odometer (km)" k="odom" type="number" form={form} setForm={setForm} S={S} T={T} />

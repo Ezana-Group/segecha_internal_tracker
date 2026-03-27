@@ -227,7 +227,7 @@ table.cargo tr.totrow td { border-top: 1px solid #000;
         <div class="fv mono">${fmtLine(f.trailerReg)}</div></div>
       <div class="field"><div class="fl">Type</div>
         <div class="fv">${fmtLine(f.vehicleType)}</div></div>
-      <div class="field"><div class="fl">Max payload (t)</div>
+      <div class="field"><div class="fl">Max payload (kg)</div>
         <div class="fv mono">${fmtLine(f.maxPayload)}</div></div>
       <div class="field"><div class="fl">Driver name</div>
         <div class="fv lg">${fmtLine(f.driverName)}</div></div>

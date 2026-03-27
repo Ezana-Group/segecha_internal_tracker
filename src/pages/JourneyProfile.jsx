@@ -208,7 +208,7 @@ export function JourneyProfile({
                                         { l: 'Deployment Date', v: fmtDate(journey.date) },
                                         { l: 'Completion Date', v: fmtDate(journey.endDate) || 'Active Mission' },
                                         { l: 'Cargo Classification', v: journey.cargo || 'General Freight' },
-                                        { l: 'Payload Weight', v: `${journey.weight || '—'} T` },
+                                        { l: 'Payload Weight', v: `${journey.weight || '—'} kg` },
                                         { l: 'Waybill Number', v: journey.waybillNo || journey.waybill || 'N/A' },
                                         { l: 'KRA Booking No', v: journey.booking_no || '—' },
                                         { l: 'Operational Status', v: journey.status },
