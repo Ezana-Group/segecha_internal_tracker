@@ -40,8 +40,8 @@ export function Payroll({ data, setData, dark, isMobile, modal, form, setForm, o
 
     // Refine payroll for sorting and filtering
     const refinedPayroll = monthPayroll.map(p => {
-        const drv = data.drivers.find(d => d.id === p.driver) || (data.turnboys || []).find(t => t.id === p.driver);
-        const journeys = data.journeys.filter(j => (j.driver === p.driver || j.turnboyId === p.driver) && j.date && j.date.startsWith(selMonth) && j.status === 'Completed');
+        const drv = (data.drivers || []).find(d => d.id === p.driver) || (data.turnboys || []).find(t => t.id === p.driver);
+        const journeys = (data.journeys || []).filter(j => (j.driver === p.driver || j.turnboyId === p.driver) && j.date && j.date.startsWith(selMonth) && j.status === 'Completed');
         const calculatedMileage = journeys.reduce((s, j) => {
             if (j.driver === p.driver) return s + (j.driverMileage || 0);
             if (j.turnboyId === p.driver) return s + (j.turnboyMileage || 0);

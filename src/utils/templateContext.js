@@ -49,5 +49,9 @@ export function expandMessageTemplateContext(ctx = {}) {
     mirror("downloadUrl", "download_url");
     mirror("uploadedAt", "uploaded_at");
 
+    mirror("totalPaid", "total_paid");
+    mirror("balanceDue", "balance_due");
+    mirror("paidAmount", "paid_amount");
+
     return c;
 }

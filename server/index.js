@@ -234,7 +234,10 @@ app.use((req, res, next) => {
 
     // SPA fallback
     const indexFile = path.join(distPath, 'index.html');
-    if (existsSync(indexFile)) return res.sendFile(indexFile);
+    if (existsSync(indexFile)) {
+        res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+        return res.sendFile(indexFile);
+    }
     return res.status(404).send('Portal not found');
 });
 
@@ -1170,6 +1173,33 @@ app.post('/api/driver/save', async (req, res) => {
         res.json({ success: true });
     } catch (e) {
         console.error('DRIVER_SAVE_ERROR:', e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// Generic Admin Entity Save
+app.post('/api/admin/:table', async (req, res) => {
+    const { table } = req.params;
+    
+    // Validate table name against allowed list
+    const allowed = ['trucks', 'drivers', 'staff', 'journeys', 'fuel', 'expenses', 'incidents', 'customers', 'trailers', 'payroll', 'invoices', 'payments', 'maintenance_logs'];
+    if (!allowed.includes(table)) {
+        return res.status(400).json({ error: 'Invalid entity type: ' + table });
+    }
+
+    try {
+        await upsertEntity(table, req.body);
+        res.json({ success: true });
+    } catch (e) {
+        // Fallback for some pluralization differences between frontend collections and DB tables
+        if (e.message.includes('relation') && e.message.includes('does not exist')) {
+            try {
+                // Try plural if singular failed, or vice versa
+                const fallbackTable = table.endsWith('s') ? table.slice(0, -1) : table + 's';
+                await upsertEntity(fallbackTable, req.body);
+                return res.json({ success: true });
+            } catch (innerE) { /* ignore and throw original */ }
+        }
         res.status(500).json({ error: e.message });
     }
 });

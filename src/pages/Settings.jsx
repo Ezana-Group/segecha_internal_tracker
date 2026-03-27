@@ -1334,20 +1334,35 @@ export function Settings({
                                     <SettingsShellInput value={localS.invoicePrefix || 'INV'} onChange={e => saveSettings({ invoicePrefix: e.target.value })} />
                                 </SettingsShellField>
                                 <SettingsShellField label="Default PDF Template" sub="Choose the layout used for generating PDF invoices.">
-                                    <SettingsShellSelect 
-                                        value={localS.defaultInvoiceTemplate || ''} 
-                                        onChange={e => saveSettings({ defaultInvoiceTemplate: e.target.value })}
-                                    >
-                                        <option value="">Built-in layout (no custom template)</option>
-                                        {(data.templates || []).filter((t) => canonicalTemplateType(t.type) === "PDF").map((t) => (
-                                            <option key={t.id} value={t.id}>{t.name}</option>
-                                        ))}
-                                    </SettingsShellSelect>
+                                    <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                                        <SettingsShellSelect 
+                                            style={{ flex: 1 }}
+                                            value={localS.defaultInvoiceTemplate || ''} 
+                                            onChange={e => saveSettings({ defaultInvoiceTemplate: e.target.value })}
+                                        >
+                                            <option value="">Built-in layout (Premium)</option>
+                                            {(data.templates || []).filter((t) => canonicalTemplateType(t.type) === "PDF").map((t) => (
+                                                <option key={t.id} value={t.id}>{t.name}</option>
+                                            ))}
+                                        </SettingsShellSelect>
+                                        <Button 
+                                            variant="ghost" 
+                                            size="sm" 
+                                            onClick={() => setActiveTab('templates')}
+                                            style={{ fontSize: 11, padding: "8px 12px" }}
+                                        >
+                                            <Sparkles size={14} style={{ marginRight: 6 }} /> Manage Templates
+                                        </Button>
+                                    </div>
                                     {(data.templates || []).filter((t) => canonicalTemplateType(t.type) === "PDF").length === 0 ? (
                                         <p style={{ margin: "10px 0 0", fontSize: 12, color: "var(--text-muted)", lineHeight: 1.5 }}>
-                                            No PDF templates yet. Go to Message templates, open the PDF tab, and add one. If you still see this after refresh, reload the app once so default seed templates (including Standard PDF Invoice) can merge into your workspace.
+                                            No PDF templates yet. Go to <b>Message templates</b>, click the <b>PDF</b> tab, and add one.
                                         </p>
-                                    ) : null}
+                                    ) : (
+                                        <p style={{ margin: "10px 0 0", fontSize: 12, color: "var(--text-muted)", lineHeight: 1.5 }}>
+                                            Tip: You can customize the content of PDF templates in the <b>Message templates</b> section.
+                                        </p>
+                                    )}
                                 </SettingsShellField>
 
                                 <SettingsShellField label="Invoice/Payment Terms (Days)" sub="Grace period before invoice is marked overdue.">

@@ -47,11 +47,17 @@ export function Expenses({
     const [activeTab, setActiveTab] = useState('all');
     
     // Refine data for sorting and filtering
-    const refinedExpenses = data.expenses.map(e => ({
-        ...e,
-        _vehicle: truckReg(e.truck),
-        _amount: Number(e.amount || 0)
-    }));
+    const refinedExpenses = (data.expenses || []).map(e => {
+        const journey = e.journey ? (data.journeys || []).find(j => j.id === e.journey) : null;
+        const isProjected = journey && journey.status !== 'Completed';
+        
+        return {
+            ...e,
+            _vehicle: truckReg(e.truck),
+            _amount: Number(e.amount || 0),
+            _status: isProjected ? 'Projected' : (e.status || 'Processed')
+        };
+    });
 
     const { 
         filteredRows: sortedItems, 
@@ -316,7 +322,12 @@ export function Expenses({
                                             <td title={fmt(e.amount)}>
                                                 <div style={{ fontWeight: 900, color: "var(--text-primary)", fontSize: 15, textAlign: "right" }}>{fmt(e.amount)}</div>
                                             </td>
-                                            <td className="status-col" title="Processed"><div style={{ color: "var(--text-muted)" }}>Processed</div></td>
+                                            <td className="status-col" title={e._status}>
+                                                <Badge 
+                                                    status={e._status === 'Projected' ? 'Warning' : 'Success'} 
+                                                    text={e._status} 
+                                                />
+                                            </td>
                                             <td style={{ textAlign: "right", verticalAlign: "middle" }}>
                                                 <TableRowActions
                                                     ariaLabel={`Actions for expense ${e.id}`}

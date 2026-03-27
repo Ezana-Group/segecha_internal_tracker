@@ -30,6 +30,10 @@ export function InvoiceView({ inv, data, dark, fillTemplate }) {
     const usePdfTemplate = template && canonicalTemplateType(template.type) === "PDF" && fillTemplate;
 
     if (usePdfTemplate) {
+        const payments = (data.finance || []).filter(f => f.invoiceId === inv.id);
+        const totalPaid = payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+        const balanceAmount = (inv.amount || 0) - totalPaid;
+
         const context = {
             invoiceId: inv.id,
             customerName: inv.client || "Valued Customer",
@@ -38,6 +42,8 @@ export function InvoiceView({ inv, data, dark, fillTemplate }) {
             mpesaRef: inv.mpesaRef || "",
             customerPhone: inv.phone || "",
             businessName: s.companyName || "Segecha Group",
+            businessAddress: s.address || s.companyAddress || "",
+            businessPhone: s.phone || s.companyPhone || "",
             origin: journey?.origin || "N/A",
             destination: journey?.dest || "N/A",
             dest: journey?.dest || "N/A",
@@ -50,6 +56,11 @@ export function InvoiceView({ inv, data, dark, fillTemplate }) {
             waybillNo: journey?.waybillNo || journey?.waybillData?.waybillNo || "",
             borderPoint: journey?.waybillData?.borderPoint || "",
             today: new Date().toISOString().split("T")[0],
+            paidAmount: totalPaid.toLocaleString("en-KE"),
+            totalPaid: totalPaid.toLocaleString("en-KE"),
+            balanceAmount: balanceAmount.toLocaleString("en-KE"),
+            balanceDue: balanceAmount.toLocaleString("en-KE"),
+            paymentStatus: inv.status || "Pending",
         };
         const renderedBody = fillTemplate(template.body, context);
         
@@ -108,8 +119,8 @@ export function InvoiceView({ inv, data, dark, fillTemplate }) {
                 </div>
                 <div style={{ textAlign: "right" }}>
                     <div style={{ fontWeight: 800, fontSize: 20, color: "var(--text-primary)", marginBottom: 6 }}>{s.companyName}</div>
-                    <div style={{ fontSize: 14, color: "var(--text-secondary)", whiteSpace: "pre-line", lineHeight: 1.5 }}>{s.companyAddress || 'Nairobi, Kenya'}</div>
-                    <div style={{ fontSize: 14, color: "var(--brand-primary)", fontWeight: 600, marginTop: 4 }}>{s.companyPhone || '+254 700 000 000'}</div>
+                    <div style={{ fontSize: 14, color: "var(--text-secondary)", whiteSpace: "pre-line", lineHeight: 1.5 }}>{s.address || s.companyAddress || 'Nairobi, Kenya'}</div>
+                    <div style={{ fontSize: 14, color: "var(--brand-primary)", fontWeight: 600, marginTop: 4 }}>{s.phone || s.companyPhone || '+254 700 000 000'}</div>
                 </div>
             </div>
 
@@ -207,6 +218,43 @@ export function InvoiceView({ inv, data, dark, fillTemplate }) {
                     </div>
                 </div>
             </div>
+
+            {/* Settlement History */}
+            {inv.payments && inv.payments.length > 0 && (
+                <div style={{ marginBottom: 48, background: "rgba(255,255,255,0.01)", padding: 24, borderRadius: 20, border: "1px solid var(--border-subtle)" }}>
+                    <h4 style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.1em", color: "var(--text-muted)", marginBottom: 16 }}>Settlement History</h4>
+                    <table style={{ width: "100%", fontSize: 13 }}>
+                        <thead>
+                            <tr style={{ textAlign: "left", color: "var(--text-muted)", borderBottom: "1px solid var(--border-subtle)" }}>
+                                <th style={{ paddingBottom: 12, fontWeight: 700 }}>Date</th>
+                                <th style={{ paddingBottom: 12, fontWeight: 700 }}>Method</th>
+                                <th style={{ paddingBottom: 12, fontWeight: 700 }}>Reference</th>
+                                <th style={{ paddingBottom: 12, fontWeight: 700, textAlign: "right" }}>Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {inv.payments.map((p, idx) => (
+                                <tr key={p.id || idx} style={{ borderBottom: idx === inv.payments.length - 1 ? "none" : "1px solid var(--border-subtle)20" }}>
+                                    <td style={{ padding: "12px 0", color: "var(--text-primary)" }}>{p.date}</td>
+                                    <td style={{ padding: "12px 0", color: "var(--text-primary)" }}>{p.method}</td>
+                                    <td style={{ padding: "12px 0", color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>{p.ref || "—"}</td>
+                                    <td style={{ padding: "12px 0", textAlign: "right", fontWeight: 700, color: "#10b981" }}>KES {Number(p.amount).toLocaleString()}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                        <tfoot>
+                            <tr style={{ borderTop: "2px solid var(--border-subtle)", fontWeight: 800 }}>
+                                <td colSpan="3" style={{ paddingTop: 12, color: "var(--text-muted)" }}>Total Paid</td>
+                                <td style={{ paddingTop: 12, textAlign: "right", color: "#10b981" }}>KES {Number(inv.paidAmount || 0).toLocaleString()}</td>
+                            </tr>
+                            <tr style={{ fontWeight: 900 }}>
+                                <td colSpan="3" style={{ paddingTop: 4, color: "var(--brand-primary)" }}>Balance Outstanding</td>
+                                <td style={{ paddingTop: 4, textAlign: "right", color: "var(--brand-primary)" }}>KES {Number((inv.amount || 0) - (inv.paidAmount || 0)).toLocaleString()}</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            )}
 
             {/* Payment Info & Footer */}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", borderTop: "1px solid var(--border-subtle)", paddingTop: 32 }}>

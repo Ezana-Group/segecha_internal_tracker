@@ -72,7 +72,8 @@ export function useAppState() {
             if (res.ok) {
                 const result = await res.json();
                 if (result.success && result.data) {
-                    setData(d => ({ ...d, ...result.data }));
+                    const serverData = result.data.tables || result.data;
+                    setData(d => ({ ...d, ...serverData }));
                 }
             }
         } catch (e) {
@@ -360,8 +361,24 @@ export function useAppState() {
                     }
                 }
 
-                arr.push({ ...finalItem, id: finalItem.id || uid(), uId });
+                finalItem = { ...finalItem, id: finalItem.id || uid(), uId };
+                arr.push(finalItem);
             }
+
+            // Sync single item to server if API is available
+            if (PAYMENT_API) {
+                const token = adminAuth.getToken();
+                fetch(`${PAYMENT_API}/api/admin/${col}`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "x-admin-key": ADMIN_KEY,
+                        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                    },
+                    body: JSON.stringify(finalItem),
+                }).catch((err) => console.warn(`Sync failed for ${col}:`, err.message));
+            }
+
             return { ...d, [col]: arr };
         });
 
@@ -1306,11 +1323,11 @@ export function useAppState() {
     };
 
     // Derived helpers
-    const driverName = (id) => data.drivers.find(d => d.id === id)?.name || "—";
-    const driverPhone = (id) => data.drivers.find(d => d.id === id)?.phone || '';
-    const truckReg = (id) => data.trucks.find(t => t.id === id)?.reg || "—";
+    const driverName = (id) => (data.drivers || []).find(d => d.id === id)?.name || "—";
+    const driverPhone = (id) => (data.drivers || []).find(d => d.id === id)?.phone || '';
+    const truckReg = (id) => (data.trucks || []).find(t => t.id === id)?.reg || "—";
     const staffName = (id) => {
-        const s = data.staff.find(x => x.id === id) || data.drivers.find(x => x.id === id);
+        const s = (data.staff || []).find(x => x.id === id) || (data.drivers || []).find(x => x.id === id);
         return s?.name || "—";
     };
     const customerName = (id) => (data.customers || []).find(c => c.id === id)?.name || "—";

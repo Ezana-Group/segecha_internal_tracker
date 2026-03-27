@@ -18,15 +18,13 @@ const FuelPhotoField = ({ label, k, form, setForm, S, T }) => {
         if (!file) return;
         setUploading(true);
         const formData = new FormData();
-        formData.append("file", file); // Backend expects 'file'
+        formData.append("file", file);
         formData.append("adminKey", ADMIN_KEY);
         formData.append("folder", "fuel_photos_admin");
         try {
-            const res = await fetch(`${PAYMENT_API}/api/admin/upload`, { // Use admin endpoint
+            const res = await fetch(`${PAYMENT_API}/api/admin/upload`, {
                 method: "POST",
-                headers: {
-                    "x-admin-key": ADMIN_KEY
-                },
+                headers: { "x-admin-key": ADMIN_KEY },
                 body: formData,
             });
             const d = await res.json();
@@ -40,49 +38,64 @@ const FuelPhotoField = ({ label, k, form, setForm, S, T }) => {
         }
     };
 
-    const onDrop = (e) => {
-        e.preventDefault();
-        setDragging(false);
-        if (e.dataTransfer.files[0]) handleUpload(e.dataTransfer.files[0]);
-    };
+    const isUploaded = !!photoUrl;
+    const statusLabel = isUploaded ? "UPLOADED" : "REQUIRED";
+    const statusColor = isUploaded ? "#10b981" : "#3b82f6";
 
     return (
-        <div style={S.fg}>
-            <label style={S.lbl}>
-                {label}{" "}
-                <span style={{ fontWeight: 600, color: photoUrl ? "#10b981" : "var(--text-dim)" }}>
-                    {photoUrl ? "(uploaded)" : "(required)"}
-                </span>
-            </label>
+        <div style={{ ...S.fg, minWidth: 0 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <label style={{ ...S.lbl, fontSize: 10, margin: 0 }}>{label.toUpperCase()}</label>
+                <span style={{ fontSize: 10, fontWeight: 800, color: statusColor }}>({statusLabel})</span>
+            </div>
+            
             <div 
                 style={{ 
-                    display: 'flex', gap: 10, alignItems: 'center',
-                    border: dragging ? "2px dashed var(--brand-primary)" : "2px dashed transparent",
+                    background: 'var(--surface-subtle)',
+                    border: dragging ? "2px dashed var(--brand-primary)" : `1px solid ${T.border2}`,
                     borderRadius: 12,
-                    padding: dragging ? 8 : 0,
-                    transition: "all 0.2s ease"
+                    padding: 16,
+                    height: 100,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    transition: "all 0.2s ease",
+                    position: 'relative',
+                    overflow: 'hidden'
                 }}
                 onDragOver={e => { e.preventDefault(); setDragging(true); }}
                 onDragLeave={() => setDragging(false)}
-                onDrop={onDrop}
+                onDrop={(e) => { e.preventDefault(); setDragging(false); if (e.dataTransfer.files[0]) handleUpload(e.dataTransfer.files[0]); }}
             >
-                <label style={{ ...S.btn(photoUrl ? 'ghost' : 'primary'), fontSize: 11, padding: '6px 12px', cursor: 'pointer', flex: 1, textAlign: 'center' }}>
-                    {uploading ? "Uploading…" : photoUrl ? "Change photo" : "Upload photo"}
-                    <input type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={handleUpload} disabled={uploading} />
-                </label>
-                {photoUrl && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <a href={photoUrl} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>
-                            <div style={{ width: 32, height: 32, borderRadius: 6, background: `url(${photoUrl}) center/cover no-repeat`, border: `1px solid ${T.border2}` }} />
-                        </a>
-                        <button 
-                            type="button"
-                            onClick={() => setForm(f => ({ ...f, [k]: '' }))}
-                            style={{ border: "none", background: "none", color: "#ef4444", fontSize: 11, fontWeight: 800, cursor: "pointer", padding: "4px 8px" }}
-                        >
-                            Remove
-                        </button>
+                {uploading ? (
+                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-dim)' }}>Uploading...</div>
+                ) : isUploaded ? (
+                    <div style={{ display: 'flex', width: '100%', alignItems: 'center', gap: 12 }}>
+                        <div style={{ flex: 1 }}>
+                            <label style={{ ...S.btn('ghost'), fontSize: 10, padding: '6px 10px', width: '100%', cursor: 'pointer', textAlign: 'center', display: 'block', border: `1px solid ${T.border2}` }}>
+                                Change photo
+                                <input type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={handleUpload} />
+                            </label>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <a href={photoUrl} target="_blank" rel="noreferrer">
+                                <div style={{ width: 44, height: 44, borderRadius: 8, background: `url(${photoUrl}) center/cover no-repeat`, border: `1px solid ${T.border2}`, boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }} />
+                            </a>
+                            <button 
+                                type="button"
+                                onClick={() => setForm(f => ({ ...f, [k]: '' }))}
+                                style={{ border: "none", background: "none", color: "#ef4444", fontSize: 10, fontWeight: 800, cursor: "pointer", padding: "4px" }}
+                            >
+                                Remove
+                            </button>
+                        </div>
                     </div>
+                ) : (
+                    <label style={{ ...S.btn('primary'), fontSize: 11, padding: '10px 16px', cursor: 'pointer', width: '100%', textAlign: 'center' }}>
+                        Upload photo
+                        <input type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={handleUpload} />
+                    </label>
                 )}
             </div>
         </div>
@@ -608,8 +621,10 @@ export function GlobalModals(props) {
             // Road User Allowance calculation
             let rua = 0;
             if (isReturning) {
-                // Return road user allowance should be used if explicitly defined (even if 0)
-                rua = (_S.roadUserAllowanceReturn ?? _S.roadUserAllowance ?? 0);
+                // If explicitly defined as 0 or more, use it. Otherwise fall back to standard.
+                rua = (typeof _S.roadUserAllowanceReturn === 'number') 
+                    ? _S.roadUserAllowanceReturn 
+                    : (_S.roadUserAllowance ?? 0);
             } else {
                 rua = (_S.roadUserAllowance ?? 0);
             }
