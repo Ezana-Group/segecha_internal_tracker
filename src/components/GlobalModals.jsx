@@ -18,10 +18,11 @@ const FuelPhotoField = ({ label, k, form, setForm, S, T }) => {
         if (!file) return;
         setUploading(true);
         const formData = new FormData();
-        formData.append("photo", file);
+        formData.append("file", file); // Backend expects 'file'
         formData.append("adminKey", ADMIN_KEY);
+        formData.append("folder", "fuel_photos_admin");
         try {
-            const res = await fetch(`${PAYMENT_API}/api/driver/upload`, {
+            const res = await fetch(`${PAYMENT_API}/api/admin/upload`, { // Use admin endpoint
                 method: "POST",
                 headers: {
                     "x-admin-key": ADMIN_KEY
@@ -1175,7 +1176,13 @@ export function GlobalModals(props) {
                                     try {
                                         const fd = new FormData();
                                         fd.append('file', file);
-                                        const res = await fetch(`${PAYMENT_API}/api/driver/upload`, { method: 'POST', body: fd });
+                                        fd.append('adminKey', ADMIN_KEY);
+                                        fd.append('folder', 'maintenance_receipts_admin');
+                                        const res = await fetch(`${PAYMENT_API}/api/admin/upload`, { 
+                                            method: 'POST', 
+                                            headers: { 'x-admin-key': ADMIN_KEY },
+                                            body: fd 
+                                        });
                                         const result = await res.json();
                                         if (result.success) setForm(f => ({ ...f, receiptUrl: result.url, receiptUploading: false }));
                                         else { alert(result.error); setForm(f => ({ ...f, receiptUploading: false })); }
