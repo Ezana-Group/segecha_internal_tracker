@@ -1,22 +1,68 @@
-const fs = require('fs');
-const path = require('path');
+const db = require('./db');
 
-const DATA_PATH = path.join(__dirname, 'tracker-data.json');
+/**
+ * Common upsert logic for PostgreSQL. 
+ * Replaces writeTrackerData for individual entities.
+ */
+async function upsertEntity(table, item) {
+    if (!item || !item.id) throw new Error('Item ID is required for upsert');
+    
+    // 1. Get existing columns for this table
+    const colRes = await db.query(
+        "SELECT column_name FROM information_schema.columns WHERE table_name = $1",
+        [table]
+    );
+    const validCols = colRes.rows.map(r => r.column_name);
+    if (validCols.length === 0) throw new Error(`Table ${table} not found`);
 
-function readTrackerData() {
-    try {
-        return JSON.parse(fs.readFileSync(DATA_PATH, 'utf8'));
-    } catch {
-        // Return empty structure if no data file yet
-        return { trucks: [], drivers: [], journeys: [], fuel: [], expenses: [], incidents: [], invoices: [], payroll: [] };
+    const finalData = {};
+    const metadata = item.metadata || {};
+
+    Object.entries(item).forEach(([k, v]) => {
+        if (['created_at', 'updated_at', '_type', '_Salary', '_contact', '_joined'].includes(k)) return;
+        
+        let dbKey = k;
+        // Basic mapping for common driver-portal keys to DB columns
+        if (k === 'expiryDate') dbKey = 'expiry_date';
+        else if (k === 'customerId') dbKey = 'customer_id';
+        else if (k === 'deliveryCustomerId') dbKey = 'delivery_customer_id';
+        else if (k === 'journeyId') dbKey = 'journey_id';
+        else if (k === 'truckId') dbKey = 'truck_id';
+        else if (k === 'driverId') dbKey = 'driver_id';
+
+        if (validCols.includes(dbKey)) {
+            finalData[dbKey] = v;
+        } else if (k !== 'metadata') {
+            metadata[k] = v;
+        }
+    });
+
+    if (validCols.includes('metadata')) {
+        finalData.metadata = metadata;
     }
+
+    const keys = Object.keys(finalData);
+    const values = Object.values(finalData).map(v => 
+        (typeof v === 'object' && v !== null) ? JSON.stringify(v) : v
+    );
+    
+    const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
+    const updates = keys.map((k, i) => k === 'id' ? null : `${k} = EXCLUDED.${k}`).filter(Boolean).join(', ');
+
+    const query = `
+        INSERT INTO ${table} (${keys.join(', ')})
+        VALUES (${placeholders})
+        ON CONFLICT (id) DO UPDATE SET ${updates}
+    `;
+    
+    return db.query(query, values);
 }
 
 /**
- * Generate a sequential uId like "FUL-011" for a given collection.
- * Mirrors the admin-side logic in useAppState.js.
+ * Generate a sequential uId like "FUL-011".
+ * Now queries the DB for the count.
  */
-function generateUId(data, collection) {
+async function generateUId(collection) {
     const prefixes = {
         trucks: 'TRK-',
         drivers: 'DRV-',
@@ -30,88 +76,102 @@ function generateUId(data, collection) {
         journeys: 'J',
         incidents: 'INC-',
     };
-    // Read custom prefixes from profilePermissions/settings if available
-    const settings = data.settings || {};
-    const prefix = settings[collection + 'IdPrefix'] || prefixes[collection] || '';
+    
+    const prefix = prefixes[collection] || '';
     if (!prefix) return '';
-    const arr = data[collection] || [];
-    const count = arr.length + 1;
+
+    // Count rows in the table to determine the next ID
+    // Note: This is a simple counter, for absolute uniqueness in high concurrency 
+    // we would use a DB sequence, but this matches the existing logic.
+    const res = await db.query(`SELECT COUNT(*) FROM ${collection}`);
+    const count = parseInt(res.rows[0].count) + 1;
     return prefix + String(count).padStart(3, '0');
 }
 
-function writeTrackerData(data) {
-    fs.writeFileSync(DATA_PATH, JSON.stringify(data, null, 2));
-}
+/**
+ * Enriches basic journey data with related names (Customer, Driver etc.) for the portal UI.
+ */
+function enrichJourneyForPortal(j, customers = [], trailers = [], drivers = []) {
+    const trailer = j.trailer && trailers.find((t) => t.id === j.trailer);
+    const trailerReg = trailer?.reg || "";
+    
+    const cust = customers.find((c) => c.id === j.customer_id || c.id === j.customerId);
+    const del = customers.find((c) => c.id === j.delivery_customer_id || c.id === j.deliveryCustomerId);
+    const drv = drivers.find((d) => d.id === j.driver);
 
-function enrichJourneyForPortal(j, data) {
-    const turnboyName =
-        j.turnboyName ||
-        (j.turnboyId && (data.turnboys || []).find((t) => t.id === j.turnboyId)?.name) ||
-        "";
-    const trailerReg = j.trailer && (data.trailers || []).find((t) => t.id === j.trailer)?.reg;
-    const cust = (data.customers || []).find((c) => c.id === j.customerId);
-    const del = (data.customers || []).find((c) => c.id === j.deliveryCustomerId);
-    const drv = (data.drivers || []).find((d) => d.id === j.driver);
     return {
         ...j,
+        customerId: j.customer_id || j.customerId,
+        deliveryCustomerId: j.delivery_customer_id || j.deliveryCustomerId,
         _driverPhone: drv?.phone || '',
-        _turnboyDisplay: turnboyName,
-        _trailerReg: trailerReg || "",
+        _trailerReg: trailerReg,
         _billingCustomerName: cust?.name || "",
         _deliveryCustomerName: del?.name || "",
     };
 }
 
-function getDriverData(driverId, settings = {}) {
-    const data = readTrackerData();
+async function getDriverData(driverId) {
+    // 1. Fetch all required data in parallel
+    const [
+        driverRes,
+        trucksRes,
+        journeysRes,
+        fuelRes,
+        expensesRes,
+        incidentsRes,
+        customersRes,
+        trailersRes,
+        payrollRes,
+        settingsRes
+    ] = await Promise.all([
+        db.query("SELECT * FROM drivers WHERE id = $1", [driverId]),
+        db.query("SELECT * FROM trucks"),
+        db.query("SELECT * FROM journeys WHERE driver = $1", [driverId]),
+        db.query("SELECT * FROM fuel_logs WHERE (_submitted_by = $1 OR driver = $1)", [driverId]),
+        db.query("SELECT * FROM expenses WHERE (truck_id IN (SELECT id FROM trucks WHERE driver_id = $1) OR driver_id = $1 OR _submitted_by = $1)", [driverId]),
+        db.query("SELECT * FROM incidents WHERE (driver_id = $1 OR driver = $1)", [driverId]),
+        db.query("SELECT * FROM customers"),
+        db.query("SELECT * FROM trailers"),
+        db.query("SELECT * FROM payroll WHERE driver = $1", [driverId]),
+        db.query("SELECT * FROM system_settings")
+    ]);
 
-    const driver = data.drivers.find(d => d.id === driverId);
+    const driver = driverRes.rows[0];
     if (!driver) return null;
 
-    const truck = driver.truck ? data.trucks.find(t => t.id === driver.truck) : null;
+    const trucks = trucksRes.rows;
+    const journeys = journeysRes.rows.sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+    const fuel = fuelRes.rows.sort((a, b) => (b.date || "").localeCompare(a.date || "")).slice(0, 20);
+    const expenses = expensesRes.rows.sort((a, b) => (b.date || "").localeCompare(a.date || "")).slice(0, 20);
+    const incidents = incidentsRes.rows.sort((a, b) => (b.created_at || "").localeCompare(a.created_at || "")).slice(0, 20);
+    const customers = customersRes.rows;
+    const trailers = trailersRes.rows;
+    const payroll = payrollRes.rows.sort((a, b) => (b.month || "").localeCompare(a.month || ""));
+    
+    const settings = {};
+    settingsRes.rows.forEach(r => settings[r.key] = r.value);
 
-    const journeys = data.journeys
-        .filter(j => j.driver === driverId)
-        .sort((a, b) => b.date.localeCompare(a.date));
+    const truck = driver.truck ? trucks.find(t => t.id === driver.truck) : null;
 
+    const ACTIVE_STATUSES = ['Loading', 'Approved', 'In Transit', 'Awaiting Start Verification', 'Awaiting Verification'];
+    
     const activeJourneys = journeys
-        .filter(j => ['Loading', 'Approved', 'In Transit', 'Awaiting Start Verification', 'Awaiting Verification'].includes(j.status))
-        .map(j => enrichJourneyForPortal(j, data));
+        .filter(j => ACTIVE_STATUSES.includes(j.status))
+        .map(j => enrichJourneyForPortal(j, customers, trailers, [driver]));
+
     const completedJourneys = journeys
         .filter(j => j.status === 'Completed')
-        .map(j => enrichJourneyForPortal(j, data));
+        .map(j => enrichJourneyForPortal(j, customers, trailers, [driver]));
 
-    const fuelEntries = data.fuel
-        .filter(f => f._submittedBy === driverId || f.driver === driverId)
-        .sort((a, b) => b.date.localeCompare(a.date))
-        .slice(0, 20);
-
-    const payslips = data.payroll
-        .filter(p => p.driver === driverId)
-        .sort((a, b) => b.month.localeCompare(a.month));
-
-    // Total expense history for this truck/driver
-    const expenseEntries = (data.expenses || [])
-        .filter(e => e.truck === driver.truck || e.driver === driverId || e._submittedBy === driverId)
-        .sort((a, b) => b.date.localeCompare(a.date))
-        .slice(0, 20);
-
-    // Incident history for this driver
-    const incidentEntries = (data.incidents || [])
-        .filter(i => i.driverId === driverId || i.driver === driverId)
-        .sort((a, b) => (b.createdAt || b.date).localeCompare(a.createdAt || a.date))
-        .slice(0, 20);
-
-    // Maintenance history for this truck (subset of expenses)
-    const maintenanceHistory = expenseEntries
-        .filter(e => e.cat === 'Maintenance');
-
-    // Tyre status calculation
+    // Tyre status
     let tyreInfo = null;
     if (truck) {
-        const kmSince = truck.odom - truck.tyreOdom;
-        const remaining = truck.tyreLimit - kmSince;
-        const pct = Math.min(100, (kmSince / truck.tyreLimit) * 100);
+        const odom = Number(truck.odom || 0);
+        const tyreOdom = Number(truck.tyre_odom || 0);
+        const tyreLimit = Number(truck.tyre_limit || 40000);
+        const kmSince = odom - tyreOdom;
+        const remaining = tyreLimit - kmSince;
+        const pct = Math.min(100, (kmSince / tyreLimit) * 100);
         tyreInfo = {
             kmSinceChange: kmSince,
             remaining,
@@ -120,564 +180,255 @@ function getDriverData(driverId, settings = {}) {
         };
     }
 
-    const customers = (data.customers || []).map((c) => ({
-        id: c.id,
-        name: c.name,
-        phone: c.phone || '',
-        email: c.email || '',
-        type: c.type || 'Individual',
-    }));
-
     return {
         driver,
         truck,
         tyreInfo,
         activeJourneys,
         completedJourneys,
-        fuelEntries,
-        expenseEntries,
-        incidentEntries,
-        maintenanceHistory,
-        payslips,
-        customers,
-        profilePermissions: data.profilePermissions || null,
-        settings: settings || {},
+        fuelEntries: fuel,
+        expenseEntries: expenses,
+        incidentEntries: incidents,
+        maintenanceHistory: expenses.filter(e => e.cat === 'Maintenance'),
+        payslips: payroll,
+        customers: customers.map(c => ({ id: c.id, name: c.name, phone: c.phone || '', email: c.email || '', type: c.type || 'Individual' })),
+        settings
     };
 }
 
-function updateJourneyPartyCustomers(driverId, journeyId, body = {}) {
-    const data = readTrackerData();
-    const journey = data.journeys.find((j) => j.id === journeyId && j.driver === driverId);
-    if (!journey) return { success: false, error: 'Journey not found or not assigned to you' };
-    const driver = data.drivers.find((d) => d.id === driverId);
-    if (
-        driver?.lockVehicleAssignment &&
-        journey.truck &&
-        driver.truck &&
-        journey.truck !== driver.truck
-    ) {
-        return {
-            success: false,
-            error: 'This trip is on a different vehicle than your office assignment. Contact the office.',
-        };
-    }
-    if (journey.status !== 'Loading') {
-        return { success: false, error: 'Customers can only be set while the trip is waiting to start' };
-    }
+async function updateJourneyPartyCustomers(driverId, journeyId, body = {}) {
+    const [journeyRes, customersRes] = await Promise.all([
+        db.query("SELECT * FROM journeys WHERE id = $1 AND driver = $2", [journeyId, driverId]),
+        db.query("SELECT * FROM customers")
+    ]);
+    
+    const journey = journeyRes.rows[0];
+    if (!journey) return { success: false, error: 'Journey not found' };
+    if (journey.status !== 'Loading') return { success: false, error: 'Customers can only be set while trip is Loading' };
 
-    data.customers = data.customers || [];
+    let billingId = body.customerId;
+    let deliveryId = body.deliveryCustomerId;
 
-    const addNew = (obj) => {
-        if (!obj || !String(obj.name || '').trim()) return null;
-        const normalizedName = String(obj.name).trim().toLowerCase();
-        const existing = data.customers.find(c => c.name.trim().toLowerCase() === normalizedName);
-        if (existing) return existing.id;
-        
-        const id =
-            'C' +
-            Date.now().toString(36).toUpperCase() +
-            Math.random().toString(36).slice(2, 5).toUpperCase();
-        const type = obj.type === 'Company' ? 'Company' : 'Individual';
-        const email = obj.email != null ? String(obj.email).trim() : '';
-        data.customers.push({
+    // Helper to add new customer
+    const addNew = async (obj) => {
+        if (!obj || !obj.name) return null;
+        const uId = await generateUId('customers');
+        const id = 'CST-' + Date.now().toString(36).toUpperCase();
+        await upsertEntity('customers', {
             id,
-            uId: generateUId(data, 'customers'),
-            name: String(obj.name).trim(),
-            phone: String(obj.phone || '').trim(),
-            email,
-            type,
-            status: 'Active',
+            uId,
+            name: obj.name,
+            phone: obj.phone || '',
+            email: obj.email || '',
+            type: obj.type || 'Individual',
+            status: 'Active'
         });
         return id;
     };
 
-    let billingId = body.customerId && String(body.customerId).trim();
-    let deliveryId = body.deliveryCustomerId && String(body.deliveryCustomerId).trim();
+    if (!billingId && body.newBillingCustomer) billingId = await addNew(body.newBillingCustomer);
+    if (!deliveryId && body.newDeliveryCustomer) deliveryId = await addNew(body.newDeliveryCustomer);
 
-    const billingType = body.billingType || body.newBillingCustomer?.type || 'Individual';
-    const deliveryType = body.deliveryType || body.newDeliveryCustomer?.type || 'Individual';
-    const billingEmail = body.billingEmail || body.newBillingCustomer?.email || '';
-    const deliveryEmail = body.deliveryEmail || body.newDeliveryCustomer?.email || '';
+    if (!billingId || !deliveryId) return { success: false, error: 'Both customers required' };
 
-    // Enforce email rules for companies
-    if (String(billingType) === 'Company' && !String(billingEmail).trim()) {
-        return { success: false, error: 'Billing customer email is required for companies' };
-    }
-    if (String(deliveryType) === 'Company' && !String(deliveryEmail).trim()) {
-        return { success: false, error: 'Delivery customer email is required for companies' };
-    }
-
-    if (!billingId && body.newBillingCustomer) billingId = addNew({ ...body.newBillingCustomer, type: billingType });
-    if (!deliveryId && body.newDeliveryCustomer) deliveryId = addNew({ ...body.newDeliveryCustomer, type: deliveryType });
-
-    if (!billingId || !deliveryId) {
-        return { success: false, error: 'Choose or create both billing and delivery customers' };
-    }
-
-    if (!data.customers.some((c) => c.id === billingId)) {
-        return { success: false, error: 'Billing customer not found' };
-    }
-    if (!data.customers.some((c) => c.id === deliveryId)) {
-        return { success: false, error: 'Delivery customer not found' };
-    }
-
-    // If driver provided email/type edits, persist them to existing customer records.
-    if (billingId && (body.billingEmail != null || body.billingType != null)) {
-        const c = data.customers.find((x) => x.id === billingId);
-        if (c) {
-            if (body.billingType != null) c.type = String(body.billingType) === 'Company' ? 'Company' : 'Individual';
-            if (body.billingEmail != null) c.email = String(body.billingEmail).trim();
-        }
-    }
-    if (deliveryId && (body.deliveryEmail != null || body.deliveryType != null)) {
-        const c = data.customers.find((x) => x.id === deliveryId);
-        if (c) {
-            if (body.deliveryType != null) c.type = String(body.deliveryType) === 'Company' ? 'Company' : 'Individual';
-            if (body.deliveryEmail != null) c.email = String(body.deliveryEmail).trim();
-        }
-    }
-
-    journey.customerId = billingId;
-    journey.deliveryCustomerId = deliveryId;
-    writeTrackerData(data);
-    return { success: true, journey: enrichJourneyForPortal(journey, data) };
+    await db.query("UPDATE journeys SET customer_id = $1, delivery_customer_id = $2 WHERE id = $3", [billingId, deliveryId, journeyId]);
+    
+    // Refresh and return
+    const updated = (await db.query("SELECT * FROM journeys WHERE id = $1", [journeyId])).rows[0];
+    return { success: true, journey: enrichJourneyForPortal(updated, customersRes.rows) };
 }
 
-function createJourneyStartRequest(driverId, payload = {}) {
-    const data = readTrackerData();
-    const driver = data.drivers.find((d) => d.id === driverId);
-    if (!driver) return { success: false, error: 'Driver not found' };
-    const truck = driver.truck && String(driver.truck).trim();
-    if (!truck) return { success: false, error: 'No vehicle assigned — contact the office' };
+async function createJourneyStartRequest(driverId, payload = {}) {
+    const driverRes = await db.query("SELECT * FROM drivers WHERE id = $1", [driverId]);
+    const driver = driverRes.rows[0];
+    if (!driver || !driver.truck) return { success: false, error: 'No vehicle assigned' };
 
-    const existingActives = activeJourneysForDriver(data, driverId);
-    if (existingActives.length > 0) {
-        const s = existingActives.map((j) => `${j.id} (${j.status})`).join(', ');
-        return { success: false, error: `Finish your previous trip first. Open trip(s): ${s}` };
-    }
+    const activeRes = await db.query("SELECT id FROM journeys WHERE driver = $1 AND status IN ('Loading', 'Approved', 'In Transit', 'Awaiting Start Verification', 'Awaiting Verification')", [driverId]);
+    if (activeRes.rows.length > 0) return { success: false, error: 'Finish your previous trip first' };
 
-    const uid = () => Date.now().toString(36).toUpperCase() + Math.random().toString(36).substr(2, 3).toUpperCase();
-    const journeyId = uid();
-    const date = payload.date || new Date().toISOString().split('T')[0];
-
-    // Create a placeholder journey record in Loading so we can re-use the existing
-    // customer-assignment logic and then transition to Awaiting Start Verification.
-    const journeyUId = generateUId(data, 'journeys');
-    data.journeys.push({
-        id: journeyId,
-        uId: journeyUId,
+    const id = Date.now().toString(36).toUpperCase() + Math.random().toString(36).substr(2, 3).toUpperCase();
+    const uId = await generateUId('journeys');
+    
+    const journey = {
+        id,
+        uId,
         driver: driverId,
-        truck,
-        trailer: payload.trailer || '',
+        truck: driver.truck,
         origin: payload.origin || '',
         dest: payload.dest || '',
         cargo: payload.cargo || '',
-        weight: payload.weight != null && payload.weight !== '' ? +payload.weight : '',
-        notes: payload.notes || '',
-        date,
+        weight: payload.weight || 0,
+        date: payload.date || new Date().toISOString().split('T')[0],
         status: 'Loading',
-        customerId: '',
-        deliveryCustomerId: '',
-        startOdom: null,
-        startOdomPhotoUrl: null,
-        startedAt: null,
-        waybillNo: null,
-        waybillGenerated: false,
-        waybillData: null,
-    });
-
-    writeTrackerData(data);
-
-    // 1) Save customers (billing + delivery) to the new journey
-    const customersResult = updateJourneyPartyCustomers(driverId, journeyId, payload);
-    if (!customersResult.success) return customersResult;
-
-    // 2) Move it to office start-verification with required odometer proof.
-    const startResult = updateJourneyStatus(driverId, journeyId, 'Awaiting Start Verification', {
-        origin: payload.origin,
-        dest: payload.dest,
-        cargo: payload.cargo,
-        weight: payload.weight,
-        notes: payload.notes,
-        startOdom: payload.startOdom,
-        startOdomPhotoUrl: payload.startOdomPhotoUrl,
-    });
-    return startResult;
-}
-
-function createJourneyStartPlaceholder(driverId, payload = {}) {
-    const data = readTrackerData();
-    const driver = data.drivers.find((d) => d.id === driverId);
-    if (!driver) return { success: false, error: 'Driver not found' };
-    const truck = driver.truck && String(driver.truck).trim();
-    if (!truck) return { success: false, error: 'No vehicle assigned — contact the office' };
-
-    const existingActives = activeJourneysForDriver(data, driverId);
-    if (existingActives.length > 0) {
-        const s = existingActives.map((j) => `${j.id} (${j.status})`).join(', ');
-        return { success: false, error: `Finish your previous trip first. Open trip(s): ${s}` };
-    }
-
-    const uid = () => Date.now().toString(36).toUpperCase() + Math.random().toString(36).substr(2, 3).toUpperCase();
-    const journeyId = uid();
-    const date = payload.date || new Date().toISOString().split('T')[0];
-
-    data.journeys.push({
-        id: journeyId,
-        driver: driverId,
-        truck,
-        trailer: payload.trailer || '',
-        origin: payload.origin || '',
-        dest: payload.dest || '',
-        cargo: payload.cargo || '',
-        weight: payload.weight != null && payload.weight !== '' ? +payload.weight : '',
-        notes: payload.notes || '',
-        date,
-        status: 'Loading',
-        customerId: '',
-        deliveryCustomerId: '',
-        startOdom: null,
-        startOdomPhotoUrl: null,
-        startedAt: null,
-        waybillNo: null,
-        waybillGenerated: false,
-        waybillData: null,
-    });
-
-    writeTrackerData(data);
-    // Return enriched view for display in driver portal.
-    return { success: true, journey: enrichJourneyForPortal(data.journeys.find(j => j.id === journeyId), data) };
-}
-
-function otherActiveJourneys(data, driverId, excludeJourneyId) {
-    return (data.journeys || []).filter(
-        (j) =>
-            j.driver === driverId &&
-            j.id !== excludeJourneyId &&
-            !['Completed', 'Cancelled'].includes(j.status)
-    );
-}
-
-const ACTIVE_JOURNEY_STATUSES = ['Loading', 'Approved', 'In Transit', 'Awaiting Start Verification', 'Awaiting Verification'];
-
-function activeJourneysForDriver(data, driverId) {
-    return (data.journeys || []).filter(
-        (j) => j.driver === driverId && ACTIVE_JOURNEY_STATUSES.includes(j.status)
-    );
-}
-
-/**
- * Server-side guard: resolve truck from driver record, reject tampered truck in body,
- * validate optional journey belongs to driver and matches assignment rules.
- */
-function validateDriverSubmission(driverId, payload = {}) {
-    const data = readTrackerData();
-    const driver = data.drivers.find((d) => d.id === driverId);
-    if (!driver) return { success: false, error: 'Driver not found' };
-
-    const assignedTruck = driver.truck && String(driver.truck).trim();
-    if (!assignedTruck) {
-        return { success: false, error: 'No vehicle assigned — contact the office' };
-    }
-
-    const clientTruck = payload.truck != null && String(payload.truck).trim();
-    if (clientTruck && clientTruck !== assignedTruck) {
-        const msg = driver.lockVehicleAssignment
-            ? 'Vehicle is locked to your office assignment — cannot use a different truck'
-            : 'Truck must match your assigned vehicle';
-        return { success: false, error: msg };
-    }
-
-    let journeyId = payload.journey != null ? String(payload.journey).trim() : '';
-    const actives = activeJourneysForDriver(data, driverId);
-
-    if (journeyId) {
-        const j = data.journeys.find((x) => x.id === journeyId);
-        if (!j || j.driver !== driverId) {
-            return { success: false, error: 'Trip not found or not assigned to you' };
+        start_odom: payload.startOdom || null,
+        metadata: {
+            notes: payload.notes || '',
+            startOdomPhotoUrl: payload.startOdomPhotoUrl || ''
         }
-        if (!ACTIVE_JOURNEY_STATUSES.includes(j.status)) {
-            return { success: false, error: 'That trip is finished — choose an active trip or leave trip blank' };
-        }
-        if (j.truck && j.truck !== assignedTruck) {
-            return { success: false, error: 'That trip is not on your assigned vehicle — contact the office' };
-        }
-    } else if (actives.length === 1) {
-        journeyId = actives[0].id;
-    }
-
-    return { success: true, truck: assignedTruck, journey: journeyId };
-}
-
-function updateJourneyStatus(driverId, journeyId, newStatus, extras = {}) {
-    const data = readTrackerData();
-    const journey = data.journeys.find(j => j.id === journeyId && j.driver === driverId);
-    if (!journey) return { success: false, error: 'Journey not found or not assigned to you' };
-
-    const driver = data.drivers.find((d) => d.id === driverId);
-    if (
-        driver?.lockVehicleAssignment &&
-        journey.truck &&
-        driver.truck &&
-        journey.truck !== driver.truck
-    ) {
-        return {
-            success: false,
-            error: 'This trip is on a different vehicle than your office assignment. Contact the office.',
-        };
-    }
-
-    // Cannot submit a new start request while another trip is still open
-    if (newStatus === 'Awaiting Start Verification' && journey.status === 'Loading') {
-        const others = otherActiveJourneys(data, driverId, journeyId);
-        if (others.length > 0) {
-            const s = others.map((j) => `${j.id} (${j.status})`).join(', ');
-            return {
-                success: false,
-                error: `Finish your previous trip first (office must approve completion). Open trip(s): ${s}`,
-            };
-        }
-        if (!journey.customerId || !journey.deliveryCustomerId) {
-            return {
-                success: false,
-                error:
-                    'Billing customer and delivery customer must be set before you start. Add them below or ask the office.',
-            };
-        }
-    }
-
-    // Valid driver-initiated transitions only
-    const validDriverTransitions = {
-        'Loading': ['Awaiting Start Verification'],
-        'Approved': ['Loading', 'In Transit'],
-        'In Transit': ['Awaiting Verification'],
-        // Drivers cannot set Completed — only admin can do that
     };
 
-    if (!validDriverTransitions[journey.status]?.includes(newStatus)) {
-        return {
-            success: false,
-            error: journey.status === 'Awaiting Verification'
-                ? 'This trip is waiting for office verification. You cannot make changes until it is reviewed.'
-                : `Cannot change status from ${journey.status} to ${newStatus}`,
-        };
+    await upsertEntity('journeys', journey);
+    
+    // If customers are in payload, update them
+    if (payload.customerId || payload.newBillingCustomer) {
+        await updateJourneyPartyCustomers(driverId, id, payload);
     }
 
-    // For Awaiting Start Verification: require start odometer + photo
-    if (newStatus === 'Awaiting Start Verification') {
-        // Driver may fill missing trip details during loading before requesting office approval.
-        if (extras.origin != null) journey.origin = String(extras.origin).trim();
-        if (extras.dest != null) journey.dest = String(extras.dest).trim();
-        if (extras.cargo != null) journey.cargo = String(extras.cargo).trim();
-        if (extras.weight != null && extras.weight !== '') journey.weight = +extras.weight;
-        if (extras.notes != null) journey.notes = String(extras.notes).trim();
-
-        if (!extras.startOdom) return { success: false, error: 'Start odometer reading is required' };
-        if (!extras.startOdomPhotoUrl) return { success: false, error: 'Start odometer photo is required' };
-        journey.startOdom = +extras.startOdom;
-        journey.startOdomPhotoUrl = extras.startOdomPhotoUrl;
-        journey.submittedStartForVerificationAt = new Date().toISOString();
-        journey._pendingStartVerification = true;
-        journey._rejectionReason = null; // clear any previous rejection
+    // Transition to Awaiting Start Verification if odom is provided
+    if (payload.startOdom && payload.startOdomPhotoUrl) {
+        await db.query("UPDATE journeys SET status = 'Awaiting Start Verification' WHERE id = $1", [id]);
     }
 
-    // For Awaiting Verification: require end odometer + photo + delivery proof
-    if (newStatus === 'Awaiting Verification') {
-        if (!extras.endOdom) return { success: false, error: 'End odometer reading is required before submitting for verification' };
-        if (!extras.endOdomPhotoUrl) return { success: false, error: 'End odometer photo is required before submitting for verification' };
-        if (!extras.deliveryProofUrl) return { success: false, error: 'Delivery proof photo is required before submitting for verification' };
-
-        journey.endOdom = +extras.endOdom;
-        journey.endOdomPhotoUrl = extras.endOdomPhotoUrl;
-        journey.deliveryProofUrl = extras.deliveryProofUrl;
-        journey.submittedForVerificationAt = new Date().toISOString();
-        journey._pendingVerification = true;
-        journey._rejectionReason = null; // clear any previous rejection
-    }
-
-    if (newStatus === 'In Transit' && !journey.startedAt) {
-        journey.startedAt = new Date().toISOString();
-    }
-    journey.status = newStatus;
-    writeTrackerData(data);
-    return { success: true, journey };
+    return { success: true, journeyId: id };
 }
 
-function verifyJourneyCompletion(journeyId, approved, rejectionReason = '', rejectedFields = []) {
-    const data = readTrackerData();
-    const journey = data.journeys.find(j => j.id === journeyId);
+async function createJourneyStartPlaceholder(driverId, payload = {}) {
+    // Similar to start request but stays in Loading
+    return createJourneyStartRequest(driverId, { ...payload, startOdom: null, startOdomPhotoUrl: null });
+}
+
+async function updateJourneyStatus(driverId, journeyId, newStatus, extras = {}) {
+    const journeyRes = await db.query("SELECT * FROM journeys WHERE id = $1 AND driver = $2", [journeyId, driverId]);
+    const journey = journeyRes.rows[0];
     if (!journey) return { success: false, error: 'Journey not found' };
-    const status = journey.status;
 
-    if (status === 'Awaiting Start Verification') {
-        if (approved) {
-            journey.status = 'Approved';
-            journey._pendingStartVerification = false;
-            journey._rejectionReason = null;
-            journey._rejectedFields = null;
-            // startedAt will be set when the driver actually presses "Start Trip"
-            journey._startVerifiedAt = new Date().toISOString();
-        } else {
-            journey.status = 'Loading';
-            journey._pendingStartVerification = false;
-            journey._rejectionReason = rejectionReason || 'Start verification rejected by office';
-            journey._rejectedFields = rejectedFields || [];
-            journey._rejectedAt = new Date().toISOString();
-            // We no longer clear startOdom/photo so the driver can just fix the specific field.
-            // But we reset the submission timestamp.
-            journey.submittedStartForVerificationAt = null;
-        }
-    } else if (status === 'Awaiting Verification') {
-        if (approved) {
-            journey.status = 'Completed';
-            journey.endDate = new Date().toISOString().split('T')[0];
-            journey._pendingVerification = false;
-            journey._verifiedAt = new Date().toISOString();
-            journey._rejectionReason = null;
-            journey._rejectedFields = null;
+    const updates = { status: newStatus };
+    const metadata = journey.metadata || {};
 
-            // Update truck odometer with verified end reading
-            if (journey.endOdom) {
-                const truck = data.trucks.find(t => t.id === journey.truck);
-                if (truck && journey.endOdom > truck.odom) {
-                    truck.odom = journey.endOdom;
-                }
-            }
-        } else {
-            // Rejected — send back to In Transit, driver must resubmit
-            journey.status = 'In Transit';
-            journey._pendingVerification = false;
-            journey._rejectionReason = rejectionReason || 'Verification rejected by office';
-            journey._rejectedFields = rejectedFields || [];
-            journey._rejectedAt = new Date().toISOString();
-            // Preserving end data for fix/resubmit
-            journey.submittedForVerificationAt = null;
-        }
-    } else {
-        return { success: false, error: `Journey is ${status}, not awaiting start/completion verification` };
+    if (newStatus === 'Awaiting Start Verification') {
+        if (!extras.startOdom || !extras.startOdomPhotoUrl) return { success: false, error: 'Odometer reading and photo required' };
+        updates.start_odom = extras.startOdom;
+        metadata.startOdomPhotoUrl = extras.startOdomPhotoUrl;
     }
 
-    writeTrackerData(data);
-    return { success: true, journey, approved, action: status === 'Awaiting Start Verification' ? 'start' : 'completion' };
+    if (newStatus === 'Awaiting Verification') {
+        if (!extras.endOdom || !extras.endOdomPhotoUrl || !extras.deliveryProofUrl) {
+            return { success: false, error: 'End odometer, photo, and delivery proof required' };
+        }
+        updates.end_odom = extras.endOdom;
+        metadata.endOdomPhotoUrl = extras.endOdomPhotoUrl;
+        metadata.deliveryProofUrl = extras.deliveryProofUrl;
+    }
+
+    if (newStatus === 'In Transit' && !journey.started_at) {
+        updates.started_at = new Date().toISOString();
+    }
+
+    // Apply updates
+    const keys = Object.keys(updates);
+    const sql = `UPDATE journeys SET ${keys.map((k, i) => `${k} = $${i + 2}`).join(', ')}, metadata = $${keys.length + 2} WHERE id = $1`;
+    await db.query(sql, [journeyId, ...Object.values(updates), JSON.stringify(metadata)]);
+
+    return { success: true };
 }
 
-function addPendingSubmission(driverId, type, payload) {
-    const v = validateDriverSubmission(driverId, payload);
-    if (!v.success) return v;
+async function verifyJourneyCompletion(journeyId, approved, rejectionReason = '', rejectedFields = []) {
+    const journeyRes = await db.query("SELECT * FROM journeys WHERE id = $1", [journeyId]);
+    const journey = journeyRes.rows[0];
+    if (!journey) return { success: false, error: 'Journey not found' };
 
-    const data = readTrackerData();
-    const uid = () => Date.now().toString(36).toUpperCase() + Math.random().toString(36).substr(2, 3).toUpperCase();
-    const truck = v.truck;
-    const journey = v.journey || '';
+    const metadata = journey.metadata || {};
+    let newStatus = journey.status;
+
+    if (journey.status === 'Awaiting Start Verification') {
+        newStatus = approved ? 'Approved' : 'Loading';
+    } else if (journey.status === 'Awaiting Verification') {
+        newStatus = approved ? 'Completed' : 'In Transit';
+        if (approved) updates.end_date = new Date().toISOString().split('T')[0];
+    }
+
+    if (!approved) {
+        metadata.rejectionReason = rejectionReason;
+        metadata.rejectedFields = rejectedFields;
+    } else {
+        delete metadata.rejectionReason;
+        delete metadata.rejectedFields;
+    }
+
+    await db.query("UPDATE journeys SET status = $1, metadata = $2 WHERE id = $3", [newStatus, JSON.stringify(metadata), journeyId]);
+    
+    // If completed, update truck odom
+    if (approved && newStatus === 'Completed' && journey.end_odom) {
+        await db.query("UPDATE trucks SET odom = $1 WHERE id = $2 AND odom < $1", [journey.end_odom, journey.truck]);
+    }
+
+    return { success: true };
+}
+
+async function addPendingSubmission(driverId, type, payload) {
+    const uId = await generateUId(type === 'fuel' ? 'fuel_logs' : (type === 'expense' ? 'expenses' : (type === 'incident' ? 'incidents' : 'expenses')));
+    const id = Date.now().toString(36).toUpperCase() + Math.random().toString(36).substr(2, 3).toUpperCase();
+    
+    const driverRes = await db.query("SELECT truck FROM drivers WHERE id = $1", [driverId]);
+    const truckId = driverRes.rows[0]?.truck;
 
     if (type === 'fuel') {
         const entry = {
-            id: uid(),
-            uId: generateUId(data, 'fuel'),
-            truck,
+            id,
+            uId,
+            truck_id: truckId,
+            driver_id: driverId,
             date: payload.date || new Date().toISOString().split('T')[0],
-            litres: +payload.litres,
-            pricePerL: +payload.pricePerL,
+            litres: Number(payload.litres),
+            price_per_l: Number(payload.pricePerL),
             station: payload.station,
-            odom: +payload.odom || 0,
-            photoPump: payload.photoPump || '',
-            photoReceipt: payload.photoReceipt || payload.receiptUrl || '', // fallback for old name
-            photoOdom: payload.photoOdom || payload.odomPhotoUrl || '', // fallback for old name
-            journey,
-            _pendingApproval: (data.profilePermissions?.driverPortal?.fuelVerification !== false),
-            _submittedBy: driverId,
-            _submittedAt: new Date().toISOString(),
+            odom: Number(payload.odom),
+            journey_id: payload.journey || null,
+            metadata: {
+                photoPump: payload.photoPump,
+                photoReceipt: payload.photoReceipt,
+                photoOdom: payload.photoOdom,
+                _pendingApproval: true
+            }
         };
-        data.fuel.push(entry);
-    }
-
-    if (type === 'expense') {
+        await upsertEntity('fuel_logs', entry);
+    } else if (type === 'expense' || type === 'maintenance') {
         const entry = {
-            id: uid(),
-            uId: generateUId(data, 'expenses'),
-            truck,
+            id,
+            uId,
+            truck_id: truckId,
+            driver_id: driverId,
             date: payload.date || new Date().toISOString().split('T')[0],
-            cat: payload.cat,
-            amount: +payload.amount,
-            desc: payload.cat === 'Maintenance' && payload.task 
-                ? (payload.task + (payload.desc ? ' — ' + payload.desc : ''))
-                : (payload.desc || ''),
-            journey,
-            receiptUrl: payload.receiptUrl || '',
-            _pendingApproval: (data.profilePermissions?.driverPortal?.expenseVerification !== false),
-            _submittedBy: driverId,
-            _submittedAt: new Date().toISOString(),
+            cat: type === 'maintenance' ? 'Maintenance' : payload.cat,
+            amount: Number(payload.amount || payload.cost),
+            desc: payload.desc || payload.notes || payload.task,
+            journey_id: payload.journey || null,
+            metadata: {
+                receiptUrl: payload.receiptUrl,
+                _pendingApproval: true,
+                task: payload.task,
+                workshop: payload.workshop
+            }
         };
-        // Add specific maintenance details if it's maintenance
-        if (payload.cat === 'Maintenance') {
-            entry._maintenanceDetails = {
-                task: payload.task || 'General Maintenance',
-                cost: +payload.amount || 0,
-                receiptUrl: payload.receiptUrl || '',
-                notes: payload.desc || '',
-            };
-        }
-        data.expenses.push(entry);
-    }
-
-    if (type === 'incident') {
-        if (!data.incidents) data.incidents = [];
-        data.incidents.push({
-            id: uid(),
-            uId: generateUId(data, 'incidents'),
-            driverId,
-            truck,
-            journey,
-            incidentType: payload.incidentType,
+        await upsertEntity('expenses', entry);
+    } else if (type === 'incident') {
+        const entry = {
+            id,
+            uId,
+            driver_id: driverId,
+            truck_id: truckId,
+            incident_type: payload.incidentType,
             description: payload.description,
             location: payload.location,
-            incidentPhotoUrl: payload.incidentPhotoUrl,
             status: 'Open',
-            _pendingApproval: true,
-            createdAt: new Date().toISOString(),
-        });
+            metadata: {
+                incidentPhotoUrl: payload.incidentPhotoUrl,
+                _pendingApproval: true
+            }
+        };
+        await upsertEntity('incidents', entry);
     }
 
-    if (type === 'maintenance') {
-        if (!data.expenses) data.expenses = [];
-        // Maintenance logs as an expense with cat 'Maintenance' + pending approval
-        data.expenses.push({
-            id: uid(),
-            uId: generateUId(data, 'expenses'),
-            truck,
-            date: payload.date || new Date().toISOString().split('T')[0],
-            cat: 'Maintenance',
-            amount: +payload.cost || 0,
-            desc: payload.task + (payload.notes ? ' — ' + payload.notes : ''),
-            journey,
-            _pendingApproval: true,
-            _submittedBy: driverId,
-            _submittedAt: new Date().toISOString(),
-            _maintenanceDetails: {
-                task: payload.task,
-                workshop: payload.workshop || '',
-                cost: +payload.cost || 0,
-                odomReading: +payload.odomReading || 0,
-                receiptUrl: payload.receiptUrl || '',
-                notes: payload.notes || '',
-            },
-        });
-    }
-
-    writeTrackerData(data);
-    const msgMap = { fuel: 'Fuel log submitted', expense: 'Expense claim submitted', incident: 'Incident report submitted', maintenance: 'Maintenance log submitted' };
-    return { success: true, message: msgMap[type] || 'Submitted successfully' };
+    return { success: true };
 }
 
 module.exports = {
-    readTrackerData,
-    writeTrackerData,
     getDriverData,
     updateJourneyStatus,
     verifyJourneyCompletion,
     addPendingSubmission,
     updateJourneyPartyCustomers,
-    enrichJourneyForPortal,
     createJourneyStartRequest,
     createJourneyStartPlaceholder,
 };
+

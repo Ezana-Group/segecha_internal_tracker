@@ -1278,9 +1278,9 @@ app.get('/api/driver/me', driverAuth.authMiddleware, (req, res) => {
     res.json({ success: true, driver: profile });
 });
 
-app.get('/api/driver/portal-data', driverAuth.authMiddleware, (req, res) => {
+app.get('/api/driver/portal-data', driverAuth.authMiddleware, async (req, res) => {
     try {
-        const data = driverData.getDriverData(req.driver.driverId);
+        const data = await driverData.getDriverData(req.driver.driverId);
         if (!data) return res.status(404).json({ error: 'Driver data not found' });
         res.json({ success: true, ...data });
     } catch (e) {
@@ -1288,83 +1288,83 @@ app.get('/api/driver/portal-data', driverAuth.authMiddleware, (req, res) => {
     }
 });
 
-app.post('/api/driver/journeys/status', driverAuth.authMiddleware, (req, res) => {
+app.post('/api/driver/journeys/status', driverAuth.authMiddleware, async (req, res) => {
     const { journeyId, status, ...extras } = req.body;
     try {
-        const result = driverData.updateJourneyStatus(req.driver.driverId, journeyId, status, extras);
+        const result = await driverData.updateJourneyStatus(req.driver.driverId, journeyId, status, extras);
         res.json(result);
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
 });
 
-app.post('/api/driver/journey/:id/status', driverAuth.authMiddleware, (req, res) => {
+app.post('/api/driver/journey/:id/status', driverAuth.authMiddleware, async (req, res) => {
     const { status, ...extras } = req.body;
     try {
-        const result = driverData.updateJourneyStatus(req.driver.driverId, req.params.id, status, extras);
+        const result = await driverData.updateJourneyStatus(req.driver.driverId, req.params.id, status, extras);
         res.json(result);
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
 });
 
-app.post('/api/driver/journey/:id/customers', driverAuth.authMiddleware, (req, res) => {
+app.post('/api/driver/journey/:id/customers', driverAuth.authMiddleware, async (req, res) => {
     try {
-        const result = driverData.updateJourneyPartyCustomers(req.driver.driverId, req.params.id, req.body);
+        const result = await driverData.updateJourneyPartyCustomers(req.driver.driverId, req.params.id, req.body);
         res.json(result);
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
 });
 
-app.post('/api/driver/journeys/start-request', driverAuth.authMiddleware, (req, res) => {
+app.post('/api/driver/journeys/start-request', driverAuth.authMiddleware, async (req, res) => {
     try {
-        const result = driverData.createJourneyStartRequest(req.driver.driverId, req.body);
+        const result = await driverData.createJourneyStartRequest(req.driver.driverId, req.body);
         res.json(result);
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
 });
 
-app.post('/api/driver/fuel', driverAuth.authMiddleware, (req, res) => {
+app.post('/api/driver/fuel', driverAuth.authMiddleware, async (req, res) => {
     try {
-        const result = driverData.addPendingSubmission(req.driver.driverId, 'fuel', req.body);
+        const result = await driverData.addPendingSubmission(req.driver.driverId, 'fuel', req.body);
         res.json(result);
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
 });
 
-app.post('/api/driver/expense', driverAuth.authMiddleware, (req, res) => {
+app.post('/api/driver/expense', driverAuth.authMiddleware, async (req, res) => {
     try {
-        const result = driverData.addPendingSubmission(req.driver.driverId, 'expense', req.body);
+        const result = await driverData.addPendingSubmission(req.driver.driverId, 'expense', req.body);
         res.json(result);
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
 });
 
-app.post('/api/driver/incident', driverAuth.authMiddleware, (req, res) => {
+app.post('/api/driver/incident', driverAuth.authMiddleware, async (req, res) => {
     try {
-        const result = driverData.addPendingSubmission(req.driver.driverId, 'incident', req.body);
+        const result = await driverData.addPendingSubmission(req.driver.driverId, 'incident', req.body);
         res.json(result);
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
 });
 
-app.post('/api/driver/maintenance', driverAuth.authMiddleware, (req, res) => {
+app.post('/api/driver/maintenance', driverAuth.authMiddleware, async (req, res) => {
     try {
-        const result = driverData.addPendingSubmission(req.driver.driverId, 'maintenance', req.body);
+        const result = await driverData.addPendingSubmission(req.driver.driverId, 'maintenance', req.body);
         res.json(result);
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
 });
 
-app.post('/api/driver/journeys/start-placeholder', driverAuth.authMiddleware, (req, res) => {
+app.post('/api/driver/journeys/start-placeholder', driverAuth.authMiddleware, async (req, res) => {
     try {
-        const result = driverData.createJourneyStartPlaceholder(req.driver.driverId, req.body);
+        const result = await driverData.createJourneyStartPlaceholder(req.driver.driverId, req.body);
         res.json(result);
     } catch (e) {
         res.status(500).json({ error: e.message });
