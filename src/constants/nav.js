@@ -31,6 +31,7 @@ export const NAV = [
 // ─── Customizable Dropdowns ──────────────────────────────────────
 export const CATS = _S.expenseCategories?.length ? _S.expenseCategories : ["Fuel", "Maintenance", "Toll", "Permit", "Tyre", "Allowance", "Salary", "Insurance", "Other"];
 export const TRUCK_TYPES = _S.truckTypes?.length ? _S.truckTypes : ["Prime Mover", "Tipper", "Tanker", "Flatbed", "Box Body", "Refrigerated", "Other"];
+export const TRAILER_TYPES = _S.trailerTypes?.length ? _S.trailerTypes : ["Low Loader", "Flatbed Trailer", "Tanker Trailer", "Skeletal Trailer", "Box Trailer", "Refrigerated Trailer", "Other"];
 /** Snapshot at module load; use `getLicenceClasses` from `settingsStore` when options must stay in sync */
 export const LICENCE_CLASSES = readLicenceClasses();
 export const CARGO_TYPES = _S.cargoTypes?.length ? _S.cargoTypes : ["Electronics", "FMCG Goods", "Spare Parts", "Machinery", "Cement", "Fertiliser", "Fuel", "Timber", "Other"];

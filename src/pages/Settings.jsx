@@ -70,6 +70,7 @@ import {
     patchSettings,
     DEFAULT_LICENCE_CLASSES,
     DEFAULT_TRUCK_TYPES,
+    DEFAULT_TRAILER_TYPES,
     DEFAULT_CARGO_TYPES,
     DEFAULT_EXPENSE_CATEGORIES,
     DEFAULT_COMMON_ROUTES,
@@ -439,6 +440,7 @@ export function Settings({
     const [quickRouteForm, setQuickRouteForm] = useState({ origin: '', dest: '', distance: '' });
     const [newLicenceClass, setNewLicenceClass] = useState("");
     const [newTruckType, setNewTruckType] = useState("");
+    const [newTrailerType, setNewTrailerType] = useState("");
     const [newCargoType, setNewCargoType] = useState("");
     const [newExpenseCategory, setNewExpenseCategory] = useState("");
 
@@ -1579,74 +1581,148 @@ export function Settings({
                                     })()}
                                 </div>
 
-                                {/* ── VEHICLE / TRUCK TYPES ── */}
-                                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, marginTop: 32 }}>
-                                    <div style={{ width: 36, height: 36, borderRadius: 10, background: "var(--brand-primary)12", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--brand-primary)" }}>
-                                        <Truck size={18} aria-hidden />
-                                    </div>
+                                 <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 32, marginTop: 32 }}>
+                                    {/* ── VEHICLE / TRUCK TYPES ── */}
                                     <div>
-                                        <h4 style={{ fontSize: 16, fontWeight: 800, color: "var(--text-primary)", margin: 0 }}>Vehicle / Truck types</h4>
-                                        <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "4px 0 0", fontWeight: 500 }}>
-                                            Define the categories of vehicles in your fleet (e.g. Tipper, Tanker, Flatbed).
-                                        </p>
-                                    </div>
-                                </div>
-                                <div style={{ background: "var(--surface-subtle)", borderRadius: 12, border: "1px solid var(--border-subtle)", padding: 20 }}>
-                                    {(() => {
-                                        const truckTypeList = Array.isArray(localS.truckTypes)
-                                            ? localS.truckTypes
-                                            : [...DEFAULT_TRUCK_TYPES];
-                                        const persistTruckTypes = (next) => saveSettings({ truckTypes: next });
-                                        return (
-                                            <>
-                                                {truckTypeList.length === 0 && (
-                                                    <p style={{ margin: "0 0 16px", fontSize: 13, color: "var(--text-muted)", fontWeight: 500, lineHeight: 1.5 }}>
-                                                        No truck types defined. Add labels below, or use <strong>Restore defaults</strong>.
-                                                    </p>
-                                                )}
-                                                {truckTypeList.map((type, i) => (
-                                                    <div key={`${type}-${i}`} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, padding: "12px 14px", background: "var(--bg-card)", borderRadius: 10, border: "1px solid var(--border-subtle)" }}>
-                                                        <span style={{ fontWeight: 700, color: "var(--text-primary)", fontSize: 14 }}>{type}</span>
-                                                        <Button variant="danger" size="sm" onClick={() => persistTruckTypes(truckTypeList.filter((_, idx) => idx !== i))}>
-                                                            <Trash2 size={14} aria-hidden />
-                                                        </Button>
-                                                    </div>
-                                                ))}
-                                                <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 16, paddingTop: 16, borderTop: "1px dashed var(--border-subtle)", alignItems: "center" }}>
-                                                    <SettingsShellInput
-                                                        style={{ flex: "1 1 200px", minWidth: 160 }}
-                                                        placeholder="e.g. Low Loader, Crane Truck"
-                                                        value={newTruckType}
-                                                        onChange={(e) => setNewTruckType(e.target.value)}
-                                                        onKeyDown={(e) => {
-                                                            if (e.key === "Enter") {
-                                                                e.preventDefault();
+                                        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                                            <div style={{ width: 36, height: 36, borderRadius: 10, background: "var(--brand-primary)12", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--brand-primary)" }}>
+                                                <Truck size={18} aria-hidden />
+                                            </div>
+                                            <div>
+                                                <h4 style={{ fontSize: 16, fontWeight: 800, color: "var(--text-primary)", margin: 0 }}>Vehicle / Truck types</h4>
+                                                <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "4px 0 0", fontWeight: 500 }}>
+                                                    Categories of vehicles (e.g. Tipper, Tanker).
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div style={{ background: "var(--surface-subtle)", borderRadius: 12, border: "1px solid var(--border-subtle)", padding: 20 }}>
+                                            {(() => {
+                                                const truckTypeList = Array.isArray(localS.truckTypes)
+                                                    ? localS.truckTypes
+                                                    : [...DEFAULT_TRUCK_TYPES];
+                                                const persistTruckTypes = (next) => saveSettings({ truckTypes: next });
+                                                return (
+                                                    <>
+                                                        {truckTypeList.length === 0 && (
+                                                            <p style={{ margin: "0 0 16px", fontSize: 13, color: "var(--text-muted)", fontWeight: 500, lineHeight: 1.5 }}>
+                                                                No truck types defined.
+                                                            </p>
+                                                        )}
+                                                        {truckTypeList.map((type, i) => (
+                                                            <div key={`${type}-${i}`} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, padding: "12px 14px", background: "var(--bg-card)", borderRadius: 10, border: "1px solid var(--border-subtle)" }}>
+                                                                <span style={{ fontWeight: 700, color: "var(--text-primary)", fontSize: 14 }}>{type}</span>
+                                                                <Button variant="danger" size="sm" onClick={() => persistTruckTypes(truckTypeList.filter((_, idx) => idx !== i))}>
+                                                                    <Trash2 size={14} aria-hidden />
+                                                                </Button>
+                                                            </div>
+                                                        ))}
+                                                        <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 16, paddingTop: 16, borderTop: "1px dashed var(--border-subtle)", alignItems: "center" }}>
+                                                            <SettingsShellInput
+                                                                style={{ flex: "1" }}
+                                                                placeholder="e.g. Tipper, Crane Truck"
+                                                                value={newTruckType}
+                                                                onChange={(e) => setNewTruckType(e.target.value)}
+                                                                onKeyDown={(e) => {
+                                                                    if (e.key === "Enter") {
+                                                                        e.preventDefault();
+                                                                        const t = newTruckType.trim();
+                                                                        if (!t) return;
+                                                                        persistTruckTypes([...truckTypeList, t]);
+                                                                        setNewTruckType("");
+                                                                    }
+                                                                }}
+                                                            />
+                                                            <Button variant="premium" onClick={() => {
                                                                 const t = newTruckType.trim();
                                                                 if (!t) return;
                                                                 persistTruckTypes([...truckTypeList, t]);
                                                                 setNewTruckType("");
-                                                            }
-                                                        }}
-                                                    />
-                                                    <Button variant="premium" onClick={() => {
-                                                        const t = newTruckType.trim();
-                                                        if (!t) return;
-                                                        persistTruckTypes([...truckTypeList, t]);
-                                                        setNewTruckType("");
-                                                    }}>
-                                                        <Plus size={16} aria-hidden style={{ marginRight: 6 }} />
-                                                        Add type
-                                                    </Button>
-                                                    <Button variant="ghost" onClick={() => {
-                                                        persistTruckTypes([...DEFAULT_TRUCK_TYPES]);
-                                                        showToast?.("Truck types reset to defaults", "success");
-                                                    }}>
-                                                        Restore defaults
-                                                    </Button>
-                                                </div>
-                                            </>
-                                        );
-                                    })()}
+                                                            }}>
+                                                                Add
+                                                            </Button>
+                                                        </div>
+                                                        <Button variant="ghost" size="sm" style={{ marginTop: 12, fontSize: 11 }} onClick={() => {
+                                                            persistTruckTypes([...DEFAULT_TRUCK_TYPES]);
+                                                            showToast?.("Truck types reset to defaults", "success");
+                                                        }}>
+                                                            Restore defaults
+                                                        </Button>
+                                                    </>
+                                                );
+                                            })()}
+                                        </div>
+                                    </div>
+
+                                    {/* ── TRAILER TYPES ── */}
+                                    <div>
+                                        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                                            <div style={{ width: 36, height: 36, borderRadius: 10, background: "var(--brand-primary)12", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--brand-primary)" }}>
+                                                <Timer size={18} aria-hidden />
+                                            </div>
+                                            <div>
+                                                <h4 style={{ fontSize: 16, fontWeight: 800, color: "var(--text-primary)", margin: 0 }}>Trailer unit types</h4>
+                                                <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "4px 0 0", fontWeight: 500 }}>
+                                                    Categories of trailers (e.g. Low Loader, Skeletal).
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div style={{ background: "var(--surface-subtle)", borderRadius: 12, border: "1px solid var(--border-subtle)", padding: 20 }}>
+                                            {(() => {
+                                                const trailerTypeList = Array.isArray(localS.trailerTypes)
+                                                    ? localS.trailerTypes
+                                                    : [...DEFAULT_TRAILER_TYPES];
+                                                const persistTrailerTypes = (next) => saveSettings({ trailerTypes: next });
+                                                return (
+                                                    <>
+                                                        {trailerTypeList.length === 0 && (
+                                                            <p style={{ margin: "0 0 16px", fontSize: 13, color: "var(--text-muted)", fontWeight: 500, lineHeight: 1.5 }}>
+                                                                No trailer types defined.
+                                                            </p>
+                                                        )}
+                                                        {trailerTypeList.map((type, i) => (
+                                                            <div key={`${type}-${i}`} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, padding: "12px 14px", background: "var(--bg-card)", borderRadius: 10, border: "1px solid var(--border-subtle)" }}>
+                                                                <span style={{ fontWeight: 700, color: "var(--text-primary)", fontSize: 14 }}>{type}</span>
+                                                                <Button variant="danger" size="sm" onClick={() => persistTrailerTypes(trailerTypeList.filter((_, idx) => idx !== i))}>
+                                                                    <Trash2 size={14} aria-hidden />
+                                                                </Button>
+                                                            </div>
+                                                        ))}
+                                                        <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 16, paddingTop: 16, borderTop: "1px dashed var(--border-subtle)", alignItems: "center" }}>
+                                                            <SettingsShellInput
+                                                                style={{ flex: "1" }}
+                                                                placeholder="e.g. Flatbed, Skeletal"
+                                                                value={newTrailerType}
+                                                                onChange={(e) => setNewTrailerType(e.target.value)}
+                                                                onKeyDown={(e) => {
+                                                                    if (e.key === "Enter") {
+                                                                        e.preventDefault();
+                                                                        const t = newTrailerType.trim();
+                                                                        if (!t) return;
+                                                                        persistTrailerTypes([...trailerTypeList, t]);
+                                                                        setNewTrailerType("");
+                                                                    }
+                                                                }}
+                                                            />
+                                                            <Button variant="premium" onClick={() => {
+                                                                const t = newTrailerType.trim();
+                                                                if (!t) return;
+                                                                persistTrailerTypes([...trailerTypeList, t]);
+                                                                setNewTrailerType("");
+                                                            }}>
+                                                                Add
+                                                            </Button>
+                                                        </div>
+                                                        <Button variant="ghost" size="sm" style={{ marginTop: 12, fontSize: 11 }} onClick={() => {
+                                                            persistTrailerTypes([...DEFAULT_TRAILER_TYPES]);
+                                                            showToast?.("Trailer types reset to defaults", "success");
+                                                        }}>
+                                                            Restore defaults
+                                                        </Button>
+                                                    </>
+                                                );
+                                            })()}
+                                        </div>
+                                    </div>
                                 </div>
 
                                 {/* ── CARGO TYPES ── */}

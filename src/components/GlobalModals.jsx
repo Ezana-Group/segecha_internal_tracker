@@ -6,7 +6,7 @@ import { fmt, fmtDate, today, uid, monthLabel } from "../utils/formatters";
 import { validators } from "../utils/validators";
 import { PAYMENT_API, ADMIN_KEY } from "../utils/env";
 import { DEFAULT_FUEL_PRICE, STATUSES_JOURNEY, CARGO_TYPES, TRUCK_TYPES, STATUSES_TRUCK, INVOICE_PREFIX, PAYMENT_TERMS_DAYS } from "../constants/nav";
-import { getLicenceClasses, getCommonRoutes, subscribeSettings } from "../utils/settingsStore.js";
+import { getLicenceClasses, getCommonRoutes, getTruckTypes, getTrailerTypes, subscribeSettings } from "../utils/settingsStore.js";
 
 const FuelPhotoField = ({ label, k, form, setForm, S, T }) => {
     const [uploading, setUploading] = useState(false);
@@ -1178,7 +1178,7 @@ export function GlobalModals(props) {
                     </div>
                     <Field label="Year" k="year" type="number" form={form} setForm={setForm} S={S} T={T} />
                     <Field label="Capacity (tonnes)" k="capacity" type="number" form={form} setForm={setForm} S={S} T={T} error={errors.capacity} />
-                    <Field label="Vehicle Type" k="type" options={TRUCK_TYPES} form={form} setForm={setForm} S={S} T={T} />
+                    <Field label="Vehicle Type" k="type" options={getTruckTypes()} form={form} setForm={setForm} S={S} T={T} />
                     <Field label="Status" k="status" options={STATUSES_TRUCK} form={form} setForm={setForm} S={S} T={T} />
                     <Field label="Odometer (km)" k="odom" type="number" form={form} setForm={setForm} S={S} T={T} />
                     <Field label="Assigned Driver" k="driver" options={data.drivers.map(d => ({ v: d.id, l: d.name }))} form={form} setForm={setForm} S={S} T={T} />
@@ -1347,7 +1347,7 @@ export function GlobalModals(props) {
                         </div>
                     </div>
                     <Field label="Registration No." k="reg" form={form} setForm={setForm} S={S} T={T} />
-                    <Field label="Trailer Type" k="type" options={["Flatbed", "Skeleton", "Tanker", "Lowloader", "Box Body", "Refrigerated"]} form={form} setForm={setForm} S={S} T={T} />
+                    <Field label="Trailer Type" k="type" options={getTrailerTypes()} form={form} setForm={setForm} S={S} T={T} />
                     <Field label="Manufacturer / Model" k="make" form={form} setForm={setForm} S={S} T={T} />
                     <Field label="Year" k="year" type="number" form={form} setForm={setForm} S={S} T={T} />
                     <Field label="Status" k="status" options={["Active", "Maintenance", "Inactive"]} form={form} setForm={setForm} S={S} T={T} />
