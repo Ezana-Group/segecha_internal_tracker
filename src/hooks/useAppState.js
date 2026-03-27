@@ -35,16 +35,27 @@ export function useAppState() {
             // or use SEED. For production alignment, we prefer empty if reset was called.
             if (saved) {
                 const parsed = JSON.parse(saved);
-                return { 
-                    ...SEED, 
+                return {
+                    ...SEED,
                     ...parsed,
+                    trucks: parsed.trucks ?? [],
+                    trailers: parsed.trailers ?? [],
+                    drivers: parsed.drivers ?? [],
+                    journeys: parsed.journeys ?? [],
+                    fuel: parsed.fuel ?? [],
+                    expenses: parsed.expenses ?? [],
+                    invoices: parsed.invoices ?? [],
+                    payroll: parsed.payroll ?? [],
+                    customers: parsed.customers ?? [],
+                    staff: parsed.staff ?? [],
+                    maintenance_logs: parsed.maintenance_logs ?? [],
                     templates: mergeTemplateList(SEED.templates, parsed.templates)
                 };
             }
             // If no saved data, check if we just did a reset
             const lastSync = localStorage.getItem(LAST_SYNC_KEY);
             if (lastSync === 'CLEAN_WIPE') return { ...SEED, trucks: [], drivers: [], journeys: [], fuel: [], expenses: [], incidents: [], customers: [], trailers: [], staff: [], payroll: [], invoices: [], documents: [] };
-            
+
             return SEED;
         } catch {
             return SEED;
@@ -108,8 +119,8 @@ export function useAppState() {
                 const token = adminAuth.getToken();
                 await fetch(`${PAYMENT_API}/api/tracker/data`, {
                     method: 'POST',
-                    headers: { 
-                        'Content-Type': 'application/json', 
+                    headers: {
+                        'Content-Type': 'application/json',
                         'x-admin-key': ADMIN_KEY,
                         ...(token ? { 'Authorization': `Bearer ${token}` } : {})
                     },
@@ -530,7 +541,7 @@ export function useAppState() {
             const token = adminAuth.getToken();
             const res = await fetch(`${PAYMENT_API}/api/admin/journey/${journeyId}/verify`, {
                 method: 'POST',
-                headers: { 
+                headers: {
                     'Content-Type': 'application/json',
                     'x-admin-key': ADMIN_KEY,
                     ...(token ? { 'Authorization': `Bearer ${token}` } : {})
@@ -583,7 +594,7 @@ export function useAppState() {
             const token = adminAuth.getToken();
             const res = await fetch(`${PAYMENT_API}/api/admin/submission/verify`, {
                 method: 'POST',
-                headers: { 
+                headers: {
                     'Content-Type': 'application/json',
                     'x-admin-key': ADMIN_KEY,
                     ...(token ? { 'Authorization': `Bearer ${token}` } : {})
@@ -624,7 +635,7 @@ export function useAppState() {
             const token = adminAuth.getToken();
             const res = await fetch(`${PAYMENT_API}/api/tracker/data`, {
                 method: "POST",
-                headers: { 
+                headers: {
                     "Content-Type": "application/json",
                     "x-admin-key": ADMIN_KEY,
                     ...(token ? { 'Authorization': `Bearer ${token}` } : {})
@@ -656,7 +667,7 @@ export function useAppState() {
         try {
             const token = adminAuth.getToken();
             const res = await fetch(`${PAYMENT_API}/api/tracker/backups`, {
-                headers: { 
+                headers: {
                     'x-admin-key': ADMIN_KEY,
                     ...(token ? { 'Authorization': `Bearer ${token}` } : {})
                 }
@@ -677,7 +688,7 @@ export function useAppState() {
             const token = adminAuth.getToken();
             const res = await fetch(`${PAYMENT_API}/api/tracker/backup-now`, {
                 method: 'POST',
-                headers: { 
+                headers: {
                     'x-admin-key': ADMIN_KEY,
                     ...(token ? { 'Authorization': `Bearer ${token}` } : {})
                 }
@@ -701,7 +712,7 @@ export function useAppState() {
             const token = adminAuth.getToken();
             const res = await fetch(`${PAYMENT_API}/api/tracker/restore`, {
                 method: 'POST',
-                headers: { 
+                headers: {
                     'Content-Type': 'application/json',
                     'x-admin-key': ADMIN_KEY,
                     ...(token ? { 'Authorization': `Bearer ${token}` } : {})
@@ -725,7 +736,7 @@ export function useAppState() {
         try {
             const token = adminAuth.getToken();
             const res = await fetch(`${PAYMENT_API}/api/tracker/backups/download/${filename}`, {
-                headers: { 
+                headers: {
                     'x-admin-key': ADMIN_KEY,
                     ...(token ? { 'Authorization': `Bearer ${token}` } : {})
                 }
@@ -751,7 +762,7 @@ export function useAppState() {
                 const token = adminAuth.getToken();
                 const res = await fetch(`${PAYMENT_API}/api/tracker/upload-backup`, {
                     method: 'POST',
-                    headers: { 
+                    headers: {
                         'Content-Type': 'application/json',
                         'x-admin-key': ADMIN_KEY,
                         ...(token ? { 'Authorization': `Bearer ${token}` } : {})
@@ -1308,7 +1319,7 @@ export function useAppState() {
                 const token = adminAuth.getToken();
                 await fetch(`${PAYMENT_API}/api/admin/import-history`, {
                     method: 'POST',
-                    headers: { 
+                    headers: {
                         'Content-Type': 'application/json',
                         'x-admin-key': ADMIN_KEY,
                         ...(token ? { 'Authorization': `Bearer ${token}` } : {})
