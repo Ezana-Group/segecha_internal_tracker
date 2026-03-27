@@ -46,6 +46,9 @@ export default function App() {
     const isMobile = winW < 640;
     const isTablet = winW >= 640 && winW < 1024;
 
+    const isLogin = location.pathname === "/login";
+    const authed = adminAuth.isAuthenticated();
+
     const previewLabel = useMemo(() => {
         const pm = state.previewMode;
         if (!pm) return "";
@@ -164,17 +167,14 @@ export default function App() {
 
     const mainStyle = {
         flex: 1,
-        padding: !adminAuth.isAuthenticated() ? "0" : (isMobile ? "16px" : "32px"),
-        marginTop: !adminAuth.isAuthenticated() ? "0" : (state.previewMode ? "calc(var(--topbar-height) + 40px)" : "var(--topbar-height)"),
+        padding: !authed ? "0" : (isMobile ? "16px" : "32px"),
+        marginTop: !authed ? "0" : (state.previewMode ? "calc(var(--topbar-height) + 40px)" : "var(--topbar-height)"),
         minWidth: "400px",
         width: "100%",
         display: "flex",
         flexDirection: "column",
     };
 
-
-    const isLogin = location.pathname === "/login";
-    const authed = adminAuth.isAuthenticated();
 
     if (isLogin && !authed) {
         return (
@@ -213,13 +213,13 @@ export default function App() {
             />
 
             <div style={{ display: "flex", flex: 1, position: "relative" }}>
-                {adminAuth.isAuthenticated() && !state.previewMode && <Sidebar {...p} />}
+                {authed && !state.previewMode && <Sidebar {...p} />}
                 
                 <main style={mainStyle} className="animate-fade-in">
                     <Routes>
                         <Route path="/login" element={<Login showToast={state.showToast} />} />
                         <Route path="*" element={
-                            adminAuth.isAuthenticated() ? (
+                            authed ? (
                                 <Routes>
                                     <Route path="/" element={<ErrorBoundary><Dashboard {...p} /></ErrorBoundary>} />
                                     <Route path="/fleet" element={<ErrorBoundary><Fleet {...p} /></ErrorBoundary>} />
