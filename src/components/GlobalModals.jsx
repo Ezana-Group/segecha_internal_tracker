@@ -380,51 +380,50 @@ export function GlobalModals(props) {
         const CATS = ["Maintenance", "Toll", "Permit", "Tyre", "Fuel", "Salary", "Allowance", "Other"];
 
         return (
-            <Modal title={form.id ? "Edit Expense" : "Add New Expense"} onSave={() => saveItem("expenses", form)} S={S} closeModal={closeModal} saveDisabled={hasErrors}>
-                <div style={S.fgg(2)}>
-                    <Field label="Truck / Vehicle" k="truck" options={data.trucks.map(t => ({ v: t.id, l: t.reg }))} form={form} setForm={setForm} S={S} />
-                    <div style={S.fg}>
-                        <label style={S.lbl}>Category</label>
-                        <select 
-                            style={S.inp} 
-                            value={form.cat || ""} 
-                            onChange={e => setForm(f => ({ ...f, cat: e.target.value, subCat: "" }))}
-                        >
-                            <option value="">Select...</option>
-                            {CATS.map(c => <option key={c} value={c}>{c}</option>)}
-                        </select>
-                    </div>
-                    
-                    {form.cat && (
-                        <Field 
-                            label={`${form.cat} Type`} 
-                            k="subCat" 
-                            options={
-                                form.cat === "Maintenance" ? ["General Service", "Oil Change", "Brakes", "Tyres", "Engine", "Electrical", "Suspension", "Bodywork", "Other"] :
-                                form.cat === "Fuel" ? ["Diesel", "Adblue", "Oil/Lubricants"] :
-                                form.cat === "Toll" ? ["Highways", "Weighbridge", "Local Councils"] :
-                                form.cat === "Permit" ? ["Insurance", "Speed Governor", "Inspection", "NTSA/TLB"] :
-                                ["General", "Specific Repair", "Mission Expense", "Other"]
-                            } 
-                            form={form} 
-                            setForm={setForm} 
-                            S={S} 
-                        />
-                    )}
-
-                    <Field label="Amount (KES)" k="amount" type="number" form={form} setForm={setForm} S={S} error={errors.amount} />
-                    <Field label="Date" k="date" type="date" form={form} setForm={setForm} S={S} />
-                    <Field label="Description" k="desc" full form={form} setForm={setForm} S={S} placeholder="e.g. Workshop repair, Toll fee..." />
-                    <Field label="Linked Journey" k="journey" options={[{ v: "", l: "None" }, ...data.journeys.map(j => ({ v: j.id, l: `${j.origin}→${j.dest} (${j.date})` }))]} full form={form} setForm={setForm} S={S} />
-                    
-                    <div style={{ ...S.fg, gridColumn: "1/-1" }}>
-                        <FuelPhotoField label="Receipt / Invoice Photo" k="receiptUrl" form={form} setForm={setForm} S={S} T={T} />
-                    </div>
-
-                    <div style={{ ...S.fg, gridColumn: "1/-1", paddingTop: 16, marginTop: 8, borderTop: `1px solid var(--border-subtle)` }}>
-                        <div style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 500 }}>
-                            Tip: Expenses linked to a journey will be automatically factored into that journey's P&L calculation.
+            <Modal title={form.id ? "Edit Expense" : "Add New Expense"} onSave={() => saveItem("expenses", form)} S={S} closeModal={closeModal} saveDisabled={hasErrors} wide>
+                <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+                    {/* ── Classification ── */}
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px 24px" }}>
+                        <Field label="Truck / Vehicle" k="truck" options={data.trucks.map(t => ({ v: t.id, l: t.reg }))} form={form} setForm={setForm} S={S} />
+                        <Field label="Date" k="date" type="date" form={form} setForm={setForm} S={S} />
+                        <div style={S.fg}>
+                            <label style={S.lbl}>Category</label>
+                            <select style={S.inp} value={form.cat || ""} onChange={e => setForm(f => ({ ...f, cat: e.target.value, subCat: "" }))}>
+                                <option value="">Select...</option>
+                                {CATS.map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
                         </div>
+                        {form.cat && (
+                            <Field 
+                                label={`${form.cat} Type`} k="subCat" 
+                                options={
+                                    form.cat === "Maintenance" ? ["General Service", "Oil Change", "Brakes", "Tyres", "Engine", "Electrical", "Suspension", "Bodywork", "Other"] :
+                                    form.cat === "Fuel" ? ["Diesel", "Adblue", "Oil/Lubricants"] :
+                                    form.cat === "Toll" ? ["Highways", "Weighbridge", "Local Councils"] :
+                                    form.cat === "Permit" ? ["Insurance", "Speed Governor", "Inspection", "NTSA/TLB"] :
+                                    ["General", "Specific Repair", "Mission Expense", "Other"]
+                                } form={form} setForm={setForm} S={S} 
+                            />
+                        )}
+                        <Field label="Amount (KES)" k="amount" type="number" form={form} setForm={setForm} S={S} error={errors.amount} />
+                    </div>
+
+                    {/* ── Details ── */}
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 16 }}>
+                        <Field label="Description" k="desc" full form={form} setForm={setForm} S={S} placeholder="e.g. Workshop repair, Toll fee..." />
+                        <Field label="Linked Journey" k="journey" options={[{ v: "", l: "None" }, ...data.journeys.map(j => ({ v: j.id, l: `${j.origin}→${j.dest} (${j.date})` }))]} full form={form} setForm={setForm} S={S} />
+                    </div>
+
+                    {/* ── Receipt Photo ── */}
+                    <div style={{ borderTop: `1px solid ${T.border2}`, paddingTop: 20 }}>
+                        <div style={{ fontWeight: 800, fontSize: 13, marginBottom: 16, color: T.text, display: "flex", alignItems: "center", gap: 8 }}>
+                            <span style={{ fontSize: 16 }}>🧾</span> Receipt / Invoice Photo
+                        </div>
+                        <FuelPhotoField label="Receipt" k="receiptUrl" form={form} setForm={setForm} S={S} T={T} />
+                    </div>
+
+                    <div style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 500, background: "var(--surface-subtle)", padding: "10px 14px", borderRadius: 8 }}>
+                        💡 Expenses linked to a journey are automatically factored into that journey's P&L calculation.
                     </div>
                 </div>
             </Modal>
@@ -1251,31 +1250,33 @@ export function GlobalModals(props) {
 
         return (
             <Modal title={form.id ? "Edit Truck" : "Add Truck"} onSave={() => saveItem("trucks", form)} S={S} closeModal={closeModal} saveDisabled={hasErrors}>
-                <div style={S.fgg(2)}>
-                    <div style={{ ...S.fg, gridColumn: "1/-1" }}>
-                        <label style={S.lbl}>Internal Unique Number</label>
-                        <div style={{ ...S.inp, background: "var(--surface-subtle)", color: "var(--brand-primary)", fontWeight: 800, fontFamily: "var(--font-mono)", border: "1px dashed var(--brand-primary)40", display: "flex", alignItems: "center", padding: "0 14px", height: 42 }}>
-                            {form.uId || 'AUTO-GENERATED ON SAVE'}
-                        </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+                    {/* ── ID ── */}
+                    <div style={{ background: "var(--surface-subtle)", color: "var(--brand-primary)", fontWeight: 800, fontFamily: "var(--font-mono)", border: "1px dashed var(--brand-primary)40", display: "flex", alignItems: "center", padding: "0 14px", height: 42, borderRadius: 8, fontSize: 13 }}>
+                        {form.uId || 'AUTO-GENERATED ON SAVE'}
                     </div>
-                    <Field label="Registration No." k="reg" form={form} setForm={setForm} S={S} T={T} error={errors.reg} />
-                    <Field label="Manufacturer / Model" k="make" form={form} setForm={setForm} S={S} T={T} />
-                    <div style={{ ...S.fg, alignSelf: 'center', paddingTop: 10 }}>
-                        <label style={{ ...S.lbl, display: "flex", alignItems: "center", gap: 8, cursor: "pointer", marginBottom: 0 }}>
-                            <input
-                                type="checkbox"
-                                checked={!!form.isRigid}
-                                onChange={(e) => setForm((f) => ({ ...f, isRigid: e.target.checked }))}
-                            />
-                            Rigid Vehicle?
-                        </label>
+
+                    {/* ── Vehicle Details ── */}
+                    <SectionHeader title="Vehicle Details" icon="🚛" T={T} style={{ marginTop: 0 }} />
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px 24px" }}>
+                        <Field label="Registration No." k="reg" form={form} setForm={setForm} S={S} T={T} error={errors.reg} />
+                        <Field label="Manufacturer / Model" k="make" form={form} setForm={setForm} S={S} T={T} />
+                        <Field label="Vehicle Type" k="type" options={getTruckTypes()} form={form} setForm={setForm} S={S} T={T} />
+                        <Field label="Year" k="year" type="number" form={form} setForm={setForm} S={S} T={T} />
+                        <Field label="Capacity (kg)" k="capacity" type="number" form={form} setForm={setForm} S={S} T={T} error={errors.capacity} />
+                        <Field label="Status" k="status" options={STATUSES_TRUCK} form={form} setForm={setForm} S={S} T={T} />
                     </div>
-                    <Field label="Year" k="year" type="number" form={form} setForm={setForm} S={S} T={T} />
-                    <Field label="Capacity (kg)" k="capacity" type="number" form={form} setForm={setForm} S={S} T={T} error={errors.capacity} />
-                    <Field label="Vehicle Type" k="type" options={getTruckTypes()} form={form} setForm={setForm} S={S} T={T} />
-                    <Field label="Status" k="status" options={STATUSES_TRUCK} form={form} setForm={setForm} S={S} T={T} />
-                    <Field label="Odometer (km)" k="odom" type="number" form={form} setForm={setForm} S={S} T={T} />
-                    <Field label="Assigned Driver" k="driver" options={data.drivers.map(d => ({ v: d.id, l: d.name }))} form={form} setForm={setForm} S={S} T={T} />
+
+                    {/* ── Assignment & Tracking ── */}
+                    <SectionHeader title="Assignment & Tracking" icon="📍" T={T} />
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px 24px" }}>
+                        <Field label="Odometer (km)" k="odom" type="number" form={form} setForm={setForm} S={S} T={T} />
+                        <Field label="Assigned Driver" k="driver" options={data.drivers.map(d => ({ v: d.id, l: d.name }))} form={form} setForm={setForm} S={S} T={T} />
+                    </div>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', padding: '12px 16px', background: form.isRigid ? 'rgba(7,131,235,0.06)' : 'var(--surface-subtle)', borderRadius: 12, border: `1px solid ${form.isRigid ? 'var(--brand-primary)' : 'var(--border-subtle)'}` }}>
+                        <input type="checkbox" checked={!!form.isRigid} onChange={(e) => setForm((f) => ({ ...f, isRigid: e.target.checked }))} style={{ width: 17, height: 17, accentColor: 'var(--brand-primary)' }} />
+                        <div style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: 13 }}>Rigid Vehicle (no trailer attachment)</div>
+                    </label>
                 </div>
             </Modal>
         );
@@ -1355,51 +1356,48 @@ export function GlobalModals(props) {
 
 
         return (
-            <Modal title={form.id ? "Edit Driver" : "Add Driver"} onSave={handleDriverSave} S={S} closeModal={closeModal} saveDisabled={hasErrors}>
-                <div style={S.fgg(2)}>
-                    <div style={{ ...S.fg, gridColumn: "1/-1" }}>
-                        <label style={S.lbl}>Internal ID Number</label>
-                        <div style={{ ...S.inp, background: "var(--surface-subtle)", color: "var(--brand-primary)", fontWeight: 800, fontFamily: "var(--font-mono)", border: "1px dashed var(--brand-primary)40", display: "flex", alignItems: "center", padding: "0 14px", height: 42 }}>
-                            {form.uId || 'AUTO-GENERATED ON SAVE'}
-                        </div>
+            <Modal title={form.id ? "Edit Driver" : "Add Driver"} onSave={handleDriverSave} S={S} closeModal={closeModal} saveDisabled={hasErrors} wide>
+                <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+                    {/* ── ID ── */}
+                    <div style={{ background: "var(--surface-subtle)", color: "var(--brand-primary)", fontWeight: 800, fontFamily: "var(--font-mono)", border: "1px dashed var(--brand-primary)40", display: "flex", alignItems: "center", padding: "0 14px", height: 42, borderRadius: 8, fontSize: 13 }}>
+                        {form.uId || 'AUTO-GENERATED ON SAVE'}
                     </div>
-                    <Field label="Full Name" k="name" full form={form} setForm={setForm} S={S} T={T} error={errors.name} />
-                    <Field label="Phone" k="phone" form={form} setForm={setForm} S={S} T={T} error={errors.phone} />
-                    <Field label="Email Address" k="email" type="email" placeholder="driver@email.com" form={form} setForm={setForm} S={S} T={T} error={errors.email} />
-                    <Field label="M-Pesa Number" k="mpesa" placeholder="07XXXXXXXX" form={form} setForm={setForm} S={S} T={T} error={errors.mpesa} />
-                    <Field label="License No." k="license" form={form} setForm={setForm} S={S} T={T} error={errors.license} />
-                    <Field label="License class" k="class" type="checkbox-group" options={licenceClasses} full form={form} setForm={setForm} S={S} T={T} />
-                    <Field label="Monthly Salary (KES)" k="salary" type="number" form={form} setForm={setForm} S={S} T={T} error={errors.salary} />
-                    <Field label="Date Joined" k="joined" type="date" form={form} setForm={setForm} S={S} T={T} />
-                    <div style={{ ...S.fg }}>
-                        <Field label="Assigned Truck" k="truck" options={driverTruckOptions} form={form} setForm={setForm} S={S} T={T} />
-                        <div style={{ marginTop: -8, fontSize: 11, color: "var(--text-muted)", lineHeight: 1.4 }}>
-                            Only unassigned trucks are shown.
-                        </div>
+
+                    {/* ── Personal Details ── */}
+                    <SectionHeader title="Personal Details" icon="👤" T={T} style={{ marginTop: 0 }} />
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px 24px" }}>
+                        <Field label="Full Name" k="name" full form={form} setForm={setForm} S={S} T={T} error={errors.name} />
+                        <Field label="Phone" k="phone" form={form} setForm={setForm} S={S} T={T} error={errors.phone} />
+                        <Field label="Email Address" k="email" type="email" placeholder="driver@email.com" form={form} setForm={setForm} S={S} T={T} error={errors.email} />
+                        <Field label="M-Pesa Number" k="mpesa" placeholder="07XXXXXXXX" form={form} setForm={setForm} S={S} T={T} error={errors.mpesa} />
                     </div>
-                    <Field
-                        label="Default trailer (for locked drivers)"
-                        k="assignedTrailer"
-                        options={[{ v: "", l: "— None —" }, ...(data.trailers || []).map((t) => ({ v: t.id, l: `${t.reg} (${t.type})` }))]}
-                        form={form}
-                        setForm={setForm}
-                        S={S}
-                        T={T}
-                    />
-                    <div style={{ ...S.fg, gridColumn: "1/-1", flexDirection: "column", alignItems: "stretch" }}>
-                        <label style={{ ...S.lbl, display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
-                            <input
-                                type="checkbox"
-                                checked={!!form.lockVehicleAssignment}
-                                onChange={(e) => setForm((f) => ({ ...f, lockVehicleAssignment: e.target.checked }))}
-                            />
-                            Lock truck & trailer on journeys (driver uses office-assigned vehicle only)
-                        </label>
-                        <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4, lineHeight: 1.4 }}>
-                            When enabled, journey truck and trailer follow this driver&apos;s assignment; change assignments here or turn off the lock to reassign from the journey form.
-                        </div>
+
+                    {/* ── Licensing & Pay ── */}
+                    <SectionHeader title="Licensing & Compensation" icon="📋" T={T} />
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px 24px" }}>
+                        <Field label="License No." k="license" form={form} setForm={setForm} S={S} T={T} error={errors.license} />
+                        <Field label="Monthly Salary (KES)" k="salary" type="number" form={form} setForm={setForm} S={S} T={T} error={errors.salary} />
+                        <Field label="Date Joined" k="joined" type="date" form={form} setForm={setForm} S={S} T={T} />
+                        <Field label="Status" k="status" options={["Active", "Inactive", "Suspended"]} form={form} setForm={setForm} S={S} T={T} />
                     </div>
-                    <Field label="Status" k="status" options={["Active", "Inactive", "Suspended"]} form={form} setForm={setForm} S={S} T={T} />
+                    <Field label="License Classes" k="class" type="checkbox-group" options={licenceClasses} full form={form} setForm={setForm} S={S} T={T} />
+
+                    {/* ── Vehicle Assignment ── */}
+                    <SectionHeader title="Vehicle Assignment" icon="🚛" T={T} />
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px 24px" }}>
+                        <div>
+                            <Field label="Assigned Truck" k="truck" options={driverTruckOptions} form={form} setForm={setForm} S={S} T={T} />
+                            <div style={{ marginTop: -4, fontSize: 11, color: "var(--text-muted)" }}>Only unassigned trucks shown.</div>
+                        </div>
+                        <Field label="Default Trailer" k="assignedTrailer" options={[{ v: "", l: "— None —" }, ...(data.trailers || []).map((t) => ({ v: t.id, l: `${t.reg} (${t.type})` }))]} form={form} setForm={setForm} S={S} T={T} />
+                    </div>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', padding: '12px 16px', background: form.lockVehicleAssignment ? 'rgba(7,131,235,0.06)' : 'var(--surface-subtle)', borderRadius: 12, border: `1px solid ${form.lockVehicleAssignment ? 'var(--brand-primary)' : 'var(--border-subtle)'}` }}>
+                        <input type="checkbox" checked={!!form.lockVehicleAssignment} onChange={(e) => setForm((f) => ({ ...f, lockVehicleAssignment: e.target.checked }))} style={{ width: 17, height: 17, accentColor: 'var(--brand-primary)' }} />
+                        <div>
+                            <div style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: 13 }}>Lock Vehicle Assignment</div>
+                            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>When enabled, journey truck and trailer follow this driver's assignment.</div>
+                        </div>
+                    </label>
                 </div>
             </Modal>
         );
@@ -1419,23 +1417,22 @@ export function GlobalModals(props) {
 
         return (
             <Modal title={form.id ? "Edit Customer" : "Add New Customer"} onSave={() => saveItem("customers", form)} S={S} closeModal={closeModal} saveDisabled={hasErrors}>
-                <div style={S.fgg(2)}>
-                    <div style={{ ...S.fg, gridColumn: "1/-1" }}>
-                        <label style={S.lbl}>Internal Unique Number</label>
-                        <div style={{ ...S.inp, background: "var(--surface-subtle)", color: "var(--brand-primary)", fontWeight: 800, fontFamily: "var(--font-mono)", border: "1px dashed var(--brand-primary)40", display: "flex", alignItems: "center", padding: "0 14px", height: 42 }}>
-                            {form.uId || 'AUTO-GENERATED ON SAVE'}
-                        </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+                    {/* ── ID ── */}
+                    <div style={{ background: "var(--surface-subtle)", color: "var(--brand-primary)", fontWeight: 800, fontFamily: "var(--font-mono)", border: "1px dashed var(--brand-primary)40", display: "flex", alignItems: "center", padding: "0 14px", height: 42, borderRadius: 8, fontSize: 13 }}>
+                        {form.uId || 'AUTO-GENERATED ON SAVE'}
                     </div>
-                    
-                    <Field label="Customer Type" k="type" options={["Company", "Individual"]} form={form} setForm={setForm} S={S} />
-                    <Field label={form.type === "Company" ? "Company Name" : "Full Name"} k="name" full form={form} setForm={setForm} S={S} error={errors.name} />
-                    
-                    {form.type === "Company" && (
-                        <Field label="Contact Person" k="contactPerson" full form={form} setForm={setForm} S={S} placeholder="e.g. Procurement Officer" />
-                    )}
-                    
-                    <Field label="Phone Number" k="phone" form={form} setForm={setForm} S={S} error={errors.phone} />
-                    <Field label="Email Address" k="email" type="email" form={form} setForm={setForm} S={S} />
+
+                    {/* ── Customer Details ── */}
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px 24px" }}>
+                        <Field label="Customer Type" k="type" options={["Company", "Individual"]} form={form} setForm={setForm} S={S} />
+                        <Field label={form.type === "Company" ? "Company Name" : "Full Name"} k="name" form={form} setForm={setForm} S={S} error={errors.name} />
+                        {form.type === "Company" && (
+                            <Field label="Contact Person" k="contactPerson" form={form} setForm={setForm} S={S} placeholder="e.g. Procurement Officer" />
+                        )}
+                        <Field label="Phone Number" k="phone" form={form} setForm={setForm} S={S} error={errors.phone} />
+                        <Field label="Email Address" k="email" type="email" form={form} setForm={setForm} S={S} />
+                    </div>
                     <Field label="Physical Address" k="address" full form={form} setForm={setForm} S={S} />
                 </div>
             </Modal>
@@ -1447,19 +1444,21 @@ export function GlobalModals(props) {
     if (modal === "trailer") {
         return (
             <Modal title={form.id ? "Edit Trailer" : "Add Trailer"} onSave={() => saveItem("trailers", form)} S={S} closeModal={closeModal}>
-                <div style={S.fgg(2)}>
-                    <div style={{ ...S.fg, gridColumn: "1/-1" }}>
-                        <label style={S.lbl}>Internal Unique Number</label>
-                        <div style={{ ...S.inp, background: "var(--surface-subtle)", color: "var(--brand-primary)", fontWeight: 800, fontFamily: "var(--font-mono)", border: "1px dashed var(--brand-primary)40", display: "flex", alignItems: "center", padding: "0 14px", height: 42 }}>
-                            {form.uId || 'AUTO-GENERATED ON SAVE'}
-                        </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+                    {/* ── ID ── */}
+                    <div style={{ background: "var(--surface-subtle)", color: "var(--brand-primary)", fontWeight: 800, fontFamily: "var(--font-mono)", border: "1px dashed var(--brand-primary)40", display: "flex", alignItems: "center", padding: "0 14px", height: 42, borderRadius: 8, fontSize: 13 }}>
+                        {form.uId || 'AUTO-GENERATED ON SAVE'}
                     </div>
-                    <Field label="Registration No." k="reg" form={form} setForm={setForm} S={S} T={T} />
-                    <Field label="Trailer Type" k="type" options={getTrailerTypes()} form={form} setForm={setForm} S={S} T={T} />
-                    <Field label="Manufacturer / Model" k="make" form={form} setForm={setForm} S={S} T={T} />
-                    <Field label="Year" k="year" type="number" form={form} setForm={setForm} S={S} T={T} />
-                    <Field label="Status" k="status" options={["Active", "Maintenance", "Inactive"]} form={form} setForm={setForm} S={S} T={T} />
-                    <Field label="Current Assigned Truck" k="truck" options={data.trucks.map(t => ({ v: t.id, l: t.reg }))} form={form} setForm={setForm} S={S} T={T} />
+
+                    {/* ── Trailer Details ── */}
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px 24px" }}>
+                        <Field label="Registration No." k="reg" form={form} setForm={setForm} S={S} T={T} />
+                        <Field label="Trailer Type" k="type" options={getTrailerTypes()} form={form} setForm={setForm} S={S} T={T} />
+                        <Field label="Manufacturer / Model" k="make" form={form} setForm={setForm} S={S} T={T} />
+                        <Field label="Year" k="year" type="number" form={form} setForm={setForm} S={S} T={T} />
+                        <Field label="Status" k="status" options={["Active", "Maintenance", "Inactive"]} form={form} setForm={setForm} S={S} T={T} />
+                        <Field label="Current Assigned Truck" k="truck" options={data.trucks.map(t => ({ v: t.id, l: t.reg }))} form={form} setForm={setForm} S={S} T={T} />
+                    </div>
                 </div>
             </Modal>
         );

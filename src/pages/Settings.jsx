@@ -1348,10 +1348,10 @@ export function Settings({
                                         <Button 
                                             variant="ghost" 
                                             size="sm" 
-                                            onClick={() => setActiveTab('templates')}
+                                            onClick={() => { setTemplateTypeFilter('PDF'); setActiveTab('templates'); }}
                                             style={{ fontSize: 11, padding: "8px 12px" }}
                                         >
-                                            <Sparkles size={14} style={{ marginRight: 6 }} /> Manage Templates
+                                            <Sparkles size={14} style={{ marginRight: 6 }} /> Edit PDF Templates
                                         </Button>
                                     </div>
                                     {(data.templates || []).filter((t) => canonicalTemplateType(t.type) === "PDF").length === 0 ? (
