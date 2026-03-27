@@ -295,7 +295,7 @@ export function Settings({
         try {
             const res = await fetch(`${PAYMENT_API}/api/admin/change-password`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: { "Content-Type": "application/json", "Authorization": `Bearer ${adminAuth.getToken()}` },
                 body: JSON.stringify({
                     email: operatorEmail,
                     oldPassword: passForm.old,
