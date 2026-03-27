@@ -269,7 +269,7 @@ export function Settings({
     const hasConfiguredAccessLists = configuredAdminUsers.length > 0 || configuredSuperAdminUsers.length > 0;
     const isSuperAdmin =
         (!!operatorEmail && configuredSuperAdminUsers.some((u) => String(u?.email || "").trim().toLowerCase() === operatorEmail)) ||
-        operatorEmail === 'admin@example.com';
+        operatorEmail === 'admin@segecha.com';
     const isAdmin =
         isSuperAdmin ||
         (!!operatorEmail && configuredAdminUsers.some((u) => String(u?.email || "").trim().toLowerCase() === operatorEmail));
