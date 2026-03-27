@@ -385,7 +385,7 @@ export function Settings({
     const [templatesEditable, setTemplatesEditable] = useState(false);
 
     /** Flush `segecha_settings` to localStorage, notify, and lock the current workspace tab. */
-    const saveWorkspaceTab = useCallback(() => {
+    const saveWorkspaceTab = useCallback(async () => {
         if (!SETTINGS_WORKSPACE_TABS.has(activeTab)) return;
         if (!canEditSettings) {
             showToast?.("Only Admin or Super Admin can edit settings.", "warning");
@@ -397,13 +397,21 @@ export function Settings({
             writeSettings(snapshot);
             setLocalS(snapshot);
             if (setSettings) setSettings(snapshot);
+            
+            // Persist to server database
+            if (syncToServer) {
+                await syncToServer();
+            }
+            
             setLastSaved(new Date());
             setWorkspaceTabEditable((p) => ({ ...p, [activeTab]: false }));
-            showToast?.("Settings saved on this device", "success");
+            showToast?.("Settings saved and synced to database", "success");
+        } catch (e) {
+            showToast?.("Failed to sync settings: " + e.message, "error");
         } finally {
             window.setTimeout(() => setSaving(false), 450);
         }
-    }, [activeTab, setSettings, showToast, canEditSettings]);
+    }, [activeTab, setSettings, showToast, canEditSettings, syncToServer]);
 
     const saveTemplatesTab = useCallback(() => {
         if (!canEditSettings) {
@@ -853,7 +861,7 @@ export function Settings({
                                     <SettingsShellInput 
                                         value={localS.operatorDisplayName || ''} 
                                         onChange={e => saveSettings({ operatorDisplayName: e.target.value })} 
-                                        placeholder="e.g. Moses Nderitu" 
+                                        placeholder="Full Name" 
                                     />
                                 </SettingsShellField>
                                 <SettingsShellField label="Work Email" sub="Used for certain notifications and identifiers.">
@@ -861,7 +869,7 @@ export function Settings({
                                         type="email"
                                         value={localS.operatorWorkEmail || ''} 
                                         onChange={e => saveSettings({ operatorWorkEmail: e.target.value })} 
-                                        placeholder="moses@example.com" 
+                                        placeholder="email@example.com" 
                                     />
                                 </SettingsShellField>
                                 <div style={{ gridColumn: "1/-1" }}>
@@ -869,7 +877,7 @@ export function Settings({
                                         <SettingsShellInput 
                                             value={localS.operatorRole || ''} 
                                             onChange={e => saveSettings({ operatorRole: e.target.value })} 
-                                            placeholder="Operations Manager" 
+                                            placeholder="e.g. Manager" 
                                         />
                                     </SettingsShellField>
                                 </div>
@@ -1009,14 +1017,48 @@ export function Settings({
                                         </p>
                                         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
                                             <SettingsShellField label="Your display name" sub="e.g. Jane Wanjiku">
-                                                <SettingsShellInput value={localS.operatorDisplayName || ""} onChange={(e) => saveSettings({ operatorDisplayName: e.target.value })} placeholder="How you appear when signed in" />
+                                                <SettingsShellInput value={localS.operatorDisplayName || ""} onChange={(e) => saveSettings({ operatorDisplayName: e.target.value })} placeholder="Full Name" />
                                             </SettingsShellField>
                                             <SettingsShellField label="Your work email" sub="Optional; for your reference in the menu">
-                                                <SettingsShellInput type="email" value={localS.operatorWorkEmail || ""} onChange={(e) => saveSettings({ operatorWorkEmail: e.target.value })} placeholder="you@company.com" />
+                                                <SettingsShellInput type="email" value={localS.operatorWorkEmail || ""} onChange={(e) => saveSettings({ operatorWorkEmail: e.target.value })} placeholder="email@example.com" />
                                             </SettingsShellField>
                                         </div>
                                     </div>
                                 </div>
+
+                                <div style={{ gridColumn: "1/-1", marginTop: 24, padding: 24, borderRadius: 16, border: "1px solid var(--border-subtle)", background: "var(--surface-subtle)" }}>
+                                    <SettingsShellSectionHeader title="Security & Session" desc="Configure automatic safeguards for your workspace." icon={ShieldCheck} />
+                                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+                                        <SettingsShellField label="Auto-Logout (Inactivity)" sub="Automatically sign out after a period of no activity.">
+                                            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                                                <input 
+                                                    type="checkbox" 
+                                                    id="autoLogoutEnabled"
+                                                    checked={localS.autoLogoutEnabled !== false} 
+                                                    onChange={e => saveSettings({ autoLogoutEnabled: e.target.checked })}
+                                                    style={{ width: 18, height: 18, cursor: "pointer" }}
+                                                />
+                                                <label htmlFor="autoLogoutEnabled" style={{ fontSize: 13, cursor: "pointer", color: "var(--text-primary)" }}>
+                                                    {localS.autoLogoutEnabled !== false ? "Enabled (Recommended)" : "Disabled"}
+                                                </label>
+                                            </div>
+                                        </SettingsShellField>
+                                        <SettingsShellField label="Idle Timeout Duration" sub="How long to wait before signing out.">
+                                            <select 
+                                                value={localS.autoLogoutMinutes || 30} 
+                                                onChange={e => saveSettings({ autoLogoutMinutes: Number(e.target.value) })}
+                                                style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: "1px solid var(--border-subtle)", background: "var(--bg-card)", color: "var(--text-primary)", fontSize: 14, fontWeight: 600 }}
+                                            >
+                                                <option value={15}>15 Minutes</option>
+                                                <option value={30}>30 Minutes</option>
+                                                <option value={60}>1 Hour</option>
+                                                <option value={240}>4 Hours</option>
+                                                <option value={720}>12 Hours</option>
+                                            </select>
+                                        </SettingsShellField>
+                                    </div>
+                                </div>
+
                                 <div style={{ gridColumn: "1/-1", marginTop: 12 }}>
                                     <div style={{ background: "var(--brand-primary)08", borderRadius: 16, padding: 24, border: "1px solid var(--brand-primary)20" }}>
                                         <h4 style={{ fontSize: 15, fontWeight: 800, color: "var(--brand-primary)", marginBottom: 16 }}>Internal System Identifiers</h4>

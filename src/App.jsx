@@ -103,6 +103,40 @@ export default function App() {
         }
     }, [location.pathname]); // Update on navigation or when settings might have changed
 
+    // Auto-Logout / Idle Timer
+    useEffect(() => {
+        if (!authed) return;
+
+        const settings = JSON.parse(localStorage.getItem("segecha_settings") || "{}");
+        const autoLogoutEnabled = settings.autoLogoutEnabled !== false; // Default ON
+        const idleLimit = (settings.autoLogoutMinutes || 30) * 60 * 1000;
+
+        if (!autoLogoutEnabled) return;
+
+        let idleTimer;
+
+        const resetTimer = () => {
+            if (idleTimer) clearTimeout(idleTimer);
+            idleTimer = setTimeout(() => {
+                console.log("[IDLE] Session expired due to inactivity.");
+                adminAuth.clearSession();
+                state.showToast("Logged out due to inactivity for security.", "warning");
+                // Use window.location instead of navigate to ensure a clean state
+                window.location.href = "/login";
+            }, idleLimit);
+        };
+
+        const events = ["mousedown", "mousemove", "keypress", "scroll", "touchstart"];
+        events.forEach(name => document.addEventListener(name, resetTimer, true));
+        
+        resetTimer(); // Start initial timer
+
+        return () => {
+            if (idleTimer) clearTimeout(idleTimer);
+            events.forEach(name => document.removeEventListener(name, resetTimer, true));
+        };
+    }, [authed, state.showToast]);
+
     const tyreAlertCount = state.data.trucks.filter(t => state.tyreStatus(t).status !== "OK").length;
     const verifyAlertCount = (state.pendingVerifications || []).length;
 

@@ -77,7 +77,7 @@ if (!JWT_SECRET || !ADMIN_KEY) {
 
 const PUBLIC_ROUTES = ['/admin/login', '/driver/login', '/staff/login', '/health'];
 
-const adminAuth = (req, res, next) => {
+const adminAuth = async (req, res, next) => {
     // 0. Skip for preflight
     if (req.method === 'OPTIONS') return next();
 
@@ -110,6 +110,15 @@ const adminAuth = (req, res, next) => {
         try {
             const decoded = jwt.verify(token, JWT_SECRET);
             if (decoded.role === 'superadmin' || decoded.role === 'admin') {
+                // Force logout check: Compare session_version in token vs DB
+                const dbRes = await db.query('SELECT session_version FROM admins WHERE id = $1', [decoded.id]);
+                if (dbRes.rows.length > 0) {
+                    const currentVersion = dbRes.rows[0].session_version || 1;
+                    const tokenVersion = decoded.version || 1;
+                    if (tokenVersion < currentVersion) {
+                        return res.status(401).json({ error: 'Session expired (password changed). Please log in again.' });
+                    }
+                }
                 req.admin = decoded;
                 return next();
             }
@@ -229,6 +238,18 @@ async function autoSeed() {
         const staffId = 'staff-admin-init';
         const initialHash = bcrypt.hashSync(process.env.INITIAL_ADMIN_PASSWORD || process.env.ADMIN_KEY, 10);
 
+        console.log(`[SEED] Ensuring system tables and columns...`);
+        
+        // 0. Schema Migrations (Ensure session_version exists for force-logout feature)
+        await db.query(`
+            DO $$ 
+            BEGIN 
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='admins' AND column_name='session_version') THEN
+                    ALTER TABLE admins ADD COLUMN session_version INTEGER DEFAULT 1;
+                END IF;
+            END $$;
+        `);
+
         console.log(`[SEED] Syncing superadmin (${initialAdminEmail})...`);
 
         // 1. Core Admin Login (Always Sync password on boot during dev/staging)
@@ -274,27 +295,43 @@ autoSeed();
 
 // Change Own Password
 app.post('/api/admin/change-password', async (req, res) => {
-    const { oldPassword, newPassword } = req.body;
-    const adminId = req.admin.id;
-    const email = req.admin.email;
+    const { oldPassword, newPassword, email: bodyEmail } = req.body;
+    
+    // If authenticated via JWT, use the ID from the token
+    // If authenticated via adminKey, use the email from the body
+    let adminId = req.admin?.id;
+    let email = req.admin?.email || bodyEmail;
+
+    if (!adminId && !email) {
+        return res.status(400).json({ error: 'Missing admin identification (session or email)' });
+    }
 
     try {
         // Find in admins table
-        const result = await db.query('SELECT * FROM admins WHERE id = $1', [adminId]);
+        let result;
+        if (adminId) {
+            result = await db.query('SELECT * FROM admins WHERE id = $1', [adminId]);
+        } else {
+            result = await db.query('SELECT * FROM admins WHERE email = $1', [email.toLowerCase().trim()]);
+        }
+
         if (result.rows.length === 0) return res.status(404).json({ error: 'Admin not found' });
 
         const admin = result.rows[0];
+        const actualAdminId = admin.id;
+
         const valid = bcrypt.compareSync(oldPassword, admin.password_hash);
         if (!valid) return res.status(401).json({ error: 'Incorrect current password' });
 
         const newHash = bcrypt.hashSync(newPassword, 10);
-        await db.query('UPDATE admins SET password_hash = $1 WHERE id = $2', [newHash, adminId]);
+        await db.query('UPDATE admins SET password_hash = $1, session_version = session_version + 1 WHERE id = $2', [newHash, actualAdminId]);
 
-        // Also update staff_auth if exists for same user
-        await db.query('UPDATE staff_auth SET password_hash = $1 WHERE staff_id = $2', [newHash, adminId]);
+        // Also update staff_auth if exists for same user (staff login doesn't use session_version yet but password should align)
+        await db.query('UPDATE staff_auth SET password_hash = $1 WHERE staff_id = $2', [newHash, actualAdminId]);
 
-        res.json({ success: true, message: 'Password updated successfully' });
+        res.json({ success: true, message: 'Password updated. All other sessions have been signed out.' });
     } catch (e) {
+        console.error('CHANGE_PASSWORD_ERROR:', e);
         res.status(500).json({ error: e.message });
     }
 });
@@ -482,8 +519,13 @@ app.post('/api/admin/login', async (req, res) => {
 
         // Real JWT Token
         const token = jwt.sign(
-            { id: admin.id, email: admin.email, displayName: admin.display_name, role: admin.role },
-            JWT_SECRET,
+            { 
+                id: admin.id, 
+                email: admin.email, 
+                role: admin.role,
+                version: admin.session_version || 1
+            }, 
+            JWT_SECRET, 
             { expiresIn: '12h' }
         );
 
