@@ -2,7 +2,7 @@
 
 -- 1. Administrative & Auth
 CREATE TABLE IF NOT EXISTS superadmins (
-    id TEXT PRIMARY KEY,
+    id SERIAL PRIMARY KEY,
     email TEXT UNIQUE NOT NULL,
     password_hash TEXT NOT NULL,
     display_name TEXT,
@@ -15,7 +15,8 @@ CREATE TABLE IF NOT EXISTS admins (
     password_hash TEXT NOT NULL,
     display_name TEXT,
     role TEXT DEFAULT 'admin',
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    session_version INTEGER DEFAULT 1
 );
 
 -- 2. Fleet & Personnel
@@ -24,7 +25,7 @@ CREATE TABLE IF NOT EXISTS trucks (
     registration_number TEXT UNIQUE NOT NULL,
     model TEXT,
     status TEXT DEFAULT 'Active',
-    current_mileage INTEGER DEFAULT 0,
+    current_mileage NUMERIC DEFAULT 0,
     metadata JSONB DEFAULT '{}',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -45,7 +46,9 @@ CREATE TABLE IF NOT EXISTS drivers (
     license_number TEXT,
     status TEXT DEFAULT 'Active',
     metadata JSONB DEFAULT '{}',
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    email TEXT,
+    role TEXT DEFAULT 'Driver'
 );
 
 CREATE TABLE IF NOT EXISTS staff (
@@ -56,7 +59,9 @@ CREATE TABLE IF NOT EXISTS staff (
     phone TEXT,
     status TEXT DEFAULT 'Active',
     metadata JSONB DEFAULT '{}',
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    joined TEXT,
+    salary NUMERIC
 );
 
 -- 3. CRM
@@ -84,7 +89,11 @@ CREATE TABLE IF NOT EXISTS journeys (
     end_date TIMESTAMP WITH TIME ZONE,
     notes TEXT,
     metadata JSONB DEFAULT '{}',
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    tr_form_url TEXT,
+    t1_form_url TEXT,
+    booking_no TEXT,
+    is_international BOOLEAN DEFAULT FALSE
 );
 
 -- 5. Financials
@@ -140,7 +149,7 @@ CREATE TABLE IF NOT EXISTS maintenance_logs (
     date DATE,
     description TEXT,
     cost DECIMAL(12,2),
-    next_service_mileage INTEGER,
+    next_service_mileage NUMERIC,
     metadata JSONB DEFAULT '{}',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -175,7 +184,9 @@ CREATE TABLE IF NOT EXISTS documents (
     url TEXT,
     expiry_date DATE,
     metadata JSONB DEFAULT '{}',
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    filename TEXT,
+    mime_type TEXT
 );
 
 CREATE TABLE IF NOT EXISTS driver_auth (
