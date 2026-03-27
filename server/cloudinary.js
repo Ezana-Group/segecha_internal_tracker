@@ -1,14 +1,21 @@
 const cloudinary = require('cloudinary').v2;
 const streamifier = require('streamifier');
 
-const isMock = process.env.CLOUDINARY_API_KEY === 'your_api_key';
+const isMock = process.env.CLOUDINARY_API_KEY === 'your_api_key' || !process.env.CLOUDINARY_CLOUD_NAME && !process.env.CLOUDINARY_URL;
 
 if (!isMock) {
-    cloudinary.config({
-        cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-        api_key: process.env.CLOUDINARY_API_KEY,
-        api_secret: process.env.CLOUDINARY_API_SECRET,
-    });
+    if (process.env.CLOUDINARY_URL) {
+        // Automatically picks up from process.env.CLOUDINARY_URL
+        cloudinary.config(true);
+    } else {
+        cloudinary.config({
+            cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+            api_key: process.env.CLOUDINARY_API_KEY,
+            api_secret: process.env.CLOUDINARY_API_SECRET,
+        });
+    }
+    const config = cloudinary.config();
+    console.log(`[CLOUDINARY] Initialized for cloud: ${config.cloud_name}`);
 }
 
 // Upload a buffer (from multer memory storage) to Cloudinary
