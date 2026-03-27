@@ -227,7 +227,7 @@ async function autoSeed() {
         const initialAdminEmail = process.env.INITIAL_ADMIN_EMAIL;
         const initialAdminPhone = process.env.INITIAL_ADMIN_PHONE || '+254700000000';
         const staffId = 'staff-admin-init';
-        const initialHash = bcrypt.hashSync(process.env.ADMIN_KEY, 10);
+        const initialHash = bcrypt.hashSync(process.env.INITIAL_ADMIN_PASSWORD || process.env.ADMIN_KEY, 10);
 
         console.log(`[SEED] Syncing superadmin (${initialAdminEmail})...`);
 
