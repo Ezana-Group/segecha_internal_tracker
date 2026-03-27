@@ -1364,7 +1364,7 @@ export function GlobalModals(props) {
                 .replace(/[^a-z0-9._-]/g, ".")
                 .replace(/\.{2,}/g, ".")
                 .replace(/^\.+|\.+$/g, "");
-            return `${local || "staff"}@example.com`;
+            return `${local || "staff"}@segecha.com`;
         };
         const isDrivingRole = form.role === "Driver" || form.role === "Turnboy";
         const getErrors = () => {

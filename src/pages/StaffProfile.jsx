@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
     User,
@@ -136,14 +136,20 @@ export function StaffProfile({ data, setData, dark, isMobile, openModal, showToa
 
     // Load account credentials status only when the account tab is visible.
     // Note: this hook must be registered before any early return.
-    useEffect(() => {
-        if (tab !== "account" || !staff?.id || !PAYMENT_API) return;
+    const fetchAccountStatus = useCallback(() => {
+        if (!staff?.id || !PAYMENT_API) return;
         fetch(`${PAYMENT_API}/api/staff/account-status/${staff.id}?adminKey=${encodeURIComponent(ADMIN_KEY)}`)
             .then((r) => r.json())
             .then((j) => setAccountStatus(j))
             .catch((err) => showAccountErr(err, "Could not load account status"));
-    }, [tab, staff?.id, showAccountErr]);
+    }, [staff?.id, showAccountErr]);
 
+    useEffect(() => {
+        if (tab === "account") fetchAccountStatus();
+    }, [tab, fetchAccountStatus]);
+
+    const [oldPass, setOldPass] = useState("");
+    const [newPass, setNewPass] = useState("");
     const [confPass, setConfPass] = useState("");
     const [passBusy, setPassBusy] = useState(false);
     const [showPassForm, setShowPassForm] = useState(false);
@@ -226,6 +232,7 @@ export function StaffProfile({ data, setData, dark, isMobile, openModal, showToa
                 ),
             }));
             showToast?.("New OTP and temporary password generated.", "success");
+            fetchAccountStatus();
         } catch (err) {
             showAccountErr(err, "Failed to reset password");
         } finally {
@@ -324,6 +331,7 @@ export function StaffProfile({ data, setData, dark, isMobile, openModal, showToa
                 ),
             }));
             showToast?.("New OTP and temporary password generated.", "success");
+            fetchAccountStatus();
         } catch (err) {
             showAccountErr(err, "Failed to regenerate credentials");
         } finally {

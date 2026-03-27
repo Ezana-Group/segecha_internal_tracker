@@ -20,7 +20,7 @@ function normalizeSegechaEmail(email, fallbackSeed = '', prefix = 'user') {
         .replace(/[^a-z0-9._-]/g, '.')
         .replace(/\.{2,}/g, '.')
         .replace(/^\.+|\.+$/g, '');
-    const domain = process.env.EMAIL_DOMAIN || 'example.com';
+    const domain = process.env.EMAIL_DOMAIN || 'segecha.com';
     return `${localPart || prefix}@${domain}`;
 }
 
