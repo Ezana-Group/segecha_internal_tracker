@@ -542,8 +542,10 @@ if (!existsSync(__dirname)) {
     // For local dev, but in production Render uses ephemeral disk anyway
 }
 const BACKUPS_DIR = path.join(__dirname, 'backups');
+if (!require('fs').existsSync(BACKUPS_DIR)) {
+    require('fs').mkdirSync(BACKUPS_DIR, { recursive: true });
+}
 
-// Master Backup Helper
 async function backupEverything() {
     const backup = {
         version: '5.0',
@@ -809,8 +811,33 @@ app.post('/api/admin/upload', upload.single('file'), async (req, res) => {
 
 // Generic update for collections
 app.put('/api/admin/:col/:id', (req, res) => {
-    res.json({ success: true });
+    res.status(501).json({ error: 'PUT not directly supported for generic collections yet. Please use POST to upsert.' });
 });
+
+// Generic Admin Entity Delete
+app.delete('/api/admin/:table/:id', async (req, res) => {
+    let { table, id } = req.params;
+    
+    // Map camelCase from frontend to snake_case in DB
+    if (table === 'maintenanceLogs') table = 'maintenance_logs';
+    if (table === 'fuel') table = 'fuel_logs';
+    if (table === 'tyreLogs') table = 'tyre_logs';
+
+    const allowed = ['trucks', 'drivers', 'staff', 'journeys', 'fuel_logs', 'expenses', 'incidents', 'customers', 'trailers', 'payroll', 'invoices', 'payments', 'maintenance_logs', 'tyre_logs'];
+    
+    if (!allowed.includes(table)) {
+        return res.status(400).json({ error: 'Invalid entity type: ' + table });
+    }
+
+    try {
+        await db.query(`DELETE FROM ${table} WHERE id = $1`, [id]);
+        res.json({ success: true, message: `Deleted ${id} from ${table}` });
+    } catch (e) {
+        console.error(`DELETE_ERROR (${table}):`, e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
 
 // Admin verification for journeys (start or completion)
 app.post('/api/admin/journey/:id/verify', async (req, res) => {
@@ -962,7 +989,7 @@ app.post('/api/tracker/backup-now', async (req, res) => {
         const filename = `backup_master_${timestamp}.json`;
         const backup = await backupEverything();
 
-        saveData(path.join(BACKUPS_DIR, filename), backup);
+        require('fs').writeFileSync(path.join(BACKUPS_DIR, filename), JSON.stringify(backup, null, 2));
         res.json({ success: true, message: 'Master backup created: ' + filename });
     } catch (e) {
         console.error('BACKUP_ERROR:', e);
@@ -1037,7 +1064,7 @@ async function performAutoBackup() {
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
         const filename = `auto_backup_db_${timestamp}.json`;
         const backup = await backupEverything();
-        saveData(path.join(BACKUPS_DIR, filename), backup);
+        require('fs').writeFileSync(path.join(BACKUPS_DIR, filename), JSON.stringify(backup, null, 2));
     } catch (e) {
         console.error('Automated backup failed:', e.message);
     }
