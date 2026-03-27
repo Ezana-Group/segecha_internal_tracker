@@ -594,6 +594,35 @@ async function upsertEntity(table, item) {
         }
     });
 
+    // For expenses: compute description and journey_id from short keys if not already set
+    if (table === 'expenses') {
+        if (!finalData.description && metadata.desc) finalData.description = metadata.desc;
+        if (!finalData.journey_id && metadata.journey) finalData.journey_id = metadata.journey;
+        delete metadata.desc;
+        delete metadata.journey;
+        delete metadata.cat;
+    }
+
+    // For invoices: compute journey_id and due_date from short keys if not already set
+    if (table === 'invoices') {
+        if (!finalData.journey_id && metadata.journey) finalData.journey_id = metadata.journey;
+        if (!finalData.due_date && metadata.due) finalData.due_date = metadata.due;
+        delete metadata.journey;
+        delete metadata.due;
+    }
+
+    // For payroll: compute entity_id and amount if not already set
+    if (table === 'payroll') {
+        if (!finalData.entity_id && metadata.driver) finalData.entity_id = metadata.driver;
+        if (!finalData.amount) {
+            const base = parseFloat(metadata.baseSalary) || 0;
+            const allowance = parseFloat(metadata.allowance) || 0;
+            const deductions = parseFloat(metadata.deductions) || 0;
+            finalData.amount = base + allowance - deductions;
+        }
+        delete metadata.driver;
+    }
+
     if (validCols.includes('metadata')) {
         finalData.metadata = metadata;
     }
