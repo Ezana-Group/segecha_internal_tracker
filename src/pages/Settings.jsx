@@ -3374,7 +3374,7 @@ export function Settings({
                                                 if (e.target.files && e.target.files[0]) uploadBackup(e.target.files[0]);
                                                 e.target.value = null;
                                             }} />
-                                            <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 16px", background: scrolling ? "var(--surface-subtle)" : "var(--surface-subtle)", color: "var(--brand-primary)", borderRadius: 10, fontWeight: 700, fontSize: 13, border: "1px solid var(--border-subtle)", cursor: "pointer", boxShadow: "0 1px 2px rgba(0,0,0,0.05)" }}>
+                                            <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 16px", background: "var(--surface-subtle)", color: "var(--brand-primary)", borderRadius: 10, fontWeight: 700, fontSize: 13, border: "1px solid var(--border-subtle)", cursor: "pointer", boxShadow: "0 1px 2px rgba(0,0,0,0.05)" }}>
                                                 <Upload size={16} /> Upload Backup
                                             </div>
                                         </label>
