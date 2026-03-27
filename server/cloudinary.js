@@ -21,24 +21,35 @@ if (!isMock) {
 // Upload a buffer (from multer memory storage) to Cloudinary
 function uploadBuffer(buffer, folder, filename) {
     if (isMock) {
-        console.log(`[MOCK CLOUDINARY] Uploading ${filename} to ${folder}...`);
+        console.log(`[MOCK CLOUDINARY] Uploading ${filename || 'random'} to ${folder}...`);
         return Promise.resolve({
             secure_url: 'https://res.cloudinary.com/demo/image/upload/sample.jpg',
-            public_id: `mock/${folder}/${filename}`
+            public_id: `mock/${folder}/${filename || Date.now()}`
         });
     }
 
+    if (!cloudinary.config().cloud_name) {
+        console.error('[CLOUDINARY] ERROR: Cloudinary is not configured! Check your environment variables.');
+        return Promise.reject(new Error('Cloudinary is not configured on the server.'));
+    }
+
     return new Promise((resolve, reject) => {
+        const public_id = filename ? filename.replace(/[^a-zA-Z0-9._-]/g, '_') : `img_${Date.now()}`;
         const stream = cloudinary.uploader.upload_stream(
             {
                 folder: `segecha/${folder}`,
-                public_id: filename,
+                public_id: public_id,
                 resource_type: 'auto',
                 transformation: [{ quality: 'auto:good', fetch_format: 'auto' }],
             },
             (error, result) => {
-                if (error) reject(error);
-                else resolve(result);
+                if (error) {
+                    console.error('[CLOUDINARY] Upload Stream Error:', error);
+                    reject(error);
+                } else {
+                    console.log(`[CLOUDINARY] Upload success: ${result.secure_url}`);
+                    resolve(result);
+                }
             }
         );
         streamifier.createReadStream(buffer).pipe(stream);
