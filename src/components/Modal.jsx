@@ -3,7 +3,7 @@ export function Modal({ title, onSave, children, wide, S, closeModal, saveDisabl
         <div className="modal-overlay" style={S.ovl} onClick={closeModal}>
             <div
                 className="modal-panel"
-                style={{ ...S.mbox, width: wide ? "min(720px, 95vw)" : "min(min(560px, 100%), calc(100vw - 32px))" }}
+                style={{ ...S.mbox, width: wide ? "min(900px, 95vw)" : "min(min(560px, 100%), calc(100vw - 32px))" }}
                 onClick={(e) => e.stopPropagation()}
             >
                 <h2 className="modal-panel-title">{title}</h2>
