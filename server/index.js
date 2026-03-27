@@ -808,7 +808,8 @@ app.post('/api/admin/upload', upload.single('file'), async (req, res) => {
         }
     } catch (e) {
         console.error('ADMIN_UPLOAD_ERROR:', e);
-        res.status(500).json({ error: e.message });
+        const errorMessage = e.http_code ? `Cloudinary Error (${e.http_code}): ${e.message}` : e.message;
+        res.status(500).json({ error: errorMessage, details: e });
     }
 });
 
