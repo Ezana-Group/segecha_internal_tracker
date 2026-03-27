@@ -1414,7 +1414,6 @@ export function GlobalModals(props) {
                         setForm={setForm}
                         S={S}
                         T={T}
-                        onChange={(v) => setForm((f) => ({ ...f, email: toSegechaEmail(v, f.name || "") }))}
                     />
                     {isDrivingRole && (
                         <>
