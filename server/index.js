@@ -1,13 +1,5 @@
-const express = require('express');
-const cors = require('cors');
-const { readFileSync, writeFileSync, existsSync, mkdirSync } = require('fs');
 const path = require('path');
-const multer = require('multer');
-const { uploadBuffer } = require('./cloudinary');
-const { uploadToR2 } = require('./r2');
-const upload = multer();
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
+const { existsSync } = require('fs');
 
 // Load environment variables from both root and server directory
 // server/.env takes precedence for backend-specific configs
@@ -21,6 +13,16 @@ envPaths.forEach(envPath => {
         require('dotenv').config({ path: envPath, override: true });
     }
 });
+
+const express = require('express');
+const cors = require('cors');
+const { readFileSync, writeFileSync, mkdirSync } = require('fs');
+const multer = require('multer');
+const { uploadBuffer } = require('./cloudinary');
+const { uploadToR2 } = require('./r2');
+const upload = multer();
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 
 const app = express();
 const PORT = process.env.PORT;
