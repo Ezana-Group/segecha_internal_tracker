@@ -109,6 +109,7 @@ function SectionHeader({ title, icon, T, style = {} }) {
 
 /** Admin journey form — documents (server /api/admin/upload) */
 function JourneyDocumentField({ label, k, form, setForm, S, T, required = false }) {
+    const [uploading, setUploading] = useState(false);
     const [dragging, setDragging] = useState(false);
     const docUrl = form[k];
 
@@ -199,6 +200,7 @@ function JourneyDocumentField({ label, k, form, setForm, S, T, required = false 
 }
 
 function JourneyOdomPhotoField({ label, k, form, setForm, S, T }) {
+    const [uploading, setUploading] = useState(false);
     const [dragging, setDragging] = useState(false);
     const photoUrl = form[k];
 
