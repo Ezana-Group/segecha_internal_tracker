@@ -171,7 +171,7 @@ app.use((req, res, next) => {
     const host = req.hostname || '';
     if (host.startsWith('driver.')) return express.static(DRIVER_DIST)(req, res, next);
     if (host.startsWith('track.')) return express.static(TRACK_DIST)(req, res, next);
-    if (host.startsWith('pay.')) return express.static(PAY_DIST)(req, res, next);
+    if (host.startsWith('pay.') || host.startsWith('payment.')) return express.static(PAY_DIST)(req, res, next);
     next();
 });
 // 1. Specific Portals first (more specific routes)
@@ -193,7 +193,7 @@ app.use((req, res, next) => {
         distPath = DRIVER_DIST;
     } else if (host.startsWith('track.') || req.path.startsWith('/track')) {
         distPath = TRACK_DIST;
-    } else if (host.startsWith('pay.') || req.path.startsWith('/pay')) {
+    } else if (host.startsWith('pay.') || host.startsWith('payment.') || req.path.startsWith('/pay')) {
         distPath = PAY_DIST;
     }
 
