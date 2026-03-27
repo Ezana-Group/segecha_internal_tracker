@@ -10,10 +10,11 @@ import { getLicenceClasses, getCommonRoutes, getTruckTypes, getTrailerTypes, sub
 
 const FuelPhotoField = ({ label, k, form, setForm, S, T }) => {
     const [uploading, setUploading] = useState(false);
+    const [dragging, setDragging] = useState(false);
     const photoUrl = form[k];
 
-    const handleUpload = async (e) => {
-        const file = e.target.files[0];
+    const handleUpload = async (eOrFile) => {
+        const file = eOrFile.target ? eOrFile.target.files[0] : eOrFile;
         if (!file) return;
         setUploading(true);
         const formData = new FormData();
@@ -22,6 +23,9 @@ const FuelPhotoField = ({ label, k, form, setForm, S, T }) => {
         try {
             const res = await fetch(`${PAYMENT_API}/api/driver/upload`, {
                 method: "POST",
+                headers: {
+                    "x-admin-key": ADMIN_KEY
+                },
                 body: formData,
             });
             const d = await res.json();
@@ -31,7 +35,14 @@ const FuelPhotoField = ({ label, k, form, setForm, S, T }) => {
             alert("Upload error: " + err.message);
         } finally {
             setUploading(false);
+            setDragging(false);
         }
+    };
+
+    const onDrop = (e) => {
+        e.preventDefault();
+        setDragging(false);
+        if (e.dataTransfer.files[0]) handleUpload(e.dataTransfer.files[0]);
     };
 
     return (
@@ -42,7 +53,18 @@ const FuelPhotoField = ({ label, k, form, setForm, S, T }) => {
                     {photoUrl ? "(uploaded)" : "(required)"}
                 </span>
             </label>
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            <div 
+                style={{ 
+                    display: 'flex', gap: 10, alignItems: 'center',
+                    border: dragging ? "2px dashed var(--brand-primary)" : "2px dashed transparent",
+                    borderRadius: 12,
+                    padding: dragging ? 8 : 0,
+                    transition: "all 0.2s ease"
+                }}
+                onDragOver={e => { e.preventDefault(); setDragging(true); }}
+                onDragLeave={() => setDragging(false)}
+                onDrop={onDrop}
+            >
                 <label style={{ ...S.btn(photoUrl ? 'ghost' : 'primary'), fontSize: 11, padding: '6px 12px', cursor: 'pointer', flex: 1, textAlign: 'center' }}>
                     {uploading ? "Uploading…" : photoUrl ? "Change photo" : "Upload photo"}
                     <input type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={handleUpload} disabled={uploading} />
@@ -66,13 +88,32 @@ const FuelPhotoField = ({ label, k, form, setForm, S, T }) => {
     );
 };
 
+function SectionHeader({ title, icon, T, style = {} }) {
+    return (
+        <div style={{ 
+            gridColumn: "1/-1", 
+            display: "flex", 
+            alignItems: "center", 
+            gap: 10, 
+            marginTop: 18, 
+            marginBottom: 10,
+            padding: "8px 0",
+            borderBottom: `1px solid ${T?.border2 || "var(--border-subtle)"}`,
+            ...style
+        }}>
+            <span style={{ fontSize: 16, display: 'flex' }}>{icon}</span>
+            <span style={{ fontWeight: 800, fontSize: 12, textTransform: "uppercase", letterSpacing: "0.07em", color: "var(--brand-primary)" }}>{title}</span>
+        </div>
+    );
+}
+
 /** Admin journey form — documents (server /api/admin/upload) */
 function JourneyDocumentField({ label, k, form, setForm, S, T, required = false }) {
-    const [uploading, setUploading] = useState(false);
+    const [dragging, setDragging] = useState(false);
     const docUrl = form[k];
 
-    const handleUpload = async (e) => {
-        const file = e.target.files[0];
+    const handleUpload = async (eOrFile) => {
+        const file = eOrFile.target ? eOrFile.target.files[0] : eOrFile;
         if (!file) return;
         setUploading(true);
         const fd = new FormData();
@@ -80,7 +121,13 @@ function JourneyDocumentField({ label, k, form, setForm, S, T, required = false 
         fd.append('adminKey', ADMIN_KEY);
         fd.append('folder', 'journey_docs');
         try {
-            const res = await fetch(`${PAYMENT_API}/api/admin/upload`, { method: 'POST', body: fd });
+            const res = await fetch(`${PAYMENT_API}/api/admin/upload`, { 
+                method: 'POST', 
+                headers: {
+                    'x-admin-key': ADMIN_KEY
+                },
+                body: fd 
+            });
             const d = await res.json();
             if (d.success) setForm((f) => ({ ...f, [k]: d.url }));
             else alert('Upload failed: ' + (d.error || 'unknown'));
@@ -88,8 +135,14 @@ function JourneyDocumentField({ label, k, form, setForm, S, T, required = false 
             alert('Upload error: ' + err.message);
         } finally {
             setUploading(false);
+            setDragging(false);
         }
-        e.target.value = '';
+    };
+
+    const onDrop = (e) => {
+        e.preventDefault();
+        setDragging(false);
+        if (e.dataTransfer.files[0]) handleUpload(e.dataTransfer.files[0]);
     };
 
     return (
@@ -100,7 +153,18 @@ function JourneyDocumentField({ label, k, form, setForm, S, T, required = false 
                     {docUrl ? '(uploaded)' : required ? '(required)' : '(optional)'}
                 </span>
             </label>
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            <div 
+                style={{ 
+                    display: 'flex', gap: 10, alignItems: 'center',
+                    border: dragging ? "2px dashed var(--brand-primary)" : "2px dashed transparent",
+                    borderRadius: 12,
+                    padding: dragging ? 8 : 0,
+                    transition: "all 0.2s ease"
+                }}
+                onDragOver={e => { e.preventDefault(); setDragging(true); }}
+                onDragLeave={() => setDragging(false)}
+                onDrop={onDrop}
+            >
                 <label
                     style={{
                         ...S.btn(docUrl ? 'ghost' : 'primary'),
@@ -135,11 +199,11 @@ function JourneyDocumentField({ label, k, form, setForm, S, T, required = false 
 }
 
 function JourneyOdomPhotoField({ label, k, form, setForm, S, T }) {
-    const [uploading, setUploading] = useState(false);
+    const [dragging, setDragging] = useState(false);
     const photoUrl = form[k];
 
-    const handleUpload = async (e) => {
-        const file = e.target.files[0];
+    const handleUpload = async (eOrFile) => {
+        const file = eOrFile.target ? eOrFile.target.files[0] : eOrFile;
         if (!file) return;
         setUploading(true);
         const fd = new FormData();
@@ -148,7 +212,13 @@ function JourneyOdomPhotoField({ label, k, form, setForm, S, T }) {
         fd.append('folder', 'journey_odom_admin');
         fd.append('filename', k);
         try {
-            const res = await fetch(`${PAYMENT_API}/api/admin/upload`, { method: 'POST', body: fd });
+            const res = await fetch(`${PAYMENT_API}/api/admin/upload`, { 
+                method: 'POST', 
+                headers: {
+                    'x-admin-key': ADMIN_KEY
+                },
+                body: fd 
+            });
             const d = await res.json();
             if (d.success) setForm((f) => ({ ...f, [k]: d.url }));
             else alert('Upload failed: ' + (d.error || 'unknown'));
@@ -156,8 +226,14 @@ function JourneyOdomPhotoField({ label, k, form, setForm, S, T }) {
             alert('Upload error: ' + err.message);
         } finally {
             setUploading(false);
+            setDragging(false);
         }
-        e.target.value = '';
+    };
+
+    const onDrop = (e) => {
+        e.preventDefault();
+        setDragging(false);
+        if (e.dataTransfer.files[0]) handleUpload(e.dataTransfer.files[0]);
     };
 
     return (
@@ -168,7 +244,18 @@ function JourneyOdomPhotoField({ label, k, form, setForm, S, T }) {
                     {photoUrl ? '(uploaded)' : '(optional)'}
                 </span>
             </label>
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            <div 
+                style={{ 
+                    display: 'flex', gap: 10, alignItems: 'center',
+                    border: dragging ? "2px dashed var(--brand-primary)" : "2px dashed transparent",
+                    borderRadius: 12,
+                    padding: dragging ? 8 : 0,
+                    transition: "all 0.2s ease"
+                }}
+                onDragOver={e => { e.preventDefault(); setDragging(true); }}
+                onDragLeave={() => setDragging(false)}
+                onDrop={onDrop}
+            >
                 <label
                     style={{
                         ...S.btn(photoUrl ? 'ghost' : 'primary'),
@@ -632,9 +719,12 @@ export function GlobalModals(props) {
         return (
             <Modal title={form.id ? "Edit Journey" : "Log New Journey"} onSave={onSave} S={S} closeModal={closeModal} saveDisabled={hasErrors}>
                 <div style={S.fgg(2)}>
+                    
+                    {/* --- SECTION 1: ROUTE & LOGISTICS --- */}
+                    <SectionHeader title="Route & Logistics" icon="📍" T={T} style={{ marginTop: 0 }} />
                     <div style={{ ...S.fg, gridColumn: "1/-1" }}>
                         <label style={S.lbl}>Quick Route</label>
-                        <select style={S.inp} onChange={e => {
+                        <select style={{ ...S.inp, background: 'var(--surface-subtle)' }} onChange={e => {
                             const route = commonRoutes.find(r => `${r.origin}→${r.dest}` === e.target.value);
                             if (route) setForm(f => ({ ...f, origin: route.origin, dest: route.dest, distance: route.distance }));
                         }} defaultValue="">
@@ -642,20 +732,22 @@ export function GlobalModals(props) {
                             {commonRoutes.map(r => <option key={`${r.origin}→${r.dest}`} value={`${r.origin}→${r.dest}`}>{r.origin} → {r.dest} ({r.distance} km)</option>)}
                         </select>
                     </div>
+                    
                     <Field label="Origin" k="origin" form={form} setForm={setForm} S={S} />
                     <Field label="Destination" k="dest" form={form} setForm={setForm} S={S} />
                     
-                    <div style={{ ...S.fg, gridColumn: "1/-1" }}>
-                        <div style={S.fgg(2)}>
-                            <Field label="Pickup Address" k="pickupAddress" full form={form} setForm={setForm} S={S} placeholder="Specific location details at origin..." />
-                            <Field label="Delivery Address" k="deliveryAddress" full form={form} setForm={setForm} S={S} placeholder="Specific unloading point details..." />
-                        </div>
-                    </div>
+                    <Field label="Pickup Address" k="pickupAddress" full form={form} setForm={setForm} S={S} placeholder="Specific location details at origin..." />
+                    <Field label="Delivery Address" k="deliveryAddress" full form={form} setForm={setForm} S={S} placeholder="Specific unloading point details..." />
+
+                    <Field label="Departure Date" k="date" type="date" form={form} setForm={setForm} S={S} />
+                    <Field label="Arrival Date" k="endDate" type="date" form={form} setForm={setForm} S={S} error={errors.endDate} />
+                    {/* --- SECTION 2: VEHICLE & CREW --- */}
+                    <SectionHeader title="Vehicle & Crew" icon="🚛" T={T} />
                     
                     <div style={S.fg}>
                         <label style={S.lbl}>
                             Truck
-                            {vehicleLocked && <span style={{ fontWeight: 600, color: "var(--text-muted)", marginLeft: 8, fontSize: 11 }}>(locked for driver)</span>}
+                            {vehicleLocked && <span style={{ fontWeight: 800, color: "var(--brand-primary)", marginLeft: 8, fontSize: 10, background: 'var(--brand-primary)12', padding: '2px 6px', borderRadius: 4 }}>LOCKED</span>}
                         </label>
                         <select
                             style={{ ...S.inp }}
@@ -717,250 +809,202 @@ export function GlobalModals(props) {
                         }}
                     />
 
-                    <Field label="Start Odom (km)" k="startOdom" type="number" form={form} setForm={setForm} S={S} 
-                        onChange={v => setForm(f => ({ ...f, startOdom: v, distance: f.finalOdom ? Math.max(0, +f.finalOdom - +v) : f.distance }))} />
-                    <Field label="Final Odom (km)" k="finalOdom" type="number" form={form} setForm={setForm} S={S} 
-                        onChange={v => setForm(f => ({ ...f, finalOdom: v, distance: f.startOdom ? Math.max(0, +v - +f.startOdom) : f.distance }))} />
+                    <Field label="Status" k="status" options={STATUSES_JOURNEY} form={form} setForm={setForm} S={S} />
 
-                    <div style={{ ...S.fg, gridColumn: "1 / -1" }}>
-                        <div style={{ fontWeight: 800, fontSize: 13, marginBottom: 10, color: T.text, paddingTop: 4, borderTop: `1px solid ${T.border2}` }}>
-                            Admin odometer photos (optional)
-                        </div>
-                        <div style={S.fgg(2)}>
-                            <JourneyOdomPhotoField label="Start odometer" k="adminStartOdomPhotoUrl" form={form} setForm={setForm} S={S} T={T} />
-                            <JourneyOdomPhotoField label="End odometer" k="adminEndOdomPhotoUrl" form={form} setForm={setForm} S={S} T={T} />
-                        </div>
-                    </div>
-
-                    <Field label="Departure Date" k="date" type="date" form={form} setForm={setForm} S={S} />
-                    <Field label="Arrival Date" k="endDate" type="date" form={form} setForm={setForm} S={S} error={errors.endDate} />
-
-                    <div style={{ ...S.fg, gridColumn: '1/-1', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', padding: '12px 16px', background: form.isInternational ? 'rgba(7,131,235,0.08)' : 'var(--surface-subtle)', borderRadius: 10, border: `1px solid ${form.isInternational ? 'var(--brand-primary)' : 'var(--border-subtle)'}` }}>
-                            <input type="checkbox" checked={!!form.isInternational} onChange={e => setForm(f => ({ ...f, isInternational: e.target.checked }))} style={{ width: 18, height: 18, accentColor: 'var(--brand-primary)' }} />
-                            <div>
-                                <div style={{ fontWeight: 800, color: 'var(--text-primary)', fontSize: 14 }}>International Journey</div>
-                                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>Journey is outside Kenya. International flat rates will apply.</div>
+                    <div style={{ ...S.fg, gridColumn: "1/-1" }}>
+                        <div style={{ padding: '16px', background: 'var(--surface-subtle)', borderRadius: 12, border: `1px solid ${T.border2}`, marginTop: 4 }}>
+                            <div style={{ fontWeight: 800, color: T.text, fontSize: 11, textTransform: 'uppercase', marginBottom: 14, opacity: 0.7, letterSpacing: '0.05em' }}>
+                                Turnboy / Second Driver (Optional)
                             </div>
-                        </label>
-
-                        <label style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', padding: '12px 16px', background: form.returningEmpty ? 'rgba(251,191,36,0.08)' : 'var(--surface-subtle)', borderRadius: 10, border: `1px solid ${form.returningEmpty ? '#f59e0b' : 'var(--border-subtle)'}` }}>
-                            <input type="checkbox" checked={!!form.returningEmpty} onChange={e => setForm(f => ({ ...f, returningEmpty: e.target.checked, customerId: e.target.checked ? '' : f.customerId, deliveryCustomerId: e.target.checked ? '' : f.deliveryCustomerId }))} style={{ width: 18, height: 18, accentColor: '#f59e0b' }} />
-                            <div>
-                                <div style={{ fontWeight: 800, color: 'var(--text-primary)', fontSize: 14 }}>Return Trip / Empty</div>
-                                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>Vehicle is returning. Specific return rates apply.</div>
-                            </div>
-                        </label>
-                    </div>
-
-                    <div style={{ ...S.fg, gridColumn: "1 / -1", borderTop: `1px solid ${T.border2}`, paddingTop: 16 }}>
-                        <div style={{ fontWeight: 800, fontSize: 13, marginBottom: 12, color: T.text, display: 'flex', alignItems: 'center', gap: 8 }}>
-                             Documentation {form.isInternational ? <span style={{ background: 'var(--brand-primary)', color: 'white', fontSize: 10, padding: '2px 6px', borderRadius: 4 }}>International Requirements</span> : ""}
-                        </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                            <Field label="KRA Booking No" k="booking_no" form={form} setForm={setForm} S={S} error={errors.booking_no} required={!!form.isInternational} placeholder={form.isInternational ? "Required for international..." : "Optional..."} />
-                            
-                            {form.isInternational ? (
-                                <JourneyDocumentField 
-                                    label="TR Form (KRA)" 
-                                    k="tr_form_url" 
-                                    form={form} 
-                                    setForm={setForm} 
-                                    S={S} 
-                                    T={T} 
-                                    required={true} 
-                                />
-                            ) : (
-                                <JourneyDocumentField 
-                                    label="T1 Form (Domestic)" 
-                                    k="t1_form_url" 
-                                    form={form} 
-                                    setForm={setForm} 
-                                    S={S} 
-                                    T={T} 
-                                    required={false} 
-                                />
-                            )}
-                        </div>
-                    </div>
-                    {!form.returningEmpty && (
-                    <div style={{ ...S.fg, gridColumn: '1 / -1' }}>
-                        <div style={{ fontWeight: 700, color: T.text, fontSize: 13, marginBottom: 10 }}>Billing customer (consignor) — required</div>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                            <label style={{ ...S.lbl, marginBottom: 0 }}>Customer</label>
-                            <button
-                                type="button"
-                                onClick={() => setForm((f) => ({ ...f, _quickAddBill: !f._quickAddBill, _quickAddDel: false }))}
-                                style={{ border: "none", background: "none", color: "var(--brand-primary)", fontSize: 11, fontWeight: 800, cursor: "pointer" }}
-                            >
-                                {form._quickAddBill ? "Cancel" : "Add new"}
-                            </button>
-                        </div>
-                        {form._quickAddBill ? (
-                            <div style={{ background: "var(--surface-subtle)", padding: 12, borderRadius: 10, border: "1px solid var(--border-subtle)", marginBottom: 8 }}>
-                                <input style={{ ...S.inp, marginBottom: 8 }} placeholder="Company or person name…" id="qa-bill-name" />
-                                <div style={{ display: "flex", gap: 8 }}>
-                                    <input style={{ ...S.inp, flex: 1 }} placeholder="Phone…" id="qa-bill-phone" />
-                                    <button
-                                        type="button"
-                                        style={{ padding: "0 12px", borderRadius: 8, background: "var(--brand-primary)", color: "white", border: "none", fontWeight: 800, fontSize: 12 }}
-                                        onClick={() => {
-                                            const name = document.getElementById("qa-bill-name")?.value;
-                                            const phone = document.getElementById("qa-bill-phone")?.value;
-                                            if (!name?.trim()) return alert("Consignor name is required");
-                                            if (!phone?.trim()) return alert("Consignor phone number is required");
-                                            
-                                            if (name?.trim()) {
-                                                const normalizedName = name.trim().toLowerCase();
-                                                const existing = data.customers.find(c => c.name.trim().toLowerCase() === normalizedName);
-                                                if (existing) {
-                                                    setForm((f) => ({ ...f, customerId: existing.id, _quickAddBill: false }));
-                                                } else {
-                                                    const id = uid();
-                                                    saveItem("customers", { id, name: name.trim(), phone: phone || "", type: "Individual", status: "Active" });
-                                                    setForm((f) => ({ ...f, customerId: id, _quickAddBill: false }));
-                                                }
-                                            }
-                                        }}
-                                    >
-                                        Save
-                                    </button>
+                            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 16 }}>
+                                <div style={S.fg}>
+                                    <label style={S.lbl}>Type</label>
+                                    <select style={S.inp} value={form.turnboyType || ''} onChange={e => {
+                                        setForm(f => ({ ...f, turnboyType: e.target.value, turnboyId: '', turnboyName: '' }));
+                                    }}>
+                                        <option value="">None — solo driver</option>
+                                        <option value="salaried">Salaried turnboy (from company list)</option>
+                                        <option value="casual">Casual / one-off turnboy</option>
+                                    </select>
                                 </div>
+                                
+                                {form.turnboyType === 'salaried' && (
+                                    <Field 
+                                        label="Select Turnboy" 
+                                        k="turnboyId" 
+                                        options={(data.turnboys || []).filter(tb => tb.status === 'Active').map(tb => ({ v: tb.id, l: tb.name }))} 
+                                        form={form} setForm={setForm} S={S} 
+                                    />
+                                )}
+                                {form.turnboyType === 'casual' && (
+                                    <Field label="Name / Phone" k="turnboyName" form={form} setForm={setForm} S={S} placeholder="Full Name..." />
+                                )}
                             </div>
-                        ) : (
-                            <select
-                                style={{ ...S.inp, border: errors.customerId ? "1px solid #DC2626" : S.inp.border }}
-                                value={form.customerId || ""}
-                                onChange={(e) => setForm((f) => ({ ...f, customerId: e.target.value }))}
-                            >
-                                <option value="">Select billing customer…</option>
-                                {data.customers.map((c) => (
-                                    <option key={c.id} value={c.id}>
-                                        {c.name}
-                                    </option>
-                                ))}
-                            </select>
-                        )}
-                        {errors.customerId && <p style={{ color: "#DC2626", fontSize: 11, marginTop: 4 }}>{errors.customerId}</p>}
-                    </div>
-                    )}
-
-                    {!form.returningEmpty && (
-                    <div style={{ ...S.fg, gridColumn: "1 / -1" }}>
-                        <div style={{ fontWeight: 700, color: T.text, fontSize: 13, marginBottom: 10 }}>Delivery customer (consignee) — required</div>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                            <label style={{ ...S.lbl, marginBottom: 0 }}>Delivery to</label>
-                            <button
-                                type="button"
-                                onClick={() => setForm((f) => ({ ...f, _quickAddDel: !f._quickAddDel, _quickAddBill: false }))}
-                                style={{ border: "none", background: "none", color: "var(--brand-primary)", fontSize: 11, fontWeight: 800, cursor: "pointer" }}
-                            >
-                                {form._quickAddDel ? "Cancel" : "Add new"}
-                            </button>
                         </div>
-                        {form._quickAddDel ? (
-                            <div style={{ background: "var(--surface-subtle)", padding: 12, borderRadius: 10, border: "1px solid var(--border-subtle)", marginBottom: 8 }}>
-                                <input style={{ ...S.inp, marginBottom: 8 }} placeholder="Receiver name or site…" id="qa-del-name" />
-                                <div style={{ display: "flex", gap: 8 }}>
-                                    <input style={{ ...S.inp, flex: 1 }} placeholder="Phone…" id="qa-del-phone" />
-                                    <button
-                                        type="button"
-                                        style={{ padding: "0 12px", borderRadius: 8, background: "var(--brand-primary)", color: "white", border: "none", fontWeight: 800, fontSize: 12 }}
-                                        onClick={() => {
-                                            const name = document.getElementById("qa-del-name")?.value;
-                                            const phone = document.getElementById("qa-del-phone")?.value;
-                                            if (!name?.trim()) return alert("Consignee name is required");
-                                            if (!phone?.trim()) return alert("Consignee phone number is required");
+                    </div>
 
-                                            if (name?.trim()) {
-                                                const normalizedName = name.trim().toLowerCase();
-                                                const existing = data.customers.find(c => c.name.trim().toLowerCase() === normalizedName);
-                                                if (existing) {
-                                                    setForm((f) => ({ ...f, deliveryCustomerId: existing.id, _quickAddDel: false }));
-                                                } else {
-                                                    const id = uid();
-                                                    saveItem("customers", { id, name: name.trim(), phone: phone || "", type: "Individual", status: "Active" });
-                                                    setForm((f) => ({ ...f, deliveryCustomerId: id, _quickAddDel: false }));
-                                                }
-                                            }
-                                        }}
-                                    >
-                                        Save
-                                    </button>
+                    {/* --- SECTION 3: CARGO & FINANCIALS --- */}
+                    <SectionHeader title="Cargo & Financials" icon="💰" T={T} />
+
+                    <div style={{ ...S.fg, gridColumn: "1/-1" }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 16, marginBottom: 12 }}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', padding: '12px 16px', background: form.isInternational ? 'rgba(7,131,235,0.06)' : 'var(--surface-subtle)', borderRadius: 12, border: `1px solid ${form.isInternational ? 'var(--brand-primary)' : 'var(--border-subtle)'}` }}>
+                                <input type="checkbox" checked={!!form.isInternational} onChange={e => setForm(f => ({ ...f, isInternational: e.target.checked }))} style={{ width: 17, height: 17, accentColor: 'var(--brand-primary)' }} />
+                                <div>
+                                    <div style={{ fontWeight: 800, color: 'var(--text-primary)', fontSize: 13 }}>International Trip</div>
                                 </div>
-                            </div>
-                        ) : (
-                            <select
-                                style={{ ...S.inp, border: errors.deliveryCustomerId ? "1px solid #DC2626" : S.inp.border }}
-                                value={form.deliveryCustomerId || ""}
-                                onChange={(e) => setForm((f) => ({ ...f, deliveryCustomerId: e.target.value }))}
-                            >
-                                <option value="">Select delivery customer…</option>
-                                {data.customers.map((c) => (
-                                    <option key={c.id} value={c.id}>
-                                        {c.name}
-                                    </option>
-                                ))}
-                            </select>
-                        )}
-                        {errors.deliveryCustomerId && <p style={{ color: "#DC2626", fontSize: 11, marginTop: 4 }}>{errors.deliveryCustomerId}</p>}
-                        <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 8, lineHeight: 1.45 }}>
-                            Used on the waybill as consignor and consignee. You can still edit wording in the waybill screen after saving.
+                            </label>
+
+                            <label style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', padding: '12px 16px', background: form.returningEmpty ? 'rgba(251,191,36,0.06)' : 'var(--surface-subtle)', borderRadius: 12, border: `1px solid ${form.returningEmpty ? '#f59e0b' : 'var(--border-subtle)'}` }}>
+                                <input type="checkbox" checked={!!form.returningEmpty} onChange={e => setForm(f => ({ ...f, returningEmpty: e.target.checked, customerId: e.target.checked ? '' : f.customerId, deliveryCustomerId: e.target.checked ? '' : f.deliveryCustomerId }))} style={{ width: 17, height: 17, accentColor: '#f59e0b' }} />
+                                <div>
+                                    <div style={{ fontWeight: 800, color: 'var(--text-primary)', fontSize: 13 }}>Return / Empty</div>
+                                </div>
+                            </label>
                         </div>
                     </div>
-                    )}
 
-
-                    <Field label="Distance (km)" k="distance" type="number" form={form} setForm={setForm} S={S} />
-                    <Field label="Revenue (KES)" k="revenue" type="number" form={form} setForm={setForm} S={S} error={errors.revenue} />
-                    
                     <div style={S.fg}>
                         <label style={S.lbl}>Cargo Description</label>
-                        <input style={S.inp} list="cargo-types-list" value={form.cargo || ''} placeholder="Type or select cargo type"
+                        <input style={S.inp} list="cargo-types-list" value={form.cargo || ''} placeholder="Type or select…"
                             onChange={e => setForm(f => ({ ...f, cargo: e.target.value }))} />
                         <datalist id="cargo-types-list">
                             {CARGO_TYPES.map(c => <option key={c} value={c} />)}
                         </datalist>
                     </div>
-                    
+
                     <Field label="Weight (Tonnes)" k="weight" type="number" form={form} setForm={setForm} S={S} />
-                    <Field label="Status" k="status" options={STATUSES_JOURNEY} form={form} setForm={setForm} S={S} />
                     
-                    {/* Projected Allowance Preview */}
+                    <Field label="Distance (km)" k="distance" type="number" form={form} setForm={setForm} S={S} />
+                    <Field label="Revenue (KES)" k="revenue" type="number" form={form} setForm={setForm} S={S} error={errors.revenue} />
+
+                    {!form.returningEmpty && (
+                        <div style={{ ...S.fg, gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 16, background: 'var(--surface-subtle)', padding: 16, borderRadius: 14, border: `1px solid ${T.border2}`, marginTop: 4 }}>
+                            
+                            <div>
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                                    <label style={{ ...S.lbl, marginBottom: 0 }}>Consignor (Bill to)</label>
+                                    <button
+                                        type="button"
+                                        onClick={() => setForm((f) => ({ ...f, _quickAddBill: !f._quickAddBill, _quickAddDel: false }))}
+                                        style={{ border: "none", background: "none", color: "var(--brand-primary)", fontSize: 10, fontWeight: 800, cursor: "pointer" }}
+                                    >
+                                        {form._quickAddBill ? "Cancel" : "Add new"}
+                                    </button>
+                                </div>
+                                {form._quickAddBill ? (
+                                    <div style={{ background: "white", padding: 10, borderRadius: 10, border: "1px solid var(--border-subtle)" }}>
+                                        <input style={{ ...S.inp, height: 34, fontSize: 12, marginBottom: 8 }} placeholder="Company/Person Name…" id="qa-bill-name" />
+                                        <div style={{ display: "flex", gap: 8 }}>
+                                            <input style={{ ...S.inp, height: 34, fontSize: 12, flex: 1 }} placeholder="Phone…" id="qa-bill-phone" />
+                                            <button
+                                                type="button"
+                                                style={{ padding: "0 12px", borderRadius: 8, background: "var(--brand-primary)", color: "white", border: "none", fontWeight: 800, fontSize: 11 }}
+                                                onClick={() => {
+                                                    const name = document.getElementById("qa-bill-name")?.value;
+                                                    const phone = document.getElementById("qa-bill-phone")?.value;
+                                                    if (!name?.trim() || !phone?.trim()) return alert("Name & Phone required");
+                                                    const id = uid();
+                                                    saveItem("customers", { id, name: name.trim(), phone: phone || "", type: "Individual", status: "Active" });
+                                                    setForm((f) => ({ ...f, customerId: id, _quickAddBill: false }));
+                                                }}
+                                            >
+                                                Save
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <select
+                                        style={{ ...S.inp, border: errors.customerId ? "1px solid #DC2626" : S.inp.border }}
+                                        value={form.customerId || ""}
+                                        onChange={(e) => setForm((f) => ({ ...f, customerId: e.target.value }))}
+                                    >
+                                        <option value="">Select customer…</option>
+                                        {data.customers.map((c) => (
+                                            <option key={c.id} value={c.id}>{c.name}</option>
+                                        ))}
+                                    </select>
+                                )}
+                            </div>
+
+                            <div>
+                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                                    <label style={{ ...S.lbl, marginBottom: 0 }}>Consignee (Deliver to)</label>
+                                    <button
+                                        type="button"
+                                        onClick={() => setForm((f) => ({ ...f, _quickAddDel: !f._quickAddDel, _quickAddBill: false }))}
+                                        style={{ border: "none", background: "none", color: "var(--brand-primary)", fontSize: 10, fontWeight: 800, cursor: "pointer" }}
+                                    >
+                                        {form._quickAddDel ? "Cancel" : "Add new"}
+                                    </button>
+                                </div>
+                                {form._quickAddDel ? (
+                                    <div style={{ background: "white", padding: 10, borderRadius: 10, border: "1px solid var(--border-subtle)" }}>
+                                        <input style={{ ...S.inp, height: 34, fontSize: 12, marginBottom: 8 }} placeholder="Site/Person Name…" id="qa-del-name" />
+                                        <div style={{ display: "flex", gap: 8 }}>
+                                            <input style={{ ...S.inp, height: 34, fontSize: 12, flex: 1 }} placeholder="Phone…" id="qa-del-phone" />
+                                            <button
+                                                type="button"
+                                                style={{ padding: "0 12px", borderRadius: 8, background: "var(--brand-primary)", color: "white", border: "none", fontWeight: 800, fontSize: 11 }}
+                                                onClick={() => {
+                                                    const name = document.getElementById("qa-del-name")?.value;
+                                                    const phone = document.getElementById("qa-del-phone")?.value;
+                                                    if (!name?.trim() || !phone?.trim()) return alert("Name & Phone required");
+                                                    const id = uid();
+                                                    saveItem("customers", { id, name: name.trim(), phone: phone || "", type: "Individual", status: "Active" });
+                                                    setForm((f) => ({ ...f, deliveryCustomerId: id, _quickAddDel: false }));
+                                                }}
+                                            >
+                                                Save
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <select
+                                        style={{ ...S.inp, border: errors.deliveryCustomerId ? "1px solid #DC2626" : S.inp.border }}
+                                        value={form.deliveryCustomerId || ""}
+                                        onChange={(e) => setForm((f) => ({ ...f, deliveryCustomerId: e.target.value }))}
+                                    >
+                                        <option value="">Select customer…</option>
+                                        {data.customers.map((c) => (
+                                            <option key={c.id} value={c.id}>{c.name}</option>
+                                        ))}
+                                    </select>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                    {/* Allowance Preview */}
                     {(form.origin && form.dest && (form.distance || form.isInternational)) && (
-                        <div style={{ ...S.fg, gridColumn: "1/-1" }}>
+                        <div style={{ ...S.fg, gridColumn: "1/-1", marginTop: 4 }}>
                             {(() => {
                                 const rates = getEffectiveRates(form.origin, form.dest);
                                 const allowance = rates.isFlatRate ? rates.driver : Math.round(+form.distance * rates.driver);
                                 const rua = rates.roadUserAllowance || 0;
                                 const total = allowance + rua;
                                 return (
-                                    <div style={{ display: "grid", gap: 10 }}>
-                                        <div style={{ background: "rgba(16, 185, 129, 0.05)", border: `1px solid ${rates.isOverride ? 'var(--brand-primary)33' : 'rgba(16, 185, 129, 0.2)'}`, borderRadius: 12, padding: "14px 18px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                    <div style={{ display: "grid", gap: 8, padding: '16px', border: `1px solid var(--brand-primary)33`, borderRadius: 12, background: 'var(--brand-primary)05' }}>
+                                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                                             <div>
-                                                <div style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4, display: "flex", alignItems: "center", gap: 8 }}>
+                                                <div style={{ fontSize: 10, color: "var(--brand-primary)", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
                                                     {rates.isFlatRate ? "Flat Rate Allowance" : "Mileage Allowance"}
-                                                    {rates.isOverride && (
-                                                        <span style={{ background: "var(--brand-primary)15", color: "var(--brand-primary)", padding: "2px 6px", borderRadius: 6, fontSize: 9 }}>ROUTE RATE</span>
-                                                    )}
+                                                    {rates.isOverride && <span style={{ background: 'var(--brand-primary)15', color: 'var(--brand-primary)', padding: '2px 6px', borderRadius: 6, fontSize: 9 }}>ROUTE RATE</span>}
                                                 </div>
-                                                <div style={{ fontSize: 13, color: "var(--text-secondary)", fontWeight: 500 }}>
+                                                <div style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 500 }}>
                                                     {rates.isFlatRate ? "International/Domestic Flat Rate" : `${Number(form.distance).toLocaleString()} km @ ${fmt(rates.driver)}/km`}
                                                 </div>
                                             </div>
-                                            <div style={{ fontSize: 18, fontWeight: 800, color: "#10b981" }}>{fmt(allowance)}</div>
+                                            <div style={{ fontSize: 18, fontWeight: 900, color: "var(--brand-primary)" }}>{fmt(allowance)}</div>
                                         </div>
-
                                         {rua > 0 && (
-                                            <div style={{ background: "rgba(7, 131, 235, 0.05)", border: `1px solid rgba(7, 131, 235, 0.2)`, borderRadius: 12, padding: "10px 18px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                                <div style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>Road User Allowance</div>
-                                                <div style={{ fontSize: 16, fontWeight: 800, color: "var(--brand-primary)" }}>{fmt(rua)}</div>
+                                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: `1px dashed var(--brand-primary)15`, paddingTop: 8 }}>
+                                                <div style={{ fontSize: 10, color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>Road User Allowance</div>
+                                                <div style={{ fontSize: 14, fontWeight: 800, color: "var(--text-primary)" }}>{fmt(rua)}</div>
                                             </div>
                                         )}
-
-                                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "4px 18px" }}>
-                                            <div style={{ fontSize: 13, fontWeight: 800, color: "var(--text-primary)" }}>Total Projected Allowance</div>
-                                            <div style={{ fontSize: 22, fontWeight: 900, color: "var(--brand-primary)" }}>{fmt(total)}</div>
+                                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: `1px solid var(--brand-primary)20`, paddingTop: 10 }}>
+                                            <div style={{ fontSize: 13, fontWeight: 800 }}>Total Projected</div>
+                                            <div style={{ fontSize: 22, fontWeight: 950, color: "var(--brand-primary)" }}>{fmt(total)}</div>
                                         </div>
                                     </div>
                                 );
@@ -968,44 +1012,38 @@ export function GlobalModals(props) {
                         </div>
                     )}
 
-                    <div style={{ gridColumn: isMobile ? "auto" : "1 / -1" }}>
+                    {/* --- SECTION 4: DOCUMENTATION & ODOMETER --- */}
+                    <SectionHeader title="Documentation & Odometer" icon="📄" T={T} />
+                    
+                    <Field label="Start Odom (km)" k="startOdom" type="number" form={form} setForm={setForm} S={S} 
+                        onChange={v => setForm(f => ({ ...f, startOdom: v, distance: f.finalOdom ? Math.max(0, +f.finalOdom - +v) : f.distance }))} />
+                    <Field label="Final Odom (km)" k="finalOdom" type="number" form={form} setForm={setForm} S={S} 
+                        onChange={v => setForm(f => ({ ...f, finalOdom: v, distance: f.startOdom ? Math.max(0, +v - +f.startOdom) : f.distance }))} />
 
-                        <Field label="Notes" k="notes" form={form} setForm={setForm} S={S} full />
+                    <div style={{ ...S.fg, gridColumn: "1/-1" }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 16 }}>
+                            <JourneyOdomPhotoField label="Start Odometer Pic" k="adminStartOdomPhotoUrl" form={form} setForm={setForm} S={S} T={T} />
+                            <JourneyOdomPhotoField label="Final Odometer Pic" k="adminEndOdomPhotoUrl" form={form} setForm={setForm} S={S} T={T} />
+                        </div>
                     </div>
 
                     <div style={{ ...S.fg, gridColumn: "1/-1" }}>
-                        <div style={{ fontWeight: 700, color: T.text, fontSize: 13, marginBottom: 10, paddingTop: 8, borderTop: `1px solid ${T.border2}` }}>
-                            Turnboy / second driver (optional)
+                        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 16 }}>
+                            <Field label="KRA Booking No" k="booking_no" form={form} setForm={setForm} S={S} error={errors.booking_no} required={!!form.isInternational} placeholder="Optional..." />
+                            
+                            <JourneyDocumentField 
+                                label={form.isInternational ? "TR Form (KRA)" : "T1 Form (Domestic)"} 
+                                k={form.isInternational ? "tr_form_url" : "t1_form_url"} 
+                                form={form} 
+                                setForm={setForm} 
+                                S={S} 
+                                T={T} 
+                                required={!!form.isInternational} 
+                            />
                         </div>
-                        <label style={S.lbl}>Turnboy Type</label>
-                        <select style={S.inp} value={form.turnboyType || ''} onChange={e => {
-                            setForm(f => ({ ...f, turnboyType: e.target.value, turnboyId: '', turnboyName: '' }));
-                        }}>
-                            <option value="">None — solo driver</option>
-                            <option value="salaried">Salaried turnboy (from company list)</option>
-                            <option value="casual">Casual / one-off turnboy</option>
-                        </select>
-
-                        {form.turnboyType === 'salaried' && (
-                            <div style={{ marginTop: 10 }}>
-                                <label style={S.lbl}>Select Turnboy</label>
-                                <select style={S.inp} value={form.turnboyId || ''} onChange={e => setForm(f => ({ ...f, turnboyId: e.target.value }))}>
-                                    <option value="">Select…</option>
-                                    {(data.turnboys || []).filter(tb => tb.status === 'Active').map(tb => (
-                                        <option key={tb.id} value={tb.id}>{tb.name} — {tb.phone}</option>
-                                    ))}
-                                </select>
-                            </div>
-                        )}
-
-                        {form.turnboyType === 'casual' && (
-                            <div style={{ marginTop: 10 }}>
-                                <label style={S.lbl}>Turnboy Name</label>
-                                <input style={S.inp} placeholder="e.g. John Otieno" value={form.turnboyName || ''}
-                                    onChange={e => setForm(f => ({ ...f, turnboyName: e.target.value }))} />
-                            </div>
-                        )}
                     </div>
+
+                    <Field label="Internal Notes" k="notes" form={form} setForm={setForm} S={S} full placeholder="Any specific instructions or remarks..." />
                 </div>
             </Modal>
         );
@@ -1225,13 +1263,22 @@ export function GlobalModals(props) {
             const driverEmail = toSegechaEmail(form.email, driverName);
 
             const otp = form.otp || Math.floor(100000 + Math.random() * 900000).toString();
-            saveItem("drivers", { ...form, id: driverId, email: driverEmail, otp, firstLogin: isNew ? true : form.firstLogin });
+            const next = { ...form, id: driverId, email: driverEmail, otp, firstLogin: isNew ? true : form.firstLogin };
+            saveItem("drivers", next);
 
-            if (isNew && driverEmail && driverEmail.includes('@')) {
-                try {
+            try {
+                // 1. Persist the driver record to the backend 'drivers' table
+                await fetch(`${PAYMENT_API}/api/driver/save`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", "x-admin-key": ADMIN_KEY },
+                    body: JSON.stringify(next),
+                });
+
+                // 2. If new, create the auth account
+                if (isNew && driverEmail && driverEmail.includes('@')) {
                     const res = await fetch(`${PAYMENT_API}/api/driver/create-account`, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 'Content-Type': 'application/json', "x-admin-key": ADMIN_KEY },
                         body: JSON.stringify({ driverId, email: driverEmail, phone: form.phone, driverName, adminKey: ADMIN_KEY }),
                     });
                     const result = await res.json();
@@ -1240,11 +1287,16 @@ export function GlobalModals(props) {
                         const tempHint = result.tempPassword ? ` Temp password: ${result.tempPassword}` : "";
                         showToast?.(`Driver account created.${otpHint}${tempHint}`, "success");
                     }
-                } catch (err) {
-                    console.warn('Portal account creation failed:', err.message);
+                } else if (!isNew) {
+                    showToast?.("Driver record updated.", "success");
+                    closeModal();
                 }
+            } catch (err) {
+                console.warn('Persistence failed:', err.message);
+                showToast?.("Persistence error.", "error");
             }
         };
+
 
         return (
             <Modal title={form.id ? "Edit Driver" : "Add Driver"} onSave={handleDriverSave} S={S} closeModal={closeModal} saveDisabled={hasErrors}>
@@ -1402,23 +1454,32 @@ export function GlobalModals(props) {
             }
             saveItem("staff", next);
 
-            if (isNew && email.includes("@")) {
-                try {
+            try {
+                // 1. Persist the staff record to the backend 'staff' table
+                await fetch(`${PAYMENT_API}/api/staff/save`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json", "x-admin-key": ADMIN_KEY },
+                    body: JSON.stringify(next),
+                });
+
+                // 2. If new, create the auth account
+                if (isNew && email.includes("@")) {
                     const res = await fetch(`${PAYMENT_API}/api/staff/create-account`, {
                         method: "POST",
-                        headers: { "Content-Type": "application/json" },
+                        headers: { "Content-Type": "application/json", "x-admin-key": ADMIN_KEY },
                         body: JSON.stringify({
                             staffId: next.id,
                             email,
                             phone: next.phone,
-                            staffName: name,
+                            name,
+                            role: next.role,
                             adminKey: ADMIN_KEY,
                         }),
                     });
                     const result = await res.json();
                     if (result.success) {
                         setCreationResult(result);
-                        // Sync credentials back to global state so they are available in Staff Profile immediately
+                        // Sync credentials back to global state
                         setData(prev => ({
                             ...prev,
                             staff: (prev.staff || []).map(s => 
@@ -1429,14 +1490,16 @@ export function GlobalModals(props) {
                     } else {
                         showToast?.(`Account sync failed: ${result.error || 'Server error'}`, "error");
                     }
-                } catch (err) {
-                    console.warn("Staff account creation failed:", err.message);
-                    showToast?.("Account sync network error.", "error");
+                } else if (!isNew) {
+                    showToast?.("Staff member updated.", "success");
+                    closeModal();
                 }
-            } else {
-                closeModal();
+            } catch (err) {
+                console.warn("Staff save failed:", err.message);
+                showToast?.("Persistence error.", "error");
             }
         };
+
 
 
         return (

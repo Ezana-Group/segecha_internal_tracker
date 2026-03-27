@@ -211,15 +211,22 @@ export function StaffProfile({ data, setData, dark, isMobile, openModal, showToa
             setAccountBusy(true);
             const res = await fetch(`${PAYMENT_API}/api/staff/account/regenerate-credentials`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: { 
+                    "Content-Type": "application/json",
+                    "x-admin-key": ADMIN_KEY 
+                },
                 body: JSON.stringify({
                     staffId: staff.id,
                     email: staff.email || staff.name,
                     phone: staff.phone || "",
+                    name: staff.name,
+                    role: staff.role,
                     forcePasswordReset: true,
                     adminKey: ADMIN_KEY,
                 }),
+
             });
+
             const j = await res.json();
             if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
             setLastCreds({ otp: j.otp, tempPassword: j.tempPassword, at: new Date().toISOString() });
@@ -310,15 +317,22 @@ export function StaffProfile({ data, setData, dark, isMobile, openModal, showToa
             setAccountBusy(true);
             const res = await fetch(`${PAYMENT_API}/api/staff/account/regenerate-credentials`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: { 
+                    "Content-Type": "application/json",
+                    "x-admin-key": ADMIN_KEY 
+                },
                 body: JSON.stringify({
                     staffId: staff.id,
                     email: staff.email || staff.name,
                     phone: staff.phone || "",
+                    name: staff.name,
+                    role: staff.role,
                     forcePasswordReset: false,
                     adminKey: ADMIN_KEY,
                 }),
+
             });
+
             const j = await res.json();
             if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
             setLastCreds({ otp: j.otp, tempPassword: j.tempPassword, at: new Date().toISOString() });

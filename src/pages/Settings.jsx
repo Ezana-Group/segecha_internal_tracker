@@ -262,6 +262,7 @@ export function Settings({
     const [passForm, setPassForm] = useState({ old: '', new: '', confirm: '' });
     const [passLoading, setPassLoading] = useState(false);
     const [showPass, setShowPass] = useState(false);
+    const [draggingBackup, setDraggingBackup] = useState(false);
 
     const currentUser = adminAuth.getUser();
     const operatorEmail = String(currentUser?.email || "").trim().toLowerCase();
@@ -3326,12 +3327,27 @@ export function Settings({
                                             <option value="Weekly">Weekly</option>
                                         </select>
                                         <Button icon={Plus} variant="secondary" onClick={createManualBackup}>Backup Now</Button>
-                                        <label style={{ cursor: "pointer", display: "inline-block" }}>
+                                        <label 
+                                            style={{ 
+                                                cursor: "pointer", display: "inline-block",
+                                                border: draggingBackup ? "2px dashed var(--brand-primary)" : "1px solid transparent",
+                                                borderRadius: 12,
+                                                padding: draggingBackup ? 4 : 0,
+                                                transition: "all 0.2s ease"
+                                            }}
+                                            onDragOver={e => { e.preventDefault(); setDraggingBackup(true); }}
+                                            onDragLeave={() => setDraggingBackup(false)}
+                                            onDrop={e => {
+                                                e.preventDefault();
+                                                setDraggingBackup(false);
+                                                if (e.dataTransfer.files[0]) uploadBackup(e.dataTransfer.files[0]);
+                                            }}
+                                        >
                                             <input type="file" accept=".json" style={{ display: "none" }} onChange={(e) => {
                                                 if (e.target.files && e.target.files[0]) uploadBackup(e.target.files[0]);
                                                 e.target.value = null;
                                             }} />
-                                            <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 16px", background: "var(--surface-subtle)", color: "var(--brand-primary)", borderRadius: 10, fontWeight: 700, fontSize: 13, border: "1px solid var(--border-subtle)", cursor: "pointer", boxShadow: "0 1px 2px rgba(0,0,0,0.05)" }}>
+                                            <div style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 16px", background: scrolling ? "var(--surface-subtle)" : "var(--surface-subtle)", color: "var(--brand-primary)", borderRadius: 10, fontWeight: 700, fontSize: 13, border: "1px solid var(--border-subtle)", cursor: "pointer", boxShadow: "0 1px 2px rgba(0,0,0,0.05)" }}>
                                                 <Upload size={16} /> Upload Backup
                                             </div>
                                         </label>

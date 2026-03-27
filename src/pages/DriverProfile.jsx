@@ -188,15 +188,21 @@ export function DriverProfile({ data, setData, dark, isMobile, truckReg, openMod
             setAccountBusy(true);
             const res = await fetch(`${PAYMENT_API}/api/driver/account/regenerate-credentials`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: { 
+                    "Content-Type": "application/json",
+                    "x-admin-key": ADMIN_KEY 
+                },
                 body: JSON.stringify({
                     driverId: driver.id,
                     email: driver.email || driver.name,
                     phone: driver.phone || "",
+                    driverName: driver.name,
                     forcePasswordReset,
                     adminKey: ADMIN_KEY,
                 }),
+
             });
+
             const j = await res.json();
             if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
             setLastCreds({ otp: j.otp, tempPassword: j.tempPassword, at: new Date().toISOString() });

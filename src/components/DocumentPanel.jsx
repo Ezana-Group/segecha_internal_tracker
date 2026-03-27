@@ -40,7 +40,13 @@ export const uploadDocument = async (file, entityType, entityId, docType, label,
     formData.append('label', label);
     if (expiryDate) formData.append('expiryDate', expiryDate);
     formData.append('uploadedBy', 'admin');
-    const res = await fetch(`${PAYMENT_API}/api/documents/upload`, { method: 'POST', body: formData });
+    const res = await fetch(`${PAYMENT_API}/api/documents/upload`, { 
+        method: 'POST', 
+        headers: {
+            'x-admin-key': import.meta.env.VITE_ADMIN_KEY
+        },
+        body: formData 
+    });
     return res.json();
 };
 
@@ -81,12 +87,13 @@ export function DocumentPanel({
     const [uploadMsg, setUploadMsg] = useState('');
     const [selectedFile, setSelectedFile] = useState(null);
 
+    const [dragging, setDragging] = useState(false);
     const entityDocs = (documents || []).filter(d => (d.entityType === entityType && d.entityId === entityId) || (entityType === 'staff' && d.driverId === entityId));
 
-    const handleUpload = async () => {
-        if (!selectedFile || !uploadForm.docType) { setUploadMsg('❌ Select a document type and choose a file'); return; }
+    const handleUpload = async (fileToUpload = selectedFile) => {
+        if (!fileToUpload || !uploadForm.docType) { setUploadMsg('❌ Select a document type and choose a file'); return; }
         setUploading(true); setUploadMsg('');
-        const result = await uploadDocument(selectedFile, entityType, entityId, uploadForm.docType, uploadForm.label || selectedFile.name, uploadForm.expiryDate);
+        const result = await uploadDocument(fileToUpload, entityType, entityId, uploadForm.docType, uploadForm.label || fileToUpload.name, uploadForm.expiryDate);
         if (result.success) {
             setDocuments(d => [...d, result.document]);
             setUploadMsg('OK: Document uploaded.');
@@ -96,6 +103,19 @@ export function DocumentPanel({
             setUploadMsg('❌ ' + (result.error || 'Upload failed'));
         }
         setUploading(false);
+    };
+
+    const onDrop = (e) => {
+        e.preventDefault();
+        setDragging(false);
+        const file = e.dataTransfer.files[0];
+        if (file) {
+            setSelectedFile(file);
+            // Optionally auto-upload if type is already selected
+            if (uploadForm.docType) {
+                handleUpload(file);
+            }
+        }
     };
 
     const expiryColor = (doc) => {
@@ -121,7 +141,21 @@ export function DocumentPanel({
         <div>
             {/* Upload Area */}
             {capUpload && (
-            <div style={{ background: "var(--bg-surface)", borderRadius: 20, padding: 32, marginBottom: 32, border: "1px solid var(--glass-border)", boxShadow: "var(--glass-shadow)" }}>
+            <div 
+                onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+                onDragLeave={() => setDragging(false)}
+                onDrop={onDrop}
+                style={{ 
+                    background: dragging ? "rgba(7, 131, 235, 0.05)" : "var(--bg-surface)", 
+                    borderRadius: 20, 
+                    padding: 32, 
+                    marginBottom: 32, 
+                    border: dragging ? "2px dashed var(--brand-primary)" : "1px solid var(--glass-border)", 
+                    boxShadow: "var(--glass-shadow)",
+                    transition: "all 0.2s ease",
+                    position: "relative"
+                }}
+            >
                 <h4 style={{ fontSize: 16, fontWeight: 800, color: "var(--text-primary)", marginBottom: 24, display: "flex", alignItems: "center", gap: 10 }}>
                     <UploadCloud size={20} color="var(--brand-primary)" />
                     Upload Document for {entityLabel}

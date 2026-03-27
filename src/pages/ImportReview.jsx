@@ -104,6 +104,7 @@ export const ImportReview = ({ importSession, setImportSession, importHistory, r
     const [importMsg, setImportMsg] = useState('');
     const [uploadLoading, setUploadLoading] = useState(false);
     const [uploadErr, setUploadErr] = useState('');
+    const [dragging, setDragging] = useState(false);
     const navigate = useNavigate();
 
     // S styles might not be fully defined with tables, so providing fallbacks
@@ -111,8 +112,9 @@ export const ImportReview = ({ importSession, setImportSession, importHistory, r
     const sTh = { padding: '12px 14px', borderBottom: `2px solid ${T?.border || 'var(--border-subtle)'}`, color: T?.textDim || 'var(--text-dim)', fontWeight: 600, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em' };
     const sTd = { padding: '12px 14px', borderBottom: `1px solid ${T?.border || 'var(--border-subtle)'}`, color: T?.text || 'var(--text-secondary)' };
 
-    const handleUploadDrop = async (e) => {
-        const file = e.target.files[0]; if (!file) return;
+    const handleUploadDrop = async (eOrFile) => {
+        const file = eOrFile.target ? eOrFile.target.files[0] : eOrFile;
+        if (!file) return;
         setUploadLoading(true); setUploadErr('');
         try {
             const parsedSession = await runExcelImport(file);
@@ -121,7 +123,13 @@ export const ImportReview = ({ importSession, setImportSession, importHistory, r
             setUploadErr(error.message);
         }
         setUploadLoading(false);
-        e.target.value = '';
+        if (eOrFile.target) eOrFile.target.value = '';
+    };
+
+    const onDrop = (e) => {
+        e.preventDefault();
+        setDragging(false);
+        if (e.dataTransfer.files[0]) handleUploadDrop(e.dataTransfer.files[0]);
     };
 
     if (!session) {
@@ -179,17 +187,23 @@ export const ImportReview = ({ importSession, setImportSession, importHistory, r
                     <p style={{ fontSize: 13, color: "var(--text-dim)" }}>Supports: <b>Trucking_2025.xlsx</b> format, or any CSV with matching columns. Maximum file size: 10MB.</p>
                 </div>
 
-                <label style={{ 
-                    display: "block", 
-                    border: "2px dashed var(--border-medium)", 
-                    borderRadius: 16, 
-                    background: "var(--bg-card)", 
-                    padding: "60px 20px", 
-                    textAlign: "center", 
-                    cursor: uploadLoading ? "wait" : "pointer",
-                    transition: "all 0.2s ease",
-                    marginBottom: 24
-                }} className="hover-scale">
+                <label 
+                    style={{ 
+                        display: "block", 
+                        border: dragging ? "2px dashed var(--brand-primary)" : "2px dashed var(--border-medium)", 
+                        borderRadius: 16, 
+                        background: dragging ? "var(--brand-primary)05" : "var(--bg-card)", 
+                        padding: "60px 20px", 
+                        textAlign: "center", 
+                        cursor: uploadLoading ? "wait" : "pointer",
+                        transition: "all 0.2s ease",
+                        marginBottom: 24
+                    }} 
+                    className="hover-scale"
+                    onDragOver={e => { e.preventDefault(); setDragging(true); }}
+                    onDragLeave={() => setDragging(false)}
+                    onDrop={onDrop}
+                >
                     {uploadLoading ? (
                         <div style={{ fontSize: 16, fontWeight: 600, color: "var(--text-secondary)" }}>Processing file…</div>
                     ) : (

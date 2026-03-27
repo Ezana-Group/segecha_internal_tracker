@@ -111,21 +111,33 @@ const adminAuth = async (req, res, next) => {
         const token = authHeader.slice(7);
         try {
             const decoded = jwt.verify(token, JWT_SECRET);
+            
+            // 1. Full Admin/Superadmin Access
             if (decoded.role === 'superadmin' || decoded.role === 'admin') {
-                // Force logout check: Compare session_version in token vs DB
                 const dbRes = await db.query('SELECT session_version FROM admins WHERE id = $1', [decoded.id]);
                 if (dbRes.rows.length > 0) {
                     const currentVersion = dbRes.rows[0].session_version || 1;
-                    const tokenVersion = decoded.version || 1;
-                    if (tokenVersion < currentVersion) {
+                    if ((decoded.version || 1) < currentVersion) {
                         return res.status(401).json({ error: 'Session expired (password changed). Please log in again.' });
                     }
                 }
                 req.admin = decoded;
                 return next();
             }
+
+            // 2. Driver Access (Restricted to /driver and /documents)
+            if (decoded.driverId && (path.startsWith('/driver') || path.startsWith('/documents'))) {
+                req.driver = decoded;
+                return next();
+            }
+
+            // 3. Staff Access (Restricted to /staff and /documents)
+            if (decoded.staffId && (path.startsWith('/staff') || path.startsWith('/documents'))) {
+                req.staff = decoded;
+                return next();
+            }
         } catch (e) {
-            console.warn(`[AUTH] JWT Verification failed for ${req.path}: ${e.message}`);
+            console.warn(`[AUTH] JWT Verification failed for ${path}: ${e.message}`);
             return res.status(401).json({ error: 'Session expired or invalid' });
         }
     }
@@ -241,22 +253,39 @@ async function autoSeed() {
         const initialHash = bcrypt.hashSync(process.env.INITIAL_ADMIN_PASSWORD || process.env.ADMIN_KEY, 10);
 
         console.log(`[SEED] Ensuring system tables and columns...`);
-        
+
         // 0. Schema Migrations (Ensure session_version exists for force-logout feature)
         await db.query(`
             DO $$ 
             BEGIN 
+                -- Admin column
                 IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='admins' AND column_name='session_version') THEN
                     ALTER TABLE admins ADD COLUMN session_version INTEGER DEFAULT 1;
                 END IF;
+                -- Documents columns
                 IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='documents' AND column_name='filename') THEN
                     ALTER TABLE documents ADD COLUMN filename TEXT;
                 END IF;
                 IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='documents' AND column_name='mime_type') THEN
                     ALTER TABLE documents ADD COLUMN mime_type TEXT;
                 END IF;
+                -- Staff columns
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='staff' AND column_name='joined') THEN
+                    ALTER TABLE staff ADD COLUMN joined TEXT;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='staff' AND column_name='salary') THEN
+                    ALTER TABLE staff ADD COLUMN salary DECIMAL(12,2);
+                END IF;
+                -- Drivers columns
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='drivers' AND column_name='email') THEN
+                    ALTER TABLE drivers ADD COLUMN email TEXT;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='drivers' AND column_name='role') THEN
+                    ALTER TABLE drivers ADD COLUMN role TEXT DEFAULT 'Driver';
+                END IF;
             END $$;
         `);
+
 
         console.log(`[SEED] Syncing superadmin (${initialAdminEmail})...`);
 
@@ -304,7 +333,7 @@ autoSeed();
 // Change Own Password
 app.post('/api/admin/change-password', async (req, res) => {
     const { oldPassword, newPassword, email: bodyEmail } = req.body;
-    
+
     // If authenticated via JWT, use the ID from the token
     // If authenticated via adminKey, use the email from the body
     let adminId = req.admin?.id;
@@ -438,6 +467,71 @@ async function getSettings() {
     return settings;
 }
 
+// Helper to upsert any entity into its table
+async function upsertEntity(table, item) {
+    if (!item || !item.id) throw new Error('Item ID is required for upsert');
+    
+    // 1. Get existing columns for this table to avoid SQL errors
+    const colRes = await db.query(
+        "SELECT column_name FROM information_schema.columns WHERE table_name = $1",
+        [table]
+    );
+    const validCols = colRes.rows.map(r => r.column_name);
+    
+    if (validCols.length === 0) throw new Error(`Table ${table} not found or has no columns`);
+
+    const entries = Object.entries(item).filter(([k]) => {
+        if (['created_at', 'updated_at', '_type', '_Salary', '_contact', '_joined'].includes(k)) return false;
+        return true;
+    });
+
+    const finalData = {};
+    const metadata = item.metadata || {};
+
+    entries.forEach(([k, v]) => {
+        // Map common frontend camelCase to snake_case if they match DB
+        let dbKey = k;
+        if (k === 'expiryDate') dbKey = 'expiry_date';
+        else if (k === 'customerId') dbKey = 'customer_id';
+        else if (k === 'journeyId') dbKey = 'journey_id';
+        else if (k === 'truckId') dbKey = 'truck_id';
+        else if (k === 'driverId') dbKey = 'driver_id';
+        else if (k === 'licenseNumber') dbKey = 'license_number';
+
+        if (validCols.includes(dbKey)) {
+            finalData[dbKey] = v;
+        } else if (k !== 'metadata') {
+            // Pack everything else into metadata
+            metadata[k] = v;
+        }
+    });
+
+    if (validCols.includes('metadata')) {
+        finalData.metadata = metadata;
+    }
+
+    const keys = Object.keys(finalData);
+    const values = Object.values(finalData).map(v => 
+        (typeof v === 'object' && v !== null) ? JSON.stringify(v) : v
+    );
+    
+    const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
+    const updates = keys.map((k, i) => {
+        if (k === 'id') return null;
+        return `${k} = EXCLUDED.${k}`;
+    }).filter(Boolean).join(', ');
+
+    const query = `
+        INSERT INTO ${table} (${keys.join(', ')})
+        VALUES (${placeholders})
+        ON CONFLICT (id) DO UPDATE SET ${updates}
+    `;
+    
+    return db.query(query, values);
+}
+
+
+
 // Ensure directories exist
 if (!existsSync(__dirname)) mkdirSync(__dirname);
 const BACKUPS_DIR = path.join(__dirname, 'backups');
@@ -527,13 +621,13 @@ app.post('/api/admin/login', async (req, res) => {
 
         // Real JWT Token
         const token = jwt.sign(
-            { 
-                id: admin.id, 
-                email: admin.email, 
+            {
+                id: admin.id,
+                email: admin.email,
                 role: admin.role,
                 version: admin.session_version || 1
-            }, 
-            JWT_SECRET, 
+            },
+            JWT_SECRET,
             { expiresIn: '12h' }
         );
 
@@ -646,17 +740,17 @@ app.get('/api/documents/expiring', async (req, res) => {
 app.post('/api/documents/upload', upload.single('file'), async (req, res) => {
     try {
         if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-        
+
         const ext = path.extname(req.file.originalname).toLowerCase();
         const isDoc = ['.pdf', '.doc', '.docx'].includes(ext);
-        
+
         if (!isDoc) {
             return res.status(400).json({ error: 'Only PDF and DOC/DOCX files are allowed for documents.' });
         }
 
         const body = req.body || {};
         const { entityType, entityId, label, expiryDate, ...rest } = body;
-        
+
         // Upload to Cloudflare R2
         const folder = `documents/${entityType}/${entityId}`;
         const key = `${folder}/${Date.now()}_${req.file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
@@ -689,7 +783,7 @@ app.delete('/api/documents/:id', async (req, res) => {
 app.post('/api/admin/upload', upload.single('file'), async (req, res) => {
     try {
         if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-        
+
         const ext = path.extname(req.file.originalname).toLowerCase();
         const isImage = ['.jpg', '.jpeg', '.png', '.webp', '.gif'].includes(ext);
         const isDoc = ['.pdf', '.doc', '.docx'].includes(ext);
@@ -712,6 +806,7 @@ app.post('/api/admin/upload', upload.single('file'), async (req, res) => {
         res.status(500).json({ error: e.message });
     }
 });
+
 
 // Generic update for collections
 app.put('/api/admin/:col/:id', (req, res) => {
@@ -989,8 +1084,15 @@ function updateBackupScheduler(frequency) {
 // --- DRIVER ACCOUNT MANAGEMENT (ADMIN) ---
 
 app.post('/api/driver/create-account', async (req, res) => {
-    const { driverId, email, phone } = req.body;
+    const { driverId, email, phone, driverName } = req.body;
     try {
+        // Ensure driver record exists (prerequisite for auth)
+        await db.query(`
+            INSERT INTO drivers (id, name, email, phone)
+            VALUES ($1, $2, $3, $4)
+            ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, email = EXCLUDED.email, phone = EXCLUDED.phone
+        `, [driverId, driverName || 'Driver', email, phone || '']);
+
         const result = await driverAuth.createDriverAccount(driverId, email, phone);
         res.json(result);
     } catch (e) {
@@ -998,43 +1100,95 @@ app.post('/api/driver/create-account', async (req, res) => {
     }
 });
 
-app.get('/api/driver/account-status/:id', (req, res) => {
-    const status = driverAuth.getDriverAccountStatus(req.params.id);
-    res.json(status);
-});
 
-app.post('/api/driver/account/regenerate-credentials', async (req, res) => {
-    const { driverId, email, phone, forcePasswordReset } = req.body;
+app.get('/api/driver/account-status/:id', async (req, res) => {
     try {
-        const result = await driverAuth.regenerateDriverCredentials(driverId, { email, phone, forcePasswordReset });
-        res.json(result);
+        const status = await driverAuth.getDriverAccountStatus(req.params.id);
+        res.json(status);
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
 });
 
-app.get('/api/driver/account-export/:id', (req, res) => {
-    const exportData = driverAuth.exportDriverAccount(req.params.id);
-    if (!exportData) return res.status(404).json({ error: 'Account not found' });
-    res.json(exportData);
+
+app.post('/api/driver/account/regenerate-credentials', async (req, res) => {
+    const { driverId, email, phone, driverName, forcePasswordReset } = req.body;
+    try {
+        // Ensure driver record exists (foreign key prerequisite)
+        await db.query(`
+            INSERT INTO drivers (id, name, email, phone)
+            VALUES ($1, $2, $3, $4)
+            ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, email = EXCLUDED.email, phone = EXCLUDED.phone
+        `, [driverId, driverName || 'Driver', email, phone || '']);
+
+        const result = await driverAuth.regenerateDriverCredentials(driverId, { email, phone, forcePasswordReset });
+        res.json(result);
+    } catch (e) {
+        console.error('DRIVER_REGEN_ERROR:', e);
+        res.status(500).json({ error: e.message });
+    }
 });
 
-app.delete('/api/driver/account/:id', (req, res) => {
-    const success = driverAuth.deleteDriverAccount(req.params.id);
-    res.json({ success });
+
+app.get('/api/driver/account-export/:id', async (req, res) => {
+    try {
+        const exportData = await driverAuth.exportDriverAccount(req.params.id);
+        if (!exportData) return res.status(404).json({ error: 'Account not found' });
+        res.json(exportData);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
 });
+
+app.delete('/api/driver/account/:id', async (req, res) => {
+    try {
+        const success = await driverAuth.deleteDriverAccount(req.params.id);
+        res.json({ success });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 
 // --- STAFF ACCOUNT MANAGEMENT (ADMIN) ---
 
-app.post('/api/staff/create-account', async (req, res) => {
-    const { staffId, email, phone } = req.body;
+app.post('/api/staff/save', async (req, res) => {
     try {
+        await upsertEntity('staff', req.body);
+        res.json({ success: true });
+    } catch (e) {
+        console.error('STAFF_SAVE_ERROR:', e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.post('/api/driver/save', async (req, res) => {
+    try {
+        await upsertEntity('drivers', req.body);
+        res.json({ success: true });
+    } catch (e) {
+        console.error('DRIVER_SAVE_ERROR:', e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.post('/api/staff/create-account', async (req, res) => {
+    const { staffId, email, phone, name, role } = req.body;
+    try {
+        // Ensure staff record exists in the staff table (foreign key prerequisite)
+        await db.query(`
+            INSERT INTO staff (id, name, email, phone, role)
+            VALUES ($1, $2, $3, $4, $5)
+            ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, email = EXCLUDED.email, phone = EXCLUDED.phone, role = EXCLUDED.role
+        `, [staffId, name || 'Staff Member', email, phone || '', role || 'Staff']);
+
         const result = await staffAuth.createStaffAccount(staffId, email, phone);
         res.json(result);
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
 });
+
 
 app.get('/api/staff/account-status/:id', async (req, res) => {
     try {
@@ -1046,14 +1200,23 @@ app.get('/api/staff/account-status/:id', async (req, res) => {
 });
 
 app.post('/api/staff/account/regenerate-credentials', async (req, res) => {
-    const { staffId, email, phone, forcePasswordReset } = req.body;
+    const { staffId, email, phone, name, role, forcePasswordReset } = req.body;
     try {
+        // Ensure staff record exists (foreign key prerequisite)
+        await db.query(`
+            INSERT INTO staff (id, name, email, phone, role)
+            VALUES ($1, $2, $3, $4, $5)
+            ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, email = EXCLUDED.email, phone = EXCLUDED.phone, role = EXCLUDED.role
+        `, [staffId, name || 'Staff Member', email, phone || '', role || 'Staff']);
+
         const result = await staffAuth.regenerateStaffCredentials(staffId, { email, phone, forcePasswordReset });
         res.json(result);
     } catch (e) {
+        console.error('STAFF_REGEN_ERROR:', e);
         res.status(500).json({ error: e.message });
     }
 });
+
 
 app.get('/api/staff/account-export/:id', async (req, res) => {
     try {
@@ -1179,7 +1342,7 @@ app.post('/api/driver/journeys/start-placeholder', driverAuth.authMiddleware, (r
 app.post('/api/driver/upload', driverAuth.authMiddleware, upload.single('file'), async (req, res) => {
     try {
         if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-        
+
         const ext = path.extname(req.file.originalname).toLowerCase();
         const isImage = ['.jpg', '.jpeg', '.png', '.webp', '.gif'].includes(ext);
         const folder = req.body.folder || `drivers/${req.driver.driverId}`;
@@ -1218,7 +1381,7 @@ app.post('/api/documents/driver-upload', driverAuth.authMiddleware, upload.singl
 
         const ext = path.extname(req.file.originalname).toLowerCase();
         const isDoc = ['.pdf', '.doc', '.docx'].includes(ext);
-        
+
         if (!isDoc) {
             return res.status(400).json({ error: 'Only PDF and DOC/DOCX files are allowed for documents.' });
         }
@@ -1236,17 +1399,17 @@ app.post('/api/documents/driver-upload', driverAuth.authMiddleware, upload.singl
             [id, 'driver', req.driver.driverId, label || req.file.originalname, url, expiryDate || null, JSON.stringify(metadata), req.file.originalname, req.file.mimetype]
         );
 
-        res.json({ 
-            success: true, 
-            document: { 
-                id, 
-                entityType: 'driver', 
-                entityId: req.driver.driverId, 
-                label: label || req.file.originalname, 
-                url, 
+        res.json({
+            success: true,
+            document: {
+                id,
+                entityType: 'driver',
+                entityId: req.driver.driverId,
+                label: label || req.file.originalname,
+                url,
                 expiryDate,
-                ...metadata 
-            } 
+                ...metadata
+            }
         });
     } catch (e) {
         console.error('DRIVER_DOC_UPLOAD_ERROR:', e);

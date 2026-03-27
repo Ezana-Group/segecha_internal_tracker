@@ -55,7 +55,7 @@ async function regenerateStaffCredentials(staffId, { email, phone, forcePassword
     const tempPassword = generateTempPassword();
     const tokenData = issueSetupTokenData();
 
-    const passwordUpdate = forcePasswordReset ? 'password_hash = NULL,' : '';
+    // Base update — always runs
     await db.query(`
         UPDATE staff_auth SET 
             email = $1, phone = $2, 
@@ -63,11 +63,15 @@ async function regenerateStaffCredentials(staffId, { email, phone, forcePassword
             temp_password_hash = $5,
             require_password_change = TRUE,
             preferred_method = NULL,
-            ${passwordUpdate}
             reset_token_hash = $6, reset_token_expiry = $7,
             updated_at = CURRENT_TIMESTAMP
         WHERE staff_id = $8
     `, [canonicalEmail, canonicalPhone, hashValue(otp), new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000), await bcrypt.hash(tempPassword, 10), tokenData.hash, tokenData.expiry, staffId]);
+
+    // Only wipe password if forcePasswordReset is true
+    if (forcePasswordReset) {
+        await db.query('UPDATE staff_auth SET password_hash = NULL WHERE staff_id = $1', [staffId]);
+    }
 
     return { success: true, resetToken: tokenData.resetToken, otp, tempPassword, email: canonicalEmail, phone: canonicalPhone };
 }
@@ -121,7 +125,7 @@ async function loginStaff(identifier, secret, method) {
             const valid = !!(record.otp_hash && record.otp_expiry && new Date(record.otp_expiry) > now && hashValue(secretRaw) === record.otp_hash);
             if (!valid) return { success: false, error: 'Invalid or expired OTP.' };
         }
-        
+
         if (method) await db.query('UPDATE staff_auth SET preferred_method = $1 WHERE staff_id = $2', [method, record.staff_id]);
         const tokenData = issueSetupTokenData();
         await db.query('UPDATE staff_auth SET reset_token_hash = $1, reset_token_expiry = $2 WHERE staff_id = $3', [tokenData.hash, tokenData.expiry, record.staff_id]);
@@ -142,7 +146,7 @@ async function requestStaffPasswordReset(identifier) {
     const res = await db.query('SELECT * FROM staff_auth WHERE email = $1 OR (phone IS NOT NULL AND phone = $2) LIMIT 1', [id, phone]);
     const record = res.rows[0];
     if (!record) return { success: true, message: 'If account exists, link sent.' };
-    
+
     const tokenData = issueSetupTokenData();
     await db.query('UPDATE staff_auth SET reset_token_hash = $1, reset_token_expiry = $2, updated_at = CURRENT_TIMESTAMP WHERE staff_id = $3', [tokenData.hash, tokenData.expiry, record.staff_id]);
     return { success: true, resetToken: tokenData.resetToken, email: record.email, staffId: record.staff_id };

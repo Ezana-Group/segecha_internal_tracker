@@ -50,6 +50,7 @@ export function Documents({ data, setData, dark, isMobile }) {
         entityType: '', entityId: '', docType: '', label: '', expiryDate: ''
     });
     const [selectedFile, setSelectedFile] = useState(null);
+    const [dragging, setDragging] = useState(false);
 
     // ── Helper: fetchDocuments
     const fetchDocuments = async (entityType, entityId) => {
@@ -178,6 +179,12 @@ export function Documents({ data, setData, dark, isMobile }) {
         setUploading(false);
     };
 
+    const onDrop = (e) => {
+        e.preventDefault();
+        setDragging(false);
+        if (e.dataTransfer.files[0]) setSelectedFile(e.dataTransfer.files[0]);
+    };
+
     const handleDelete = async (docId) => {
         await deleteDocumentById(docId, setDocuments);
     };
@@ -249,7 +256,16 @@ export function Documents({ data, setData, dark, isMobile }) {
 
             {/* Upload Area */}
             {showUpload && (
-                <Card style={{ padding: 32, marginBottom: 32, background: "var(--bg-card)", border: "2px dashed var(--brand-primary)" }}>
+                <Card 
+                    style={{ 
+                        padding: 32, marginBottom: 32, background: "var(--bg-card)", 
+                        border: dragging ? "2px dashed var(--brand-primary)" : "2px dashed var(--border-subtle)",
+                        transition: "all 0.2s ease"
+                    }}
+                    onDragOver={e => { e.preventDefault(); setDragging(true); }}
+                    onDragLeave={() => setDragging(false)}
+                    onDrop={onDrop}
+                >
                     <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr 1fr", gap: 24, marginBottom: 24 }}>
                         <div>
                             <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "var(--text-dim)", textTransform: "uppercase", marginBottom: 8 }}>Target Entity Type</label>
