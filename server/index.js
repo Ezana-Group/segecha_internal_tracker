@@ -458,6 +458,47 @@ async function getEntityData(table) {
     return res.rows;
 }
 
+// Normalize DB rows back to frontend field names
+function normalizeTruck(t) {
+    return { ...t, reg: t.registration_number, odom: t.current_mileage, ...t.metadata };
+}
+function normalizeTrailer(t) {
+    return { ...t, reg: t.registration_number, ...t.metadata };
+}
+function normalizeDriver(d) {
+    return { ...d, license: d.license_number, ...d.metadata };
+}
+function normalizeJourney(j) {
+    return { ...j, truck: j.truck_id, driver: j.driver_id, date: j.start_date, endDate: j.end_date, dest: j.destination, cargo: j.cargo_type, customerId: j.customer_id, ...j.metadata };
+}
+function normalizeFuel(f) {
+    return { ...f, truck: f.truck_id, journey: f.journey_id, ...f.metadata };
+}
+function normalizeExpense(e) {
+    return { ...e, journey: e.journey_id, cat: e.category, desc: e.description, ...e.metadata };
+}
+function normalizeInvoice(i) {
+    return { ...i, journey: i.journey_id, due: i.due_date, customerId: i.customer_id, ...i.metadata };
+}
+function normalizeMaintenance(m) {
+    return { ...m, truck: m.truck_id, desc: m.description, ...m.metadata };
+}
+function normalizePayroll(p) {
+    return { ...p, driver: p.entity_id, ...p.metadata };
+}
+function normalizeRow(table, row) {
+    if (table === 'trucks') return normalizeTruck(row);
+    if (table === 'trailers') return normalizeTrailer(row);
+    if (table === 'drivers') return normalizeDriver(row);
+    if (table === 'journeys') return normalizeJourney(row);
+    if (table === 'fuel_logs') return normalizeFuel(row);
+    if (table === 'expenses') return normalizeExpense(row);
+    if (table === 'invoices') return normalizeInvoice(row);
+    if (table === 'maintenance_logs') return normalizeMaintenance(row);
+    if (table === 'payroll') return normalizePayroll(row);
+    return row;
+}
+
 // Helper to save settings to DB
 async function saveSetting(key, value) {
     await db.query('INSERT INTO system_settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = $2', [key, JSON.stringify(value)]);
@@ -579,7 +620,7 @@ async function backupEverything() {
     };
     for (const table of DB_TABLES) {
         const res = await db.query(`SELECT * FROM ${table}`);
-        backup.tables[table] = res.rows;
+        backup.tables[table] = res.rows.map(r => normalizeRow(table, r));
     }
     return backup;
 }
