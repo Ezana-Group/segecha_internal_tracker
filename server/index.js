@@ -16,7 +16,6 @@ envPaths.forEach(envPath => {
 
 const express = require('express');
 const cors = require('cors');
-const { existsSync } = require('fs');
 const multer = require('multer');
 const { uploadBuffer } = require('./cloudinary');
 const { uploadToR2 } = require('./r2');
