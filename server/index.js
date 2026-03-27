@@ -503,6 +503,7 @@ async function upsertEntity(table, item) {
         else if (k === 'licenseNumber') dbKey = 'license_number';
         else if (k === 'plateNumber') dbKey = 'registration_number';
         else if (k === 'registrationNumber') dbKey = 'registration_number';
+        else if (k === 'reg') dbKey = 'registration_number';
         else if (k === 'currentMileage') dbKey = 'current_mileage';
         else if (k === 'startDate') dbKey = 'start_date';
         else if (k === 'endDate') dbKey = 'end_date';
