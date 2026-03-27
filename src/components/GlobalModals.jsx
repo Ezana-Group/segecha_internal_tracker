@@ -319,25 +319,29 @@ export function GlobalModals(props) {
         const hasErrors = Object.values(errors).some(Boolean);
 
         return (
-            <Modal title={form.id ? "Edit Fuel Entry" : "Log Fuel Fill-up"} onSave={() => saveItem("fuel", form)} S={S} closeModal={closeModal} saveDisabled={hasErrors}>
-                <div style={S.fgg(2)}>
-                    <Field label="Truck" k="truck" options={data.trucks.map(t => ({ v: t.id, l: t.reg }))} form={form} setForm={setForm} S={S} />
-                    <Field label="Date" k="date" type="date" form={form} setForm={setForm} S={S} />
-                    <Field label="Litres" k="litres" type="number" form={form} setForm={setForm} S={S} error={errors.litres} />
-                    <Field label="Price per Litre (KES)" k="pricePerL" type="number" form={form} setForm={setForm} S={S} error={errors.pricePerL} />
-                    {form.litres && form.pricePerL && (
-                        <div style={{ ...S.fg, gridColumn: "1/-1" }}>
-                            <div style={{ background: "#f9731612", border: "1px solid #f9731633", borderRadius: 8, padding: "10px 14px", fontSize: 13, color: "#f97316", fontWeight: 700 }}>
-                                Estimated cost: {fmt(+form.litres * +form.pricePerL)}
+            <Modal title={form.id ? "Edit Fuel Entry" : "Log Fuel Fill-up"} onSave={() => saveItem("fuel", form)} S={S} closeModal={closeModal} saveDisabled={hasErrors} wide>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 32 }}>
+                    {/* Left Column: Form Fields */}
+                    <div style={S.fgg(2)}>
+                        <Field label="Truck" k="truck" options={data.trucks.map(t => ({ v: t.id, l: t.reg }))} form={form} setForm={setForm} S={S} />
+                        <Field label="Date" k="date" type="date" form={form} setForm={setForm} S={S} />
+                        <Field label="Litres" k="litres" type="number" form={form} setForm={setForm} S={S} error={errors.litres} />
+                        <Field label="Price per Litre (KES)" k="pricePerL" type="number" form={form} setForm={setForm} S={S} error={errors.pricePerL} />
+                        {form.litres && form.pricePerL && (
+                            <div style={{ ...S.fg }}>
+                                <div style={{ background: "#f9731612", border: "1px solid #f9731633", borderRadius: 8, padding: "10px 14px", fontSize: 13, color: "#f97316", fontWeight: 700 }}>
+                                    Estimated cost: {fmt(+form.litres * +form.pricePerL)}
+                                </div>
                             </div>
-                        </div>
-                    )}
-                    <Field label="Station Name" k="station" form={form} setForm={setForm} S={S} />
-                    <Field label="Odometer Reading (km)" k="odom" type="number" form={form} setForm={setForm} S={S} />
-                    <Field label="Linked Journey" k="journey" options={[{ v: "", l: "None" }, ...data.journeys.map(j => ({ v: j.id, l: `${j.origin}→${j.dest} (${j.date})` }))]} full form={form} setForm={setForm} S={S} />
-                    
-                    <div style={{ ...S.fg, gridColumn: "1/-1", paddingTop: 12, borderTop: `1px solid ${T.border2}`, marginTop: 8 }}>
-                        <div style={{ fontWeight: 800, fontSize: 13, marginBottom: 12, color: T.text }}>Fuel verification photos</div>
+                        )}
+                        <Field label="Station Name" k="station" form={form} setForm={setForm} S={S} />
+                        <Field label="Odometer Reading (km)" k="odom" type="number" form={form} setForm={setForm} S={S} />
+                        <Field label="Linked Journey" k="journey" options={[{ v: "", l: "None" }, ...data.journeys.map(j => ({ v: j.id, l: `${j.origin}→${j.dest} (${j.date})` }))]} full form={form} setForm={setForm} S={S} />
+                    </div>
+
+                    {/* Right Column: Photos */}
+                    <div style={{ borderLeft: `1px solid ${T.border2}`, paddingLeft: 32 }}>
+                        <div style={{ fontWeight: 800, fontSize: 13, marginBottom: 16, color: T.text }}>Fuel verification photos</div>
                         <div style={S.fgg(3)}>
                             <FuelPhotoField label="Pump Display" k="photoPump" form={form} setForm={setForm} S={S} T={T} />
                             <FuelPhotoField label="Fuel Receipt" k="photoReceipt" form={form} setForm={setForm} S={S} T={T} />
