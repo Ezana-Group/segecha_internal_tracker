@@ -731,334 +731,338 @@ export function GlobalModals(props) {
         };
 
         return (
-            <Modal title={form.id ? "Edit Journey" : "Log New Journey"} onSave={onSave} S={S} closeModal={closeModal} saveDisabled={hasErrors}>
-                <div style={S.fgg(2)}>
+            <Modal title={form.id ? "Edit Journey" : "Log New Journey"} onSave={onSave} S={S} closeModal={closeModal} saveDisabled={hasErrors} wide>
+                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: isMobile ? 0 : 32, alignItems: 'start' }}>
                     
-                    {/* --- SECTION 1: ROUTE & LOGISTICS --- */}
-                    <SectionHeader title="Route & Logistics" icon="📍" T={T} style={{ marginTop: 0 }} />
-                    <div style={{ ...S.fg, gridColumn: "1/-1" }}>
-                        <label style={S.lbl}>Quick Route</label>
-                        <select style={{ ...S.inp, background: 'var(--surface-subtle)' }} onChange={e => {
-                            const route = commonRoutes.find(r => `${r.origin}→${r.dest}` === e.target.value);
-                            if (route) setForm(f => ({ ...f, origin: route.origin, dest: route.dest, distance: route.distance }));
-                        }} defaultValue="">
-                            <option value="">— Select a common route or fill in manually below —</option>
-                            {commonRoutes.map(r => <option key={`${r.origin}→${r.dest}`} value={`${r.origin}→${r.dest}`}>{r.origin} → {r.dest} ({r.distance} km)</option>)}
-                        </select>
-                    </div>
-                    
-                    <Field label="Origin" k="origin" form={form} setForm={setForm} S={S} />
-                    <Field label="Destination" k="dest" form={form} setForm={setForm} S={S} />
-                    
-                    <Field label="Pickup Address" k="pickupAddress" full form={form} setForm={setForm} S={S} placeholder="Specific location details at origin..." />
-                    <Field label="Delivery Address" k="deliveryAddress" full form={form} setForm={setForm} S={S} placeholder="Specific unloading point details..." />
+                    {/* --- LEFT COLUMN: ROUTE & CARGO --- */}
+                    <div style={S.fgg(2)}>
+                        {/* --- SECTION 1: ROUTE & LOGISTICS --- */}
+                        <SectionHeader title="Route & Logistics" icon="📍" T={T} style={{ marginTop: 0 }} />
+                        <div style={{ ...S.fg, gridColumn: "1/-1" }}>
+                            <label style={S.lbl}>Quick Route</label>
+                            <select style={{ ...S.inp, background: 'var(--surface-subtle)' }} onChange={e => {
+                                const route = commonRoutes.find(r => `${r.origin}→${r.dest}` === e.target.value);
+                                if (route) setForm(f => ({ ...f, origin: route.origin, dest: route.dest, distance: route.distance }));
+                            }} defaultValue="">
+                                <option value="">— Select a common route or fill in manually below —</option>
+                                {commonRoutes.map(r => <option key={`${r.origin}→${r.dest}`} value={`${r.origin}→${r.dest}`}>{r.origin} → {r.dest} ({r.distance} km)</option>)}
+                            </select>
+                        </div>
+                        
+                        <Field label="Origin" k="origin" form={form} setForm={setForm} S={S} />
+                        <Field label="Destination" k="dest" form={form} setForm={setForm} S={S} />
+                        
+                        <Field label="Pickup Address" k="pickupAddress" full form={form} setForm={setForm} S={S} placeholder="Specific location details at origin..." />
+                        <Field label="Delivery Address" k="deliveryAddress" full form={form} setForm={setForm} S={S} placeholder="Specific unloading point details..." />
 
-                    <Field label="Departure Date" k="date" type="date" form={form} setForm={setForm} S={S} />
-                    <Field label="Arrival Date" k="endDate" type="date" form={form} setForm={setForm} S={S} error={errors.endDate} />
-                    {/* --- SECTION 2: VEHICLE & CREW --- */}
-                    <SectionHeader title="Vehicle & Crew" icon="🚛" T={T} />
-                    
-                    <div style={S.fg}>
-                        <label style={S.lbl}>
-                            Truck
-                            {vehicleLocked && <span style={{ fontWeight: 800, color: "var(--brand-primary)", marginLeft: 8, fontSize: 10, background: 'var(--brand-primary)12', padding: '2px 6px', borderRadius: 4 }}>LOCKED</span>}
-                        </label>
-                        <select
-                            style={{ ...S.inp }}
-                            value={form.truck || ""}
-                            onChange={(e) => {
-                                const truck = data.trucks.find((t) => t.id === e.target.value);
-                                setForm((f) => ({
-                                    ...f,
-                                    truck: e.target.value,
-                                    driver: truck?.driver || f.driver,
-                                    startOdom: truck?.odom || f.startOdom,
-                                }));
-                            }}
-                        >
-                            <option value="">Select…</option>
-                            {data.trucks.map((t) => (
-                                <option key={t.id} value={t.id}>
-                                    {t.reg}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
+                        <Field label="Departure Date" k="date" type="date" form={form} setForm={setForm} S={S} />
+                        <Field label="Arrival Date" k="endDate" type="date" form={form} setForm={setForm} S={S} error={errors.endDate} />
 
-                    <div style={S.fg}>
-                        <label style={S.lbl}>Trailer</label>
-                        <select
-                            style={{ ...S.inp }}
-                            value={form.trailer || ""}
-                            onChange={(e) => setForm((f) => ({ ...f, trailer: e.target.value }))}
-                        >
-                            <option value="">Select…</option>
-                            {(data.trailers || []).map((t) => (
-                                <option key={t.id} value={t.id}>
-                                    {t.reg} ({t.type})
-                                </option>
-                            ))}
-                        </select>
-                    </div>
+                        {/* --- SECTION 3: CARGO & FINANCIALS --- */}
+                        <SectionHeader title="Cargo & Financials" icon="💰" T={T} />
 
-                    <Field
-                        label="Driver"
-                        k="driver"
-                        options={data.drivers.map((d) => ({ v: d.id, l: d.name }))}
-                        form={form}
-                        setForm={setForm}
-                        S={S}
-                        onChange={(driverId) => {
-                            const drv = data.drivers.find((d) => d.id === driverId);
-                            setForm((f) => {
-                                const next = { ...f, driver: driverId };
-                                if (drv?.lockVehicleAssignment) {
-                                    next.truck = drv.truck || "";
-                                    next.trailer = drv.assignedTrailer || "";
-                                    const tr = data.trucks.find((t) => t.id === next.truck);
-                                    if (tr?.odom != null) next.startOdom = tr.odom;
-                                }
-                                return next;
-                            });
-                        }}
-                    />
+                        <div style={{ ...S.fg, gridColumn: "1/-1" }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 16, marginBottom: 12 }}>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', padding: '12px 16px', background: form.isInternational ? 'rgba(7,131,235,0.06)' : 'var(--surface-subtle)', borderRadius: 12, border: `1px solid ${form.isInternational ? 'var(--brand-primary)' : 'var(--border-subtle)'}` }}>
+                                    <input type="checkbox" checked={!!form.isInternational} onChange={e => setForm(f => ({ ...f, isInternational: e.target.checked }))} style={{ width: 17, height: 17, accentColor: 'var(--brand-primary)' }} />
+                                    <div>
+                                        <div style={{ fontWeight: 800, color: 'var(--text-primary)', fontSize: 13 }}>International Trip</div>
+                                    </div>
+                                </label>
 
-                    <Field label="Status" k="status" options={STATUSES_JOURNEY} form={form} setForm={setForm} S={S} />
-
-                    <div style={{ ...S.fg, gridColumn: "1/-1" }}>
-                        <div style={{ padding: '16px', background: 'var(--surface-subtle)', borderRadius: 12, border: `1px solid ${T.border2}`, marginTop: 4 }}>
-                            <div style={{ fontWeight: 800, color: T.text, fontSize: 11, textTransform: 'uppercase', marginBottom: 14, opacity: 0.7, letterSpacing: '0.05em' }}>
-                                Turnboy / Second Driver (Optional)
+                                <label style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', padding: '12px 16px', background: form.returningEmpty ? 'rgba(251,191,36,0.06)' : 'var(--surface-subtle)', borderRadius: 12, border: `1px solid ${form.returningEmpty ? '#f59e0b' : 'var(--border-subtle)'}` }}>
+                                    <input type="checkbox" checked={!!form.returningEmpty} onChange={e => setForm(f => ({ ...f, returningEmpty: e.target.checked, customerId: e.target.checked ? '' : f.customerId, deliveryCustomerId: e.target.checked ? '' : f.deliveryCustomerId }))} style={{ width: 17, height: 17, accentColor: '#f59e0b' }} />
+                                    <div>
+                                        <div style={{ fontWeight: 800, color: 'var(--text-primary)', fontSize: 13 }}>Return / Empty</div>
+                                    </div>
+                                </label>
                             </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 16 }}>
-                                <div style={S.fg}>
-                                    <label style={S.lbl}>Type</label>
-                                    <select style={S.inp} value={form.turnboyType || ''} onChange={e => {
-                                        setForm(f => ({ ...f, turnboyType: e.target.value, turnboyId: '', turnboyName: '' }));
-                                    }}>
-                                        <option value="">None — solo driver</option>
-                                        <option value="salaried">Salaried turnboy (from company list)</option>
-                                        <option value="casual">Casual / one-off turnboy</option>
-                                    </select>
-                                </div>
+                        </div>
+
+                        <div style={S.fg}>
+                            <label style={S.lbl}>Cargo Description</label>
+                            <input style={S.inp} list="cargo-types-list" value={form.cargo || ''} placeholder="Type or select…"
+                                onChange={e => setForm(f => ({ ...f, cargo: e.target.value }))} />
+                            <datalist id="cargo-types-list">
+                                {CARGO_TYPES.map(c => <option key={c} value={c} />)}
+                            </datalist>
+                        </div>
+
+                        <Field label="Weight (kg)" k="weight" type="number" form={form} setForm={setForm} S={S} />
+                        
+                        <Field label="Distance (km)" k="distance" type="number" form={form} setForm={setForm} S={S} />
+                        <Field label="Revenue (KES)" k="revenue" type="number" form={form} setForm={setForm} S={S} error={errors.revenue} />
+
+                        {!form.returningEmpty && (
+                            <div style={{ ...S.fg, gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 16, background: 'var(--surface-subtle)', padding: 16, borderRadius: 14, border: `1px solid ${T.border2}`, marginTop: 4 }}>
                                 
-                                {form.turnboyType === 'salaried' && (
-                                    <Field 
-                                        label="Select Turnboy" 
-                                        k="turnboyId" 
-                                        options={(data.turnboys || []).filter(tb => tb.status === 'Active').map(tb => ({ v: tb.id, l: tb.name }))} 
-                                        form={form} setForm={setForm} S={S} 
-                                    />
-                                )}
-                                {form.turnboyType === 'casual' && (
-                                    <Field label="Name / Phone" k="turnboyName" form={form} setForm={setForm} S={S} placeholder="Full Name..." />
-                                )}
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* --- SECTION 3: CARGO & FINANCIALS --- */}
-                    <SectionHeader title="Cargo & Financials" icon="💰" T={T} />
-
-                    <div style={{ ...S.fg, gridColumn: "1/-1" }}>
-                        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 16, marginBottom: 12 }}>
-                            <label style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', padding: '12px 16px', background: form.isInternational ? 'rgba(7,131,235,0.06)' : 'var(--surface-subtle)', borderRadius: 12, border: `1px solid ${form.isInternational ? 'var(--brand-primary)' : 'var(--border-subtle)'}` }}>
-                                <input type="checkbox" checked={!!form.isInternational} onChange={e => setForm(f => ({ ...f, isInternational: e.target.checked }))} style={{ width: 17, height: 17, accentColor: 'var(--brand-primary)' }} />
                                 <div>
-                                    <div style={{ fontWeight: 800, color: 'var(--text-primary)', fontSize: 13 }}>International Trip</div>
+                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                                        <label style={{ ...S.lbl, marginBottom: 0 }}>Consignor</label>
+                                        <button
+                                            type="button"
+                                            onClick={() => setForm((f) => ({ ...f, _quickAddBill: !f._quickAddBill, _quickAddDel: false }))}
+                                            style={{ border: "none", background: "none", color: "var(--brand-primary)", fontSize: 10, fontWeight: 800, cursor: "pointer" }}
+                                        >
+                                            {form._quickAddBill ? "Cancel" : "Add new"}
+                                        </button>
+                                    </div>
+                                    {form._quickAddBill ? (
+                                        <div style={{ background: "white", padding: 10, borderRadius: 10, border: "1px solid var(--border-subtle)" }}>
+                                            <input style={{ ...S.inp, height: 34, fontSize: 12, marginBottom: 8 }} placeholder="Company/Person Name…" id="qa-bill-name" />
+                                            <div style={{ display: "flex", gap: 8 }}>
+                                                <input style={{ ...S.inp, height: 34, fontSize: 12, flex: 1 }} placeholder="Phone…" id="qa-bill-phone" />
+                                                <button
+                                                    type="button"
+                                                    style={{ padding: "0 12px", borderRadius: 8, background: "var(--brand-primary)", color: "white", border: "none", fontWeight: 800, fontSize: 11 }}
+                                                    onClick={() => {
+                                                        const name = document.getElementById("qa-bill-name")?.value;
+                                                        const phone = document.getElementById("qa-bill-phone")?.value;
+                                                        if (!name?.trim() || !phone?.trim()) return alert("Name & Phone required");
+                                                        const id = uid();
+                                                        saveItem("customers", { id, name: name.trim(), phone: phone || "", type: "Individual", status: "Active" });
+                                                        setForm((f) => ({ ...f, customerId: id, _quickAddBill: false }));
+                                                    }}
+                                                >
+                                                    Save
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <select
+                                            style={{ ...S.inp, border: errors.customerId ? "1px solid #DC2626" : S.inp.border }}
+                                            value={form.customerId || ""}
+                                            onChange={(e) => setForm((f) => ({ ...f, customerId: e.target.value }))}
+                                        >
+                                            <option value="">Select customer…</option>
+                                            {data.customers.map((c) => (
+                                                <option key={c.id} value={c.id}>{c.name}</option>
+                                            ))}
+                                        </select>
+                                    )}
                                 </div>
-                            </label>
 
-                            <label style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', padding: '12px 16px', background: form.returningEmpty ? 'rgba(251,191,36,0.06)' : 'var(--surface-subtle)', borderRadius: 12, border: `1px solid ${form.returningEmpty ? '#f59e0b' : 'var(--border-subtle)'}` }}>
-                                <input type="checkbox" checked={!!form.returningEmpty} onChange={e => setForm(f => ({ ...f, returningEmpty: e.target.checked, customerId: e.target.checked ? '' : f.customerId, deliveryCustomerId: e.target.checked ? '' : f.deliveryCustomerId }))} style={{ width: 17, height: 17, accentColor: '#f59e0b' }} />
                                 <div>
-                                    <div style={{ fontWeight: 800, color: 'var(--text-primary)', fontSize: 13 }}>Return / Empty</div>
+                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                                        <label style={{ ...S.lbl, marginBottom: 0 }}>Consignee</label>
+                                        <button
+                                            type="button"
+                                            onClick={() => setForm((f) => ({ ...f, _quickAddDel: !f._quickAddDel, _quickAddBill: false }))}
+                                            style={{ border: "none", background: "none", color: "var(--brand-primary)", fontSize: 10, fontWeight: 800, cursor: "pointer" }}
+                                        >
+                                            {form._quickAddDel ? "Cancel" : "Add new"}
+                                        </button>
+                                    </div>
+                                    {form._quickAddDel ? (
+                                        <div style={{ background: "white", padding: 10, borderRadius: 10, border: "1px solid var(--border-subtle)" }}>
+                                            <input style={{ ...S.inp, height: 34, fontSize: 12, marginBottom: 8 }} placeholder="Site/Person Name…" id="qa-del-name" />
+                                            <div style={{ display: "flex", gap: 8 }}>
+                                                <input style={{ ...S.inp, height: 34, fontSize: 12, flex: 1 }} placeholder="Phone…" id="qa-del-phone" />
+                                                <button
+                                                    type="button"
+                                                    style={{ padding: "0 12px", borderRadius: 8, background: "var(--brand-primary)", color: "white", border: "none", fontWeight: 800, fontSize: 11 }}
+                                                    onClick={() => {
+                                                        const name = document.getElementById("qa-del-name")?.value;
+                                                        const phone = document.getElementById("qa-del-phone")?.value;
+                                                        if (!name?.trim() || !phone?.trim()) return alert("Name & Phone required");
+                                                        const id = uid();
+                                                        saveItem("customers", { id, name: name.trim(), phone: phone || "", type: "Individual", status: "Active" });
+                                                        setForm((f) => ({ ...f, deliveryCustomerId: id, _quickAddDel: false }));
+                                                    }}
+                                                >
+                                                    Save
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <select
+                                            style={{ ...S.inp, border: errors.deliveryCustomerId ? "1px solid #DC2626" : S.inp.border }}
+                                            value={form.deliveryCustomerId || ""}
+                                            onChange={(e) => setForm((f) => ({ ...f, deliveryCustomerId: e.target.value }))}
+                                        >
+                                            <option value="">Select customer…</option>
+                                            {data.customers.map((c) => (
+                                                <option key={c.id} value={c.id}>{c.name}</option>
+                                            ))}
+                                        </select>
+                                    )}
                                 </div>
+                            </div>
+                        )}
+                        {/* Allowance Preview */}
+                        {(form.origin && form.dest && (form.distance || form.isInternational)) && (
+                            <div style={{ ...S.fg, gridColumn: "1/-1", marginTop: 4 }}>
+                                {(() => {
+                                    const rates = getEffectiveRates(form.origin, form.dest);
+                                    const allowance = rates.isFlatRate ? rates.driver : Math.round(+form.distance * rates.driver);
+                                    const rua = rates.roadUserAllowance || 0;
+                                    const total = allowance + rua;
+                                    return (
+                                        <div style={{ display: "grid", gap: 8, padding: '16px', border: `1px solid var(--brand-primary)33`, borderRadius: 12, background: 'var(--brand-primary)05' }}>
+                                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                                <div>
+                                                    <div style={{ fontSize: 10, color: "var(--brand-primary)", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                        {rates.isFlatRate ? "Flat Rate Allowance" : "Mileage Allowance"}
+                                                        {rates.isOverride && <span style={{ background: 'var(--brand-primary)15', color: 'var(--brand-primary)', padding: '2px 6px', borderRadius: 6, fontSize: 9 }}>ROUTE RATE</span>}
+                                                    </div>
+                                                    <div style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 500 }}>
+                                                        {rates.isFlatRate ? "International/Domestic Flat Rate" : `${Number(form.distance).toLocaleString()} km @ ${fmt(rates.driver)}/km`}
+                                                    </div>
+                                                </div>
+                                                <div style={{ fontSize: 18, fontWeight: 900, color: "var(--brand-primary)" }}>{fmt(allowance)}</div>
+                                            </div>
+                                            {rua > 0 && (
+                                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: `1px dashed var(--brand-primary)15`, paddingTop: 8 }}>
+                                                    <div style={{ fontSize: 10, color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>Road User Allowance</div>
+                                                    <div style={{ fontSize: 14, fontWeight: 800, color: "var(--text-primary)" }}>{fmt(rua)}</div>
+                                                </div>
+                                            )}
+                                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: `1px solid var(--brand-primary)20`, paddingTop: 10 }}>
+                                                <div style={{ fontSize: 13, fontWeight: 800 }}>Total Projected</div>
+                                                <div style={{ fontSize: 22, fontWeight: 950, color: "var(--brand-primary)" }}>{fmt(total)}</div>
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* --- RIGHT COLUMN: CREW & DOCS --- */}
+                    <div style={S.fgg(2)}>
+                        {/* --- SECTION 2: VEHICLE & CREW --- */}
+                        <SectionHeader title="Vehicle & Crew" icon="🚛" T={T} style={{ marginTop: 0 }} />
+                        
+                        <div style={S.fg}>
+                            <label style={S.lbl}>
+                                Truck
+                                {vehicleLocked && <span style={{ fontWeight: 800, color: "var(--brand-primary)", marginLeft: 8, fontSize: 10, background: 'var(--brand-primary)12', padding: '2px 6px', borderRadius: 4 }}>LOCKED</span>}
                             </label>
+                            <select
+                                style={{ ...S.inp }}
+                                value={form.truck || ""}
+                                onChange={(e) => {
+                                    const truck = data.trucks.find((t) => t.id === e.target.value);
+                                    setForm((f) => ({
+                                        ...f,
+                                        truck: e.target.value,
+                                        driver: truck?.driver || f.driver,
+                                        startOdom: truck?.odom || f.startOdom,
+                                    }));
+                                }}
+                            >
+                                <option value="">Select…</option>
+                                {data.trucks.map((t) => (
+                                    <option key={t.id} value={t.id}>
+                                        {t.reg}
+                                    </option>
+                                ))}
+                            </select>
                         </div>
-                    </div>
 
-                    <div style={S.fg}>
-                        <label style={S.lbl}>Cargo Description</label>
-                        <input style={S.inp} list="cargo-types-list" value={form.cargo || ''} placeholder="Type or select…"
-                            onChange={e => setForm(f => ({ ...f, cargo: e.target.value }))} />
-                        <datalist id="cargo-types-list">
-                            {CARGO_TYPES.map(c => <option key={c} value={c} />)}
-                        </datalist>
-                    </div>
+                        <div style={S.fg}>
+                            <label style={S.lbl}>Trailer</label>
+                            <select
+                                style={{ ...S.inp }}
+                                value={form.trailer || ""}
+                                onChange={(e) => setForm((f) => ({ ...f, trailer: e.target.value }))}
+                            >
+                                <option value="">Select…</option>
+                                {(data.trailers || []).map((t) => (
+                                    <option key={t.id} value={t.id}>
+                                        {t.reg} ({t.type})
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
 
-                    <Field label="Weight (kg)" k="weight" type="number" form={form} setForm={setForm} S={S} />
-                    
-                    <Field label="Distance (km)" k="distance" type="number" form={form} setForm={setForm} S={S} />
-                    <Field label="Revenue (KES)" k="revenue" type="number" form={form} setForm={setForm} S={S} error={errors.revenue} />
+                        <Field
+                            label="Driver"
+                            k="driver"
+                            options={data.drivers.map((d) => ({ v: d.id, l: d.name }))}
+                            form={form}
+                            setForm={setForm}
+                            S={S}
+                            onChange={(driverId) => {
+                                const drv = data.drivers.find((d) => d.id === driverId);
+                                setForm((f) => {
+                                    const next = { ...f, driver: driverId };
+                                    if (drv?.lockVehicleAssignment) {
+                                        next.truck = drv.truck || "";
+                                        next.trailer = drv.assignedTrailer || "";
+                                        const tr = data.trucks.find((t) => t.id === next.truck);
+                                        if (tr?.odom != null) next.startOdom = tr.odom;
+                                    }
+                                    return next;
+                                });
+                            }}
+                        />
 
-                    {!form.returningEmpty && (
-                        <div style={{ ...S.fg, gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 16, background: 'var(--surface-subtle)', padding: 16, borderRadius: 14, border: `1px solid ${T.border2}`, marginTop: 4 }}>
-                            
-                            <div>
-                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                                    <label style={{ ...S.lbl, marginBottom: 0 }}>Consignor (Bill to)</label>
-                                    <button
-                                        type="button"
-                                        onClick={() => setForm((f) => ({ ...f, _quickAddBill: !f._quickAddBill, _quickAddDel: false }))}
-                                        style={{ border: "none", background: "none", color: "var(--brand-primary)", fontSize: 10, fontWeight: 800, cursor: "pointer" }}
-                                    >
-                                        {form._quickAddBill ? "Cancel" : "Add new"}
-                                    </button>
+                        <Field label="Status" k="status" options={STATUSES_JOURNEY} form={form} setForm={setForm} S={S} />
+
+                        <div style={{ ...S.fg, gridColumn: "1/-1" }}>
+                            <div style={{ padding: '16px', background: 'var(--surface-subtle)', borderRadius: 12, border: `1px solid ${T.border2}`, marginTop: 4 }}>
+                                <div style={{ fontWeight: 800, color: T.text, fontSize: 11, textTransform: 'uppercase', marginBottom: 14, opacity: 0.7, letterSpacing: '0.05em' }}>
+                                    Turnboy / Second Driver (Optional)
                                 </div>
-                                {form._quickAddBill ? (
-                                    <div style={{ background: "white", padding: 10, borderRadius: 10, border: "1px solid var(--border-subtle)" }}>
-                                        <input style={{ ...S.inp, height: 34, fontSize: 12, marginBottom: 8 }} placeholder="Company/Person Name…" id="qa-bill-name" />
-                                        <div style={{ display: "flex", gap: 8 }}>
-                                            <input style={{ ...S.inp, height: 34, fontSize: 12, flex: 1 }} placeholder="Phone…" id="qa-bill-phone" />
-                                            <button
-                                                type="button"
-                                                style={{ padding: "0 12px", borderRadius: 8, background: "var(--brand-primary)", color: "white", border: "none", fontWeight: 800, fontSize: 11 }}
-                                                onClick={() => {
-                                                    const name = document.getElementById("qa-bill-name")?.value;
-                                                    const phone = document.getElementById("qa-bill-phone")?.value;
-                                                    if (!name?.trim() || !phone?.trim()) return alert("Name & Phone required");
-                                                    const id = uid();
-                                                    saveItem("customers", { id, name: name.trim(), phone: phone || "", type: "Individual", status: "Active" });
-                                                    setForm((f) => ({ ...f, customerId: id, _quickAddBill: false }));
-                                                }}
-                                            >
-                                                Save
-                                            </button>
-                                        </div>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                                    <div style={S.fg}>
+                                        <label style={S.lbl}>Type</label>
+                                        <select style={S.inp} value={form.turnboyType || ''} onChange={e => {
+                                            setForm(f => ({ ...f, turnboyType: e.target.value, turnboyId: '', turnboyName: '' }));
+                                        }}>
+                                            <option value="">None — solo driver</option>
+                                            <option value="salaried">Salaried turnboy</option>
+                                            <option value="casual">Casual / one-off</option>
+                                        </select>
                                     </div>
-                                ) : (
-                                    <select
-                                        style={{ ...S.inp, border: errors.customerId ? "1px solid #DC2626" : S.inp.border }}
-                                        value={form.customerId || ""}
-                                        onChange={(e) => setForm((f) => ({ ...f, customerId: e.target.value }))}
-                                    >
-                                        <option value="">Select customer…</option>
-                                        {data.customers.map((c) => (
-                                            <option key={c.id} value={c.id}>{c.name}</option>
-                                        ))}
-                                    </select>
-                                )}
-                            </div>
-
-                            <div>
-                                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                                    <label style={{ ...S.lbl, marginBottom: 0 }}>Consignee (Deliver to)</label>
-                                    <button
-                                        type="button"
-                                        onClick={() => setForm((f) => ({ ...f, _quickAddDel: !f._quickAddDel, _quickAddBill: false }))}
-                                        style={{ border: "none", background: "none", color: "var(--brand-primary)", fontSize: 10, fontWeight: 800, cursor: "pointer" }}
-                                    >
-                                        {form._quickAddDel ? "Cancel" : "Add new"}
-                                    </button>
+                                    
+                                    {form.turnboyType === 'salaried' && (
+                                        <Field 
+                                            label="Select Turnboy" 
+                                            k="turnboyId" 
+                                            options={(data.turnboys || []).filter(tb => tb.status === 'Active').map(tb => ({ v: tb.id, l: tb.name }))} 
+                                            form={form} setForm={setForm} S={S} 
+                                        />
+                                    )}
+                                    {form.turnboyType === 'casual' && (
+                                        <Field label="Name / Phone" k="turnboyName" form={form} setForm={setForm} S={S} placeholder="Full Name..." />
+                                    )}
                                 </div>
-                                {form._quickAddDel ? (
-                                    <div style={{ background: "white", padding: 10, borderRadius: 10, border: "1px solid var(--border-subtle)" }}>
-                                        <input style={{ ...S.inp, height: 34, fontSize: 12, marginBottom: 8 }} placeholder="Site/Person Name…" id="qa-del-name" />
-                                        <div style={{ display: "flex", gap: 8 }}>
-                                            <input style={{ ...S.inp, height: 34, fontSize: 12, flex: 1 }} placeholder="Phone…" id="qa-del-phone" />
-                                            <button
-                                                type="button"
-                                                style={{ padding: "0 12px", borderRadius: 8, background: "var(--brand-primary)", color: "white", border: "none", fontWeight: 800, fontSize: 11 }}
-                                                onClick={() => {
-                                                    const name = document.getElementById("qa-del-name")?.value;
-                                                    const phone = document.getElementById("qa-del-phone")?.value;
-                                                    if (!name?.trim() || !phone?.trim()) return alert("Name & Phone required");
-                                                    const id = uid();
-                                                    saveItem("customers", { id, name: name.trim(), phone: phone || "", type: "Individual", status: "Active" });
-                                                    setForm((f) => ({ ...f, deliveryCustomerId: id, _quickAddDel: false }));
-                                                }}
-                                            >
-                                                Save
-                                            </button>
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <select
-                                        style={{ ...S.inp, border: errors.deliveryCustomerId ? "1px solid #DC2626" : S.inp.border }}
-                                        value={form.deliveryCustomerId || ""}
-                                        onChange={(e) => setForm((f) => ({ ...f, deliveryCustomerId: e.target.value }))}
-                                    >
-                                        <option value="">Select customer…</option>
-                                        {data.customers.map((c) => (
-                                            <option key={c.id} value={c.id}>{c.name}</option>
-                                        ))}
-                                    </select>
-                                )}
                             </div>
                         </div>
-                    )}
-                    {/* Allowance Preview */}
-                    {(form.origin && form.dest && (form.distance || form.isInternational)) && (
-                        <div style={{ ...S.fg, gridColumn: "1/-1", marginTop: 4 }}>
-                            {(() => {
-                                const rates = getEffectiveRates(form.origin, form.dest);
-                                const allowance = rates.isFlatRate ? rates.driver : Math.round(+form.distance * rates.driver);
-                                const rua = rates.roadUserAllowance || 0;
-                                const total = allowance + rua;
-                                return (
-                                    <div style={{ display: "grid", gap: 8, padding: '16px', border: `1px solid var(--brand-primary)33`, borderRadius: 12, background: 'var(--brand-primary)05' }}>
-                                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                            <div>
-                                                <div style={{ fontSize: 10, color: "var(--brand-primary)", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
-                                                    {rates.isFlatRate ? "Flat Rate Allowance" : "Mileage Allowance"}
-                                                    {rates.isOverride && <span style={{ background: 'var(--brand-primary)15', color: 'var(--brand-primary)', padding: '2px 6px', borderRadius: 6, fontSize: 9 }}>ROUTE RATE</span>}
-                                                </div>
-                                                <div style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 500 }}>
-                                                    {rates.isFlatRate ? "International/Domestic Flat Rate" : `${Number(form.distance).toLocaleString()} km @ ${fmt(rates.driver)}/km`}
-                                                </div>
-                                            </div>
-                                            <div style={{ fontSize: 18, fontWeight: 900, color: "var(--brand-primary)" }}>{fmt(allowance)}</div>
-                                        </div>
-                                        {rua > 0 && (
-                                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: `1px dashed var(--brand-primary)15`, paddingTop: 8 }}>
-                                                <div style={{ fontSize: 10, color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase" }}>Road User Allowance</div>
-                                                <div style={{ fontSize: 14, fontWeight: 800, color: "var(--text-primary)" }}>{fmt(rua)}</div>
-                                            </div>
-                                        )}
-                                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: `1px solid var(--brand-primary)20`, paddingTop: 10 }}>
-                                            <div style={{ fontSize: 13, fontWeight: 800 }}>Total Projected</div>
-                                            <div style={{ fontSize: 22, fontWeight: 950, color: "var(--brand-primary)" }}>{fmt(total)}</div>
-                                        </div>
-                                    </div>
-                                );
-                            })()}
+
+                        {/* --- SECTION 4: DOCUMENTATION & ODOMETER --- */}
+                        <SectionHeader title="Documentation & Odometer" icon="📄" T={T} />
+                        
+                        <Field label="Start Odom (km)" k="startOdom" type="number" form={form} setForm={setForm} S={S} 
+                            onChange={v => setForm(f => ({ ...f, startOdom: v, distance: f.finalOdom ? Math.max(0, +f.finalOdom - +v) : f.distance }))} />
+                        <Field label="Final Odom (km)" k="finalOdom" type="number" form={form} setForm={setForm} S={S} 
+                            onChange={v => setForm(f => ({ ...f, finalOdom: v, distance: f.startOdom ? Math.max(0, +v - +f.startOdom) : f.distance }))} />
+
+                        <div style={{ ...S.fg, gridColumn: "1/-1" }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                                <JourneyOdomPhotoField label="Start Odometer Pic" k="adminStartOdomPhotoUrl" form={form} setForm={setForm} S={S} T={T} />
+                                <JourneyOdomPhotoField label="Final Odometer Pic" k="adminEndOdomPhotoUrl" form={form} setForm={setForm} S={S} T={T} />
+                            </div>
                         </div>
-                    )}
 
-                    {/* --- SECTION 4: DOCUMENTATION & ODOMETER --- */}
-                    <SectionHeader title="Documentation & Odometer" icon="📄" T={T} />
-                    
-                    <Field label="Start Odom (km)" k="startOdom" type="number" form={form} setForm={setForm} S={S} 
-                        onChange={v => setForm(f => ({ ...f, startOdom: v, distance: f.finalOdom ? Math.max(0, +f.finalOdom - +v) : f.distance }))} />
-                    <Field label="Final Odom (km)" k="finalOdom" type="number" form={form} setForm={setForm} S={S} 
-                        onChange={v => setForm(f => ({ ...f, finalOdom: v, distance: f.startOdom ? Math.max(0, +v - +f.startOdom) : f.distance }))} />
-
-                    <div style={{ ...S.fg, gridColumn: "1/-1" }}>
-                        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 16 }}>
-                            <JourneyOdomPhotoField label="Start Odometer Pic" k="adminStartOdomPhotoUrl" form={form} setForm={setForm} S={S} T={T} />
-                            <JourneyOdomPhotoField label="Final Odometer Pic" k="adminEndOdomPhotoUrl" form={form} setForm={setForm} S={S} T={T} />
+                        <div style={{ ...S.fg, gridColumn: "1/-1" }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                                <Field label="KRA Booking No" k="booking_no" form={form} setForm={setForm} S={S} error={errors.booking_no} required={!!form.isInternational} placeholder="Optional..." />
+                                
+                                <JourneyDocumentField 
+                                    label={form.isInternational ? "TR Form (KRA)" : "T1 Form (Domestic)"} 
+                                    k={form.isInternational ? "tr_form_url" : "t1_form_url"} 
+                                    form={form} setForm={setForm} S={S} T={T} 
+                                    required={!!form.isInternational} 
+                                    error={form.isInternational ? errors.tr_form_url : null} 
+                                />
+                            </div>
                         </div>
                     </div>
-
-                    <div style={{ ...S.fg, gridColumn: "1/-1" }}>
-                        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 16 }}>
-                            <Field label="KRA Booking No" k="booking_no" form={form} setForm={setForm} S={S} error={errors.booking_no} required={!!form.isInternational} placeholder="Optional..." />
-                            
-                            <JourneyDocumentField 
-                                label={form.isInternational ? "TR Form (KRA)" : "T1 Form (Domestic)"} 
-                                k={form.isInternational ? "tr_form_url" : "t1_form_url"} 
-                                form={form} 
-                                setForm={setForm} 
-                                S={S} 
-                                T={T} 
-                                required={!!form.isInternational} 
-                            />
-                        </div>
-                    </div>
-
-                    <Field label="Internal Notes" k="notes" form={form} setForm={setForm} S={S} full placeholder="Any specific instructions or remarks..." />
                 </div>
+                <Field label="Internal Notes" k="notes" form={form} setForm={setForm} S={S} full placeholder="Any specific instructions or remarks..." />
             </Modal>
         );
     }
