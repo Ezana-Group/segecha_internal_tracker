@@ -112,7 +112,7 @@ const adminAuth = async (req, res, next) => {
         const token = authHeader.slice(7);
         try {
             const decoded = jwt.verify(token, JWT_SECRET);
-            
+
             // 1. Full Admin/Superadmin Access
             if (decoded.role === 'superadmin' || decoded.role === 'admin') {
                 const dbRes = await db.query('SELECT session_version FROM admins WHERE id = $1', [decoded.id]);
@@ -474,14 +474,14 @@ async function getSettings() {
 // Helper to upsert any entity into its table
 async function upsertEntity(table, item) {
     if (!item || !item.id) throw new Error('Item ID is required for upsert');
-    
+
     // 1. Get existing columns for this table to avoid SQL errors
     const colRes = await db.query(
         "SELECT column_name FROM information_schema.columns WHERE table_name = $1",
         [table]
     );
     const validCols = colRes.rows.map(r => r.column_name);
-    
+
     if (validCols.length === 0) throw new Error(`Table ${table} not found or has no columns`);
 
     const entries = Object.entries(item).filter(([k]) => {
@@ -501,6 +501,18 @@ async function upsertEntity(table, item) {
         else if (k === 'truckId') dbKey = 'truck_id';
         else if (k === 'driverId') dbKey = 'driver_id';
         else if (k === 'licenseNumber') dbKey = 'license_number';
+        else if (k === 'plateNumber') dbKey = 'registration_number';
+        else if (k === 'registrationNumber') dbKey = 'registration_number';
+        else if (k === 'currentMileage') dbKey = 'current_mileage';
+        else if (k === 'startDate') dbKey = 'start_date';
+        else if (k === 'endDate') dbKey = 'end_date';
+        else if (k === 'cargoType') dbKey = 'cargo_type';
+        else if (k === 'nextServiceMileage') dbKey = 'next_service_mileage';
+        else if (k === 'entityId') dbKey = 'entity_id';
+        else if (k === 'entityType') dbKey = 'entity_type';
+        else if (k === 'dueDate') dbKey = 'due_date';
+        else if (k === 'serialNumber') dbKey = 'serial_number';
+        else if (k === 'staffId') dbKey = 'staff_id';
 
         if (validCols.includes(dbKey)) {
             finalData[dbKey] = v;
@@ -515,10 +527,10 @@ async function upsertEntity(table, item) {
     }
 
     const keys = Object.keys(finalData);
-    const values = Object.values(finalData).map(v => 
+    const values = Object.values(finalData).map(v =>
         (typeof v === 'object' && v !== null) ? JSON.stringify(v) : v
     );
-    
+
     const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
     const updates = keys.map((k, i) => {
         if (k === 'id') return null;
@@ -530,7 +542,7 @@ async function upsertEntity(table, item) {
         VALUES (${placeholders})
         ON CONFLICT (id) DO UPDATE SET ${updates}
     `;
-    
+
     return db.query(query, values);
 }
 
@@ -817,14 +829,14 @@ app.put('/api/admin/:col/:id', (req, res) => {
 // Generic Admin Entity Delete
 app.delete('/api/admin/:table/:id', async (req, res) => {
     let { table, id } = req.params;
-    
+
     // Map camelCase from frontend to snake_case in DB
     if (table === 'maintenanceLogs') table = 'maintenance_logs';
     if (table === 'fuel') table = 'fuel_logs';
     if (table === 'tyreLogs') table = 'tyre_logs';
 
     const allowed = ['trucks', 'drivers', 'staff', 'journeys', 'fuel_logs', 'expenses', 'incidents', 'customers', 'trailers', 'payroll', 'invoices', 'payments', 'maintenance_logs', 'tyre_logs'];
-    
+
     if (!allowed.includes(table)) {
         return res.status(400).json({ error: 'Invalid entity type: ' + table });
     }
@@ -1201,9 +1213,9 @@ app.post('/api/driver/save', async (req, res) => {
 // Generic Admin Entity Save
 app.post('/api/admin/:table', async (req, res) => {
     const { table } = req.params;
-    
+
     // Validate table name against allowed list
-    const allowed = ['trucks', 'drivers', 'staff', 'journeys', 'fuel', 'expenses', 'incidents', 'customers', 'trailers', 'payroll', 'invoices', 'payments', 'maintenance_logs'];
+    const allowed = ['trucks', 'drivers', 'staff', 'journeys', 'fuel_logs', 'expenses', 'incidents', 'customers', 'trailers', 'payroll', 'invoices', 'payments', 'maintenance_logs', 'tyre_logs'];
     if (!allowed.includes(table)) {
         return res.status(400).json({ error: 'Invalid entity type: ' + table });
     }
