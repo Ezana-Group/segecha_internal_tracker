@@ -333,29 +333,35 @@ export function GlobalModals(props) {
 
         return (
             <Modal title={form.id ? "Edit Fuel Entry" : "Log Fuel Fill-up"} onSave={() => saveItem("fuel", form)} S={S} closeModal={closeModal} saveDisabled={hasErrors} wide>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 32 }}>
-                    {/* Left Column: Form Fields */}
-                    <div style={S.fgg(2)}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+                    {/* ── Section 1: Core Details ── */}
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px 24px" }}>
                         <Field label="Truck" k="truck" options={data.trucks.map(t => ({ v: t.id, l: t.reg }))} form={form} setForm={setForm} S={S} />
                         <Field label="Date" k="date" type="date" form={form} setForm={setForm} S={S} />
                         <Field label="Litres" k="litres" type="number" form={form} setForm={setForm} S={S} error={errors.litres} />
                         <Field label="Price per Litre (KES)" k="pricePerL" type="number" form={form} setForm={setForm} S={S} error={errors.pricePerL} />
-                        {form.litres && form.pricePerL && (
-                            <div style={{ ...S.fg }}>
-                                <div style={{ background: "#f9731612", border: "1px solid #f9731633", borderRadius: 8, padding: "10px 14px", fontSize: 13, color: "#f97316", fontWeight: 700 }}>
-                                    Estimated cost: {fmt(+form.litres * +form.pricePerL)}
-                                </div>
-                            </div>
-                        )}
                         <Field label="Station Name" k="station" form={form} setForm={setForm} S={S} />
                         <Field label="Odometer Reading (km)" k="odom" type="number" form={form} setForm={setForm} S={S} />
+                    </div>
+
+                    {/* ── Estimated Cost Callout ── */}
+                    {form.litres && form.pricePerL && (
+                        <div style={{ background: "#f9731610", border: "1px solid #f9731630", borderRadius: 10, padding: "12px 18px", fontSize: 14, color: "#f97316", fontWeight: 700, display: "flex", alignItems: "center", gap: 8 }}>
+                            <span style={{ fontSize: 18 }}>⛽</span> Estimated cost: {fmt(+form.litres * +form.pricePerL)}
+                        </div>
+                    )}
+
+                    {/* ── Linked Journey (full width) ── */}
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 16 }}>
                         <Field label="Linked Journey" k="journey" options={[{ v: "", l: "None" }, ...data.journeys.map(j => ({ v: j.id, l: `${j.origin}→${j.dest} (${j.date})` }))]} full form={form} setForm={setForm} S={S} />
                     </div>
 
-                    {/* Right Column: Photos */}
-                    <div style={{ borderLeft: `1px solid ${T.border2}`, paddingLeft: 32 }}>
-                        <div style={{ fontWeight: 800, fontSize: 13, marginBottom: 16, color: T.text }}>Fuel verification photos</div>
-                        <div style={S.fgg(3)}>
+                    {/* ── Section 2: Verification Photos ── */}
+                    <div style={{ borderTop: `1px solid ${T.border2}`, paddingTop: 20 }}>
+                        <div style={{ fontWeight: 800, fontSize: 13, marginBottom: 16, color: T.text, display: "flex", alignItems: "center", gap: 8 }}>
+                            <span style={{ fontSize: 16 }}>📷</span> Fuel Verification Photos
+                        </div>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
                             <FuelPhotoField label="Pump Display" k="photoPump" form={form} setForm={setForm} S={S} T={T} />
                             <FuelPhotoField label="Fuel Receipt" k="photoReceipt" form={form} setForm={setForm} S={S} T={T} />
                             <FuelPhotoField label="Truck Odometer" k="photoOdom" form={form} setForm={setForm} S={S} T={T} />

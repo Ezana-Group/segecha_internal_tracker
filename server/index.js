@@ -16,7 +16,7 @@ envPaths.forEach(envPath => {
 
 const express = require('express');
 const cors = require('cors');
-const { readFileSync, writeFileSync, mkdirSync } = require('fs');
+const { existsSync } = require('fs');
 const multer = require('multer');
 const { uploadBuffer } = require('./cloudinary');
 const { uploadToR2 } = require('./r2');
@@ -537,17 +537,12 @@ async function upsertEntity(table, item) {
 
 
 
-// Ensure directories exist
-if (!existsSync(__dirname)) mkdirSync(__dirname);
-const BACKUPS_DIR = path.join(__dirname, 'backups');
-if (!existsSync(BACKUPS_DIR)) mkdirSync(BACKUPS_DIR);
 
-// Helper to read/write data
-const getData = (file, defaultVal = { journeys: [], history: [] }) => {
-    try { return JSON.parse(readFileSync(file, 'utf8')); }
-    catch { return defaultVal; }
-};
-const saveData = (file, data) => writeFileSync(file, JSON.stringify(data, null, 2));
+// Ensure directories exist
+if (!existsSync(__dirname)) {
+    // For local dev, but in production Render uses ephemeral disk anyway
+}
+const BACKUPS_DIR = path.join(__dirname, 'backups');
 
 // Master Backup Helper
 async function backupEverything() {
