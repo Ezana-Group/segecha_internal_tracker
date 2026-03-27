@@ -131,10 +131,10 @@ const adminAuth = (req, res, next) => {
 const resolveDistPath = (folderName) => {
     const rootPath = folderName === 'admin' ? path.join(__dirname, '..', 'dist') : path.join(__dirname, '..', folderName, 'dist');
     const localPath = folderName === 'admin' ? path.join(__dirname, 'dist') : path.join(__dirname, folderName, 'dist');
-    
+
     if (existsSync(rootPath)) return rootPath;
     if (existsSync(localPath)) return localPath;
-    
+
     // Fallback to process.cwd() as last resort
     const cwdPath = folderName === 'admin' ? path.join(process.cwd(), 'dist') : path.join(process.cwd(), folderName, 'dist');
     return cwdPath;
@@ -166,39 +166,53 @@ console.log(`[SERVER] Static paths resolved at ${new Date().toISOString()}:`);
 });
 
 // --- PUBLIC FRONTEND & STATIC ASSETS ---
+// Domain-based static serving (for driver.segecha.com, track.segecha.com etc)
+app.use((req, res, next) => {
+    const host = req.hostname || '';
+    if (host.startsWith('driver.')) return express.static(DRIVER_DIST)(req, res, next);
+    if (host.startsWith('track.')) return express.static(TRACK_DIST)(req, res, next);
+    if (host.startsWith('pay.')) return express.static(PAY_DIST)(req, res, next);
+    next();
+});
 // 1. Specific Portals first (more specific routes)
 app.use('/driver', express.static(DRIVER_DIST));
 app.use('/track', express.static(TRACK_DIST));
 app.use('/pay', express.static(PAY_DIST));
-
 // 2. Root Admin Panel
 app.use(express.static(ADMIN_DIST));
-
-// Handle React routing (SPA) - Protected by React internal logic, but publicly reachable
+// Handle React routing (SPA)
 app.use((req, res, next) => {
     if (req.method !== 'GET') return next();
     if (req.path.startsWith('/api/')) return next();
 
+    const host = req.hostname || '';
+
+    // Determine dist path based on hostname or path prefix
+    let distPath = ADMIN_DIST;
+    if (host.startsWith('driver.') || req.path.startsWith('/driver')) {
+        distPath = DRIVER_DIST;
+    } else if (host.startsWith('track.') || req.path.startsWith('/track')) {
+        distPath = TRACK_DIST;
+    } else if (host.startsWith('pay.') || req.path.startsWith('/pay')) {
+        distPath = PAY_DIST;
+    }
+
     // Prevent sending index.html for missing assets (avoids MIME type errors)
-    const isAsset = req.path.includes('/assets/') || req.path.match(/\.(css|js|png|jpg|jpeg|svg|ico|json|txt|woff2?|ttf|eot|webp)$/i);
+    const isAsset = req.path.includes('/assets/') ||
+        req.path.match(/\.(css|js|png|jpg|jpeg|svg|ico|json|txt|woff2?|ttf|eot|webp)$/i);
     if (isAsset) {
+        const assetFile = path.join(distPath, req.path);
+        if (existsSync(assetFile)) return res.sendFile(assetFile);
         console.warn(`[SERVER] Asset not found: ${req.path}`);
         return res.status(404).set('Content-Type', 'text/plain').send('Asset not found');
     }
-    
-    if (req.path.startsWith('/driver')) {
-        return res.sendFile(path.join(DRIVER_DIST, 'index.html'));
-    }
-    if (req.path.startsWith('/track')) {
-        return res.sendFile(path.join(TRACK_DIST, 'index.html'));
-    }
-    if (req.path.startsWith('/pay')) {
-        return res.sendFile(path.join(PAY_DIST, 'index.html'));
-    }
-    
-    // Default Admin Panel
-    res.sendFile(path.join(ADMIN_DIST, 'index.html'));
+
+    // SPA fallback
+    const indexFile = path.join(distPath, 'index.html');
+    if (existsSync(indexFile)) return res.sendFile(indexFile);
+    return res.status(404).send('Portal not found');
 });
+
 
 // --- AUTHENTICATED API ROUTES ---
 // Apply AUTH to all /api routes except public ones
@@ -268,14 +282,14 @@ app.post('/api/admin/change-password', async (req, res) => {
         // Find in admins table
         const result = await db.query('SELECT * FROM admins WHERE id = $1', [adminId]);
         if (result.rows.length === 0) return res.status(404).json({ error: 'Admin not found' });
-        
+
         const admin = result.rows[0];
         const valid = bcrypt.compareSync(oldPassword, admin.password_hash);
         if (!valid) return res.status(401).json({ error: 'Incorrect current password' });
 
         const newHash = bcrypt.hashSync(newPassword, 10);
         await db.query('UPDATE admins SET password_hash = $1 WHERE id = $2', [newHash, adminId]);
-        
+
         // Also update staff_auth if exists for same user
         await db.query('UPDATE staff_auth SET password_hash = $1 WHERE staff_id = $2', [newHash, adminId]);
 
@@ -303,7 +317,7 @@ app.post('/api/admin/reset', async (req, res) => {
 
         const initialAdminEmail = process.env.INITIAL_ADMIN_EMAIL;
         const initialAdminPhone = process.env.INITIAL_ADMIN_PHONE;
-        
+
         // 1. Create a dummy staff record for the superadmin (satisfies foreign key)
         const staffId = 'staff-admin-init';
         await db.query(`
@@ -354,9 +368,9 @@ app.get('/api/tracker/data-full', async (req, res) => {
 
 // Database Configuration
 const DB_TABLES = [
-    'admins', 'superadmins', 'trucks', 'trailers', 'drivers', 
-    'staff', 'customers', 'journeys', 'fuel_logs', 'expenses', 
-    'invoices', 'payroll', 'maintenance_logs', 'tyre_logs', 
+    'admins', 'superadmins', 'trucks', 'trailers', 'drivers',
+    'staff', 'customers', 'journeys', 'fuel_logs', 'expenses',
+    'invoices', 'payroll', 'maintenance_logs', 'tyre_logs',
     'incidents', 'documents', 'system_settings', 'staff_auth', 'driver_auth'
 ];
 
@@ -408,15 +422,15 @@ async function backupEverything() {
 // Master Restore Helper
 async function restoreEverything(backup) {
     if (!backup.tables) return;
-    
+
     // Use a single transaction for atomicity and performance
     const client = await db.pool.connect();
     try {
         await client.query('BEGIN');
-        
+
         for (const [table, rows] of Object.entries(backup.tables)) {
             if (!DB_TABLES.includes(table)) continue;
-            
+
             await client.query(`TRUNCATE TABLE ${table} CASCADE`);
             if (!rows || rows.length === 0) continue;
 
@@ -429,7 +443,7 @@ async function restoreEverything(backup) {
                     throw new Error(`Invalid column names detected in table ${table}`);
                 }
 
-                const placeholders = chunk.map((_, rowIndex) => 
+                const placeholders = chunk.map((_, rowIndex) =>
                     `(${validCols.map((_, colIndex) => `$${rowIndex * validCols.length + colIndex + 1}`).join(',')})`
                 ).join(',');
 
@@ -540,14 +554,14 @@ app.get('/api/admin/stats', async (req, res) => {
         const journeyCount = (await db.query("SELECT COUNT(*) FROM journeys")).rows[0].count;
         const activeTrucks = (await db.query("SELECT COUNT(*) FROM trucks WHERE status = 'Active'")).rows[0].count;
         const totalRevenue = (await db.query("SELECT SUM(amount) FROM invoices")).rows[0].sum || 0;
-        
-        res.json({ 
-            success: true, 
+
+        res.json({
+            success: true,
             stats: {
                 totalJourneys: parseInt(journeyCount),
                 activeTrucks: parseInt(activeTrucks),
                 totalRevenue: parseFloat(totalRevenue)
-            } 
+            }
         });
     } catch (e) { res.status(500).json({ error: 'Failed to compute stats' }); }
 });
@@ -561,7 +575,7 @@ app.get('/api/documents', async (req, res) => {
         const params = [];
         if (entityType) { params.push(entityType); query += ` AND entity_type = $${params.length}`; }
         if (entityId) { params.push(entityId); query += ` AND (entity_id = $${params.length} OR metadata->>'driverId' = $${params.length})`; }
-        
+
         const result = await db.query(query, params);
         res.json({ success: true, documents: result.rows });
     } catch (e) {
@@ -584,7 +598,7 @@ app.post('/api/documents/upload', upload.any(), async (req, res) => {
         const body = req.body || {};
         const id = Date.now().toString();
         const { entityType, entityId, label, url, expiryDate, ...rest } = body;
-        
+
         await db.query(
             'INSERT INTO documents (id, entity_type, entity_id, label, url, expiry_date, metadata) VALUES ($1, $2, $3, $4, $5, $6, $7)',
             [id, entityType, entityId, label, url || 'https://res.cloudinary.com/demo/image/upload/sample.jpg', expiryDate, JSON.stringify(rest)]
@@ -654,7 +668,7 @@ app.post('/api/admin/journey/:id/verify', async (req, res) => {
 // NOTE: Logic moved to specific endpoints or handled via metadata updates in DB
 app.post('/api/admin/submission/verify', async (req, res) => {
     const { id, type, approved, reason, rejectedFields } = req.body;
-    
+
     try {
         let table = '';
         if (type === 'fuel') table = 'fuel_logs';
@@ -663,7 +677,7 @@ app.post('/api/admin/submission/verify', async (req, res) => {
         else return res.status(400).json({ error: 'Invalid type' });
 
         const status = approved ? (type === 'incident' ? 'Resolved' : 'Approved') : (type === 'incident' ? 'Rejected' : 'Rejected');
-        
+
         await db.query(`
             UPDATE ${table} SET 
                 metadata = jsonb_set(
@@ -1103,7 +1117,7 @@ app.post('/api/documents/driver-upload', driverAuth.authMiddleware, upload.any()
             ...body,
             uploadedAt: new Date().toISOString()
         };
-        
+
         const { entityType, entityId, label, url, expiryDate, ...metadata } = doc;
         await db.query(
             'INSERT INTO documents (id, entity_type, entity_id, label, url, expiry_date, metadata) VALUES ($1, $2, $3, $4, $5, $6, $7)',
