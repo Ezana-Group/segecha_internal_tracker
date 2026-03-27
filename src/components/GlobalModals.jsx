@@ -608,11 +608,10 @@ export function GlobalModals(props) {
             // Road User Allowance calculation
             let rua = 0;
             if (isReturning) {
-                rua = (_S.roadUserAllowanceReturn !== undefined && _S.roadUserAllowanceReturn !== null && _S.roadUserAllowanceReturn !== "") 
-                    ? +_S.roadUserAllowanceReturn 
-                    : (+(_S.roadUserAllowance || 0));
+                // Return road user allowance should be used if explicitly defined (even if 0)
+                rua = (_S.roadUserAllowanceReturn ?? _S.roadUserAllowance ?? 0);
             } else {
-                rua = +(_S.roadUserAllowance || 0);
+                rua = (_S.roadUserAllowance ?? 0);
             }
 
             return {

@@ -1814,16 +1814,16 @@ export function Settings({
                                     <p style={{ fontSize: 13, fontWeight: 700, color: "var(--brand-primary)", marginBottom: 12 }}>Inside Kenya (Domestic)</p>
                                     <div style={{ display: "grid", gap: 12 }}>
                                         <SettingsShellField label="Driver Flat Rate (KES)">
-                                            <SettingsShellInput type="number" value={localS.flatRateInsideDriver || 0} onChange={e => saveSettings({ flatRateInsideDriver: +e.target.value })} />
+                                            <SettingsShellInput type="number" value={localS.flatRateInsideDriver ?? 0} onChange={e => saveSettings({ flatRateInsideDriver: +e.target.value })} />
                                         </SettingsShellField>
                                         <SettingsShellField label="Ret. Driver Flat Rate (KES)">
-                                            <SettingsShellInput type="number" value={localS.flatRateInsideDriverReturn || 0} onChange={e => saveSettings({ flatRateInsideDriverReturn: +e.target.value })} />
+                                            <SettingsShellInput type="number" value={localS.flatRateInsideDriverReturn ?? 0} onChange={e => saveSettings({ flatRateInsideDriverReturn: +e.target.value })} />
                                         </SettingsShellField>
                                         <SettingsShellField label="Turnboy Flat Rate (KES)">
-                                            <SettingsShellInput type="number" value={localS.flatRateInsideTurnboy || 0} onChange={e => saveSettings({ flatRateInsideTurnboy: +e.target.value })} />
+                                            <SettingsShellInput type="number" value={localS.flatRateInsideTurnboy ?? 0} onChange={e => saveSettings({ flatRateInsideTurnboy: +e.target.value })} />
                                         </SettingsShellField>
                                         <SettingsShellField label="Ret. Turnboy Flat Rate (KES)">
-                                            <SettingsShellInput type="number" value={localS.flatRateInsideTurnboyReturn || 0} onChange={e => saveSettings({ flatRateInsideTurnboyReturn: +e.target.value })} />
+                                            <SettingsShellInput type="number" value={localS.flatRateInsideTurnboyReturn ?? 0} onChange={e => saveSettings({ flatRateInsideTurnboyReturn: +e.target.value })} />
                                         </SettingsShellField>
                                     </div>
                                 </div>
@@ -1831,16 +1831,16 @@ export function Settings({
                                     <p style={{ fontSize: 13, fontWeight: 700, color: "var(--brand-primary)", marginBottom: 12 }}>Outside Kenya (International)</p>
                                     <div style={{ display: "grid", gap: 12 }}>
                                         <SettingsShellField label="Driver Flat Rate (KES)">
-                                            <SettingsShellInput type="number" value={localS.flatRateOutsideDriver || 0} onChange={e => saveSettings({ flatRateOutsideDriver: +e.target.value })} />
+                                            <SettingsShellInput type="number" value={localS.flatRateOutsideDriver ?? 0} onChange={e => saveSettings({ flatRateOutsideDriver: +e.target.value })} />
                                         </SettingsShellField>
                                         <SettingsShellField label="Ret. Driver Flat Rate (KES)">
-                                            <SettingsShellInput type="number" value={localS.flatRateOutsideDriverReturn || 0} onChange={e => saveSettings({ flatRateOutsideDriverReturn: +e.target.value })} />
+                                            <SettingsShellInput type="number" value={localS.flatRateOutsideDriverReturn ?? 0} onChange={e => saveSettings({ flatRateOutsideDriverReturn: +e.target.value })} />
                                         </SettingsShellField>
                                         <SettingsShellField label="Turnboy Flat Rate (KES)">
-                                            <SettingsShellInput type="number" value={localS.flatRateOutsideTurnboy || 0} onChange={e => saveSettings({ flatRateOutsideTurnboy: +e.target.value })} />
+                                            <SettingsShellInput type="number" value={localS.flatRateOutsideTurnboy ?? 0} onChange={e => saveSettings({ flatRateOutsideTurnboy: +e.target.value })} />
                                         </SettingsShellField>
                                         <SettingsShellField label="Ret. Turnboy Flat Rate (KES)">
-                                            <SettingsShellInput type="number" value={localS.flatRateOutsideTurnboyReturn || 0} onChange={e => saveSettings({ flatRateOutsideTurnboyReturn: +e.target.value })} />
+                                            <SettingsShellInput type="number" value={localS.flatRateOutsideTurnboyReturn ?? 0} onChange={e => saveSettings({ flatRateOutsideTurnboyReturn: +e.target.value })} />
                                         </SettingsShellField>
                                     </div>
                                 </div>
@@ -1849,10 +1849,10 @@ export function Settings({
                             <h4 style={{ fontSize: 16, fontWeight: 800, color: "var(--text-primary)", marginBottom: 16 }}>Road User Allowance</h4>
                             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginBottom: 32, padding: 20, background: "var(--surface-subtle)", borderRadius: 12, border: "1px solid var(--border-subtle)" }}>
                                 <SettingsShellField label="Standard Road User Allowance (KES)" desc="Added to journey completion expenses automatically.">
-                                    <SettingsShellInput type="number" value={localS.roadUserAllowance || 0} onChange={e => saveSettings({ roadUserAllowance: +e.target.value })} />
+                                    <SettingsShellInput type="number" value={localS.roadUserAllowance ?? 0} onChange={e => saveSettings({ roadUserAllowance: +e.target.value })} />
                                 </SettingsShellField>
                                 <SettingsShellField label="Return Road User Allowance (KES)" desc="Override for returning empty trips.">
-                                    <SettingsShellInput type="number" value={localS.roadUserAllowanceReturn || 0} onChange={e => saveSettings({ roadUserAllowanceReturn: +e.target.value })} />
+                                    <SettingsShellInput type="number" value={localS.roadUserAllowanceReturn ?? 0} onChange={e => saveSettings({ roadUserAllowanceReturn: +e.target.value })} />
                                 </SettingsShellField>
                             </div>
 
