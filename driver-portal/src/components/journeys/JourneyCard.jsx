@@ -123,6 +123,12 @@ export const JourneyCard = ({
                             </div>
                         </>
                     )}
+                    {j.booking_no && (
+                        <div style={S.infoRow}>
+                            <span style={{ color: COLORS.textFaint }}>KRA Booking No</span>
+                            <span style={{ fontWeight: 800, color: COLORS.accent }}>{j.booking_no}</span>
+                        </div>
+                    )}
                     {portalPerm.tripDetailOdomRecorded !== false && j.startOdom && (
                         <div style={S.infoRow}>
                             <span style={{ color: COLORS.textFaint }}>Start Odom</span>

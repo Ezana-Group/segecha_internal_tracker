@@ -16,7 +16,8 @@ import {
     FileText,
     Droplet,
     Receipt,
-    DollarSign
+    DollarSign,
+    ExternalLink
 } from "lucide-react";
 import { fmt, today, uid, fmtDate } from "../utils/formatters";
 import { STATUSES_JOURNEY, CARGO_TYPES } from "../constants/nav";
@@ -389,6 +390,32 @@ export function Journeys({ data, isMobile, modal, form, setForm, openModal, clos
                                                                   onClick: (e) => {
                                                                       e.stopPropagation();
                                                                       openWaybillGenerator(j);
+                                                                  },
+                                                              },
+                                                          ]
+                                                        : []),
+                                                    ...(j.tr_form_url
+                                                        ? [
+                                                              {
+                                                                  id: "view-tr",
+                                                                  label: "View TR Form",
+                                                                  icon: ExternalLink,
+                                                                  onClick: (e) => {
+                                                                      e.stopPropagation();
+                                                                      window.open(j.tr_form_url, "_blank");
+                                                                  },
+                                                              },
+                                                          ]
+                                                        : []),
+                                                    ...(j.t1_form_url
+                                                        ? [
+                                                              {
+                                                                  id: "view-t1",
+                                                                  label: "View T1 Form",
+                                                                  icon: ExternalLink,
+                                                                  onClick: (e) => {
+                                                                      e.stopPropagation();
+                                                                      window.open(j.t1_form_url, "_blank");
                                                                   },
                                                               },
                                                           ]

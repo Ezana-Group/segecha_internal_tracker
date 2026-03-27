@@ -210,6 +210,7 @@ export function JourneyProfile({
                                         { l: 'Cargo Classification', v: journey.cargo || 'General Freight' },
                                         { l: 'Payload Weight', v: `${journey.weight || '—'} T` },
                                         { l: 'Waybill Number', v: journey.waybillNo || journey.waybill || 'N/A' },
+                                        { l: 'KRA Booking No', v: journey.booking_no || '—' },
                                         { l: 'Operational Status', v: journey.status },
                                         { l: 'Start Odometer', v: `${journey.startOdom || '—'} km`, img: journey.startOdomPhotoUrl || journey.photoOdomStart },
                                         { l: 'Final Odometer', v: `${journey.finalOdom || '—'} km`, img: journey.finalOdomPhotoUrl || journey.photoOdomEnd },
@@ -236,6 +237,30 @@ export function JourneyProfile({
                                         {journey.notes || 'No operational notes recorded for this mission.'}
                                     </div>
                                 </div>
+
+                                {(journey.tr_form_url || journey.t1_form_url) && (
+                                    <div style={{ marginTop: 24, padding: 20, background: "rgba(16, 185, 129, 0.05)", borderRadius: 16, border: "1px solid rgba(16, 185, 129, 0.2)" }}>
+                                        <div style={{ fontSize: 11, color: "#059669", fontWeight: 700, textTransform: "uppercase", marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
+                                            <FileText size={14} /> Mission Documentation
+                                        </div>
+                                        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                                            {journey.tr_form_url && (
+                                                <a href={journey.tr_form_url} target="_blank" rel="noreferrer" style={{ 
+                                                    display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'white', border: '1px solid #d1fae5', borderRadius: 8, textDecoration: 'none', color: '#065f46', fontSize: 13, fontWeight: 700
+                                                }}>
+                                                    <FileText size={16} /> TR Form (KRA)
+                                                </a>
+                                            )}
+                                            {journey.t1_form_url && (
+                                                <a href={journey.t1_form_url} target="_blank" rel="noreferrer" style={{ 
+                                                    display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'white', border: '1px solid #d1fae5', borderRadius: 8, textDecoration: 'none', color: '#065f46', fontSize: 13, fontWeight: 700
+                                                }}>
+                                                    <FileText size={16} /> T1 Form (Domestic)
+                                                </a>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
                             <div>

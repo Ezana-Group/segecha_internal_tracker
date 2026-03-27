@@ -97,7 +97,7 @@ export const MyDocsTab = ({ token, portalPerm }) => {
                     <input style={S.inp} type="date" value={uploadForm.expiryDate} onChange={(e) => setUploadForm((f) => ({ ...f, expiryDate: e.target.value }))} />
 
                     <div style={{ marginTop: 12, marginBottom: 12 }}>
-                        <input type="file" accept=".pdf,.jpg,.jpeg,.png" style={S.inp} onChange={(e) => e.target.files[0] && handleUpload(e.target.files[0])} disabled={uploading} />
+                        <input type="file" accept=".pdf,.doc,.docx" style={S.inp} onChange={(e) => e.target.files[0] && handleUpload(e.target.files[0])} disabled={uploading} />
                     </div>
 
                     <div style={{ fontSize: 11, color: COLORS.textFaint }}>Upload your PSV licence, medical certificate, or ID card for office records.</div>

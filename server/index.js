@@ -3,6 +3,8 @@ const cors = require('cors');
 const { readFileSync, writeFileSync, existsSync, mkdirSync } = require('fs');
 const path = require('path');
 const multer = require('multer');
+const { uploadBuffer } = require('./cloudinary');
+const { uploadToR2 } = require('./r2');
 const upload = multer();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
@@ -246,6 +248,12 @@ async function autoSeed() {
             BEGIN 
                 IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='admins' AND column_name='session_version') THEN
                     ALTER TABLE admins ADD COLUMN session_version INTEGER DEFAULT 1;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='documents' AND column_name='filename') THEN
+                    ALTER TABLE documents ADD COLUMN filename TEXT;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='documents' AND column_name='mime_type') THEN
+                    ALTER TABLE documents ADD COLUMN mime_type TEXT;
                 END IF;
             END $$;
         `);
@@ -635,19 +643,34 @@ app.get('/api/documents/expiring', async (req, res) => {
     }
 });
 
-app.post('/api/documents/upload', upload.any(), async (req, res) => {
+app.post('/api/documents/upload', upload.single('file'), async (req, res) => {
     try {
-        const body = req.body || {};
-        const id = Date.now().toString();
-        const { entityType, entityId, label, url, expiryDate, ...rest } = body;
+        if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+        
+        const ext = path.extname(req.file.originalname).toLowerCase();
+        const isDoc = ['.pdf', '.doc', '.docx'].includes(ext);
+        
+        if (!isDoc) {
+            return res.status(400).json({ error: 'Only PDF and DOC/DOCX files are allowed for documents.' });
+        }
 
+        const body = req.body || {};
+        const { entityType, entityId, label, expiryDate, ...rest } = body;
+        
+        // Upload to Cloudflare R2
+        const folder = `documents/${entityType}/${entityId}`;
+        const key = `${folder}/${Date.now()}_${req.file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+        const url = await uploadToR2(req.file.buffer, key, req.file.mimetype);
+
+        const id = Date.now().toString();
         await db.query(
-            'INSERT INTO documents (id, entity_type, entity_id, label, url, expiry_date, metadata) VALUES ($1, $2, $3, $4, $5, $6, $7)',
-            [id, entityType, entityId, label, url || 'https://res.cloudinary.com/demo/image/upload/sample.jpg', expiryDate, JSON.stringify(rest)]
+            'INSERT INTO documents (id, entity_type, entity_id, label, url, expiry_date, metadata, filename, mime_type) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)',
+            [id, entityType, entityId, label || req.file.originalname, url, expiryDate || null, JSON.stringify(rest), req.file.originalname, req.file.mimetype]
         );
 
-        res.json({ success: true, document: { id, ...body, url: url || 'https://res.cloudinary.com/demo/image/upload/sample.jpg' } });
+        res.json({ success: true, document: { id, entityType, entityId, label: label || req.file.originalname, url, expiryDate, ...rest } });
     } catch (e) {
+        console.error('DOC_UPLOAD_ERROR:', e);
         res.status(500).json({ error: e.message });
     }
 });
@@ -661,9 +684,33 @@ app.delete('/api/documents/:id', async (req, res) => {
     }
 });
 
-// Admin upload placeholder (deprecated, use /api/documents/upload)
-app.post('/api/admin/upload', (req, res) => {
-    res.json({ success: true, url: 'https://cdn.example.com/uploads/fallback.png' });
+
+// Admin upload (Cloudinary for images, R2 for docs)
+app.post('/api/admin/upload', upload.single('file'), async (req, res) => {
+    try {
+        if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+        
+        const ext = path.extname(req.file.originalname).toLowerCase();
+        const isImage = ['.jpg', '.jpeg', '.png', '.webp', '.gif'].includes(ext);
+        const isDoc = ['.pdf', '.doc', '.docx'].includes(ext);
+        const folder = req.body.folder || 'admin_uploads';
+
+        if (isDoc) {
+            // Upload to Cloudflare R2
+            const key = `${folder}/${Date.now()}_${req.file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+            const url = await uploadToR2(req.file.buffer, key, req.file.mimetype);
+            return res.json({ success: true, url });
+        } else if (isImage) {
+            // Upload to Cloudinary
+            const result = await uploadBuffer(req.file.buffer, folder);
+            return res.json({ success: true, url: result.secure_url });
+        } else {
+            return res.status(400).json({ error: 'Unsupported file type. Use PDF, DOC, or Images.' });
+        }
+    } catch (e) {
+        console.error('ADMIN_UPLOAD_ERROR:', e);
+        res.status(500).json({ error: e.message });
+    }
 });
 
 // Generic update for collections
@@ -1129,8 +1176,27 @@ app.post('/api/driver/journeys/start-placeholder', driverAuth.authMiddleware, (r
     }
 });
 
-app.post('/api/driver/upload', driverAuth.authMiddleware, (req, res) => {
-    res.json({ success: true, url: 'https://res.cloudinary.com/demo/image/upload/sample.jpg' });
+app.post('/api/driver/upload', driverAuth.authMiddleware, upload.single('file'), async (req, res) => {
+    try {
+        if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+        
+        const ext = path.extname(req.file.originalname).toLowerCase();
+        const isImage = ['.jpg', '.jpeg', '.png', '.webp', '.gif'].includes(ext);
+        const folder = req.body.folder || `drivers/${req.driver.driverId}`;
+
+        if (isImage) {
+            const result = await uploadBuffer(req.file.buffer, folder);
+            res.json({ success: true, url: result.secure_url });
+        } else {
+            // General driver upload (like a scan of something) - use R2
+            const key = `${folder}/${Date.now()}_${req.file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+            const url = await uploadToR2(req.file.buffer, key, req.file.mimetype);
+            res.json({ success: true, url });
+        }
+    } catch (e) {
+        console.error('DRIVER_UPLOAD_ERROR:', e);
+        res.status(500).json({ error: e.message });
+    }
 });
 
 app.get('/api/documents/mine', driverAuth.authMiddleware, async (req, res) => {
@@ -1146,29 +1212,44 @@ app.get('/api/documents/mine', driverAuth.authMiddleware, async (req, res) => {
     }
 });
 
-app.post('/api/documents/driver-upload', driverAuth.authMiddleware, upload.any(), async (req, res) => {
+app.post('/api/documents/driver-upload', driverAuth.authMiddleware, upload.single('file'), async (req, res) => {
     try {
-        const body = req.body || {};
-        const id = Date.now().toString();
-        const doc = {
-            id,
-            driverId: req.driver.driverId,
-            entityType: 'driver',
-            entityId: req.driver.driverId,
-            url: body.url || 'https://res.cloudinary.com/demo/image/upload/sample.jpg',
-            ...body,
-            uploadedAt: new Date().toISOString()
-        };
+        if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
-        const { entityType, entityId, label, url, expiryDate, ...metadata } = doc;
+        const ext = path.extname(req.file.originalname).toLowerCase();
+        const isDoc = ['.pdf', '.doc', '.docx'].includes(ext);
+        
+        if (!isDoc) {
+            return res.status(400).json({ error: 'Only PDF and DOC/DOCX files are allowed for documents.' });
+        }
+
+        const body = req.body || {};
+        const folder = `documents/driver/${req.driver.driverId}`;
+        const key = `${folder}/${Date.now()}_${req.file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+        const url = await uploadToR2(req.file.buffer, key, req.file.mimetype);
+
+        const id = Date.now().toString();
+        const { docType, label, expiryDate, ...metadata } = body;
+
         await db.query(
-            'INSERT INTO documents (id, entity_type, entity_id, label, url, expiry_date, metadata) VALUES ($1, $2, $3, $4, $5, $6, $7)',
-            [id, entityType, entityId, label || 'Driver Upload', url, expiryDate || null, JSON.stringify(metadata)]
+            'INSERT INTO documents (id, entity_type, entity_id, label, url, expiry_date, metadata, filename, mime_type) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)',
+            [id, 'driver', req.driver.driverId, label || req.file.originalname, url, expiryDate || null, JSON.stringify(metadata), req.file.originalname, req.file.mimetype]
         );
 
-        res.json({ success: true, document: doc });
+        res.json({ 
+            success: true, 
+            document: { 
+                id, 
+                entityType: 'driver', 
+                entityId: req.driver.driverId, 
+                label: label || req.file.originalname, 
+                url, 
+                expiryDate,
+                ...metadata 
+            } 
+        });
     } catch (e) {
-        console.error('DRIVER_UPLOAD_ERROR:', e);
+        console.error('DRIVER_DOC_UPLOAD_ERROR:', e);
         res.status(500).json({ error: e.message });
     }
 });

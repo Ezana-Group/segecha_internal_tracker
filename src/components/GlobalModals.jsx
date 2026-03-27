@@ -66,7 +66,74 @@ const FuelPhotoField = ({ label, k, form, setForm, S, T }) => {
     );
 };
 
-/** Admin journey form — optional odometer photos (server /api/admin/upload) */
+/** Admin journey form — documents (server /api/admin/upload) */
+function JourneyDocumentField({ label, k, form, setForm, S, T, required = false }) {
+    const [uploading, setUploading] = useState(false);
+    const docUrl = form[k];
+
+    const handleUpload = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        setUploading(true);
+        const fd = new FormData();
+        fd.append('file', file);
+        fd.append('adminKey', ADMIN_KEY);
+        fd.append('folder', 'journey_docs');
+        try {
+            const res = await fetch(`${PAYMENT_API}/api/admin/upload`, { method: 'POST', body: fd });
+            const d = await res.json();
+            if (d.success) setForm((f) => ({ ...f, [k]: d.url }));
+            else alert('Upload failed: ' + (d.error || 'unknown'));
+        } catch (err) {
+            alert('Upload error: ' + err.message);
+        } finally {
+            setUploading(false);
+        }
+        e.target.value = '';
+    };
+
+    return (
+        <div style={S.fg}>
+            <label style={S.lbl}>
+                {label}{' '}
+                <span style={{ fontWeight: 600, color: docUrl ? '#10b981' : required ? '#ef4444' : 'var(--text-dim)' }}>
+                    {docUrl ? '(uploaded)' : required ? '(required)' : '(optional)'}
+                </span>
+            </label>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                <label
+                    style={{
+                        ...S.btn(docUrl ? 'ghost' : 'primary'),
+                        fontSize: 11,
+                        padding: '6px 12px',
+                        cursor: uploading ? 'wait' : 'pointer',
+                        flex: 1,
+                        textAlign: 'center',
+                        position: 'relative'
+                    }}
+                >
+                    {uploading ? 'Uploading…' : docUrl ? 'Change file' : 'Upload PDF/Doc'}
+                    <input type="file" accept=".pdf,.doc,.docx" style={{ display: 'none' }} onChange={handleUpload} disabled={uploading} />
+                </label>
+                {docUrl && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <a href={docUrl} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>
+                            <div style={{ width: 32, height: 32, borderRadius: 6, background: `var(--surface-subtle)`, border: `1px solid ${T.border2}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#ef4444', fontSize: 10, fontWeight: 800 }}>PDF</div>
+                        </a>
+                        <button 
+                            type="button"
+                            onClick={() => setForm(f => ({ ...f, [k]: '' }))}
+                            style={{ border: "none", background: "none", color: "#ef4444", fontSize: 11, fontWeight: 800, cursor: "pointer", padding: "4px 8px" }}
+                        >
+                            Remove
+                        </button>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
+
 function JourneyOdomPhotoField({ label, k, form, setForm, S, T }) {
     const [uploading, setUploading] = useState(false);
     const photoUrl = form[k];
@@ -380,6 +447,10 @@ export function GlobalModals(props) {
             errors.customerId = validators.required(form.customerId);
             errors.deliveryCustomerId = validators.required(form.deliveryCustomerId);    
         }
+        if (form.isInternational) {
+            errors.booking_no = validators.required(form.booking_no);
+            errors.tr_form_url = validators.required(form.tr_form_url);
+        }
         const hasErrors = Object.values(errors).some(Boolean);
 
         const _S = JSON.parse(localStorage.getItem('segecha_settings') || '{}');
@@ -680,6 +751,37 @@ export function GlobalModals(props) {
                                 <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>Vehicle is returning. Specific return rates apply.</div>
                             </div>
                         </label>
+                    </div>
+
+                    <div style={{ ...S.fg, gridColumn: "1 / -1", borderTop: `1px solid ${T.border2}`, paddingTop: 16 }}>
+                        <div style={{ fontWeight: 800, fontSize: 13, marginBottom: 12, color: T.text, display: 'flex', alignItems: 'center', gap: 8 }}>
+                             Documentation {form.isInternational ? <span style={{ background: 'var(--brand-primary)', color: 'white', fontSize: 10, padding: '2px 6px', borderRadius: 4 }}>International Requirements</span> : ""}
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                            <Field label="KRA Booking No" k="booking_no" form={form} setForm={setForm} S={S} error={errors.booking_no} required={!!form.isInternational} placeholder={form.isInternational ? "Required for international..." : "Optional..."} />
+                            
+                            {form.isInternational ? (
+                                <JourneyDocumentField 
+                                    label="TR Form (KRA)" 
+                                    k="tr_form_url" 
+                                    form={form} 
+                                    setForm={setForm} 
+                                    S={S} 
+                                    T={T} 
+                                    required={true} 
+                                />
+                            ) : (
+                                <JourneyDocumentField 
+                                    label="T1 Form (Domestic)" 
+                                    k="t1_form_url" 
+                                    form={form} 
+                                    setForm={setForm} 
+                                    S={S} 
+                                    T={T} 
+                                    required={false} 
+                                />
+                            )}
+                        </div>
                     </div>
                     {!form.returningEmpty && (
                     <div style={{ ...S.fg, gridColumn: '1 / -1' }}>

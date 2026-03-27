@@ -164,7 +164,7 @@ export function DocumentPanel({
                         <label className="form-label" style={{ display: "block", fontSize: 11, fontWeight: 700, color: "var(--text-dim)", textTransform: "uppercase", marginBottom: 8 }}>Select File</label>
                         <input 
                             type="file" 
-                            accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx"
+                            accept=".pdf,.doc,.docx"
                             style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 8 }}
                             onChange={e => setSelectedFile(e.target.files[0])} 
                         />
