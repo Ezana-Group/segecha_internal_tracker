@@ -38,26 +38,55 @@ export function Payroll({ data, setData, dark, isMobile, modal, form, setForm, o
     
     const monthPayroll = payrollRows.filter((p) => p.month === selMonth);
 
-    // Refine payroll for sorting and filtering
-    const refinedPayroll = monthPayroll.map(p => {
-        const drv = (data.drivers || []).find(d => d.id === p.driver) || (data.turnboys || []).find(t => t.id === p.driver);
-        const journeys = (data.journeys || []).filter(j => (j.driver === p.driver || j.turnboyId === p.driver) && j.date && j.date.startsWith(selMonth) && j.status === 'Completed');
+    // 1. Get all active staff/drivers who should be in payroll
+    const allPayees = [
+        ...(data.drivers || []),
+        ...(data.turnboys || []),
+        ...(data.staff || [])
+    ];
+
+    const refinedPayroll = allPayees.map(payee => {
+        const existing = monthPayroll.find(p => p.driver === payee.id);
+        const journeys = (data.journeys || []).filter(j => (j.driver === payee.id || j.turnboyId === payee.id) && j.date && j.date.startsWith(selMonth) && j.status === 'Completed');
         const calculatedMileage = journeys.reduce((s, j) => {
-            if (j.driver === p.driver) return s + (j.driverMileage || 0);
-            if (j.turnboyId === p.driver) return s + (j.turnboyMileage || 0);
+            if (j.driver === payee.id) return s + (j.driverMileage || 0);
+            if (j.turnboyId === payee.id) return s + (j.turnboyMileage || 0);
             return s;
         }, 0);
 
+        if (existing) {
+            return {
+                ...existing,
+                _name: payee.name || existing.driver,
+                _role: payee.role || (data.staff?.find(s => s.id === existing.driver) ? 'Staff' : 'Driver'),
+                _net: Number(existing.baseSalary || 0) + Number(existing.allowance || 0) - Number(existing.deductions || 0),
+                _base: Number(existing.baseSalary || 0),
+                _allowance: Number(existing.allowance || 0),
+                _deductions: Number(existing.deductions || 0),
+                _calculatedMileage: calculatedMileage,
+                _mpesa: existing.mpesaRef || payee.mpesa || "",
+                _isVirtual: false
+            };
+        }
+
+        // Virtual record for staff without a pay record this month
         return {
-            ...p,
-            _name: drv?.name || p.driver,
-            _role: drv?.role || 'Staff',
-            _net: Number(p.baseSalary || 0) + Number(p.allowance || 0) - Number(p.deductions || 0),
-            _base: Number(p.baseSalary || 0),
-            _allowance: Number(p.allowance || 0),
-            _deductions: Number(p.deductions || 0),
+            id: `virtual-${payee.id}`,
+            driver: payee.id,
+            month: selMonth,
+            status: "Not Configured",
+            baseSalary: payee.basicSalary || 0,
+            allowance: calculatedMileage, // Default to calculated mileage
+            deductions: 0,
+            _name: payee.name,
+            _role: payee.role || (data.drivers?.find(d => d.id === payee.id) ? 'Driver' : 'Staff'),
+            _net: Number(payee.basicSalary || 0) + calculatedMileage,
+            _base: Number(payee.basicSalary || 0),
+            _allowance: calculatedMileage,
+            _deductions: 0,
             _calculatedMileage: calculatedMileage,
-            _mpesa: p.mpesaRef || drv?.mpesa || ""
+            _mpesa: payee.mpesa || "",
+            _isVirtual: true
         };
     });
 
@@ -174,6 +203,7 @@ export function Payroll({ data, setData, dark, isMobile, modal, form, setForm, o
                             columns={[
                                 { key: "_name", label: "Staff Member", sortable: true },
                                 { key: "_base", label: "Earnings Detail", sortable: true },
+                                { key: "_calculatedMileage", label: "Trip Allowances", sortable: true, align: "right" },
                                 { key: "_deductions", label: "Deductions", sortable: true, align: "right" },
                                 { key: "_net", label: "Net Amount", sortable: true, align: "right" },
                                 { key: "status", label: "Status", sortable: true },
@@ -204,11 +234,10 @@ export function Payroll({ data, setData, dark, isMobile, modal, form, setForm, o
                                     <td title={`Base: ${fmt(p._base)}, Allowance: ${fmt(p._allowance)}`}>
                                         <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-secondary)" }}>Base: {fmt(p._base)}</div>
                                         <div style={{ fontSize: 10, color: "#10b981", fontWeight: 700 }}>+ Allowance: {fmt(p._allowance)}</div>
-                                        {p._calculatedMileage > 0 && (
-                                            <div style={{ fontSize: 10, color: "var(--text-dim)", fontWeight: 600 }}>
-                                                Incl. {fmt(p._calculatedMileage)} mileage
-                                            </div>
-                                        )}
+                                    </td>
+                                    <td title={fmt(p._calculatedMileage)}>
+                                        <div style={{ fontWeight: 800, color: "var(--brand-primary)", fontSize: 13, textAlign: "right" }}>{fmt(p._calculatedMileage)}</div>
+                                        <div style={{ fontSize: 9, color: "var(--text-dim)", textAlign: "right" }}>From trips</div>
                                     </td>
                                     <td title={fmt(p._deductions)}>
                                         <div style={{ fontSize: 13, fontWeight: 700, color: "#ef4444", textAlign: "right" }}>{fmt(p._deductions)}</div>
@@ -233,7 +262,21 @@ export function Payroll({ data, setData, dark, isMobile, modal, form, setForm, o
                                         <TableRowActions
                                             ariaLabel={`Payroll actions for ${p._name}`}
                                             items={[
-                                                ...(p.status === "Pending"
+                                                ...(p._isVirtual ? [
+                                                    {
+                                                        id: "configure",
+                                                        label: "Configure pay",
+                                                        icon: Plus,
+                                                        onClick: () => openModal("payroll", {
+                                                            driver: p.driver,
+                                                            month: p.month,
+                                                            baseSalary: p.baseSalary,
+                                                            allowance: p.allowance,
+                                                            status: "Pending"
+                                                        }),
+                                                    }
+                                                ] : []),
+                                                ...(!p._isVirtual && p.status === "Pending"
                                                     ? [
                                                           {
                                                               id: "b2c",
@@ -243,19 +286,21 @@ export function Payroll({ data, setData, dark, isMobile, modal, form, setForm, o
                                                           },
                                                       ]
                                                     : []),
-                                                {
-                                                    id: "edit",
-                                                    label: "Edit payroll",
-                                                    icon: Edit2,
-                                                    onClick: () => openModal("payroll", p),
-                                                },
-                                                {
-                                                    id: "delete",
-                                                    label: "Delete entry",
-                                                    icon: Trash2,
-                                                    danger: true,
-                                                    onClick: () => delItem("payroll", p.id, (p._name || "") + " " + p.month),
-                                                },
+                                                ...(!p._isVirtual ? [
+                                                    {
+                                                        id: "edit",
+                                                        label: "Edit payroll",
+                                                        icon: Edit2,
+                                                        onClick: () => openModal("payroll", p),
+                                                    },
+                                                    {
+                                                        id: "delete",
+                                                        label: "Delete entry",
+                                                        icon: Trash2,
+                                                        danger: true,
+                                                        onClick: () => delItem("payroll", p.id, (p._name || "") + " " + p.month),
+                                                    }
+                                                ] : [])
                                             ]}
                                         />
                                     </td>

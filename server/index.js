@@ -481,7 +481,21 @@ function normalizeTrailer(t) {
     return { ...t, reg: t.registration_number, ...t.metadata };
 }
 function normalizeDriver(d) {
-    return { ...d, license: d.license_number, ...d.metadata };
+    let licenseClass = d.license_class;
+    try {
+        if (typeof licenseClass === 'string' && licenseClass.startsWith('[')) {
+            licenseClass = JSON.parse(licenseClass);
+        }
+    } catch (e) {
+        console.warn(`Failed to parse license_class for driver ${d.id}:`, e.message);
+    }
+    return { 
+        ...d, 
+        license: d.license_number, 
+        class: licenseClass || d.metadata?.class || [],
+        truck: d.truck || d.metadata?.truck || "",
+        ...d.metadata 
+    };
 }
 function normalizeJourney(j) {
     return { ...j, truck: j.truck_id, driver: j.driver_id, date: j.start_date, endDate: j.end_date, dest: j.destination, cargo: j.cargo_type, customerId: j.customer_id, ...j.metadata };
@@ -846,6 +860,12 @@ app.delete('/api/admin/:table/:id', async (req, res) => {
 
     try {
         await db.query(`DELETE FROM ${table} WHERE id = $1`, [id]);
+        
+        // Custom cleanup for linked fuel expenses
+        if (table === 'fuel_logs') {
+            await db.query(`DELETE FROM expenses WHERE id = $1`, [`fuel-exp-${id}`]);
+        }
+        
         res.json({ success: true, message: `Deleted ${id} from ${table}` });
     } catch (e) {
         console.error(`DELETE_ERROR (${table}):`, e);
@@ -915,6 +935,20 @@ app.post('/api/admin/submission/verify', async (req, res) => {
                 status = $3
             WHERE id = $4
         `, [JSON.stringify(!approved), JSON.stringify(reason || ''), status, id]);
+        
+        // Also sync the linked expense if it exists
+        if (type === 'fuel') {
+            const expId = `fuel-exp-${id}`;
+            await db.query(`
+                UPDATE expenses SET 
+                    metadata = metadata || $1
+                WHERE id = $2
+            `, [JSON.stringify({ 
+                _pendingApproval: false, 
+                _isRejected: !approved, 
+                _rejectionReason: reason || '' 
+            }), expId]);
+        }
 
         res.json({ success: true });
     } catch (e) {

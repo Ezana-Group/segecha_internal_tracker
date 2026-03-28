@@ -47,6 +47,9 @@ function enrichJourneyForPortal(j, customers = [], trailers = [], drivers = []) 
 
     return {
         ...j,
+        driverMileage: j.driverMileage || j.metadata?.driverMileage || 0,
+        turnboyMileage: j.turnboyMileage || j.metadata?.turnboyMileage || 0,
+        roadUserAllowance: j.roadUserAllowance || j.metadata?.roadUserAllowance || 0,
         customerId: j.customer_id,
         deliveryCustomerId: j.delivery_customer_id,
         _driverPhone: drv?.phone || '',

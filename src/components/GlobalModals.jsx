@@ -342,6 +342,16 @@ export function GlobalModals(props) {
                         <Field label="Price per Litre (KES)" k="pricePerL" type="number" form={form} setForm={setForm} S={S} error={errors.pricePerL} />
                         <Field label="Station Name" k="station" form={form} setForm={setForm} S={S} />
                         <Field label="Odometer Reading (km)" k="odom" type="number" form={form} setForm={setForm} S={S} />
+                        <Field label="Payment Reference / M-Pesa Ref" k="paymentRef" form={form} setForm={setForm} S={S} />
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, height: 42, marginTop: 24 }}>
+                            <input 
+                                type="checkbox" 
+                                checked={!!form.isPetrolCard} 
+                                onChange={e => setForm(f => ({ ...f, isPetrolCard: e.target.checked }))}
+                                style={{ width: 18, height: 18, accentColor: 'var(--brand-primary)', cursor: 'pointer' }}
+                            />
+                            <label style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', cursor: 'pointer' }}>Registered Petrol Card</label>
+                        </div>
                     </div>
 
                     {/* ── Estimated Cost Callout ── */}
@@ -409,9 +419,12 @@ export function GlobalModals(props) {
                     </div>
 
                     {/* ── Details ── */}
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 16 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px 24px" }}>
                         <Field label="Description" k="desc" full form={form} setForm={setForm} S={S} placeholder="e.g. Workshop repair, Toll fee..." />
-                        <Field label="Linked Journey" k="journey" options={[{ v: "", l: "None" }, ...data.journeys.map(j => ({ v: j.id, l: `${j.origin}→${j.dest} (${j.date})` }))]} full form={form} setForm={setForm} S={S} />
+                        <Field label="Payment Reference" k="paymentRef" placeholder="M-Pesa / Bank Ref..." form={form} setForm={setForm} S={S} />
+                        <div style={{ gridColumn: '1 / -1' }}>
+                            <Field label="Linked Journey" k="journey" options={[{ v: "", l: "None" }, ...data.journeys.map(j => ({ v: j.id, l: `${j.origin}→${j.dest} (${j.date})` }))]} full form={form} setForm={setForm} S={S} />
+                        </div>
                     </div>
 
                     {/* ── Receipt Photo ── */}
@@ -458,8 +471,8 @@ export function GlobalModals(props) {
                         </div>
                     )}
                     
-                    <Field label="Date Issued" k="issued" type="date" form={form} setForm={setForm} S={S} />
-                    <Field label="Due Date" k="due" type="date" form={form} setForm={setForm} S={S} />
+                    <Field label="Date Issued" k="date" type="date" form={form} setForm={setForm} S={S} />
+                    <Field label="Due Date" k="dueDate" type="date" form={form} setForm={setForm} S={S} />
                     <Field label="Status" k="status" options={["Pending", "Paid", "Overdue", "Partial"]} form={form} setForm={setForm} S={S} />
                     <Field label="M-Pesa Ref" k="mpesaRef" placeholder="e.g. QJK1234567" form={form} setForm={setForm} S={S} />
                     <Field label="Notes" k="notes" full form={form} setForm={setForm} S={S} />
@@ -681,47 +694,63 @@ export function GlobalModals(props) {
                 // 1. Save the primary journey record and WAIT for it to be confirmed by the server
                 await saveItem("journeys", enrichedForm, { skipClose: true, silent: true });
 
-                // 2. Now that the journey exists, save related records (expenses, invoices)
-                if (driverMileage > 0 && wasNew) {
-                    const descPrefix = rates.isFlatRate ? "Flat rate allowance" : `Mileage allowance (${dist} km @ KES ${rates.driver}/km)`;
-                    await saveItem("expenses", {
-                        date: form.date || today(),
-                        truck: form.truck,
-                        cat: "Allowance",
-                        category: "Allowance",
-                        amount: driverMileage,
-                        desc: `Driver ${descPrefix} — ${form.origin} → ${form.dest}`,
-                        journey: enrichedForm.id,
-                        status: "Unpaid"
-                    }, { skipClose: true, silent: true });
+                const existingExpenses = data.expenses?.filter(e => e.journey === enrichedForm.id && e.cat === "Allowance") || [];
+                
+                // 2. Sync / Save related records (expenses, invoices)
+                if (driverMileage > 0) {
+                    const existing = existingExpenses.find(e => e.desc?.startsWith("Driver"));
+                    if (wasNew || existing) {
+                        const descPrefix = rates.isFlatRate ? "Flat rate allowance" : `Mileage allowance (${dist} km @ KES ${rates.driver}/km)`;
+                        await saveItem("expenses", {
+                            id: existing?.id,
+                            date: form.date || today(),
+                            truck: form.truck,
+                            cat: "Allowance",
+                            category: "Allowance",
+                            amount: driverMileage,
+                            desc: `Driver ${descPrefix} — ${form.origin} → ${form.dest}`,
+                            journey: enrichedForm.id,
+                            status: existing?.status || "Unpaid"
+                        }, { skipClose: true, silent: true });
+                    }
                 }
                 
-                if (turnboyMileage > 0 && wasNew && (form.turnboyId || form.turnboyName)) {
-                    const tbName = form.turnboyId ? (data.turnboys?.find(t => t.id === form.turnboyId)?.name || form.turnboyId) : form.turnboyName;
-                    const descPrefix = rates.isFlatRate ? "Flat rate allowance" : `Mileage allowance (${dist} km @ KES ${rates.turnboy}/km)`;
-                    await saveItem("expenses", {
-                        date: form.date || today(),
-                        truck: form.truck,
-                        cat: "Allowance",
-                        category: "Allowance",
-                        amount: turnboyMileage,
-                        desc: `Turnboy ${descPrefix} (${tbName}) — ${form.origin} → ${form.dest}`,
-                        journey: enrichedForm.id,
-                        status: "Unpaid"
-                    }, { skipClose: true, silent: true });
+                // Turnboy Allowance
+                if (turnboyMileage > 0 && (form.turnboyId || form.turnboyName)) {
+                    const existing = existingExpenses.find(e => e.desc?.startsWith("Turnboy"));
+                    if (wasNew || existing) {
+                        const tbName = form.turnboyId ? (data.turnboys?.find(t => t.id === form.turnboyId)?.name || form.turnboyId) : form.turnboyName;
+                        const descPrefix = rates.isFlatRate ? "Flat rate allowance" : `Mileage allowance (${dist} km @ KES ${rates.turnboy}/km)`;
+                        await saveItem("expenses", {
+                            id: existing?.id,
+                            date: form.date || today(),
+                            truck: form.truck,
+                            cat: "Allowance",
+                            category: "Allowance",
+                            amount: turnboyMileage,
+                            desc: `Turnboy ${descPrefix} (${tbName}) — ${form.origin} → ${form.dest}`,
+                            journey: enrichedForm.id,
+                            status: existing?.status || "Unpaid"
+                        }, { skipClose: true, silent: true });
+                    }
                 }
 
-                if (roadUserAllowance > 0 && wasNew) {
-                    await saveItem("expenses", {
-                        date: form.date || today(),
-                        truck: form.truck,
-                        cat: "Allowance",
-                        category: "Allowance",
-                        amount: roadUserAllowance,
-                        desc: `Road User Allowance${form.returningEmpty ? " (Return)" : ""} — ${form.origin} → ${form.dest}`,
-                        journey: enrichedForm.id,
-                        status: "Unpaid"
-                    }, { skipClose: true, silent: true });
+                // Road User Allowance
+                if (roadUserAllowance > 0) {
+                    const existing = existingExpenses.find(e => e.desc?.includes("Road User"));
+                    if (wasNew || existing) {
+                        await saveItem("expenses", {
+                            id: existing?.id,
+                            date: form.date || today(),
+                            truck: form.truck,
+                            cat: "Allowance",
+                            category: "Allowance",
+                            amount: roadUserAllowance,
+                            desc: `Road User Allowance${form.returningEmpty ? " (Return)" : ""} — ${form.origin} → ${form.dest}`,
+                            journey: enrichedForm.id,
+                            status: existing?.status || "Unpaid"
+                        }, { skipClose: true, silent: true });
+                    }
                 }
                 
                 if (!form.returningEmpty && (enrichedForm.status === "Accepted" || enrichedForm.status === "Loading")) {
@@ -742,8 +771,8 @@ export function GlobalModals(props) {
                             phone: billingCust?.phone || "",
                             journey: enrichedForm.id,
                             amount: enrichedForm.revenue,
-                            issued: issuedDate,
-                            due: dueDateStr,
+                            date: issuedDate,
+                            dueDate: dueDateStr,
                             status: "Pending",
                             notes: `Automated invoice for journey ${enrichedForm.origin} → ${enrichedForm.dest}. Cargo: ${enrichedForm.cargo || "N/A"}`
                         }, { skipClose: true, silent: true });

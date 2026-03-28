@@ -103,16 +103,19 @@ export const MyDocsTab = ({ token, portalPerm }) => {
                     <input style={S.inp} type="date" value={uploadForm.expiryDate} onChange={(e) => setUploadForm((f) => ({ ...f, expiryDate: e.target.value }))} />
 
                     <div style={{ marginTop: 12, marginBottom: 16 }}>
-                        <input type="file" accept=".pdf,.doc,.docx" style={S.inp} onChange={(e) => setSelectedFile(e.target.files[0] || null)} disabled={uploading} />
+                        <label style={{ ...S.btn(selectedFile ? 'ghost' : 'secondary'), width: '100%', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', minHeight: 44 }}>
+                            {selectedFile ? `📎 ${selectedFile.name}` : '📁 Click to Select File'}
+                            <input type="file" accept=".pdf,.doc,.docx" style={{ display: 'none' }} onChange={(e) => setSelectedFile(e.target.files[0] || null)} disabled={uploading} />
+                        </label>
                     </div>
 
                     <button 
                         type="button" 
-                        style={{ ...S.btn(), width: '100%', borderRadius: 12, minHeight: 48, marginBottom: 12 }} 
+                        style={{ ...S.btn(selectedFile ? 'primary' : 'ghost'), width: '100%', borderRadius: 12, minHeight: 48, marginBottom: 12, opacity: !selectedFile ? 0.5 : 1 }} 
                         onClick={handleUpload} 
                         disabled={uploading || !selectedFile}
                     >
-                        {uploading ? '⏳ Uploading…' : 'Upload & Save Document'}
+                        {uploading ? '⏳ Uploading…' : '🚀 Upload & Save Document'}
                     </button>
 
                     <div style={{ fontSize: 11, color: COLORS.textFaint }}>Upload your PSV licence, medical certificate, or ID card for office records.</div>

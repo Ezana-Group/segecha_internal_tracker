@@ -113,6 +113,19 @@ export const SubmitTab = ({ activeJourneys = [], apiPost, driver, truck, portalP
                 <label style={S.lbl}>Odometer (km)</label>
                 <input style={inputStyle('odometer')} type="number" inputMode="numeric" placeholder="Reading now" value={form.odom || ''} onChange={(e) => set('odom', e.target.value)} />
 
+                <label style={S.lbl}>Payment Ref (M-Pesa / Card No)</label>
+                <input style={inputStyle('fuelDetails')} placeholder="e.g. QJK1234567" value={form.paymentRef || ''} onChange={(e) => set('paymentRef', e.target.value)} />
+
+                <label style={{ ...S.lbl, display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', marginTop: 12 }}>
+                    <input 
+                        type="checkbox" 
+                        checked={!!form.isPetrolCard} 
+                        onChange={(e) => set('isPetrolCard', e.target.checked)}
+                        style={{ width: 18, height: 18, accentColor: COLORS.primary }}
+                    />
+                    <span>Paid via Petrol Card</span>
+                </label>
+
                 {portalPerm.fuelPhotos !== false && (
                 <div style={{ background: isRejected('photo') ? '#fff1f2' : '#f8fafc', padding: 12, borderRadius: 10, border: isRejected('photo') ? '2px solid #ef4444' : `1px solid ${COLORS.border}`, marginBottom: 14 }}>
                     <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 12, color: isRejected('photo') ? '#ef4444' : COLORS.primary }}>

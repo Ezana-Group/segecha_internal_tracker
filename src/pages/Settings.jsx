@@ -1078,8 +1078,17 @@ export function Settings({
                                             <SettingsShellField label="Staff ID Prefix" sub="e.g. EMP- (Result: EMP-001)">
                                                 <SettingsShellInput value={localS.staffIdPrefix || 'EMP-'} onChange={e => saveSettings({ staffIdPrefix: e.target.value })} />
                                             </SettingsShellField>
-                                            <SettingsShellField label="Customer ID Prefix" sub="e.g. CST- (Result: CST-001)">
-                                                <SettingsShellInput value={localS.customerIdPrefix || 'CST-'} onChange={e => saveSettings({ customerIdPrefix: e.target.value })} />
+                                            <SettingsShellField label="Client ID Prefix" sub="e.g. CLT- (Result: CLT-001)">
+                                                <SettingsShellInput value={localS.customerIdPrefix || 'CLT-'} onChange={e => saveSettings({ customerIdPrefix: e.target.value })} />
+                                            </SettingsShellField>
+                                            <SettingsShellField label="Mission ID Prefix" sub="e.g. MSN- (Result: MSN-001)">
+                                                <SettingsShellInput value={localS.journeyIdPrefix || 'MSN-'} onChange={e => saveSettings({ journeyIdPrefix: e.target.value })} />
+                                            </SettingsShellField>
+                                            <SettingsShellField label="Fuel Log ID Prefix" sub="e.g. FL- (Result: FL-001)">
+                                                <SettingsShellInput value={localS.fuelIdPrefix || 'FL-'} onChange={e => saveSettings({ fuelIdPrefix: e.target.value })} />
+                                            </SettingsShellField>
+                                            <SettingsShellField label="Expense ID Prefix" sub="e.g. EXP- (Result: EXP-001)">
+                                                <SettingsShellInput value={localS.expenseIdPrefix || 'EXP-'} onChange={e => saveSettings({ expenseIdPrefix: e.target.value })} />
                                             </SettingsShellField>
                                         </div>
                                     </div>

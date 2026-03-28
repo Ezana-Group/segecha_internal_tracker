@@ -362,8 +362,11 @@ export function useAppState() {
                         turnboys: settings.turnboyIdPrefix || 'TBY-',
                         staff: settings.staffIdPrefix || 'EMP-',
                         payroll: settings.payrollIdPrefix || 'PAY-',
-                        customers: settings.customerIdPrefix || 'CST-',
+                        customers: settings.customerIdPrefix || 'CLT-',
                         trailers: settings.trailerIdPrefix || 'TRL-',
+                        journeys: settings.journeyIdPrefix || 'MSN-',
+                        fuel: settings.fuelIdPrefix || 'FL-',
+                        expenses: settings.expenseIdPrefix || 'EXP-',
                     };
 
                     if (prefixes[col]) {

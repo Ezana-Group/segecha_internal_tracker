@@ -113,7 +113,43 @@ async function upsertEntity(table, item) {
         ON CONFLICT (id) DO UPDATE SET ${updates}
     `;
 
-    return db.query(query, values);
+    await db.query(query, values);
+
+    // ── Fuel-Expense Sync: Automatically create/update expense when fuel is logged ──
+    if (table === 'fuel_logs') {
+        try {
+            const fuelId = finalData.id;
+            const pricePerL = parseFloat(finalData.amount) || 0; // pricePerL is mapped to amount
+            const litres = parseFloat(finalData.litres) || 0;
+            const total = pricePerL * litres;
+            const expenseId = `fuel-exp-${fuelId}`;
+
+            const expenseData = {
+                id: expenseId,
+                truck: finalData.truck_id,
+                journey: finalData.journey_id,
+                cat: 'Fuel',
+                amount: total,
+                date: finalData.date,
+                desc: `Fuel Fill-up: ${finalData.station || 'Station'} (${litres}L @ ${pricePerL})`,
+                metadata: {
+                    fuel_log_id: fuelId,
+                    paymentRef: metadata.paymentRef,
+                    isPetrolCard: metadata.isPetrolCard,
+                    _pendingApproval: metadata._pendingApproval,
+                    _isRejected: metadata._isRejected,
+                    _rejectionReason: metadata._rejectionReason
+                }
+            };
+            // Call upsertEntity recursively for the expense record
+            // This is safe because 'expenses' upsert does not trigger 'fuel_logs'
+            await upsertEntity('expenses', expenseData);
+        } catch (err) {
+            console.error('[FUEL_EXPENSE_SYNC_ERROR]:', err.message);
+            // We don't throw here to avoid failing the fuel log save if expense sync fails
+        }
+    }
+    return { success: true };
 }
 
 /**
