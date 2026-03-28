@@ -600,14 +600,16 @@ export function GlobalModals(props) {
                 // If no route override, check for International/Domestic Flat Rates
                 let flatDriver, flatTurnboy;
                 if (isReturning) {
-                    flatDriver = isInternational ? (_S.flatRateOutsideDriverReturn || 0) : (_S.flatRateInsideDriverReturn || 0);
-                    flatTurnboy = isInternational ? (_S.flatRateOutsideTurnboyReturn || 0) : (_S.flatRateInsideTurnboyReturn || 0);
-                    
-                    // Fallback to standard flat rates if return rates are 0
-                    if (flatDriver === 0) {
-                        flatDriver = isInternational ? (_S.flatRateOutsideDriver || 0) : (_S.flatRateInsideDriver || 0);
-                        flatTurnboy = isInternational ? (_S.flatRateOutsideTurnboy || 0) : (_S.flatRateInsideTurnboy || 0);
-                    }
+                    const fallbackDriver = isInternational ? (_S.flatRateOutsideDriver || 0) : (_S.flatRateInsideDriver || 0);
+                    const fallbackTurnboy = isInternational ? (_S.flatRateOutsideTurnboy || 0) : (_S.flatRateInsideTurnboy || 0);
+
+                    const retDriver = isInternational ? _S.flatRateOutsideDriverReturn : _S.flatRateInsideDriverReturn;
+                    const retTurnboy = isInternational ? _S.flatRateOutsideTurnboyReturn : _S.flatRateInsideTurnboyReturn;
+
+                    // Only fall back if the return rate is explicitly null, undefined, or an empty string. 
+                    // If it is 0, we use 0.
+                    flatDriver = (retDriver === null || retDriver === undefined || retDriver === "") ? fallbackDriver : +retDriver;
+                    flatTurnboy = (retTurnboy === null || retTurnboy === undefined || retTurnboy === "") ? fallbackTurnboy : +retTurnboy;
                 } else {
                     flatDriver = isInternational ? (_S.flatRateOutsideDriver || 0) : (_S.flatRateInsideDriver || 0);
                     flatTurnboy = isInternational ? (_S.flatRateOutsideTurnboy || 0) : (_S.flatRateInsideTurnboy || 0);
@@ -626,10 +628,12 @@ export function GlobalModals(props) {
             // Road User Allowance calculation
             let rua = 0;
             if (isReturning) {
-                // If explicitly defined as 0 or more, use it. Otherwise fall back to standard.
-                rua = (typeof _S.roadUserAllowanceReturn === 'number') 
-                    ? _S.roadUserAllowanceReturn 
-                    : (_S.roadUserAllowance ?? 0);
+                const retRua = _S.roadUserAllowanceReturn;
+                // Only fall back if the return allowance is explicitly null, undefined, or an empty string.
+                // If it is 0, we use 0.
+                rua = (retRua === null || retRua === undefined || retRua === "") 
+                    ? (_S.roadUserAllowance ?? 0)
+                    : +retRua;
             } else {
                 rua = (_S.roadUserAllowance ?? 0);
             }

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { PAYMENT_API } from "../utils/env";
+import { PAYMENT_API, ADMIN_KEY } from "../utils/env";
 
 export const DOC_TYPES_TRUCK = [
     { value: 'insurance_lorry', label: 'Lorry Insurance Certificate' },
@@ -33,17 +33,18 @@ export const DOC_TYPES_JOURNEY = [
 export const uploadDocument = async (file, entityType, entityId, docType, label, expiryDate) => {
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('adminKey', import.meta.env.VITE_ADMIN_KEY);
     formData.append('entityType', entityType);
     formData.append('entityId', entityId);
     formData.append('docType', docType);
     formData.append('label', label);
     if (expiryDate) formData.append('expiryDate', expiryDate);
     formData.append('uploadedBy', 'admin');
+    const token = localStorage.getItem('segecha_token');
     const res = await fetch(`${PAYMENT_API}/api/documents/upload`, { 
         method: 'POST', 
         headers: {
-            'x-admin-key': import.meta.env.VITE_ADMIN_KEY
+            'x-admin-key': ADMIN_KEY,
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {})
         },
         body: formData 
     });

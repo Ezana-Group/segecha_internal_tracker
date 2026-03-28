@@ -25,6 +25,14 @@ const jwt = require('jsonwebtoken');
 
 const app = express();
 app.set('trust proxy', true);
+
+async function saveSystemSetting(key, value) {
+    await db.query(`
+        INSERT INTO system_settings (key, value, updated_at)
+        VALUES ($1, $2, CURRENT_TIMESTAMP)
+        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP
+    `, [key, typeof value === 'object' ? JSON.stringify(value) : value]);
+}
 const PORT = process.env.PORT;
 if (!PORT) console.warn('WARNING: PORT not set, some environments may fail to bind.');
 
@@ -493,6 +501,16 @@ function normalizeMaintenance(m) {
 function normalizePayroll(p) {
     return { ...p, driver: p.entity_id, ...p.metadata };
 }
+function normalizeDocument(d) {
+    return { 
+        ...d, 
+        entityType: d.entity_type, 
+        entityId: d.entity_id, 
+        expiryDate: d.expiry_date,
+        mimeType: d.mime_type,
+        ...d.metadata 
+    };
+}
 function normalizeRow(table, row) {
     if (table === 'trucks') return normalizeTruck(row);
     if (table === 'trailers') return normalizeTrailer(row);
@@ -503,6 +521,7 @@ function normalizeRow(table, row) {
     if (table === 'invoices') return normalizeInvoice(row);
     if (table === 'maintenance_logs') return normalizeMaintenance(row);
     if (table === 'payroll') return normalizePayroll(row);
+    if (table === 'documents') return normalizeDocument(row);
     return row;
 }
 
@@ -713,7 +732,7 @@ app.get('/api/documents', async (req, res) => {
         if (entityId) { params.push(entityId); query += ` AND (entity_id = $${params.length} OR metadata->>'driverId' = $${params.length})`; }
 
         const result = await db.query(query, params);
-        res.json({ success: true, documents: result.rows });
+        res.json({ success: true, documents: result.rows.map(r => normalizeDocument(r)) });
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
@@ -730,6 +749,11 @@ app.get('/api/documents/expiring', async (req, res) => {
 });
 
 app.post('/api/documents/upload', upload.single('file'), async (req, res) => {
+    console.log(`[DEBUG] Document Upload hit: ${req.method} ${req.url}`);
+    console.log(`[DEBUG] Headers: ${JSON.stringify(req.headers)}`);
+    console.log(`[DEBUG] File in req: ${req.file ? req.file.originalname : 'MISSING'}`);
+    console.log(`[DEBUG] Body keys: ${Object.keys(req.body || {})}`);
+
     try {
         if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
@@ -1444,7 +1468,7 @@ app.get('/api/documents/mine', driverAuth.authMiddleware, async (req, res) => {
             'SELECT * FROM documents WHERE entity_id = $1 OR metadata->>\'driverId\' = $1',
             [req.driver.driverId]
         );
-        res.json({ success: true, documents: result.rows });
+        res.json({ success: true, documents: result.rows.map(r => normalizeDocument(r)) });
     } catch (e) {
         console.error('DOCUMENTS_MINE_ERROR:', e);
         res.status(500).json({ error: e.message });
@@ -1452,6 +1476,11 @@ app.get('/api/documents/mine', driverAuth.authMiddleware, async (req, res) => {
 });
 
 app.post('/api/documents/driver-upload', driverAuth.authMiddleware, upload.single('file'), async (req, res) => {
+    console.log(`[DEBUG] Driver Document Upload hit: ${req.method} ${req.url}`);
+    console.log(`[DEBUG] Headers: ${JSON.stringify(req.headers)}`);
+    console.log(`[DEBUG] File in req: ${req.file ? req.file.originalname : 'MISSING'}`);
+    console.log(`[DEBUG] Body keys: ${Object.keys(req.body || {})}`);
+
     try {
         if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 

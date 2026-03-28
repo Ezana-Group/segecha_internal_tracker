@@ -95,7 +95,17 @@ async function getDriverData(driverId) {
 
     // Map DB fields to frontend legacy names
     driver.license = driver.license_number;
-    driver.class = driver.license_class;
+    
+    // Safety: parse license_class if it's a JSON string
+    try {
+        if (typeof driver.license_class === 'string' && driver.license_class.startsWith('[')) {
+            driver.class = JSON.parse(driver.license_class);
+        } else {
+            driver.class = driver.license_class;
+        }
+    } catch {
+        driver.class = driver.license_class;
+    }
 
     const trucks = trucksRes.rows;
     const journeys = safeSort(journeysRes.rows, 'date');
@@ -110,6 +120,7 @@ async function getDriverData(driverId) {
     settingsRes.rows.forEach(r => settings[r.key] = r.value);
 
     const truck = driver.truck ? trucks.find(t => t.id === driver.truck) : null;
+    if (truck) truck.reg = truck.registration_number;
 
     const ACTIVE_STATUSES = ['Loading', 'Approved', 'In Transit', 'Awaiting Start Verification', 'Awaiting Verification'];
 
