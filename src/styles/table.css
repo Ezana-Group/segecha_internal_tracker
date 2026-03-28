@@ -28,7 +28,7 @@
 /* 1024px to 1279px — small desktop / laptop */
 @media screen and (max-width: 1279px) and (min-width: 1024px) {
   .table-modern {
-    table-layout: fixed; /* Force proportional width compression */
+    table-layout: auto; /* Changed from fixed to allow proportional column compression */
   }
   
   .table-modern thead th {
@@ -55,7 +55,7 @@
   }
 
   .table-modern {
-    min-width: 700px; /* Ensure table has enough floor to trigger container scroll */
+    min-width: 600px; /* Reduced from 700px to allow better compression */
     table-layout: auto; 
   }
 }
