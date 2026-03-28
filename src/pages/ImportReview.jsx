@@ -198,3 +198,37 @@ export const ImportReview = ({ importResult, setImportResult, executeImport, com
         </div>
     );
 };
+
+export const ImportUploadButton = ({ label = 'Import from Excel', runExcelImport, setImportSession, onNavigate }) => {
+    const [loading, setLoading] = useState(false);
+    const [err, setErr] = useState('');
+
+    const handleFile = async (e) => {
+        const file = e.target.files[0]; if (!file) return;
+        setLoading(true); setErr('');
+        try {
+            const session = await runExcelImport(file);
+            setImportSession(session);
+            if (onNavigate) onNavigate();
+        } catch (error) {
+            setErr(error.message);
+        }
+        setLoading(false);
+        e.target.value = '';
+    };
+
+    return (
+        <div>
+            <label style={{ 
+                display: 'inline-flex', cursor: 'pointer', alignItems: 'center', gap: 8,
+                background: 'var(--brand-primary)', color: 'white', padding: '10px 18px',
+                borderRadius: 8, fontWeight: 600, fontSize: 13,
+                boxShadow: '0 4px 12px rgba(249, 115, 22, 0.3)', transition: 'all 0.2s ease'
+             }}>
+                {loading ? 'Parsing…' : label}
+                <input type="file" accept=".xlsx,.xls,.csv" style={{ display: 'none' }} onChange={handleFile} disabled={loading} />
+            </label>
+            {err && <div style={{ fontSize: 11, color: '#ef4444', marginTop: 6, fontWeight: 600 }}>{err}</div>}
+        </div>
+    );
+};
