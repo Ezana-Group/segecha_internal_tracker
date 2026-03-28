@@ -85,7 +85,7 @@ async function upsertEntity(table, item) {
         else if (k === 'desc') dbKey = 'description';
         else if (k === 'due') dbKey = 'due_date';
         else if (k === 'pricePerL') dbKey = 'amount';
-        else if (k === 'truck') dbKey = 'truck_id';
+        else if (k === 'truck') dbKey = (table === 'drivers') ? 'truck' : 'truck_id';
         else if (k === 'journey') dbKey = 'journey_id';
         else if (k === 'customer') dbKey = 'customer_id';
         else if (k === 'turnboy') dbKey = 'turnboy_id';
@@ -183,8 +183,8 @@ async function upsertEntity(table, item) {
     }
 
     if (table === 'journeys') {
-        if (finalData.truck_id) {
-            const truckRes = await db.query('SELECT kra_pin, insurance_id FROM trucks WHERE id = $1', [finalData.truck_id]);
+        if (finalData.truck_id && finalData.is_international && finalData.status !== 'Completed') {
+            const truckRes = await db.query("SELECT metadata->>'kra_pin' as kra_pin, metadata->>'insurance_id' as insurance_id FROM trucks WHERE id = $1", [finalData.truck_id]);
             if (truckRes.rows.length > 0) {
                 const t = truckRes.rows[0];
                 if (!t.kra_pin || t.kra_pin === 'Unset' || !t.insurance_id || t.insurance_id === 'Unset') {
@@ -236,6 +236,11 @@ async function upsertEntity(table, item) {
             // We don't throw here to avoid failing the fuel log save if expense sync fails
         }
     }
+    // ── Bi-directional Driver-Vehicle Assignment Sync ──
+    if (table === 'trucks' && metadata.driver_id) {
+        await db.query('UPDATE drivers SET truck = $1 WHERE id = $2', [finalData.id, metadata.driver_id]);
+    }
+
     return { success: true };
 }
 
@@ -338,7 +343,7 @@ async function upsertEntityInTransaction(client, table, item) {
         else if (k === 'desc') dbKey = 'description';
         else if (k === 'due') dbKey = 'due_date';
         else if (k === 'pricePerL') dbKey = 'amount';
-        else if (k === 'truck') dbKey = 'truck_id';
+        else if (k === 'truck') dbKey = table === 'drivers' ? 'truck' : 'truck_id';
         else if (k === 'journey') dbKey = 'journey_id';
         else if (k === 'customer') dbKey = 'customer_id';
         else if (k === 'turnboy') dbKey = 'turnboy_id';
@@ -392,8 +397,8 @@ async function upsertEntityInTransaction(client, table, item) {
     }
 
     if (table === 'journeys') {
-        if (finalData.truck_id) {
-            const truckRes = await client.query('SELECT kra_pin, insurance_id FROM trucks WHERE id = $1', [finalData.truck_id]);
+        if (finalData.truck_id && finalData.is_international && finalData.status !== 'Completed') {
+            const truckRes = await client.query("SELECT metadata->>'kra_pin' as kra_pin, metadata->>'insurance_id' as insurance_id FROM trucks WHERE id = $1", [finalData.truck_id]);
             if (truckRes.rows.length > 0) {
                 const t = truckRes.rows[0];
                 if (!t.kra_pin || t.kra_pin === 'Unset' || !t.insurance_id || t.insurance_id === 'Unset') {
@@ -409,12 +414,14 @@ async function upsertEntityInTransaction(client, table, item) {
         }
     }
     
-    try {
-        return await client.query(query, values);
-    } catch (e) {
-        console.error(`[UPSERT_FAILED] Table: ${table}, ID: ${item.id}:`, e.message);
-        throw e;
+    const result = await client.query(query, values);
+
+    // ── Bi-directional Driver-Vehicle Assignment Sync ──
+    if (table === 'trucks' && metadata.driver_id) {
+        await client.query('UPDATE drivers SET truck = $1 WHERE id = $2', [finalData.id, metadata.driver_id]);
     }
+
+    return result;
 }
 
 module.exports = {
