@@ -750,6 +750,7 @@ export function GlobalModals(props) {
                 if (
                     wasNew &&
                     openWaybillGenerator &&
+                    !enrichedForm.returningEmpty &&
                     (enrichedForm.status === "Loading" || enrichedForm.status === "In Transit")
                 ) {
                     if (

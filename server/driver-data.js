@@ -37,23 +37,32 @@ async function generateUId(collection) {
  * Enriches basic journey data with related names (Customer, Driver etc.) for the portal UI.
  */
 function enrichJourneyForPortal(j, customers = [], trailers = [], drivers = []) {
-    const trailer = j.trailer && trailers.find((t) => t.id === j.trailer);
-    const trailerReg = trailer?.reg || "";
+    const trailer = j.trailer_id && trailers.find((t) => t.id === j.trailer_id);
+    const trailerReg = trailer?.registration_number || trailer?.reg || "";
 
-    const cust = customers.find((c) => c.id === j.customer_id || c.id === j.customerId);
-    const del = customers.find((c) => c.id === j.delivery_customer_id || c.id === j.deliveryCustomerId);
-    const drv = drivers.find((d) => d.id === j.driver);
+    const cust = customers.find((c) => c.id === j.customer_id);
+    const del = customers.find((c) => c.id === j.delivery_customer_id);
+    const drvId = j.driver_id || j.driver;
+    const drv = drivers.find((d) => d.id === drvId);
 
     return {
         ...j,
-        customerId: j.customer_id || j.customerId,
-        deliveryCustomerId: j.delivery_customer_id || j.deliveryCustomerId,
+        customerId: j.customer_id,
+        deliveryCustomerId: j.delivery_customer_id,
         _driverPhone: drv?.phone || '',
         _trailerReg: trailerReg,
         _billingCustomerName: cust?.name || "",
         _deliveryCustomerName: del?.name || "",
     };
 }
+
+const safeSort = (arr, key) => {
+    return arr.sort((a, b) => {
+        const da = a[key] ? new Date(a[key]).getTime() : 0;
+        const db = b[key] ? new Date(b[key]).getTime() : 0;
+        return db - da;
+    });
+};
 
 async function getDriverData(driverId) {
     // 1. Fetch all required data in parallel
@@ -85,13 +94,13 @@ async function getDriverData(driverId) {
     if (!driver) return null;
 
     const trucks = trucksRes.rows;
-    const journeys = journeysRes.rows.sort((a, b) => (b.date || "").localeCompare(a.date || ""));
-    const fuel = fuelRes.rows.sort((a, b) => (b.date || "").localeCompare(a.date || "")).slice(0, 20);
-    const expenses = expensesRes.rows.sort((a, b) => (b.date || "").localeCompare(a.date || "")).slice(0, 20);
-    const incidents = incidentsRes.rows.sort((a, b) => (b.created_at || "").localeCompare(a.created_at || "")).slice(0, 20);
+    const journeys = safeSort(journeysRes.rows, 'date');
+    const fuel = safeSort(fuelRes.rows, 'date').slice(0, 20);
+    const expenses = safeSort(expensesRes.rows, 'date').slice(0, 20);
+    const incidents = safeSort(incidentsRes.rows, 'created_at').slice(0, 20);
     const customers = customersRes.rows;
     const trailers = trailersRes.rows;
-    const payroll = payrollRes.rows.sort((a, b) => (b.month || "").localeCompare(a.month || ""));
+    const payroll = safeSort(payrollRes.rows, 'month');
 
     const settings = {};
     settingsRes.rows.forEach(r => settings[r.key] = r.value);
@@ -111,9 +120,9 @@ async function getDriverData(driverId) {
     // Tyre status
     let tyreInfo = null;
     if (truck) {
-        const odom = Number(truck.odom || 0);
-        const tyreOdom = Number(truck.tyre_odom || 0);
-        const tyreLimit = Number(truck.tyre_limit || 40000);
+        const odom = Number(truck.current_mileage || 0);
+        const tyreOdom = Number(truck.metadata?.tyreOdom || 0);
+        const tyreLimit = Number(truck.metadata?.tyreLimit || 40000);
         const kmSince = odom - tyreOdom;
         const remaining = tyreLimit - kmSince;
         const pct = Math.min(100, (kmSince / tyreLimit) * 100);
@@ -134,7 +143,7 @@ async function getDriverData(driverId) {
         fuelEntries: fuel,
         expenseEntries: expenses,
         incidentEntries: incidents,
-        maintenanceHistory: expenses.filter(e => e.cat === 'Maintenance'),
+        maintenanceHistory: expenses.filter(e => (e.category === 'Maintenance' || e.cat === 'Maintenance')),
         payslips: payroll,
         customers: customers.map(c => ({ id: c.id, name: c.name, phone: c.phone || '', email: c.email || '', type: c.type || 'Individual' })),
         settings
