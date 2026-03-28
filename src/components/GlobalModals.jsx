@@ -763,9 +763,7 @@ export function GlobalModals(props) {
 
         const getEffectiveRates = (origin, dest) => {
             const routes = _S.routes || [];
-            const isIntl = !!form.isInternational || (dest?.toLowerCase().includes('uganda') || dest?.toLowerCase().includes('tanzania') || 
-                                   dest?.toLowerCase().includes('rwanda') || dest?.toLowerCase().includes('malaba') || 
-                                   dest?.toLowerCase().includes('busia') || dest?.toLowerCase().includes('namanga'));
+            const isIntl = !!form.isInternational;
             const isRet = !!form.returningEmpty;
 
             // 1. Road User Allowance (calculated first, independent of specific route rates)
@@ -999,7 +997,12 @@ export function GlobalModals(props) {
                         </div>
                         
                         <Field label="Origin" k="origin" form={form} setForm={setForm} S={S} />
-                        <Field label="Destination" k="dest" form={form} setForm={setForm} S={S} />
+                        <Field label="Destination" k="dest" form={form} setForm={setForm} S={S} onChange={val => {
+                            const d = String(val || "").toLowerCase();
+                            const autoIntl = (d.includes('uganda') || d.includes('tanzania') || d.includes('rwanda') || 
+                                            d.includes('malaba') || d.includes('busia') || d.includes('namanga'));
+                            setForm(f => ({ ...f, dest: val, isInternational: autoIntl }));
+                        }} />
                         
                         <Field label="Pickup Address" k="pickupAddress" full form={form} setForm={setForm} S={S} placeholder="Specific location details at origin..." />
                         <Field label="Delivery Address" k="deliveryAddress" full form={form} setForm={setForm} S={S} placeholder="Specific unloading point details..." />
