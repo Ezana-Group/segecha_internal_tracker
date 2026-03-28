@@ -565,6 +565,15 @@ function getPrefix(table, settings) {
     return DEFAULT_PREFIXES[table] || "";
 }
 
+const fmtISO = (d) => {
+    if (!d) return "";
+    try {
+        const date = new Date(d);
+        if (isNaN(date.getTime())) return "";
+        return date.toISOString().split('T')[0];
+    } catch (e) { return ""; }
+};
+
 // Normalize DB rows back to frontend field names
 function normalizeTruck(t, settings) {
     const prefix = getPrefix('trucks', settings);
@@ -602,22 +611,32 @@ function normalizeStaff(s, settings) {
     return { ...s, uId, ...s.metadata };
 }
 function normalizeJourney(j) {
-    return { ...j, truck: j.truck_id, driver: j.driver_id, date: j.start_date, endDate: j.end_date, dest: j.destination, cargo: j.cargo_type, customerId: j.customer_id, ...j.metadata };
+    return { 
+        ...j, 
+        truck: j.truck_id, 
+        driver: j.driver_id, 
+        date: fmtISO(j.start_date), 
+        endDate: fmtISO(j.end_date), 
+        dest: j.destination, 
+        cargo: j.cargo_type, 
+        customerId: j.customer_id, 
+        ...j.metadata 
+    };
 }
 function normalizeFuel(f) {
-    return { ...f, truck: f.truck_id, journey: f.journey_id, ...f.metadata };
+    return { ...f, truck: f.truck_id, journey: f.journey_id, date: fmtISO(f.date), ...f.metadata };
 }
 function normalizeExpense(e) {
-    return { ...e, journey: e.journey_id, cat: e.category, desc: e.description, ...e.metadata };
+    return { ...e, journey: e.journey_id, cat: e.category, desc: e.description, date: fmtISO(e.date), ...e.metadata };
 }
 function normalizeInvoice(i) {
-    return { ...i, journey: i.journey_id, due: i.due_date, customerId: i.customer_id, ...i.metadata };
+    return { ...i, journey: i.journey_id, date: fmtISO(i.date), dueDate: fmtISO(i.due_date), customerId: i.customer_id, ...i.metadata };
 }
 function normalizeMaintenance(m) {
     return { ...m, truck: m.truck_id, desc: m.description, ...m.metadata };
 }
 function normalizePayroll(p) {
-    return { ...p, driver: p.entity_id, ...p.metadata };
+    return { ...p, driver: p.entity_id, paidDate: fmtISO(p.paid_date), ...p.metadata };
 }
 function normalizeDocument(d) {
     return { 
