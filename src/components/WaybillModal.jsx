@@ -1,5 +1,5 @@
 import React from "react";
-import { uid } from "../utils/formatters";
+import { uid, fmtDate } from "../utils/formatters";
 import { openWaybillPrintWindow } from "../utils/waybillPrint";
 
 function getSettings() {
@@ -248,7 +248,7 @@ export function WaybillModal({ waybillModalJourney, waybillForm, setWaybillForm,
                             Road Freight Waybill — {f.waybillNo}
                         </div>
                         <div style={{ fontSize: 11, color: T.textFaint, marginTop: 2 }}>
-                            {journey.origin} → {journey.dest} · {journey.date}
+                            {journey.origin} → {journey.dest} · {fmtDate(journey.date)}
                             {f.isCrossBorder && (
                                 <span
                                     style={{

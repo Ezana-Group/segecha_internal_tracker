@@ -29,6 +29,17 @@ function fmtKes(v) {
     return "KES " + n.toLocaleString("en-KE");
 }
 
+function fmtDate(d) {
+    if (!d) return "";
+    try {
+        const date = new Date(d);
+        if (isNaN(date.getTime())) return String(d);
+        const day = String(date.getDate()).padStart(2, '0');
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        return `${day}/${month}/${date.getFullYear()}`;
+    } catch (e) { return String(d); }
+}
+
 function safeLogoSrc(url) {
     if (!url || typeof url !== "string") return "";
     const t = url.trim();
@@ -67,9 +78,7 @@ export function openWaybillPrintWindow(f) {
 
     const blankRows = Math.max(0, 4 - f.cargo.length);
 
-    const issued = f.generatedAt
-        ? new Date(f.generatedAt).toLocaleDateString("en-KE", { day: "2-digit", month: "short", year: "numeric" })
-        : "";
+    const issued = f.generatedAt ? fmtDate(f.generatedAt) : "";
 
     const logoBlock = logoUrl
         ? `<img src="${escapeHtml(logoUrl)}" style="height:48px;max-width:100px;object-fit:contain;" alt="">`
@@ -256,7 +265,7 @@ table.cargo tr.totrow td { border-top: 1px solid #000;
           <div class="fv">${fmtLine(f.consignorAddress)}</div></div>
         <div class="field" style="grid-column:1/-1;border-right:none">
           <div class="fl">Date &amp; time of loading</div>
-          <div class="fv mono">${fmtLine(f.loadingDateTime)}</div></div>
+          <div class="fv mono">${fmtDate(f.loadingDateTime)}</div></div>
       </div>
     </div>
     <div>
@@ -275,7 +284,7 @@ table.cargo tr.totrow td { border-top: 1px solid #000;
           <div class="fv">${fmtLine(f.consigneeAddress)}</div></div>
         <div class="field" style="grid-column:1/-1;border-right:none">
           <div class="fl">Expected delivery date</div>
-          <div class="fv mono">${fmtLine(f.expectedDelivery)}</div></div>
+          <div class="fv mono">${fmtDate(f.expectedDelivery)}</div></div>
       </div>
     </div>
   </div>
@@ -427,7 +436,7 @@ table.cargo tr.totrow td { border-top: 1px solid #000;
     <div class="sec-title">10 · Delivery receipt — completed by consignee on delivery</div>
     <div class="fields" style="grid-template-columns:1fr 1fr 1fr">
       <div class="field"><div class="fl">Date &amp; time of delivery</div>
-        <div class="fv mono">${fmtLine(f.deliveryDateTime)}</div></div>
+        <div class="fv mono">${fmtDate(f.deliveryDateTime)}</div></div>
       <div class="field"><div class="fl">Final odometer (km)</div>
         <div class="fv mono">${fmtLine(f.odomAtDeliveryFinal)}</div></div>
       <div class="field"><div class="fl">Condition on arrival</div>

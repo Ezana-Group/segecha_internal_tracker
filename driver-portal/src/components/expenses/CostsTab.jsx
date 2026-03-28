@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { COLORS, S } from '../../constants/theme';
-import { fmt, today } from '../../utils/formatters';
+import { fmt, today, fmtDate } from '../../utils/formatters';
 import { PhotoField } from '../common/PhotoField';
 
 // Helper component for incident status (from line 1563 in App.jsx analysis)
@@ -9,8 +9,6 @@ const Badge = ({ status, text }) => {
     return <span style={S.badge(s)}>{text}</span>;
 };
 
-// Toolbelt date formatter helper (used in Incident history)
-const fmtDate = (d) => d ? new Date(d).toLocaleDateString('en-KE', { day: 'numeric', month: 'short' }) : '—';
 
 export const CostsTab = ({ portalPerm, activeJourneys = [], apiPost, driver, truck, token, expenseEntries = [], driverData }) => {
     const [subType, setSubType] = useState('expense');
@@ -118,7 +116,7 @@ export const CostsTab = ({ portalPerm, activeJourneys = [], apiPost, driver, tru
                 {subType === 'expense' && portalPerm.costsExpenseForm !== false && (
                     <>
                         <label style={S.lbl}>Date (Today)</label>
-                        <div style={{ ...S.inp, background: '#f1f5f9', color: COLORS.textDim, cursor: 'not-allowed' }}>{form.date || today()}</div>
+                        <div style={{ ...S.inp, background: '#f1f5f9', color: COLORS.textDim, cursor: 'not-allowed' }}>{fmtDate(form.date || today())}</div>
                         
                         <label style={S.lbl}>Category</label>
                         <select style={inputStyle('expenseDetails')} value={form.cat || ''} onChange={(e) => set('cat', e.target.value)}>
@@ -242,7 +240,7 @@ export const CostsTab = ({ portalPerm, activeJourneys = [], apiPost, driver, tru
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                     <div>
                                         <div style={{ fontSize: 14, fontWeight: 700 }}>{e.cat} · {fmt(e.amount)}</div>
-                                        <div style={{ fontSize: 12, color: COLORS.textDim }}>{e.date} · {e.desc}</div>
+                                        <div style={{ fontSize: 12, color: COLORS.textDim }}>{fmtDate(e.date)} · {e.desc}</div>
                                     </div>
                                     {e._pendingApproval ? (
                                         <span style={{ fontSize: 10, background: '#fef9c3', color: '#854d0e', padding: '2px 6px', borderRadius: 4, fontWeight: 800 }}>PENDING</span>

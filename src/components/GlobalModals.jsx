@@ -333,12 +333,41 @@ export function GlobalModals(props) {
 
         const handleFuelSave = async () => {
             const truck = data.trucks.find(t => t.id === form.truck);
+            const fuelId = form.id || ("FL-" + uid().slice(0, 5));
             const enriched = { 
                 ...form, 
+                id: fuelId,
                 truck_id: form.truck, 
                 driver_id: form.driver_id || truck?.driver_id || truck?.driver || null 
             };
-            await saveItem("fuel", enriched);
+            
+            // 1. Save Fuel Log
+            await saveItem("fuel", enriched, { skipClose: true, silent: true });
+
+            // 2. Synchronize to Expenses Table
+            const amount = Number(form.litres || 0) * Number(form.pricePerL || 0);
+            const fuelTypeStr = form.fuelType ? ` (${form.fuelType})` : "";
+            const expenseEntry = {
+                id: `EXP-FL-${fuelId}`,
+                date: form.date || today(),
+                truck: form.truck,
+                truck_id: form.truck,
+                driver_id: enriched.driver_id,
+                cat: "Fuel",
+                category: "Fuel",
+                amount: amount,
+                desc: `Fuel Log: ${form.litres}L @ ${form.pricePerL}${fuelTypeStr} — ${form.station || 'Unknown'}`,
+                journey: form.journey,
+                status: "Processed",
+                metadata: {
+                    fuelLogId: fuelId,
+                    fuelType: form.fuelType,
+                    station: form.station,
+                    litres: form.litres
+                }
+            };
+            await saveItem("expenses", expenseEntry);
+            closeModal();
         };
 
         return (
@@ -348,11 +377,19 @@ export function GlobalModals(props) {
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px 24px" }}>
                         <Field label="Truck" k="truck" options={data.trucks.map(t => ({ v: t.id, l: t.reg }))} form={form} setForm={setForm} S={S} />
                         <Field label="Date" k="date" type="date" form={form} setForm={setForm} S={S} />
+                        
+                        <Field 
+                            label="Fuel Type" k="fuelType" 
+                            options={["Diesel", "V-Power", "Petrol", "Adblue", "Oil/Lubricants"]} 
+                            form={form} setForm={setForm} S={S} 
+                        />
                         <Field label="Litres" k="litres" type="number" form={form} setForm={setForm} S={S} error={errors.litres} />
+                        
                         <Field label="Price per Litre (KES)" k="pricePerL" type="number" form={form} setForm={setForm} S={S} error={errors.pricePerL} />
                         <Field label="Station Name" k="station" form={form} setForm={setForm} S={S} />
+                        
                         <Field label="Odometer Reading (km)" k="odom" type="number" form={form} setForm={setForm} S={S} />
-                        <Field label="Payment Reference / M-Pesa Ref" k="paymentRef" form={form} setForm={setForm} S={S} />
+                        <Field label="Payment Reference" k="paymentRef" form={form} setForm={setForm} S={S} />
                         <div style={{ display: 'flex', alignItems: 'center', gap: 12, height: 42, marginTop: 24 }}>
                             <input 
                                 type="checkbox" 
@@ -373,7 +410,7 @@ export function GlobalModals(props) {
 
                     {/* ── Linked Journey (full width) ── */}
                     <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 16 }}>
-                        <Field label="Linked Journey" k="journey" options={[{ v: "", l: "None" }, ...data.journeys.map(j => ({ v: j.id, l: `${j.origin}→${j.dest} (${j.date})` }))]} full form={form} setForm={setForm} S={S} />
+                        <Field label="Linked Journey" k="journey" options={[{ v: "", l: "None" }, ...data.journeys.map(j => ({ v: j.id, l: `${j.origin}→${j.dest} (${fmtDate(j.date)})` }))]} full form={form} setForm={setForm} S={S} />
                     </div>
 
                     {/* ── Section 2: Verification Photos ── */}

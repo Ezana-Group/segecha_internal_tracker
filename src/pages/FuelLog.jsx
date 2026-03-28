@@ -279,6 +279,7 @@ export function FuelLog({ data, isMobile, modal, form, setForm, openModal, close
                                 columns={[
                                     { key: "uId", label: "Fuel ID", sortable: true },
                                     { key: "date", label: "Refuel Date", sortable: true },
+                                    { key: "fuel_type", label: "Fuel Type", sortable: true },
                                     { key: "station", label: "Station", sortable: true },
                                     { key: "_vehicle", label: "Vehicle Detail", sortable: true },
                                     { key: "litres", label: "Quantity (L)", sortable: true, align: "right" },
@@ -366,6 +367,9 @@ export function FuelLog({ data, isMobile, modal, form, setForm, openModal, close
                                             </td>
                                             <td title={fmtDate(f.date)}>
                                                 <div style={{ fontWeight: 800, color: "var(--text-primary)", fontSize: 14 }}>{fmtDate(f.date)}</div>
+                                            </td>
+                                            <td title={f.fuel_type || f.metadata?.fuelType}>
+                                                <div style={{ fontSize: 13, color: "var(--text-primary)", fontWeight: 700 }}>{f.fuel_type || f.metadata?.fuelType || "—"}</div>
                                             </td>
                                             <td title={f.station}>
                                                 <div style={{ fontSize: 13, color: "var(--text-primary)", fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>

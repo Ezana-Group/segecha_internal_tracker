@@ -368,6 +368,10 @@ async function autoSeed() {
                 IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='payroll' AND column_name='finalized') THEN
                     ALTER TABLE payroll ADD COLUMN finalized BOOLEAN DEFAULT FALSE;
                 END IF;
+                -- Fuel Logs column for Fuel Type
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='fuel_logs' AND column_name='fuel_type') THEN
+                    ALTER TABLE fuel_logs ADD COLUMN fuel_type TEXT;
+                END IF;
             END $$;
         `);
 
@@ -574,6 +578,17 @@ const fmtISO = (d) => {
     } catch (e) { return ""; }
 };
 
+const fmtDDMMYYYY = (d) => {
+    if (!d) return "";
+    try {
+        const date = new Date(d);
+        if (isNaN(date.getTime())) return "";
+        const day = String(date.getDate()).padStart(2, '0');
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        return `${day}/${month}/${date.getFullYear()}`;
+    } catch (e) { return ""; }
+};
+
 // Normalize DB rows back to frontend field names
 function normalizeTruck(t, settings) {
     const prefix = getPrefix('trucks', settings);
@@ -617,6 +632,8 @@ function normalizeJourney(j) {
         driver: j.driver_id, 
         date: fmtISO(j.start_date), 
         endDate: fmtISO(j.end_date), 
+        date_fmt: fmtDDMMYYYY(j.start_date),
+        endDate_fmt: fmtDDMMYYYY(j.end_date),
         dest: j.destination, 
         cargo: j.cargo_type, 
         customerId: j.customer_id, 
@@ -624,19 +641,19 @@ function normalizeJourney(j) {
     };
 }
 function normalizeFuel(f) {
-    return { ...f, truck: f.truck_id, journey: f.journey_id, date: fmtISO(f.date), ...f.metadata };
+    return { ...f, truck: f.truck_id, journey: f.journey_id, date: fmtISO(f.date), date_fmt: fmtDDMMYYYY(f.date), ...f.metadata };
 }
 function normalizeExpense(e) {
-    return { ...e, journey: e.journey_id, cat: e.category, desc: e.description, date: fmtISO(e.date), ...e.metadata };
+    return { ...e, journey: e.journey_id, cat: e.category, desc: e.description, date: fmtISO(e.date), date_fmt: fmtDDMMYYYY(e.date), ...e.metadata };
 }
 function normalizeInvoice(i) {
-    return { ...i, journey: i.journey_id, date: fmtISO(i.date), dueDate: fmtISO(i.due_date), customerId: i.customer_id, ...i.metadata };
+    return { ...i, journey: i.journey_id, date: fmtISO(i.date), dueDate: fmtISO(i.due_date), date_fmt: fmtDDMMYYYY(i.date), dueDate_fmt: fmtDDMMYYYY(i.due_date), customerId: i.customer_id, ...i.metadata };
 }
 function normalizeMaintenance(m) {
-    return { ...m, truck: m.truck_id, desc: m.description, ...m.metadata };
+    return { ...m, truck: m.truck_id, desc: m.description, date: fmtISO(m.date), date_fmt: fmtDDMMYYYY(m.date), ...m.metadata };
 }
 function normalizePayroll(p) {
-    return { ...p, driver: p.entity_id, paidDate: fmtISO(p.paid_date), ...p.metadata };
+    return { ...p, driver: p.entity_id, paidDate: fmtISO(p.paid_date), paidDate_fmt: fmtDDMMYYYY(p.paid_date), ...p.metadata };
 }
 function normalizeDocument(d) {
     return { 
