@@ -1332,7 +1332,7 @@ app.get('/api/tracker/backups/download/:filename', (req, res) => {
     }
 });
 
-import multer from 'multer';
+
 const backupUpload = multer({ dest: '/tmp/' });
 
 app.post('/api/tracker/upload-backup', adminAuth, restrictTo('superadmin'), backupUpload.single('file'), (req, res) => {
