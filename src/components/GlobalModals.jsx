@@ -663,8 +663,10 @@ export function GlobalModals(props) {
             const turnboyMileage = (form.turnboyId || form.turnboyName) ? (rates.isFlatRate ? rates.turnboy : Math.round(dist * rates.turnboy)) : 0;
             const roadUserAllowance = rates.roadUserAllowance || 0;
             
+            const finalCargo = form.cargo === 'Other' ? (form.otherCargo || 'Other') : form.cargo;
             const enrichedForm = { 
                 ...form, 
+                cargo: finalCargo,
                 id: form.id || uid(),
                 driverMileage, 
                 turnboyMileage,
@@ -830,6 +832,14 @@ export function GlobalModals(props) {
                             <datalist id="cargo-types-list">
                                 {CARGO_TYPES.map(c => <option key={c} value={c} />)}
                             </datalist>
+                            {form.cargo === 'Other' && (
+                                <input 
+                                    style={{ ...S.inp, marginTop: 8, borderColor: 'var(--brand-primary)' }} 
+                                    placeholder="Specify cargo type (e.g. Perishables)..."
+                                    value={form.otherCargo || ''}
+                                    onChange={e => setForm(f => ({ ...f, otherCargo: e.target.value }))} 
+                                />
+                            )}
                         </div>
 
                         <Field label="Weight (kg)" k="weight" type="number" form={form} setForm={setForm} S={S} />
