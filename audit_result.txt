@@ -1,0 +1,214 @@
+Auditing 19 tables...
+
+
+[TABLE] admins
+  - id                        | text            | Nullable: NO
+  - email                     | text            | Nullable: NO
+  - password_hash             | text            | Nullable: NO
+  - display_name              | text            | Nullable: YES
+  - role                      | text            | Nullable: YES
+  - created_at                | timestamp with time zone | Nullable: YES
+  - session_version           | integer         | Nullable: YES
+
+[TABLE] customers
+  - id                        | text            | Nullable: NO
+  - name                      | text            | Nullable: NO
+  - email                     | text            | Nullable: YES
+  - phone                     | text            | Nullable: YES
+  - address                   | text            | Nullable: YES
+  - metadata                  | jsonb           | Nullable: YES
+  - created_at                | timestamp with time zone | Nullable: YES
+
+[TABLE] documents
+  - id                        | text            | Nullable: NO
+  - entity_type               | text            | Nullable: YES
+  - entity_id                 | text            | Nullable: YES
+  - label                     | text            | Nullable: YES
+  - url                       | text            | Nullable: YES
+  - expiry_date               | date            | Nullable: YES
+  - metadata                  | jsonb           | Nullable: YES
+  - created_at                | timestamp with time zone | Nullable: YES
+  - filename                  | text            | Nullable: YES
+  - mime_type                 | text            | Nullable: YES
+
+[TABLE] driver_auth
+  - driver_id                 | text            | Nullable: NO
+  - email                     | text            | Nullable: NO
+  - phone                     | text            | Nullable: YES
+  - password_hash             | text            | Nullable: YES
+  - temp_password_hash        | text            | Nullable: YES
+  - otp_hash                  | text            | Nullable: YES
+  - otp_expiry                | timestamp with time zone | Nullable: YES
+  - reset_token_hash          | text            | Nullable: YES
+  - reset_token_expiry        | timestamp with time zone | Nullable: YES
+  - require_password_change   | boolean         | Nullable: YES
+  - account_status            | text            | Nullable: YES
+  - preferred_method          | text            | Nullable: YES
+  - created_at                | timestamp with time zone | Nullable: YES
+  - updated_at                | timestamp with time zone | Nullable: YES
+
+[TABLE] drivers
+  - id                        | text            | Nullable: NO
+  - name                      | text            | Nullable: NO
+  - phone                     | text            | Nullable: YES
+  - license_number            | text            | Nullable: YES
+  - status                    | text            | Nullable: YES
+  - metadata                  | jsonb           | Nullable: YES
+  - created_at                | timestamp with time zone | Nullable: YES
+  - email                     | text            | Nullable: YES
+  - role                      | text            | Nullable: YES
+
+[TABLE] expenses
+  - id                        | text            | Nullable: NO
+  - journey_id                | text            | Nullable: YES
+  - category                  | text            | Nullable: YES
+  - amount                    | numeric         | Nullable: YES
+  - date                      | date            | Nullable: YES
+  - description               | text            | Nullable: YES
+  - metadata                  | jsonb           | Nullable: YES
+  - created_at                | timestamp with time zone | Nullable: YES
+  - driver_id                 | text            | Nullable: YES
+  - truck_id                  | text            | Nullable: YES
+  - _submitted_by             | text            | Nullable: YES
+
+[TABLE] fuel_logs
+  - id                        | text            | Nullable: NO
+  - journey_id                | text            | Nullable: YES
+  - truck_id                  | text            | Nullable: YES
+  - date                      | date            | Nullable: YES
+  - amount                    | numeric         | Nullable: YES
+  - litres                    | numeric         | Nullable: YES
+  - station                   | text            | Nullable: YES
+  - metadata                  | jsonb           | Nullable: YES
+  - created_at                | timestamp with time zone | Nullable: YES
+  - driver_id                 | text            | Nullable: YES
+  - _submitted_by             | text            | Nullable: YES
+
+[TABLE] incidents
+  - id                        | text            | Nullable: NO
+  - journey_id                | text            | Nullable: YES
+  - type                      | text            | Nullable: YES
+  - severity                  | text            | Nullable: YES
+  - description               | text            | Nullable: YES
+  - status                    | text            | Nullable: YES
+  - metadata                  | jsonb           | Nullable: YES
+  - created_at                | timestamp with time zone | Nullable: YES
+  - driver_id                 | text            | Nullable: YES
+  - truck_id                  | text            | Nullable: YES
+  - _submitted_by             | text            | Nullable: YES
+
+[TABLE] invoices
+  - id                        | text            | Nullable: NO
+  - customer_id               | text            | Nullable: YES
+  - journey_id                | text            | Nullable: YES
+  - amount                    | numeric         | Nullable: YES
+  - status                    | text            | Nullable: YES
+  - due_date                  | date            | Nullable: YES
+  - metadata                  | jsonb           | Nullable: YES
+  - created_at                | timestamp with time zone | Nullable: YES
+
+[TABLE] journeys
+  - id                        | text            | Nullable: NO
+  - truck_id                  | text            | Nullable: YES
+  - driver_id                 | text            | Nullable: YES
+  - customer_id               | text            | Nullable: YES
+  - status                    | text            | Nullable: YES
+  - origin                    | text            | Nullable: YES
+  - destination               | text            | Nullable: YES
+  - cargo_type                | text            | Nullable: YES
+  - start_date                | timestamp with time zone | Nullable: YES
+  - end_date                  | timestamp with time zone | Nullable: YES
+  - notes                     | text            | Nullable: YES
+  - metadata                  | jsonb           | Nullable: YES
+  - created_at                | timestamp with time zone | Nullable: YES
+  - tr_form_url               | text            | Nullable: YES
+  - t1_form_url               | text            | Nullable: YES
+  - booking_no                | text            | Nullable: YES
+  - is_international          | boolean         | Nullable: YES
+  - delivery_customer_id      | text            | Nullable: YES
+
+[TABLE] maintenance_logs
+  - id                        | text            | Nullable: NO
+  - truck_id                  | text            | Nullable: YES
+  - date                      | date            | Nullable: YES
+  - description               | text            | Nullable: YES
+  - cost                      | numeric         | Nullable: YES
+  - next_service_mileage      | numeric         | Nullable: YES
+  - metadata                  | jsonb           | Nullable: YES
+  - created_at                | timestamp with time zone | Nullable: YES
+
+[TABLE] payroll
+  - id                        | text            | Nullable: NO
+  - entity_id                 | text            | Nullable: YES
+  - entity_type               | text            | Nullable: YES
+  - amount                    | numeric         | Nullable: YES
+  - month                     | text            | Nullable: YES
+  - status                    | text            | Nullable: YES
+  - metadata                  | jsonb           | Nullable: YES
+  - created_at                | timestamp with time zone | Nullable: YES
+
+[TABLE] staff
+  - id                        | text            | Nullable: NO
+  - name                      | text            | Nullable: NO
+  - role                      | text            | Nullable: YES
+  - email                     | text            | Nullable: YES
+  - phone                     | text            | Nullable: YES
+  - status                    | text            | Nullable: YES
+  - metadata                  | jsonb           | Nullable: YES
+  - created_at                | timestamp with time zone | Nullable: YES
+  - joined                    | text            | Nullable: YES
+  - salary                    | numeric         | Nullable: YES
+
+[TABLE] staff_auth
+  - staff_id                  | text            | Nullable: NO
+  - email                     | text            | Nullable: NO
+  - phone                     | text            | Nullable: YES
+  - password_hash             | text            | Nullable: YES
+  - temp_password_hash        | text            | Nullable: YES
+  - otp_hash                  | text            | Nullable: YES
+  - otp_expiry                | timestamp with time zone | Nullable: YES
+  - reset_token_hash          | text            | Nullable: YES
+  - reset_token_expiry        | timestamp with time zone | Nullable: YES
+  - require_password_change   | boolean         | Nullable: YES
+  - account_status            | text            | Nullable: YES
+  - preferred_method          | text            | Nullable: YES
+  - created_at                | timestamp with time zone | Nullable: YES
+  - updated_at                | timestamp with time zone | Nullable: YES
+
+[TABLE] superadmins
+  - id                        | integer         | Nullable: NO
+  - email                     | text            | Nullable: NO
+  - password_hash             | text            | Nullable: NO
+  - display_name              | text            | Nullable: YES
+  - created_at                | timestamp with time zone | Nullable: YES
+
+[TABLE] system_settings
+  - key                       | text            | Nullable: NO
+  - value                     | jsonb           | Nullable: YES
+  - updated_at                | timestamp with time zone | Nullable: YES
+
+[TABLE] trailers
+  - id                        | text            | Nullable: NO
+  - registration_number       | text            | Nullable: NO
+  - type                      | text            | Nullable: YES
+  - status                    | text            | Nullable: YES
+  - metadata                  | jsonb           | Nullable: YES
+  - created_at                | timestamp with time zone | Nullable: YES
+
+[TABLE] trucks
+  - id                        | text            | Nullable: NO
+  - registration_number       | text            | Nullable: NO
+  - model                     | text            | Nullable: YES
+  - status                    | text            | Nullable: YES
+  - current_mileage           | numeric         | Nullable: YES
+  - metadata                  | jsonb           | Nullable: YES
+  - created_at                | timestamp with time zone | Nullable: YES
+
+[TABLE] tyre_logs
+  - id                        | text            | Nullable: NO
+  - truck_id                  | text            | Nullable: YES
+  - position                  | text            | Nullable: YES
+  - serial_number             | text            | Nullable: YES
+  - status                    | text            | Nullable: YES
+  - metadata                  | jsonb           | Nullable: YES
+  - created_at                | timestamp with time zone | Nullable: YES

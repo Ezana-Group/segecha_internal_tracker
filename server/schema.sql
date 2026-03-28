@@ -36,7 +36,10 @@ CREATE TABLE IF NOT EXISTS trailers (
     type TEXT,
     status TEXT DEFAULT 'Active',
     metadata JSONB DEFAULT '{}',
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    make TEXT,
+    year TEXT,
+    truck_id TEXT REFERENCES trucks(id)
 );
 
 CREATE TABLE IF NOT EXISTS drivers (
@@ -109,7 +112,9 @@ CREATE TABLE IF NOT EXISTS fuel_logs (
     metadata JSONB DEFAULT '{}',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     driver_id TEXT REFERENCES drivers(id),
-    _submitted_by TEXT
+    _submitted_by TEXT,
+    price_per_l NUMERIC,
+    odom NUMERIC
 );
 
 CREATE TABLE IF NOT EXISTS expenses (
@@ -134,7 +139,8 @@ CREATE TABLE IF NOT EXISTS invoices (
     status TEXT DEFAULT 'Pending',
     due_date DATE,
     metadata JSONB DEFAULT '{}',
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    issued_date DATE
 );
 
 CREATE TABLE IF NOT EXISTS payroll (
