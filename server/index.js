@@ -372,6 +372,10 @@ async function autoSeed() {
                 IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='fuel_logs' AND column_name='fuel_type') THEN
                     ALTER TABLE fuel_logs ADD COLUMN fuel_type TEXT;
                 END IF;
+                -- Journeys column for Return Trip
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='journeys' AND column_name='is_return') THEN
+                    ALTER TABLE journeys ADD COLUMN is_return BOOLEAN DEFAULT FALSE;
+                END IF;
             END $$;
         `);
 
@@ -637,11 +641,20 @@ function normalizeJourney(j) {
         dest: j.destination, 
         cargo: j.cargo_type, 
         customerId: j.customer_id, 
+        isReturn: !!j.is_return,
         ...j.metadata 
     };
 }
 function normalizeFuel(f) {
-    return { ...f, truck: f.truck_id, journey: f.journey_id, date: fmtISO(f.date), date_fmt: fmtDDMMYYYY(f.date), ...f.metadata };
+    return { 
+        ...f, 
+        truck: f.truck_id, 
+        journey: f.journey_id, 
+        pricePerL: f.amount,
+        date: fmtISO(f.date), 
+        date_fmt: fmtDDMMYYYY(f.date), 
+        ...f.metadata 
+    };
 }
 function normalizeExpense(e) {
     return { ...e, journey: e.journey_id, cat: e.category, desc: e.description, date: fmtISO(e.date), date_fmt: fmtDDMMYYYY(e.date), ...e.metadata };

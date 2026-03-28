@@ -230,6 +230,7 @@ export function Journeys({ data, isMobile, modal, form, setForm, openModal, clos
                             isSorted={isSorted}
                             columns={[
                                 { key: "uId", label: "Mission ID", sortable: !isDriverPreview || jpv("colMissionId") },
+                                { key: "isReturn", label: "Type", sortable: !isDriverPreview || jpv("colType") },
                                 { key: "date", label: "Departure", sortable: !isDriverPreview || jpv("colDate") },
                                 { key: "origin", label: "Origin", sortable: !isDriverPreview || jpv("colRoute") },
                                 { key: "dest", label: "Destination", sortable: !isDriverPreview || jpv("colRoute") },
@@ -271,6 +272,22 @@ export function Journeys({ data, isMobile, modal, form, setForm, openModal, clos
                                                 }}
                                             >
                                                 {j.uId || j.id.slice(0, 8).toUpperCase()}
+                                            </div>
+                                        </td>
+                                    )}
+                                    {(!isDriverPreview || jpv("colType")) && (
+                                        <td title={j.isReturn ? "Return Trip" : "Standard Trip"}>
+                                            <div style={{ 
+                                                fontSize: 10, 
+                                                fontWeight: 800, 
+                                                textTransform: "uppercase", 
+                                                background: j.isReturn ? "rgba(245, 158, 11, 0.1)" : "rgba(16, 185, 129, 0.1)", 
+                                                color: j.isReturn ? "#f59e0b" : "#10b981",
+                                                padding: "2px 6px",
+                                                borderRadius: 4,
+                                                width: "fit-content"
+                                            }}>
+                                                {j.isReturn ? "Return" : "Standard"}
                                             </div>
                                         </td>
                                     )}

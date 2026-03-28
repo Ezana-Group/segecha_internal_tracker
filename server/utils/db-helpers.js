@@ -78,6 +78,8 @@ async function upsertEntity(table, item) {
         else if (k === 'dueDate') dbKey = 'due_date';
         else if (k === 'serialNumber') dbKey = 'serial_number';
         else if (k === 'staffId') dbKey = 'staff_id';
+        else if (k === 'fuelType') dbKey = 'fuel_type';
+        else if (k === 'returningEmpty') dbKey = 'is_return';
         
         // Short-form frontend keys — TABLE-AWARE mappings
         else if (k === 'reg') dbKey = 'registration_number';
@@ -338,6 +340,8 @@ async function upsertEntityInTransaction(client, table, item) {
         else if (k === 'entityType') dbKey = 'entity_type';
         else if (k === 'dueDate') dbKey = 'due_date';
         else if (k === 'staffId') dbKey = 'staff_id';
+        else if (k === 'fuelType') dbKey = 'fuel_type';
+        else if (k === 'returningEmpty') dbKey = 'is_return';
         else if (k === 'reg') dbKey = 'registration_number';
         else if (k === 'license') dbKey = 'license_number';
         else if (k === 'dest') dbKey = 'destination';

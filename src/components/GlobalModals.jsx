@@ -704,8 +704,9 @@ export function GlobalModals(props) {
                 const retRua = _S.roadUserAllowanceReturn;
                 // Only fall back if the return allowance is explicitly null, undefined, or an empty string.
                 // If it is 0, we use 0.
+                // per user request: Return Road User Allowance is 0 unless stated otherwise.
                 rua = (retRua === null || retRua === undefined || retRua === "") 
-                    ? (_S.roadUserAllowance ?? 0)
+                    ? 0
                     : +retRua;
             } else {
                 rua = (_S.roadUserAllowance ?? 0);
@@ -730,11 +731,26 @@ export function GlobalModals(props) {
             const wasNew = !form.id;
             const dist = +form.distance || 0;
             const rates = getEffectiveRates(form.origin, form.dest);
+
+            // Fetch existing record from data to compare if editing
+            const existing = wasNew ? null : data.journeys.find(j => j.id === form.id);
+            const routeChanged = !existing || 
+                                 existing.origin !== form.origin || 
+                                 existing.dest !== form.dest || 
+                                 !!existing.isReturn !== !!form.returningEmpty;
+            const distChanged = !existing || +existing.distance !== dist;
             
-            // Calculate mileage/flat-rate allowance
-            const driverMileage = rates.isFlatRate ? rates.driver : Math.round(dist * rates.driver);
-            const turnboyMileage = (form.turnboyId || form.turnboyName) ? (rates.isFlatRate ? rates.turnboy : Math.round(dist * rates.turnboy)) : 0;
-            const roadUserAllowance = rates.roadUserAllowance || 0;
+            // Only recalculate if NEW or if the defining trip parameters changed.
+            // This protects "heritage" records from being retroactively updated by settings changes.
+            let driverMileage = form.driverMileage;
+            let turnboyMileage = form.turnboyMileage;
+            let roadUserAllowance = form.roadUserAllowance;
+
+            if (wasNew || routeChanged || distChanged) {
+                driverMileage = rates.isFlatRate ? rates.driver : Math.round(dist * rates.driver);
+                turnboyMileage = (form.turnboyId || form.turnboyName) ? (rates.isFlatRate ? rates.turnboy : Math.round(dist * rates.turnboy)) : 0;
+                roadUserAllowance = rates.roadUserAllowance || 0;
+            }
             
             const finalCargo = form.cargo === 'Other' ? (form.otherCargo || 'Other') : form.cargo;
             const enrichedForm = { 
@@ -744,10 +760,10 @@ export function GlobalModals(props) {
                 driverMileage, 
                 turnboyMileage,
                 roadUserAllowance,
-                mileageRateUsed: rates.driver,
-                turnboyMileageRateUsed: rates.turnboy,
-                mileageRouteOverride: rates.isOverride,
-                isFlatRate: rates.isFlatRate
+                mileageRateUsed: (wasNew || routeChanged || distChanged) ? rates.driver : (form.mileageRateUsed || rates.driver),
+                turnboyMileageRateUsed: (wasNew || routeChanged || distChanged) ? rates.turnboy : (form.turnboyMileageRateUsed || rates.turnboy),
+                mileageRouteOverride: (wasNew || routeChanged || distChanged) ? rates.isOverride : !!form.mileageRouteOverride,
+                isFlatRate: (wasNew || routeChanged || distChanged) ? rates.isFlatRate : !!form.isFlatRate
             };
 
             try {
