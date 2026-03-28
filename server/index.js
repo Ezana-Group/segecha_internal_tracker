@@ -66,12 +66,23 @@ app.use(cors({
 
 
 
-app.get('/health', (req, res) => {
+app.get('/health', async (req, res) => {
     try {
-        res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
+        const dbTest = await db.query('SELECT current_database(), now()');
+        res.status(200).json({ 
+            status: 'ok', 
+            database: 'CONNECTED',
+            db_name: dbTest.rows[0].current_database,
+            db_time: dbTest.rows[0].now,
+            timestamp: new Date().toISOString() 
+        });
     } catch (e) {
         console.error('[DEBUG] Health check failed:', e);
-        res.status(500).send(e.message);
+        res.status(500).json({ 
+            status: 'FAILED', 
+            database: 'DISCONNECTED',
+            error: e.message 
+        });
     }
 });
 
@@ -1890,10 +1901,16 @@ app.use((err, req, res, next) => {
     res.status(500).json({ error: err.message });
 });
 
-app.listen(PORT, '0.0.0.0', () => {
-    console.log('Server running on port ' + PORT);
+// 6. Start Server with DB Verification
+app.listen(PORT, '0.0.0.0', async () => {
+    console.log(`[SERVER] v${APP_VERSION} running on port ${PORT}`);
+    try {
+        const res = await db.query('SELECT NOW()');
+        console.log(`[DB] Database connected successfully at ${res.rows[0].now}`);
+    } catch (err) {
+        console.error(`[DB] CRITICAL: FAILED TO CONNECT TO DATABASE: ${err.message}`);
+        console.error('     Check your DATABASE_URL environment variable.');
+    }
 });
 
 module.exports = { app, db };
-
-
