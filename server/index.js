@@ -102,10 +102,14 @@ if (!JWT_SECRET || !ADMIN_KEY) {
 }
 
 const PUBLIC_ROUTES = [
-    '/admin/login', 
-    '/driver/login', '/driver/forgot-password', '/driver/set-password',
-    '/staff/login', '/staff/forgot-password', '/staff/set-password',
-    '/health'
+    '/admin/login', '/api/admin/login',
+    '/driver/login', '/api/driver/login',
+    '/driver/forgot-password', '/api/driver/forgot-password',
+    '/driver/set-password', '/api/driver/set-password',
+    '/staff/login', '/api/staff/login',
+    '/staff/forgot-password', '/api/staff/forgot-password',
+    '/staff/set-password', '/api/staff/set-password',
+    '/health', '/api/health'
 ];
 
 const adminAuth = async (req, res, next) => {
@@ -159,6 +163,7 @@ const adminAuth = async (req, res, next) => {
         }
     }
 
+    console.warn(`[AUTH] Unauthorized access attempt: path=${path}, hasKey=${!!adminKey}, hasAuth=${!!authHeader}`);
     return res.status(403).json({ error: 'Unauthorized access' });
 };
 
@@ -174,7 +179,7 @@ const restrictTo = (...roles) => {
         if (req.user.role === 'superadmin') return next();
         
         if (!roles.includes(req.user.role)) {
-            console.warn(`[AUTH] Access denied for user ${req.user.id} (${req.user.role}) to ${req.method} ${req.path}`);
+            console.warn(`[AUTH] Access denied for user ${req.user.id} (role: ${req.user.role}) to ${req.method} ${req.path}. Required: ${roles.join(', ')}`);
             return res.status(403).json({ error: 'You do not have permission to perform this action' });
         }
         next();
