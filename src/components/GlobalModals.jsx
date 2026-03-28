@@ -628,9 +628,9 @@ export function GlobalModals(props) {
                     flatTurnboy = isInternational ? (_S.flatRateOutsideTurnboy || 0) : (_S.flatRateInsideTurnboy || 0);
                 }
                 
-                if (flatDriver > 0) {
-                    dRate = flatDriver;
-                    tRate = flatTurnboy;
+                if (flatDriver !== null && flatDriver !== undefined && flatDriver !== "") {
+                    dRate = +flatDriver;
+                    tRate = +flatTurnboy;
                     isFlatRate = true;
                 } else {
                     dRate = DRIVER_PER_KM;
@@ -701,13 +701,16 @@ export function GlobalModals(props) {
                     const existing = existingExpenses.find(e => e.desc?.startsWith("Driver"));
                     if (wasNew || existing) {
                         const descPrefix = rates.isFlatRate ? "Flat rate allowance" : `Mileage allowance (${dist} km @ KES ${rates.driver}/km)`;
+                        // If it's an existing record and amount was manually adjusted, keep the adjustment
+                        const finalAmount = (existing && !wasNew) ? Number(existing.amount) : driverMileage;
+                        
                         await saveItem("expenses", {
                             id: existing?.id,
                             date: form.date || today(),
                             truck: form.truck,
                             cat: "Allowance",
                             category: "Allowance",
-                            amount: driverMileage,
+                            amount: finalAmount,
                             desc: `Driver ${descPrefix} — ${form.origin} → ${form.dest}`,
                             journey: enrichedForm.id,
                             status: existing?.status || "Unpaid"
@@ -721,13 +724,16 @@ export function GlobalModals(props) {
                     if (wasNew || existing) {
                         const tbName = form.turnboyId ? (data.turnboys?.find(t => t.id === form.turnboyId)?.name || form.turnboyId) : form.turnboyName;
                         const descPrefix = rates.isFlatRate ? "Flat rate allowance" : `Mileage allowance (${dist} km @ KES ${rates.turnboy}/km)`;
+                        // If it's an existing record and amount was manually adjusted, keep the adjustment
+                        const finalAmount = (existing && !wasNew) ? Number(existing.amount) : turnboyMileage;
+                        
                         await saveItem("expenses", {
                             id: existing?.id,
                             date: form.date || today(),
                             truck: form.truck,
                             cat: "Allowance",
                             category: "Allowance",
-                            amount: turnboyMileage,
+                            amount: finalAmount,
                             desc: `Turnboy ${descPrefix} (${tbName}) — ${form.origin} → ${form.dest}`,
                             journey: enrichedForm.id,
                             status: existing?.status || "Unpaid"
@@ -739,13 +745,16 @@ export function GlobalModals(props) {
                 if (roadUserAllowance > 0) {
                     const existing = existingExpenses.find(e => e.desc?.includes("Road User"));
                     if (wasNew || existing) {
+                        // If it's an existing record and amount was manually adjusted, keep the adjustment
+                        const finalAmount = (existing && !wasNew) ? Number(existing.amount) : roadUserAllowance;
+
                         await saveItem("expenses", {
                             id: existing?.id,
                             date: form.date || today(),
                             truck: form.truck,
                             cat: "Allowance",
                             category: "Allowance",
-                            amount: roadUserAllowance,
+                            amount: finalAmount,
                             desc: `Road User Allowance${form.returningEmpty ? " (Return)" : ""} — ${form.origin} → ${form.dest}`,
                             journey: enrichedForm.id,
                             status: existing?.status || "Unpaid"

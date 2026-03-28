@@ -49,6 +49,12 @@ export function Payroll({ data, setData, dark, isMobile, modal, form, setForm, o
         const existing = monthPayroll.find(p => p.driver === payee.id);
         const journeys = (data.journeys || []).filter(j => (j.driver === payee.id || j.turnboyId === payee.id) && j.date && j.date.startsWith(selMonth) && j.status === 'Completed');
         const calculatedMileage = journeys.reduce((s, j) => {
+            // Priority: Manual Expense Adjustment > Journey Metadata
+            const linkedExpenses = (data.expenses || []).filter(e => e.journey === j.id && e.cat === "Allowance");
+            const payeeExpense = linkedExpenses.find(e => e.driver_id === payee.id || e.desc?.includes(payee.name));
+            
+            if (payeeExpense) return s + Number(payeeExpense.amount);
+            
             if (j.driver === payee.id) return s + (j.driverMileage || 0);
             if (j.turnboyId === payee.id) return s + (j.turnboyMileage || 0);
             return s;

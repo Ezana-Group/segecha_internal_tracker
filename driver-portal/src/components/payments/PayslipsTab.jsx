@@ -10,7 +10,11 @@ export const PayslipsTab = ({ portalPerm, payslips = [], activeJourneys = [], co
     // 1. Current Month Breakdown
     const monthKey = new Date().toISOString().slice(0, 7);
     const thisMonthJourneys = allJourneys.filter(j => j.date && j.date.startsWith(monthKey));
-    const thisMonthAllowances = thisMonthJourneys.reduce((s, j) => s + (+j.driverMileage || 0) + (+j.roadUserAllowance || 0), 0);
+    const thisMonthAllowances = thisMonthJourneys.reduce((s, j) => {
+        const allowanceExp = expenses.find(e => e.journey === j.id && e.cat === 'Allowance' && e.amount > 0);
+        const amt = allowanceExp ? +allowanceExp.amount : (+j.driverMileage || 0);
+        return s + amt + (+j.roadUserAllowance || 0);
+    }, 0);
     const thisMonthSal = +(driver.salary || driver.baseSalary || 0);
 
     // 2. Year-to-Date (Summary from payslips + current month)
@@ -55,15 +59,19 @@ export const PayslipsTab = ({ portalPerm, payslips = [], activeJourneys = [], co
                         No trips logged yet this month.
                     </div>
                 ) : (
-                    thisMonthJourneys.map(j => (
-                        <div key={j.id} style={{ ...S.card(), padding: 12, marginBottom: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <div>
-                                <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.text }}>{j.origin} → {j.dest}</div>
-                                <div style={{ fontSize: 11, color: COLORS.textFaint }}>{j.date}</div>
+                    thisMonthJourneys.map(j => {
+                        const allowanceExp = expenses.find(e => e.journey === j.id && e.cat === 'Allowance' && e.amount > 0);
+                        const amt = allowanceExp ? +allowanceExp.amount : (+j.driverMileage || 0);
+                        return (
+                            <div key={j.id} style={{ ...S.card(), padding: 12, marginBottom: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div>
+                                    <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.text }}>{j.origin} → {j.dest}</div>
+                                    <div style={{ fontSize: 11, color: COLORS.textFaint }}>{j.date}</div>
+                                </div>
+                                <div style={{ fontSize: 14, fontWeight: 800, color: COLORS.text }}>+{fmt(amt + (j.roadUserAllowance || 0))}</div>
                             </div>
-                            <div style={{ fontSize: 14, fontWeight: 800, color: COLORS.text }}>+{fmt((j.driverMileage || 0) + (j.roadUserAllowance || 0))}</div>
-                        </div>
-                    ))
+                        );
+                    })
                 )}
             </div>
         </div>
