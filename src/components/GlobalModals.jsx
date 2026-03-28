@@ -6,7 +6,15 @@ import { fmt, fmtDate, today, uid, monthLabel } from "../utils/formatters";
 import { validators } from "../utils/validators";
 import { PAYMENT_API, ADMIN_KEY } from "../utils/env";
 import { DEFAULT_FUEL_PRICE, STATUSES_JOURNEY, CARGO_TYPES, TRUCK_TYPES, STATUSES_TRUCK, INVOICE_PREFIX, PAYMENT_TERMS_DAYS } from "../constants/nav";
-import { getLicenceClasses, getCommonRoutes, getTruckTypes, getTrailerTypes, subscribeSettings } from "../utils/settingsStore.js";
+import { 
+    readSettings,
+    getCommonRoutes,
+    getLicenceClasses,
+    getTruckTypes,
+    getTrailerTypes,
+    getCargoTypes,
+    getExpenseCategories 
+} from "../utils/settingsStore";
 
 const FuelPhotoField = ({ label, k, form, setForm, S, T }) => {
     const [uploading, setUploading] = useState(false);
@@ -624,7 +632,6 @@ export function GlobalModals(props) {
     if (modal === "journey") {
         const errors = {};
         errors.revenue = form.revenue !== "" && form.revenue !== null ? validators.positiveNumber(form.revenue, true) : null; 
-        // errors.distance = validators.required(form.distance) || validators.positiveNumber(form.distance);
         errors.endDate = validators.dateOrder(form.date, form.endDate);
         if (!form.returningEmpty) {
             errors.customerId = validators.required(form.customerId);
@@ -639,10 +646,9 @@ export function GlobalModals(props) {
         }
         const hasErrors = Object.values(errors).some(Boolean);
 
-        const _S = JSON.parse(localStorage.getItem('segecha_settings') || '{}');
-        const DRIVER_PER_KM = _S.driverPerKm ? +_S.driverPerKm : 10;
-        const TURNBOY_PER_KM = _S.turnboyPerKm ? +_S.turnboyPerKm : 6;
-        const ROUTE_OVERRIDES = _S.routeOverrides || {};
+        const _S = readSettings();
+        const DRIVER_PER_KM = (typeof _S.driverPerKm === 'number') ? _S.driverPerKm : 10;
+        const TURNBOY_PER_KM = (typeof _S.turnboyPerKm === 'number') ? _S.turnboyPerKm : 6;
 
         const selectedDriver = data.drivers.find((d) => d.id === form.driver);
         const vehicleLocked = !!selectedDriver?.lockVehicleAssignment;
@@ -655,73 +661,38 @@ export function GlobalModals(props) {
         }
 
         const getEffectiveRates = (origin, dest) => {
-            if (!origin || !dest) return { driver: DRIVER_PER_KM, turnboy: TURNBOY_PER_KM };
-            
-            const isReturning = !!form.returningEmpty;
-            const isInternational = !!form.isInternational;
-
-            const routeOverridesArr = Array.isArray(ROUTE_OVERRIDES) ? ROUTE_OVERRIDES : Object.entries(ROUTE_OVERRIDES || {}).map(([key, val]) => {
-                const [o, d] = key.split('→');
-                return { origin: o, dest: d, driverRate: val.driver, turnboyRate: val.turnboy, returnDriverRate: val.returnDriver, returnTurnboyRate: val.returnTurnboy };
-            });
-            const override = routeOverridesArr.find(ro => 
-                (ro.origin?.trim() === origin?.trim() && ro.dest?.trim() === dest?.trim()) ||
-                (ro.origin?.trim() === dest?.trim() && ro.dest?.trim() === origin?.trim())
+            const routes = _S.routes || [];
+            const match = routes.find(r => 
+                (r.origin?.toLowerCase() === origin?.toLowerCase() && r.dest?.toLowerCase() === dest?.toLowerCase()) ||
+                (r.origin?.toLowerCase() === dest?.toLowerCase() && r.dest?.toLowerCase() === origin?.toLowerCase())
             );
 
-            let dRate, tRate;
-            let isFlatRate = false;
+            if (match) {
+                const dRate = (typeof match.driverRate === 'number') ? match.driverRate : DRIVER_PER_KM;
+                const tRate = (typeof match.turnboyRate === 'number') ? match.turnboyRate : TURNBOY_PER_KM;
+                return { driver: dRate, turnboy: tRate, isFlatRate: false, source: "Route Override" };
+            }
 
-            if (override) {
-                const oDRate = isReturning && override.returnDriverRate != null ? +override.returnDriverRate : +override.driverRate;
-                const oTRate = isReturning && override.returnTurnboyRate != null ? +override.returnTurnboyRate : +override.turnboyRate;
-                dRate = oDRate;
-                tRate = oTRate;
-            } else {
-                // If no route override, check for International/Domestic Flat Rates
-                let flatDriver, flatTurnboy;
-                if (isReturning) {
-                    flatDriver = isInternational ? _S.flatRateOutsideDriverReturn : _S.flatRateInsideDriverReturn;
-                    flatTurnboy = isInternational ? _S.flatRateOutsideTurnboyReturn : _S.flatRateInsideTurnboyReturn;
-                } else {
-                    flatDriver = isInternational ? (_S.flatRateOutsideDriver || 0) : (_S.flatRateInsideDriver || 0);
-                    flatTurnboy = isInternational ? (_S.flatRateOutsideTurnboy || 0) : (_S.flatRateInsideTurnboy || 0);
+            const isInternational = (dest?.toLowerCase().includes('uganda') || dest?.toLowerCase().includes('tanzania') || 
+                                   dest?.toLowerCase().includes('rwanda') || dest?.toLowerCase().includes('malaba') || 
+                                   dest?.toLowerCase().includes('busia') || dest?.toLowerCase().includes('namanga'));
+            
+            if (isInternational) {
+                const fD = _S.flatRateOutsideDriver;
+                const fT = _S.flatRateOutsideTurnboy;
+                if (typeof fD === 'number' && fD > 0) {
+                    return { driver: fD, turnboy: fT || 0, isFlatRate: true, source: "Intl Flat Rate" };
                 }
-                
-                if (flatDriver !== null && flatDriver !== undefined && flatDriver !== "") {
-                    dRate = +flatDriver;
-                    tRate = +flatTurnboy;
-                    isFlatRate = true;
-                } else {
-                    dRate = DRIVER_PER_KM;
-                    tRate = TURNBOY_PER_KM;
+            } else {
+                const fD = _S.flatRateInsideDriver;
+                const fT = _S.flatRateInsideTurnboy;
+                if (typeof fD === 'number' && fD > 0) {
+                    return { driver: fD, turnboy: fT || 0, isFlatRate: true, source: "Dom Flat Rate" };
                 }
             }
 
-            // Road User Allowance calculation
-            let rua = 0;
-            if (isReturning) {
-                const retRua = _S.roadUserAllowanceReturn;
-                // Only fall back if the return allowance is explicitly null, undefined, or an empty string.
-                // If it is 0, we use 0.
-                // per user request: Return Road User Allowance is 0 unless stated otherwise.
-                rua = (retRua === null || retRua === undefined || retRua === "") 
-                    ? 0
-                    : +retRua;
-            } else {
-                rua = (_S.roadUserAllowance ?? 0);
-            }
-
-            return {
-                driver: dRate,
-                turnboy: tRate,
-                isOverride: !!override,
-                isFlatRate,
-                roadUserAllowance: rua,
-                routeKey: `${origin.trim()}→${dest.trim()}`,
-            };
+            return { driver: DRIVER_PER_KM, turnboy: TURNBOY_PER_KM, isFlatRate: false, source: "Standard Per KM" };
         };
-
 
         const onSave = async () => {
             if (!form.returningEmpty && (!form.customerId || !form.deliveryCustomerId)) {
@@ -729,39 +700,43 @@ export function GlobalModals(props) {
                 return;
             }
             const wasNew = !form.id;
-            const dist = +form.distance || 0;
-            const rates = getEffectiveRates(form.origin, form.dest);
-
-            // Fetch existing record from data to compare if editing
             const existing = wasNew ? null : data.journeys.find(j => j.id === form.id);
-            const routeChanged = !existing || 
-                                 existing.origin !== form.origin || 
-                                 existing.dest !== form.dest || 
-                                 !!existing.isReturn !== !!form.returningEmpty;
-            const distChanged = !existing || +existing.distance !== dist;
             
-            // Only recalculate if NEW or if the defining trip parameters changed.
-            // This protects "heritage" records from being retroactively updated by settings changes.
-            let driverMileage = form.driverMileage;
-            let turnboyMileage = form.turnboyMileage;
-            let roadUserAllowance = form.roadUserAllowance;
+            const dist = Number(form.distance) || 0;
+            const rates = getEffectiveRates(form.origin, form.dest);
+            
+            let driverMileage = Number(form.driverMileage) || 0;
+            let turnboyMileage = Number(form.turnboyMileage) || 0;
+            let roadUserAllowance = Number(form.roadUserAllowance) || 0;
+            let rateUsed = form.mileageRateUsed || "";
+
+            const routeChanged = (existing?.origin !== form.origin || existing?.dest !== form.dest);
+            const distChanged = (existing?.distance !== form.distance);
 
             if (wasNew || routeChanged || distChanged) {
                 driverMileage = rates.isFlatRate ? rates.driver : Math.round(dist * rates.driver);
-                turnboyMileage = (form.turnboyId || form.turnboyName) ? (rates.isFlatRate ? rates.turnboy : Math.round(dist * rates.turnboy)) : 0;
-                roadUserAllowance = rates.roadUserAllowance || 0;
+                turnboyMileage = rates.isFlatRate ? rates.turnboy : Math.round(dist * rates.turnboy);
+                
+                // Road User Allowance logic
+                if (form.returningEmpty) {
+                    const retRua = _S.roadUserAllowanceReturn;
+                    roadUserAllowance = (retRua === null || retRua === undefined || retRua === "") ? 0 : +retRua;
+                } else {
+                    roadUserAllowance = Number(_S.roadUserAllowance) || 0;
+                }
+                
+                rateUsed = `${rates.driver}${rates.isFlatRate ? ' flat' : '/km'} (${rates.source})`;
             }
             
             const finalCargo = form.cargo === 'Other' ? (form.otherCargo || 'Other') : form.cargo;
-            const enrichedForm = { 
-                ...form, 
+            const enrichedForm = {
+                ...form,
                 cargo: finalCargo,
-                id: form.id || uid(),
-                driverMileage, 
+                id: form.id || uid('J'),
+                status: form.status || 'Planned',
+                driverMileage,
                 turnboyMileage,
                 roadUserAllowance,
-                mileageRateUsed: (wasNew || routeChanged || distChanged) ? rates.driver : (form.mileageRateUsed || rates.driver),
-                turnboyMileageRateUsed: (wasNew || routeChanged || distChanged) ? rates.turnboy : (form.turnboyMileageRateUsed || rates.turnboy),
                 mileageRouteOverride: (wasNew || routeChanged || distChanged) ? rates.isOverride : !!form.mileageRouteOverride,
                 isFlatRate: (wasNew || routeChanged || distChanged) ? rates.isFlatRate : !!form.isFlatRate
             };
@@ -1636,7 +1611,7 @@ export function GlobalModals(props) {
         const errors = getErrors();
         const hasErrors = Object.values(errors).some(Boolean);
 
-        const _S = JSON.parse(localStorage.getItem('segecha_settings') || '{}');
+        const _S = readSettings();
         const ROLES_LIST = _S.roles || ["Office Admin", "Fleet Manager", "Turnboy", "Accountant", "Operations", "Driver", "Other"];
         const DEPTS_LIST = _S.departments || ["Operations", "Finance", "Logistics", "HR"];
 
