@@ -8,6 +8,7 @@ import { PAYMENT_API, ADMIN_KEY } from "../utils/env";
 import { DEFAULT_FUEL_PRICE, STATUSES_JOURNEY, CARGO_TYPES, TRUCK_TYPES, STATUSES_TRUCK, INVOICE_PREFIX, PAYMENT_TERMS_DAYS } from "../constants/nav";
 import { 
     readSettings,
+    subscribeSettings,
     getCommonRoutes,
     getLicenceClasses,
     getTruckTypes,
