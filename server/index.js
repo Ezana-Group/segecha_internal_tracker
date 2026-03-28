@@ -541,7 +541,7 @@ app.get('/api/tracker/data', adminAuth, restrictTo('admin', 'superadmin'), async
 
 // Database Configuration
 const DB_TABLES = [
-    'admins', 'superadmins', 'trucks', 'trailers', 'drivers',
+    'admins', 'trucks', 'trailers', 'drivers',
     'staff', 'customers', 'journeys', 'fuel_logs', 'expenses',
     'invoices', 'payroll', 'maintenance_logs', 'tyre_logs',
     'incidents', 'documents', 'system_settings', 'staff_auth', 'driver_auth'
@@ -1231,7 +1231,7 @@ app.post('/api/admin/settings', adminAuth, restrictTo('admin', 'superadmin'), as
     }
 });
 
-app.post('/api/tracker/data', async (req, res) => {
+app.post('/api/tracker/data', adminAuth, restrictTo('superadmin'), async (req, res) => {
     // Handle both { data: {...} } and {...} direct payloads
     const syncData = req.body.data || req.body;
     try {

@@ -140,11 +140,13 @@ async function upsertEntity(table, item) {
         (typeof v === 'object' && v !== null) ? JSON.stringify(v) : v
     );
 
+    if (keys.length === 0) return { success: true };
+
     const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
-    const updates = keys.map((k) => k === 'id' ? null : `${k} = EXCLUDED.${k}`).filter(Boolean).join(', ');
+    const updates = keys.map((k) => k === 'id' ? null : `"${k}" = EXCLUDED."${k}"`).filter(Boolean).join(', ');
 
     const query = `
-        INSERT INTO ${table} (${keys.join(', ')})
+        INSERT INTO "${table}" ("${keys.join('", "')}")
         VALUES (${placeholders})
         ON CONFLICT (id) DO UPDATE SET ${updates}
     `;
@@ -387,10 +389,12 @@ async function upsertEntityInTransaction(client, table, item) {
 
     const keys = Object.keys(finalData);
     const values = Object.values(finalData).map(v => (typeof v === 'object' && v !== null) ? JSON.stringify(v) : v);
-    const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
-    const updates = keys.map((k) => k === 'id' ? null : `${k} = EXCLUDED.${k}`).filter(Boolean).join(', ');
+    if (keys.length === 0) return; // Nothing to insert/update for this item
 
-    const query = `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders}) ON CONFLICT (id) DO UPDATE SET ${updates}`;
+    const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
+    const updates = keys.map((k) => k === 'id' ? null : `"${k}" = EXCLUDED."${k}"`).filter(Boolean).join(', ');
+
+    const query = `INSERT INTO "${table}" ("${keys.join('", "')}") VALUES (${placeholders}) ON CONFLICT (id) DO UPDATE SET ${updates}`;
 
     if (table === 'invoices') {
         const existingRes = await client.query('SELECT status FROM invoices WHERE id = $1', [finalData.id]);

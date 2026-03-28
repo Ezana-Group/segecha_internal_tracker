@@ -161,11 +161,9 @@ export function Sidebar({ sideOpen, setSideOpen, isMobile, tyreAlertCount, reset
                         <div className="sidebar-stat-value">{inTransitCount}</div>
                     </div>
                 </div>
-                {!previewMode ? (
-                    <button type="button" className="sidebar-meta-btn" onClick={resetData}>
-                        Reset demo data
-                    </button>
-                ) : null}
+                <div className="mt-4 pt-4 border-t border-gray-100 space-y-2">
+                    {/* Reset button removed for production safety */}
+                </div>
             </div>
         </aside>
     );
