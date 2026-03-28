@@ -103,7 +103,7 @@ CREATE TABLE IF NOT EXISTS journeys (
 -- 5. Financials
 CREATE TABLE IF NOT EXISTS fuel_logs (
     id TEXT PRIMARY KEY,
-    journey_id TEXT REFERENCES journeys(id),
+    journey_id TEXT REFERENCES journeys(id) ON DELETE CASCADE,
     truck_id TEXT REFERENCES trucks(id),
     date DATE,
     amount DECIMAL(12,2),
@@ -119,7 +119,7 @@ CREATE TABLE IF NOT EXISTS fuel_logs (
 
 CREATE TABLE IF NOT EXISTS expenses (
     id TEXT PRIMARY KEY,
-    journey_id TEXT REFERENCES journeys(id),
+    journey_id TEXT REFERENCES journeys(id) ON DELETE CASCADE,
     category TEXT,
     amount DECIMAL(12,2),
     date DATE,
@@ -134,7 +134,7 @@ CREATE TABLE IF NOT EXISTS expenses (
 CREATE TABLE IF NOT EXISTS invoices (
     id TEXT PRIMARY KEY,
     customer_id TEXT REFERENCES customers(id),
-    journey_id TEXT REFERENCES journeys(id),
+    journey_id TEXT REFERENCES journeys(id) ON DELETE CASCADE,
     amount DECIMAL(12,2),
     status TEXT DEFAULT 'Pending',
     due_date DATE,
@@ -178,7 +178,7 @@ CREATE TABLE IF NOT EXISTS tyre_logs (
 
 CREATE TABLE IF NOT EXISTS incidents (
     id TEXT PRIMARY KEY,
-    journey_id TEXT REFERENCES journeys(id),
+    journey_id TEXT REFERENCES journeys(id) ON DELETE CASCADE,
     type TEXT,
     severity TEXT,
     description TEXT,
