@@ -24,6 +24,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
 const app = express();
+app.set('trust proxy', true);
 const PORT = process.env.PORT;
 if (!PORT) console.warn('WARNING: PORT not set, some environments may fail to bind.');
 
@@ -198,7 +199,7 @@ console.log(`[SERVER] Static paths resolved at ${new Date().toISOString()}:`);
 // --- PUBLIC FRONTEND & STATIC ASSETS ---
 // Domain-based static serving (for driver.segecha.com, track.segecha.com etc)
 app.use((req, res, next) => {
-    const host = req.hostname || '';
+    const host = (req.hostname || req.get('host') || '').toLowerCase();
     if (host.startsWith('driver.')) return express.static(DRIVER_DIST)(req, res, next);
     if (host.startsWith('track.')) return express.static(TRACK_DIST)(req, res, next);
     if (host.startsWith('pay.') || host.startsWith('payment.')) return express.static(PAY_DIST)(req, res, next);
@@ -215,7 +216,7 @@ app.use((req, res, next) => {
     if (req.method !== 'GET') return next();
     if (req.path.startsWith('/api/')) return next();
 
-    const host = req.hostname || '';
+    const host = (req.hostname || req.get('host') || '').toLowerCase();
 
     // Determine dist path based on hostname or path prefix
     let distPath = ADMIN_DIST;
