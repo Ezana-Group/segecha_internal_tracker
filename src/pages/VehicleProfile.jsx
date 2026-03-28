@@ -56,11 +56,11 @@ export function VehicleProfile({ data, setData, dark, isMobile, openModal, maint
     // ── Per-truck data
     const truckJourneys  = data.journeys.filter(j => j.truck === truck.id).sort((a,b) => b.date.localeCompare(a.date));
     const truckFuel      = data.fuel.filter(f => f.truck === truck.id).sort((a,b) => b.date.localeCompare(a.date));
-    const truckExpenses  = data.expenses.filter(e => e.truck === truck.id);
+    const truckExpenses  = data.expenses.filter(e => e.truck === truck.id && e.cat !== 'Fuel');
     const truckRevenue   = truckJourneys.reduce((s, j) => s + +j.revenue, 0);
     const truckFuelCost  = truckFuel.reduce((s, f) => s + (f.litres * f.pricePerL), 0);
     const truckMaintCost = truckExpenses.filter(e => e.cat === 'Maintenance').reduce((s, e) => s + +e.amount, 0);
-    const truckTotalCost = truckExpenses.reduce((s, e) => s + +e.amount, 0);
+    const truckTotalCost = truckExpenses.reduce((s, e) => s + +e.amount, 0) + truckFuelCost;
     const truckProfit    = truckRevenue - truckTotalCost;
     const totalKm        = truckJourneys.reduce((s, j) => s + +j.distance, 0);
     const totalLitres    = truckFuel.reduce((s, f) => s + +f.litres, 0);
@@ -407,7 +407,7 @@ export function VehicleProfile({ data, setData, dark, isMobile, openModal, maint
                         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: 24, marginBottom: 40 }}>
                             {[
                                 ['Operational Revenue', truckRevenue, '#10b981'], 
-                                ['Total Direct Costs', truckTotalCost, '#ef4444'], 
+                                ['Direct Operational Costs', truckTotalCost, '#ef4444'], 
                                 ['Net Performance', truckProfit, truckProfit >= 0 ? '#3b82f6' : '#ef4444'], 
                                 ['Fuel Expenditure', truckFuelCost, '#f97316'], 
                                 ['Repair & Maintenance', truckMaintCost, '#f59e0b'], 

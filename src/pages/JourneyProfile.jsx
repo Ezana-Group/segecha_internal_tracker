@@ -51,7 +51,7 @@ export function JourneyProfile({
 
     // ── Related data
     const relatedFuel = data.fuel.filter(f => f.journey === journey.id);
-    const relatedExpenses = data.expenses.filter(e => e.journey === journey.id);
+    const relatedExpenses = data.expenses.filter(e => e.journey === journey.id && e.cat !== 'Fuel');
     const totalExpenses = relatedExpenses.reduce((s, e) => s + +e.amount, 0);
     const totalFuelCost = relatedFuel.reduce((s, f) => s + (f.litres * f.pricePerL), 0);
     const totalVariableCosts = totalExpenses + totalFuelCost + Number(journey.driverMileage || 0) + Number(journey.turnboyMileage || 0);
@@ -483,7 +483,7 @@ export function JourneyProfile({
                         <h3 style={{ fontSize: 18, fontWeight: 800, color: "var(--text-primary)", marginBottom: 20 }}>Expenses</h3>
                         {relatedExpenses.length === 0 ? (
                             <div style={{ color: "var(--text-dim)", padding: 60, textAlign: 'center', background: "var(--bg-surface)", borderRadius: 20, border: "1px dotted var(--border-subtle)" }}>
-                                No expenses recorded for this trip.
+                                No other operational expenses recorded for this trip.
                             </div>
                         ) : (
                             <div style={{ display: 'grid', gap: 12 }}>
