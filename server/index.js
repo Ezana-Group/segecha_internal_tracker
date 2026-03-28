@@ -2,18 +2,8 @@ const path = require('path');
 const { existsSync, writeFileSync } = require('fs');
 const AdmZip = require('adm-zip');
 
-// Load environment variables from both root and server directory
-// server/.env takes precedence for backend-specific configs
-const envPaths = [
-    path.join(__dirname, '.env'),
-    path.join(__dirname, '../.env')
-];
-
-envPaths.forEach(envPath => {
-    if (existsSync(envPath)) {
-        require('dotenv').config({ path: envPath, override: true });
-    }
-});
+// Load environment variables from project root
+require('dotenv').config({ path: path.join(__dirname, '..', '.env'), override: true });
 
 const express = require('express');
 const cors = require('cors');
@@ -415,7 +405,7 @@ async function autoSeed() {
             ON CONFLICT (key) DO NOTHING
         `, [JSON.stringify(process.env.COMPANY_NAME), JSON.stringify(process.env.EMAIL_FROM)]);
 
-        console.log(`[SEED] SUCCESS: Superadmin created (${initialAdminEmail}). Password is your ADMIN_KEY.`);
+        console.log(`[SEED] SUCCESS: Superadmin created (${initialAdminEmail}). Password is set from INITIAL_ADMIN_PASSWORD.`);
     } catch (e) {
         console.warn('[SEED] Skipping auto-seed (likely DB not ready):', e.message);
     }
