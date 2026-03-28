@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { Search, Package, MapPin, Clock, ArrowRight, ShieldCheck, Box } from 'lucide-react';
 
 const API = import.meta.env.VITE_API_URL;
+const LANDING_URL = import.meta.env.VITE_LANDING_URL || 'https://segecha.com';
+const ADMIN_URL = import.meta.env.VITE_ADMIN_URL || 'https://app.segecha.com';
 
 const COLORS = {
   primary: '#1B3A6B',
@@ -169,9 +171,9 @@ export default function TrackApp() {
         <div style={S.container}>
           <p>© {new Date().getFullYear()} Group Ltd. All rights reserved.</p>
           <div style={S.footerLinks}>
-            <a href="https://example.com" style={S.fLink}>Landing Page</a>
+            <a href={LANDING_URL} style={S.fLink}>Landing Page</a>
             <span style={{ opacity: 0.3 }}>|</span>
-            <a href="https://app.example.com" style={S.fLink}>Admin Login</a>
+            <a href={ADMIN_URL} style={S.fLink}>Admin Login</a>
           </div>
         </div>
       </footer>
