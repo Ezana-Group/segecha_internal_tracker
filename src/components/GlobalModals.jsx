@@ -763,36 +763,49 @@ export function GlobalModals(props) {
 
         const getEffectiveRates = (origin, dest) => {
             const routes = _S.routes || [];
+            const isIntl = !!form.isInternational || (dest?.toLowerCase().includes('uganda') || dest?.toLowerCase().includes('tanzania') || 
+                                   dest?.toLowerCase().includes('rwanda') || dest?.toLowerCase().includes('malaba') || 
+                                   dest?.toLowerCase().includes('busia') || dest?.toLowerCase().includes('namanga'));
+            const isRet = !!form.returningEmpty;
+
+            // 1. Road User Allowance (calculated first, independent of specific route rates)
+            let roadUserAllowance = 0;
+            if (isRet) {
+                const retRua = _S.roadUserAllowanceReturn;
+                roadUserAllowance = (retRua === null || retRua === undefined || retRua === "") ? 0 : Number(retRua);
+            } else {
+                roadUserAllowance = Number(_S.roadUserAllowance) || 0;
+            }
+
+            // 2. Route Override (Normal Routes defined in settings)
             const match = routes.find(r => 
                 (r.origin?.toLowerCase() === origin?.toLowerCase() && r.dest?.toLowerCase() === dest?.toLowerCase()) ||
                 (r.origin?.toLowerCase() === dest?.toLowerCase() && r.dest?.toLowerCase() === origin?.toLowerCase())
             );
 
             if (match) {
-                const dRate = (typeof match.driverRate === 'number') ? match.driverRate : DRIVER_PER_KM;
-                const tRate = (typeof match.turnboyRate === 'number') ? match.turnboyRate : TURNBOY_PER_KM;
-                return { driver: dRate, turnboy: tRate, isFlatRate: false, source: "Route Override" };
+                const dRate = isRet ? (Number(match.returnDriverRate) || Number(match.driverRate) || DRIVER_PER_KM) : (Number(match.driverRate) || DRIVER_PER_KM);
+                const tRate = isRet ? (Number(match.returnTurnboyRate) || Number(match.turnboyRate) || TURNBOY_PER_KM) : (Number(match.turnboyRate) || TURNBOY_PER_KM);
+                return { driver: dRate, turnboy: tRate, isFlatRate: false, source: isRet ? "Route Override (Ret)" : "Route Override", roadUserAllowance, isOverride: true };
             }
 
-            const isInternational = (dest?.toLowerCase().includes('uganda') || dest?.toLowerCase().includes('tanzania') || 
-                                   dest?.toLowerCase().includes('rwanda') || dest?.toLowerCase().includes('malaba') || 
-                                   dest?.toLowerCase().includes('busia') || dest?.toLowerCase().includes('namanga'));
-            
-            if (isInternational) {
-                const fD = _S.flatRateOutsideDriver;
-                const fT = _S.flatRateOutsideTurnboy;
+            // 3. Flat Rates (International vs Domestic / Standard vs Return)
+            if (isIntl) {
+                const fD = isRet ? _S.flatRateOutsideDriverReturn : _S.flatRateOutsideDriver;
+                const fT = isRet ? _S.flatRateOutsideTurnboyReturn : _S.flatRateOutsideTurnboy;
                 if (typeof fD === 'number' && fD > 0) {
-                    return { driver: fD, turnboy: fT || 0, isFlatRate: true, source: "Intl Flat Rate" };
+                    return { driver: fD, turnboy: fT || 0, isFlatRate: true, source: isRet ? "Intl Return Flat" : "Intl Flat Rate", roadUserAllowance };
                 }
             } else {
-                const fD = _S.flatRateInsideDriver;
-                const fT = _S.flatRateInsideTurnboy;
+                const fD = isRet ? _S.flatRateInsideDriverReturn : _S.flatRateInsideDriver;
+                const fT = isRet ? _S.flatRateInsideTurnboyReturn : _S.flatRateInsideTurnboy;
                 if (typeof fD === 'number' && fD > 0) {
-                    return { driver: fD, turnboy: fT || 0, isFlatRate: true, source: "Dom Flat Rate" };
+                    return { driver: fD, turnboy: fT || 0, isFlatRate: true, source: isRet ? "Dom Return Flat" : "Dom Flat Rate", roadUserAllowance };
                 }
             }
 
-            return { driver: DRIVER_PER_KM, turnboy: TURNBOY_PER_KM, isFlatRate: false, source: "Standard Per KM" };
+            // 4. Standard Fallback (Per KM)
+            return { driver: DRIVER_PER_KM, turnboy: TURNBOY_PER_KM, isFlatRate: false, source: "Standard Per KM", roadUserAllowance };
         };
 
         const onSave = async () => {
@@ -813,19 +826,12 @@ export function GlobalModals(props) {
 
             const routeChanged = (existing?.origin !== form.origin || existing?.dest !== form.dest);
             const distChanged = (existing?.distance !== form.distance);
+            const statusChanged = (existing?.isInternational !== form.isInternational || existing?.returningEmpty !== form.returningEmpty);
 
-            if (wasNew || routeChanged || distChanged) {
+            if (wasNew || routeChanged || distChanged || statusChanged) {
                 driverMileage = rates.isFlatRate ? rates.driver : Math.round(dist * rates.driver);
                 turnboyMileage = rates.isFlatRate ? rates.turnboy : Math.round(dist * rates.turnboy);
-                
-                // Road User Allowance logic
-                if (form.returningEmpty) {
-                    const retRua = _S.roadUserAllowanceReturn;
-                    roadUserAllowance = (retRua === null || retRua === undefined || retRua === "") ? 0 : +retRua;
-                } else {
-                    roadUserAllowance = Number(_S.roadUserAllowance) || 0;
-                }
-                
+                roadUserAllowance = rates.roadUserAllowance || 0;
                 rateUsed = `${rates.driver}${rates.isFlatRate ? ' flat' : '/km'} (${rates.source})`;
             }
             
@@ -838,8 +844,8 @@ export function GlobalModals(props) {
                 driverMileage,
                 turnboyMileage,
                 roadUserAllowance,
-                mileageRouteOverride: (wasNew || routeChanged || distChanged) ? rates.isOverride : !!form.mileageRouteOverride,
-                isFlatRate: (wasNew || routeChanged || distChanged) ? rates.isFlatRate : !!form.isFlatRate
+                mileageRouteOverride: (wasNew || routeChanged || distChanged || statusChanged) ? rates.isOverride : !!form.mileageRouteOverride,
+                isFlatRate: (wasNew || routeChanged || distChanged || statusChanged) ? rates.isFlatRate : !!form.isFlatRate
             };
 
             try {
@@ -1165,7 +1171,7 @@ export function GlobalModals(props) {
                                                         {rates.isOverride && <span style={{ background: 'var(--brand-primary)15', color: 'var(--brand-primary)', padding: '2px 6px', borderRadius: 6, fontSize: 9 }}>ROUTE RATE</span>}
                                                     </div>
                                                     <div style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 500 }}>
-                                                        {rates.isFlatRate ? "International/Domestic Flat Rate" : `${Number(form.distance).toLocaleString()} km @ ${fmt(rates.driver)}/km`}
+                                                        {rates.isFlatRate ? rates.source : `${Number(form.distance).toLocaleString()} km @ ${fmt(rates.driver)}/km`}
                                                     </div>
                                                 </div>
                                                 <div style={{ fontSize: 18, fontWeight: 900, color: "var(--brand-primary)" }}>{fmt(allowance)}</div>
