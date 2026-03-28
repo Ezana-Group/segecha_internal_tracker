@@ -1175,21 +1175,130 @@ export function useAppState() {
                     const session = {
                         fileName: file.name,
                         parsedAt: new Date().toISOString(),
-                        sheets: {
-                            trips: { valid: [], errors: [] },
-                            expenses: { valid: [], errors: [] },
-                            maintenance: { valid: [], errors: [] },
-                        },
+                        sheets: {},
                         committed: false,
+                        isUniversal: false
                     };
 
+                    const UNIVERSAL_SHEETS = {
+                        'Journeys': 'journeys',
+                        'Invoices': 'invoices',
+                        'Expenses': 'expenses',
+                        'Fuel Logs': 'fuel',
+                        'Payroll': 'payroll',
+                        'Trucks': 'trucks',
+                        'Trailers': 'trailers',
+                        'Maintenance': 'maintenance',
+                        'Customers': 'customers',
+                        'Employees': 'employees'
+                    };
+
+                    const UNIVERSAL_MAPS = {
+                        'journeys': {
+                            id: 'Mission ID', date: 'Date', origin: 'Origin', dest: 'Destination',
+                            customerId: 'Customer', deliveryCustomerId: 'Delivery To',
+                            truck: 'Vehicle', driver: 'Driver', turnboyId: 'Turnboy',
+                            distance: 'Distance (KM)', revenue: 'Revenue', status: 'Status',
+                            cargo: 'Cargo', waybillNo: 'Waybill'
+                        },
+                        'expenses': {
+                            id: 'Exp ID', date: 'Date', truck: 'Vehicle', cat: 'Category',
+                            subCat: 'Sub-Category', desc: 'Description', amount: 'Amount',
+                            status: 'Status'
+                        },
+                        'fuel': {
+                            id: 'Log ID', date: 'Date', truck: 'Vehicle', driver: 'Driver',
+                            litres: 'Litres', pricePerL: 'Price/L', amount: 'Amount (KES)',
+                            station: 'Station', status: 'Status'
+                        },
+                        'trucks': {
+                            id: 'ID', reg: 'Registration', make: 'Make/Model', year: 'Year',
+                            odom: 'Odometer (KM)', status: 'Status', driver: 'Driver',
+                            insuranceDue: 'Insurance Due', ntsaDue: 'NTSA Due'
+                        },
+                        'trailers': {
+                            id: 'ID', reg: 'Registration', type: 'Type', make: 'Make',
+                            status: 'Status', truck: 'Assigned Truck'
+                        },
+                        'maintenance': {
+                            date: 'Date', truck: 'Vehicle', type: 'Type', desc: 'Description',
+                            cost: 'Cost', odom: 'Odometer'
+                        },
+                        'invoices': {
+                            id: 'Invoice ID', customerId: 'Customer', date: 'Date',
+                            dueDate: 'Due Date', amount: 'Amount', paidAmount: 'Paid Amount',
+                            status: 'Status'
+                        },
+                        'customers': {
+                            id: 'ID', name: 'Name', contactPerson: 'Contact Person',
+                            phone: 'Phone', email: 'Email', address: 'Address'
+                        },
+                        'employees': {
+                            id: 'ID', name: 'Name', role: 'Role', phone: 'Phone',
+                            mpesa: 'M-Pesa', idNo: 'ID No'
+                        }
+                    };
+
+                    // 1. Check if it's a Universal Sync file (contains any of the universal sheet names)
+                    const foundUniversalSheets = wb.SheetNames.filter(name => UNIVERSAL_SHEETS[name]);
+                    if (foundUniversalSheets.length > 0) {
+                        session.isUniversal = true;
+                        foundUniversalSheets.forEach(sName => {
+                            const tableKey = UNIVERSAL_SHEETS[sName];
+                            const sheet = wb.Sheets[sName];
+                            const rows = window.XLSX.utils.sheet_to_json(sheet, { defval: null, raw: false });
+                            const map = UNIVERSAL_MAPS[tableKey];
+
+                            session.sheets[tableKey] = { valid: [], errors: [], label: sName };
+
+                            rows.forEach((row, idx) => {
+                                const mapped = {
+                                    _rowNum: idx + 2,
+                                    _sheetName: sName,
+                                    errors: [],
+                                    warnings: [],
+                                    accepted: true,
+                                    edited: false
+                                };
+
+                                // Apply generic mapping
+                                Object.entries(map).forEach(([dbField, excelHeader]) => {
+                                    mapped[dbField] = row[excelHeader] ?? '';
+                                });
+
+                                // ID consistency (Support both id and uId if present)
+                                mapped.uId = mapped.id; 
+
+                                // Basic validation (presence check for key fields)
+                                if (!mapped.id && tableKey !== 'maintenance') {
+                                    // Maintenance might not have IDs in the export yet
+                                }
+
+                                // Field resolution (Name -> ID)
+                                if (mapped.truck) {
+                                    const t = findTruckByReg(mapped.truck);
+                                    if (t) mapped.truckId = t.id;
+                                    else if (mapped.truck.includes('-')) { /* likely already an ID */ }
+                                }
+                                if (mapped.driver) {
+                                    const d = data.drivers?.find(x => x.name === mapped.driver || x.id === mapped.driver);
+                                    if (d) mapped.driverId = d.id;
+                                }
+
+                                session.sheets[tableKey].valid.push(mapped);
+                            });
+                        });
+                    }
+
+                    // 2. Fallback to Legacy/Hardcoded sheets if not handled as Universal or if specific sheets exist
                     const tripsSheet = wb.Sheets['Trips_2025'];
-                    if (tripsSheet) {
+                    if (tripsSheet && !session.sheets.journeys) {
+                        if (!session.sheets.trips) session.sheets.trips = { valid: [], errors: [], label: 'Trips' };
                         const rows = window.XLSX.utils.sheet_to_json(tripsSheet, {
                             header: 1, defval: null, raw: false, dateNF: 'yyyy-mm-dd'
                         });
 
-                        const headers = rows[1] || []; // Headers are on row 2 (index 1)
+                        const headers = rows[1] || []; 
                         const hMap = (rawHeaders, aliases) => {
                             const map = {};
                             rawHeaders.forEach((h, i) => {
@@ -1226,20 +1335,13 @@ export function useAppState() {
                             const get = (field) => row[col[field]] ?? null;
 
                             const rawRow = {
-                                vehicle: get('vehicle'),
-                                date: get('date'),
-                                origin: get('origin'),
-                                destination: get('destination'),
-                                startOdo: get('startOdo'),
-                                endOdo: get('endOdo'),
-                                standardDist: get('standardDist'),
-                                grossIncome: get('grossIncome'),
-                                fuelLitres: get('fuelLitres'),
-                                fuelPrice: get('fuelPrice'),
-                                driverMileage: get('driverMileage'),
-                                turnboy: get('turnboy'),
-                                roadUsers: get('roadUsers'),
-                                otherExp: get('otherExp'),
+                                vehicle: get('vehicle'), date: get('date'),
+                                origin: get('origin'), destination: get('destination'),
+                                startOdo: get('startOdo'), endOdo: get('endOdo'),
+                                standardDist: get('standardDist'), grossIncome: get('grossIncome'),
+                                fuelLitres: get('fuelLitres'), fuelPrice: get('fuelPrice'),
+                                driverMileage: get('driverMileage'), turnboy: get('turnboy'),
+                                roadUsers: get('roadUsers'), otherExp: get('otherExp'),
                                 progressTrack: get('progressTrack'),
                             };
 
@@ -1292,7 +1394,8 @@ export function useAppState() {
                     }
 
                     const fixedSheet = wb.Sheets['Fixed_Expenses'];
-                    if (fixedSheet) {
+                    if (fixedSheet && !session.sheets.expenses) {
+                        if (!session.sheets.expenses) session.sheets.expenses = { valid: [], errors: [], label: 'Expenses' };
                         const rows = window.XLSX.utils.sheet_to_json(fixedSheet, { header: 1, defval: null, raw: true });
                         const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
                         const monthDates = months.map((_, i) => `2025-${String(i + 1).padStart(2, '0')}-01`);
@@ -1321,7 +1424,8 @@ export function useAppState() {
                     }
 
                     const maintSheet = wb.Sheets['Maintenance'];
-                    if (maintSheet) {
+                    if (maintSheet && !session.sheets.maintenance) {
+                        if (!session.sheets.maintenance) session.sheets.maintenance = { valid: [], errors: [], label: 'Maintenance' };
                         const rows = window.XLSX.utils.sheet_to_json(maintSheet, {
                             header: 1, defval: null, raw: false, dateNF: 'yyyy-mm-dd'
                         });
@@ -1373,9 +1477,53 @@ export function useAppState() {
     };
 
     const commitImport = async (session) => {
-        const allTrips = [...session.sheets.trips.valid, ...session.sheets.trips.errors].filter(r => r.accepted);
-        const allExpenses = [...session.sheets.expenses.valid, ...session.sheets.expenses.errors].filter(r => r.accepted);
-        const allMaint = [...session.sheets.maintenance.valid, ...session.sheets.maintenance.errors].filter(r => r.accepted);
+        if (session.isUniversal) {
+            const nextData = { ...data };
+            
+            Object.entries(session.sheets).forEach(([tableKey, sheet]) => {
+                const allRows = [...sheet.valid, ...sheet.errors].filter(r => r.accepted);
+                if (allRows.length === 0) return;
+
+                if (tableKey === 'employees') {
+                    // Split employees back into drivers, staff, turnboys
+                    allRows.forEach(row => {
+                        const targetTable = row.role === 'Driver' ? 'drivers' : 
+                                            row.role === 'Turnboy' ? 'turnboys' : 'staff';
+                        const list = [...(nextData[targetTable] || [])];
+                        const idx = list.findIndex(x => x.id === row.id || x.uId === row.id);
+                        const cleanRow = { ...row };
+                        delete cleanRow._rowNum; delete cleanRow._sheetName; delete cleanRow.errors; delete cleanRow.warnings; delete cleanRow.accepted; delete cleanRow.edited; delete cleanRow.role;
+
+                        if (idx >= 0) list[idx] = { ...list[idx], ...cleanRow };
+                        else list.push({ ...cleanRow, id: cleanRow.id || uid() });
+                        nextData[targetTable] = list;
+                    });
+                } else {
+                    const list = [...(nextData[tableKey] || [])];
+                    allRows.forEach(row => {
+                        const idx = list.findIndex(x => x.id === row.id || (row.uId && x.uId === row.uId));
+                        const cleanRow = { ...row };
+                        // Remove UI-only fields
+                        delete cleanRow._rowNum; delete cleanRow._sheetName; delete cleanRow.errors; delete cleanRow.warnings; delete cleanRow.accepted; delete cleanRow.edited;
+
+                        if (idx >= 0) {
+                            list[idx] = { ...list[idx], ...cleanRow };
+                        } else {
+                            list.push({ ...cleanRow, id: cleanRow.id || uid() });
+                        }
+                    });
+                    nextData[tableKey] = list;
+                }
+            });
+
+            setData(nextData);
+            session.committed = true;
+            return;
+        }
+
+        const allTrips = (session.sheets.trips?.valid || []).concat(session.sheets.trips?.errors || []).filter(r => r.accepted);
+        const allExpenses = (session.sheets.expenses?.valid || []).concat(session.sheets.expenses?.errors || []).filter(r => r.accepted);
+        const allMaint = (session.sheets.maintenance?.valid || []).concat(session.sheets.maintenance?.errors || []).filter(r => r.accepted);
 
         const newJourneys = [];
         const newFuel = [];

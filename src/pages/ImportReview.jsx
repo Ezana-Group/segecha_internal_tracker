@@ -168,7 +168,7 @@ export const ImportReview = ({
 }) => {
     const session = importSession;
     const [view, setView] = useState('new'); // 'new' or 'history'
-    const [activeSheet, setActiveSheet] = useState('trips');
+    const [activeSheet, setActiveSheet] = useState(importSession?.isUniversal ? Object.keys(importSession.sheets)[0] : 'trips');
     const [showValidRows, setShowValidRows] = useState(false);
     const [importing, setImporting] = useState(false);
     const [importMsg, setImportMsg] = useState('');
@@ -176,6 +176,12 @@ export const ImportReview = ({
     const [uploadErr, setUploadErr] = useState('');
     const [dragging, setDragging] = useState(false);
     const navigate = useNavigate();
+
+    useEffect(() => {
+        if (session?.isUniversal && !session.sheets[activeSheet]) {
+            setActiveSheet(Object.keys(session.sheets)[0]);
+        }
+    }, [session, activeSheet]);
 
     // S styles might not be fully defined with tables, so providing fallbacks
     const sTable = { width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 13 };
@@ -333,15 +339,25 @@ export const ImportReview = ({
         );
     }
 
-    const sheets = {
-        trips:       { label: 'Trips',           data: session.sheets.trips },
-        expenses:    { label: 'Fixed Expenses',   data: session.sheets.expenses },
-        maintenance: { label: 'Maintenance',      data: session.sheets.maintenance },
+    const getUISheets = () => {
+        if (session.isUniversal) {
+            const out = {};
+            Object.entries(session.sheets).forEach(([k, s]) => {
+                out[k] = { label: s.label || k, data: s };
+            });
+            return out;
+        }
+        return {
+            trips:       { label: 'Trips',           data: session.sheets.trips || { valid: [], errors: [] } },
+            expenses:    { label: 'Expenses',        data: session.sheets.expenses || { valid: [], errors: [] } },
+            maintenance: { label: 'Maintenance',      data: session.sheets.maintenance || { valid: [], errors: [] } },
+        };
     };
 
-    const currentSheet = sheets[activeSheet].data;
-    const errorRows    = currentSheet.errors;
-    const validRows    = currentSheet.valid;
+    const sheets = getUISheets();
+    const currentSheet = sheets[activeSheet]?.data || { valid: [], errors: [] };
+    const errorRows    = currentSheet.errors || [];
+    const validRows    = currentSheet.valid || [];
     const allRows      = [...errorRows, ...(showValidRows ? validRows : [])];
 
     const totalAccepted = Object.values(session.sheets).reduce((sum, sh) =>
@@ -349,8 +365,10 @@ export const ImportReview = ({
     const totalErrors   = Object.values(session.sheets).reduce((sum, sh) => sum + sh.errors.length, 0);
     const totalValid    = Object.values(session.sheets).reduce((sum, sh) => sum + sh.valid.length, 0);
 
-    const rowMatchesId = (sheetKey, r, rowId) =>
-        sheetKey === 'trips' ? r.journeyId === rowId : r.expenseId === rowId;
+    const rowMatchesId = (sheetKey, r, rowId) => {
+        if (r.id === rowId || r.uId === rowId || r.journeyId === rowId || r.expenseId === rowId) return true;
+        return false;
+    };
 
     const updateRow = (sheetKey, rowId, field, value) => {
         setImportSession((prev) => {
@@ -462,56 +480,46 @@ export const ImportReview = ({
     const inputStyle = { width: '100%', height: 32, background: 'var(--surface-subtle)', border: '1px solid var(--border-medium)', borderRadius: 6, padding: '0 8px', fontSize: 12, color: 'var(--text-primary)', fontFamily: 'inherit' };
     const errorBorderStyle = '1px solid #ef4444';
 
-    const TripRow = ({ row }) => {
+    const GenericRow = ({ row, sheetKey }) => {
         const hasError = row.errors.length > 0;
+        const columns = Object.keys(row).filter(k => !k.startsWith('_') && !['errors', 'warnings', 'accepted', 'edited', 'id', 'uId', 'journeyId', 'expenseId', 'truckId', 'driverId'].includes(k));
+        
+        const rowId = row.id || row.uId || row.journeyId || row.expenseId;
+
         return (
             <tr style={{ background: !row.accepted ? 'var(--bg-main)' : hasError ? 'rgba(239, 68, 68, 0.05)' : 'transparent', opacity: row.accepted ? 1 : 0.5 }}>
                 <td style={{ ...sTd, fontSize: 11, color: 'var(--text-dim)', fontFamily: "'DM Mono', monospace", width: 50 }}>
                     {row._rowNum}
                     {row.edited && <span style={{ color: '#f59e0b', marginLeft: 4, fontSize: 10 }}>✎</span>}
                 </td>
-                <td style={{ ...sTd, width: 200 }}>
+                <td style={{ ...sTd, minWidth: 150 }}>
                     {row.errors.map((e, i) => <div key={i} style={{ fontSize: 10, color: '#ef4444', marginBottom: 2 }}><b>{e.field}:</b> {e.msg}</div>)}
                     {row.warnings.map((w, i) => <div key={i} style={{ fontSize: 10, color: '#f59e0b', marginBottom: 2 }}><b>{w.field}:</b> {w.msg}</div>)}
                     {row.errors.length === 0 && row.warnings.length === 0 && <span style={{ fontSize: 10, color: '#22c55e' }}>Valid</span>}
                 </td>
-                <td style={sTd}>
-                    <select style={{ ...inputStyle, border: row.errors.some(e=>e.field==='Vehicle') ? errorBorderStyle : inputStyle.border }}
-                        value={row.truck || ''} onChange={e => updateRow(activeSheet, row.journeyId, 'truck', e.target.value)}>
-                        <option value="">{row._rawVehicle || 'Select truck…'}</option>
-                        {data?.trucks?.map(t => <option key={t.id} value={t.id}>{t.reg}</option>)}
-                    </select>
-                </td>
-                <td style={sTd}>
-                    <input type="date" style={{ ...inputStyle, border: row.errors.some(e=>e.field==='Date') ? errorBorderStyle : inputStyle.border }}
-                        value={row.date || ''} onChange={e => updateRow(activeSheet, row.journeyId, 'date', e.target.value)} />
-                </td>
-                <td style={sTd}>
-                    <input style={{ ...inputStyle, border: row.errors.some(e=>e.field==='Origin') ? errorBorderStyle : inputStyle.border }}
-                        value={row.origin || ''} onChange={e => updateRow(activeSheet, row.journeyId, 'origin', e.target.value)} />
-                </td>
-                <td style={sTd}>
-                    <input style={{ ...inputStyle, border: row.errors.some(e=>e.field==='Destination') ? errorBorderStyle : inputStyle.border }}
-                        value={row.dest || ''} onChange={e => updateRow(activeSheet, row.journeyId, 'dest', e.target.value)} />
-                </td>
-                <td style={sTd}>
-                    <input type="number" style={{ ...inputStyle, width: 80, border: row.errors.some(e=>e.field==='Standard Distance') ? errorBorderStyle : inputStyle.border }}
-                        value={row.distance || ''} onChange={e => updateRow(activeSheet, row.journeyId, 'distance', +e.target.value)} />
-                </td>
-                <td style={sTd}>
-                    <input type="number" style={{ ...inputStyle, width: 100, border: row.errors.some(e=>e.field==='Gross Income') ? errorBorderStyle : inputStyle.border }}
-                        value={row.revenue || ''} onChange={e => updateRow(activeSheet, row.journeyId, 'revenue', +e.target.value)} />
-                </td>
-                <td style={{ ...sTd, fontSize: 11, color: 'var(--text-dim)' }}>
-                    {row.hasFuel ? `${row.fuelLitres}L @ ${row.fuelPrice}` : '—'}
-                </td>
-                <td style={sTd}>
-                    <select style={inputStyle} value={row.status} onChange={e => updateRow(activeSheet, row.journeyId, 'status', e.target.value)}>
-                        {['Completed', 'In Transit', 'Loading', 'Cancelled'].map(s => <option key={s}>{s}</option>)}
-                    </select>
-                </td>
+                {columns.map(col => (
+                    <td key={col} style={sTd}>
+                        {col === 'truck' || col === 'Vehicle' ? (
+                            <select style={inputStyle} value={row.truckId || row.truck || ''} onChange={e => updateRow(sheetKey, rowId, 'truck', e.target.value)}>
+                                <option value="">{row.truck || 'Select truck…'}</option>
+                                {data?.trucks?.map(t => <option key={t.id} value={t.id}>{t.reg}</option>)}
+                            </select>
+                        ) : col === 'driver' || col === 'Driver' ? (
+                            <select style={inputStyle} value={row.driverId || row.driver || ''} onChange={e => updateRow(sheetKey, rowId, 'driver', e.target.value)}>
+                                <option value="">{row.driver || 'Select driver…'}</option>
+                                {data?.drivers?.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                            </select>
+                        ) : (
+                            <input 
+                                style={{ ...inputStyle, minWidth: 80 }} 
+                                value={row[col] ?? ''} 
+                                onChange={e => updateRow(sheetKey, rowId, col, e.target.value)} 
+                            />
+                        )}
+                    </td>
+                ))}
                 <td style={{ ...sTd, textAlign: 'center' }}>
-                    <Button variant={row.accepted ? 'success' : 'ghost'} size="sm" onClick={() => toggleAccept(activeSheet, row.journeyId, !row.accepted)}>
+                    <Button variant={row.accepted ? 'success' : 'ghost'} size="sm" onClick={() => toggleAccept(sheetKey, rowId, !row.accepted)}>
                         {row.accepted ? 'Accept' : 'Skipped'}
                     </Button>
                 </td>
@@ -519,54 +527,22 @@ export const ImportReview = ({
         );
     };
 
-    const ExpenseRow = ({ row }) => {
-        const hasError = row.errors.length > 0;
-        return (
-            <tr style={{ background: !row.accepted ? 'var(--bg-main)' : hasError ? 'rgba(239, 68, 68, 0.05)' : 'transparent', opacity: row.accepted ? 1 : 0.5 }}>
-                <td style={{ ...sTd, fontSize: 11, color: 'var(--text-dim)', fontFamily: "'DM Mono', monospace", width: 50 }}>
-                    {row._rowNum}
-                    {row._monthName && <span style={{ color: '#3b82f6', marginLeft: 4 }}>{row._monthName}</span>}
-                    {row.edited && <span style={{ color: '#f59e0b', marginLeft: 4, fontSize: 10 }}>✎</span>}
-                </td>
-                <td style={{ ...sTd, width: 200 }}>
-                    {row.errors.map((e, i) => <div key={i} style={{ fontSize: 10, color: '#ef4444', marginBottom: 2 }}><b>{e.field}:</b> {e.msg}</div>)}
-                    {row.errors.length === 0 && <span style={{ fontSize: 10, color: '#22c55e' }}>Valid</span>}
-                </td>
-                <td style={sTd}>
-                    <select style={inputStyle} value={row.truck || ''} onChange={e => updateRow(activeSheet, row.expenseId, 'truck', e.target.value)}>
-                        <option value="">{row._rawVehicle || 'Company-wide'}</option>
-                        {data?.trucks?.map(t => <option key={t.id} value={t.id}>{t.reg}</option>)}
-                    </select>
-                </td>
-                <td style={sTd}>
-                    <input type="date" style={{ ...inputStyle, border: row.errors.some(e=>e.field==='Date Undertaken'||e.field==='Date') ? errorBorderStyle : inputStyle.border }}
-                        value={row.date || ''} onChange={e => updateRow(activeSheet, row.expenseId, 'date', e.target.value)} />
-                </td>
-                <td style={sTd}>
-                    <input style={inputStyle} value={row.desc || ''} onChange={e => updateRow(activeSheet, row.expenseId, 'desc', e.target.value)} />
-                </td>
-                <td style={{ ...sTd }}>
-                    <span style={{ fontSize: 10, padding: '4px 8px', background: 'var(--brand-primary)15', color: 'var(--brand-primary)', borderRadius: 20, fontWeight: 700, textTransform: 'uppercase' }}>{row.cat}</span>
-                </td>
-                <td style={sTd}>
-                    <input type="number" style={{ ...inputStyle, width: 100, fontFamily: "'DM Mono', monospace", border: row.errors.some(e=>e.field==='Cost') ? errorBorderStyle : inputStyle.border }}
-                        value={row.amount || ''} onChange={e => updateRow(activeSheet, row.expenseId, 'amount', +e.target.value)} />
-                </td>
-                <td style={{ ...sTd, textAlign: 'center' }}>
-                    <Button variant={row.accepted ? 'success' : 'ghost'} size="sm" onClick={() => toggleAccept(activeSheet, row.expenseId, !row.accepted)}>
-                        {row.accepted ? 'Accept' : 'Skipped'}
-                    </Button>
-                </td>
-            </tr>
-        );
+    const getColumnsForSheet = () => {
+        const firstRow = allRows[0];
+        if (!firstRow) return [];
+        return Object.keys(firstRow).filter(k => !k.startsWith('_') && !['errors', 'warnings', 'accepted', 'edited', 'id', 'uId', 'journeyId', 'expenseId', 'truckId', 'driverId'].includes(k));
     };
+
+    const displayCols = getColumnsForSheet();
 
     return (
         <div style={{ paddingBottom: 100 }}>
             {/* Header */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 20 }}>
                 <div>
-                    <h1 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 4 }}>Import Review</h1>
+                    <h1 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 4 }}>
+                        {session.isUniversal ? 'Universal Sync Review' : 'Import Review'}
+                    </h1>
                     <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>
                         {session.fileName} · parsed {new Date(session.parsedAt).toLocaleTimeString('en-KE')}
                     </div>
@@ -585,7 +561,7 @@ export const ImportReview = ({
                     {importMsg}
                     {session.committed && (
                         <Button variant="ghost" size="sm" onClick={() => { navigate('/journeys'); setImportSession(null); }}>
-                            View imported journeys →
+                            View results →
                         </Button>
                     )}
                 </div>
@@ -606,7 +582,7 @@ export const ImportReview = ({
             </div>
 
             <div style={{ display: 'flex', borderBottom: `2px solid var(--border-subtle)`, marginBottom: 16 }}>
-                {Object.entries(sheets).map(([key, sh]) => {
+                {Object.entries(sheets).filter(([_, s]) => [...s.data.valid, ...s.data.errors].length > 0).map(([key, sh]) => {
                     const errCount = sh.data.errors.length;
                     const valCount = sh.data.valid.length;
                     const accCount = [...sh.data.valid, ...sh.data.errors].filter(r => r.accepted).length;
@@ -615,7 +591,7 @@ export const ImportReview = ({
                             style={{ padding: '12px 20px', border: 'none', borderBottom: activeSheet === key ? `3px solid var(--brand-primary)` : '3px solid transparent', background: 'none', fontSize: 14, cursor: 'pointer', color: activeSheet === key ? 'var(--brand-primary)' : 'var(--text-dim)', fontWeight: activeSheet === key ? 800 : 600, marginBottom: -2 }}
                             onClick={() => setActiveSheet(key)}>
                             {sh.label}
-                            {errCount > 0 && <span style={{ marginLeft: 8, fontSize: 10, padding: '2px 8px', background: '#ef4444', color: 'white', borderRadius: 12 }}>{errCount} errors</span>}
+                            {errCount > 0 && <span style={{ marginLeft: 8, fontSize: 10, padding: '2px 8px', background: '#ef4444', color: 'white', borderRadius: 12 }}>{errCount}</span>}
                             <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 8 }}>{accCount}/{valCount + errCount}</span>
                         </button>
                     );
@@ -623,63 +599,35 @@ export const ImportReview = ({
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', marginBottom: 16, flexWrap: 'wrap' }}>
-                <Button size="sm" variant="ghost" onClick={() => acceptAll(activeSheet)}>Accept all in this sheet</Button>
+                <Button size="sm" variant="ghost" onClick={() => acceptAll(activeSheet)}>Accept all</Button>
                 <Button size="sm" variant="ghost" onClick={() => discardAll(activeSheet)}>Discard all</Button>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text-secondary)', cursor: 'pointer', marginLeft: 8, fontWeight: 600 }}>
                     <input type="checkbox" checked={showValidRows} onChange={e => setShowValidRows(e.target.checked)} />
                     Show valid rows ({validRows.length})
                 </label>
-                <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text-dim)', fontWeight: 500 }}>
-                    {errorRows.length} error row{errorRows.length !== 1 ? 's' : ''} shown
-                    {showValidRows ? ` · ${validRows.length} valid rows shown` : ' · valid rows hidden'}
-                </span>
             </div>
 
             <Card style={{ overflow: 'hidden' }}>
                 {allRows.length === 0 ? (
                     <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-dim)' }}>
-                        <div style={{ marginBottom: 12, fontSize: 13, fontWeight: 600, color: "var(--text-muted)" }}>Complete</div>
                         <div style={{ fontWeight: 700, fontSize: 16 }}>
-                            {errorRows.length === 0 ? 'No errors in this sheet — all rows are valid.' : 'No rows to show with current filters.'}
+                            {errorRows.length === 0 ? 'No issues in this sheet.' : 'No rows to show.'}
                         </div>
-                        {!showValidRows && validRows.length > 0 && (
-                            <div style={{ fontSize: 13, marginTop: 8 }}>
-                                {validRows.length} valid rows hidden — check "Show valid rows" to see them.
-                            </div>
-                        )}
                     </div>
                 ) : (
                     <div className="table-container" style={{ overflowX: 'auto' }}>
-                        <table style={{ ...sTable, minWidth: activeSheet === 'trips' ? 1100 : 800 }}>
+                        <table style={{ ...sTable, minWidth: displayCols.length * 120 + 200 }}>
                             <thead>
-                                {activeSheet === 'trips' ? (
-                                    <tr>
-                                        {['Row', 'Validation', 'Truck', 'Date', 'Origin', 'Destination', 'Dist (km)', 'Rev (KES)', 'Fuel', 'Status', ''].map(h => (
-                                            <th key={h} style={sTh}>{h}</th>
-                                        ))}
-                                    </tr>
-                                ) : (
-                                    <tr>
-                                        {['Row', 'Validation', 'Truck', 'Date', 'Description', 'Category', 'Amount (KES)', ''].map(h => (
-                                            <th key={h} style={sTh}>{h}</th>
-                                        ))}
-                                    </tr>
-                                )}
+                                <tr>
+                                    {['Row', 'Validation', ...displayCols.map(c => c.charAt(0).toUpperCase() + c.slice(1)), ''].map(h => (
+                                        <th key={h} style={sTh}>{h}</th>
+                                    ))}
+                                </tr>
                             </thead>
                             <tbody>
-                                {errorRows.map(row => activeSheet === 'trips'
-                                    ? <TripRow key={row.journeyId} row={row} />
-                                    : <ExpenseRow key={row.expenseId} row={row} />
-                                )}
-                                {showValidRows && errorRows.length > 0 && validRows.length > 0 && (
-                                    <tr><td colSpan={12} style={{ padding: '8px 16px', background: 'rgba(16, 185, 129, 0.1)', fontSize: 12, color: '#10b981', fontWeight: 700 }}>
-                                        {validRows.length} valid row{validRows.length !== 1 ? "s" : ""} — no errors
-                                    </td></tr>
-                                )}
-                                {showValidRows && validRows.map(row => activeSheet === 'trips'
-                                    ? <TripRow key={row.journeyId} row={row} />
-                                    : <ExpenseRow key={row.expenseId} row={row} />
-                                )}
+                                {allRows.map(row => (
+                                    <GenericRow key={row.id || row.uId || row.journeyId || row.expenseId || row._rowNum} row={row} sheetKey={activeSheet} />
+                                ))}
                             </tbody>
                         </table>
                     </div>
@@ -689,13 +637,10 @@ export const ImportReview = ({
             {!session.committed && totalAccepted > 0 && (
                 <div style={{ position: 'fixed', bottom: 'max(12px, env(safe-area-inset-bottom))', left: '50%', transform: 'translateX(-50%)', width: 'min(520px, calc(100vw - 16px))', maxWidth: 'calc(100vw - 16px)', background: 'var(--surface)', border: `1px solid var(--border-medium)`, borderRadius: 16, display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', justifyContent: 'space-between', boxShadow: '0 10px 40px rgba(0,0,0,0.2)', padding: '16px 20px', zIndex: 100, boxSizing: 'border-box' }}>
                     <div>
-                        <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-primary)' }}>{totalAccepted} rows selected for import</div>
-                        <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>
-                            {[...session.sheets.trips.valid, ...session.sheets.trips.errors].filter(r=>r.accepted).length} journeys · {[...session.sheets.expenses.valid, ...session.sheets.expenses.errors].filter(r=>r.accepted).length} expenses · {[...session.sheets.maintenance.valid, ...session.sheets.maintenance.errors].filter(r=>r.accepted).length} maintenance
-                        </div>
+                        <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-primary)' }}>{totalAccepted} rows ready</div>
+                        <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 2 }}>Click confirm to apply changes to {Object.keys(session.sheets).length} tables.</div>
                     </div>
-                    <Button variant="primary" style={{ marginLeft: 'auto', padding: '12px 24px', fontSize: 14 }}
-                        onClick={handleCommit} disabled={importing}>
+                    <Button variant="primary" style={{ padding: '12px 24px' }} onClick={handleCommit} disabled={importing}>
                         {importing ? 'Importing…' : 'Confirm import →'}
                     </Button>
                 </div>

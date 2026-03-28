@@ -27,6 +27,7 @@
     "dompurify": "^3.3.3",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
+    "flatted": "^3.4.2",
     "framer-motion": "^12.38.0",
     "jsonwebtoken": "^9.0.0",
     "lucide-react": "^0.577.0",
@@ -37,7 +38,7 @@
     "react-dom": "^19.2.0",
     "react-router-dom": "^7.13.1",
     "tailwind-merge": "^3.5.0",
-    "xlsx": "^0.18.5"
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.1/xlsx-0.20.1.tgz"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
@@ -46,7 +47,7 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^4.3.4",
-    "@vitest/ui": "^4.1.1",
+    "@vitest/ui": "^4.1.2",
     "eslint": "^9.39.1",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
@@ -55,7 +56,7 @@
     "tailwindcss": "^4.2.2",
     "typescript": "^6.0.2",
     "vite": "^6.0.0",
-    "vitest": "^4.1.1"
+    "vitest": "^4.1.2"
   },
   "engines": {
     "node": ">=20.19.0"

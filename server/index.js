@@ -1,5 +1,6 @@
 const path = require('path');
-const { existsSync } = require('fs');
+const { existsSync, writeFileSync } = require('fs');
+const AdmZip = require('adm-zip');
 
 // Load environment variables from both root and server directory
 // server/.env takes precedence for backend-specific configs
@@ -520,7 +521,12 @@ app.post('/api/admin/reset', adminAuth, restrictTo('superadmin'), async (req, re
 // FULL DATA VIEW (Unified)
 app.get('/api/tracker/data', adminAuth, restrictTo('admin', 'superadmin'), async (req, res) => {
     try {
-        const data = await backupEverything();
+        const settings = await getSettings();
+        const data = {};
+        for (const table of DB_TABLES) {
+            const resData = await db.query(`SELECT * FROM ${table}`);
+            data[table] = resData.rows.map(r => normalizeRow(table, r, settings));
+        }
         res.json({ success: true, data });
     } catch (e) {
         console.error('DATA_FULL_ERROR:', e);
