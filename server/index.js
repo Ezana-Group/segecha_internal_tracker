@@ -364,6 +364,10 @@ async function autoSeed() {
                 IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='drivers' AND column_name='role') THEN
                     ALTER TABLE drivers ADD COLUMN role TEXT DEFAULT 'Driver';
                 END IF;
+                -- Payroll column (Finalized flag for locking)
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='payroll' AND column_name='finalized') THEN
+                    ALTER TABLE payroll ADD COLUMN finalized BOOLEAN DEFAULT FALSE;
+                END IF;
             END $$;
         `);
 
@@ -530,19 +534,51 @@ const DB_TABLES = [
 ];
 
 // Helper to get all data for a specific entity (replaces getData for JSON)
+// Helper to get all data for a specific entity (replaces getData for JSON)
 async function getEntityData(table) {
     const res = await db.query(`SELECT * FROM ${table}`);
     return res.rows;
 }
 
+const DEFAULT_PREFIXES = {
+    trucks: 'TRK-',
+    trailers: 'TBY-', // Image mapping: Trailers often use TBY or same as trucks? Wait, Image 5 says Trailers prefix setting is usually separate. I'll use TRK- for trucks, TBY for Turnboy etc.
+    drivers: 'DRV-',
+    staff: 'EMP-',
+    customers: 'CLT-',
+    journeys: 'MSN-',
+    fuel_logs: 'FL-',
+    expenses: 'EXP-',
+    incidents: 'INC-',
+    documents: 'DOC-'
+};
+
+function getPrefix(table, settings) {
+    const s = settings?.segecha_settings?.idPrefixes || {};
+    if (table === 'trucks') return s.vehiclePrefix || DEFAULT_PREFIXES.trucks;
+    if (table === 'drivers') return s.driverPrefix || DEFAULT_PREFIXES.drivers;
+    if (table === 'staff') return s.staffPrefix || DEFAULT_PREFIXES.staff;
+    if (table === 'customers') return s.clientPrefix || DEFAULT_PREFIXES.customers;
+    if (table === 'journeys') return s.missionPrefix || DEFAULT_PREFIXES.journeys;
+    if (table === 'fuel_logs') return s.fuelLogPrefix || DEFAULT_PREFIXES.fuel_logs;
+    if (table === 'expenses') return s.expensePrefix || DEFAULT_PREFIXES.expenses;
+    return DEFAULT_PREFIXES[table] || "";
+}
+
 // Normalize DB rows back to frontend field names
-function normalizeTruck(t) {
-    return { ...t, uId: t.id, reg: t.registration_number, odom: t.current_mileage, ...t.metadata };
+function normalizeTruck(t, settings) {
+    const prefix = getPrefix('trucks', settings);
+    const uId = t.id.startsWith(prefix) ? t.id : `${prefix}${t.id}`;
+    return { ...t, uId, reg: t.registration_number, odom: t.current_mileage, ...t.metadata };
 }
-function normalizeTrailer(t) {
-    return { ...t, uId: t.id, reg: t.registration_number, ...t.metadata };
+function normalizeTrailer(t, settings) {
+    const prefix = getPrefix('trailers', settings);
+    const uId = t.id.startsWith(prefix) ? t.id : `${prefix}${t.id}`;
+    return { ...t, uId, reg: t.registration_number, ...t.metadata };
 }
-function normalizeDriver(d) {
+function normalizeDriver(d, settings) {
+    const prefix = getPrefix('drivers', settings);
+    const uId = d.id.startsWith(prefix) ? d.id : `${prefix}${d.id}`;
     let licenseClass = d.license_class;
     try {
         if (typeof licenseClass === 'string' && licenseClass.startsWith('[')) {
@@ -553,15 +589,17 @@ function normalizeDriver(d) {
     }
     return { 
         ...d, 
-        uId: d.id,
+        uId,
         license: d.license_number, 
         class: licenseClass || d.metadata?.class || [],
         truck: d.truck || d.metadata?.truck || "",
         ...d.metadata 
     };
 }
-function normalizeStaff(s) {
-    return { ...s, uId: s.id, ...s.metadata };
+function normalizeStaff(s, settings) {
+    const prefix = getPrefix('staff', settings);
+    const uId = s.id.startsWith(prefix) ? s.id : `${prefix}${s.id}`;
+    return { ...s, uId, ...s.metadata };
 }
 function normalizeJourney(j) {
     return { ...j, truck: j.truck_id, driver: j.driver_id, date: j.start_date, endDate: j.end_date, dest: j.destination, cargo: j.cargo_type, customerId: j.customer_id, ...j.metadata };
@@ -591,19 +629,25 @@ function normalizeDocument(d) {
         ...d.metadata 
     };
 }
-function normalizeRow(table, row) {
-    if (table === 'trucks') return normalizeTruck(row);
-    if (table === 'trailers') return normalizeTrailer(row);
-    if (table === 'drivers') return normalizeDriver(row);
-    if (table === 'journeys') return normalizeJourney(row);
-    if (table === 'fuel_logs') return normalizeFuel(row);
-    if (table === 'expenses') return normalizeExpense(row);
-    if (table === 'invoices') return normalizeInvoice(row);
-    if (table === 'maintenance_logs') return normalizeMaintenance(row);
-    if (table === 'staff') return normalizeStaff(row);
-    if (table === 'payroll') return normalizePayroll(row);
-    if (table === 'documents') return normalizeDocument(row);
-    return row;
+function normalizeRow(table, row, settings) {
+    if (table === 'trucks') return normalizeTruck(row, settings);
+    if (table === 'trailers') return normalizeTrailer(row, settings);
+    if (table === 'drivers') return normalizeDriver(row, settings);
+    if (table === 'staff') return normalizeStaff(row, settings);
+    // Add prefixing to other entities as well
+    const prefix = getPrefix(table, settings);
+    const uId = row.id?.startsWith(prefix) ? row.id : `${prefix}${row.id}`;
+
+    let normalized = row;
+    if (table === 'journeys') normalized = normalizeJourney(row);
+    else if (table === 'fuel_logs') normalized = normalizeFuel(row);
+    else if (table === 'expenses') normalized = normalizeExpense(row);
+    else if (table === 'invoices') normalized = normalizeInvoice(row);
+    else if (table === 'maintenance_logs') normalized = normalizeMaintenance(row);
+    else if (table === 'payroll') normalized = normalizePayroll(row);
+    else if (table === 'documents') normalized = normalizeDocument(row);
+    
+    return { ...normalized, uId };
 }
 
 // Helper to save settings to DB
@@ -638,6 +682,7 @@ if (!require('fs').existsSync(BACKUPS_DIR)) {
 }
 
 async function backupEverything() {
+    const settings = await getSettings();
     const backup = {
         version: '5.0',
         timestamp: new Date().toISOString(),
@@ -645,7 +690,7 @@ async function backupEverything() {
     };
     for (const table of DB_TABLES) {
         const res = await db.query(`SELECT * FROM ${table}`);
-        backup.tables[table] = res.rows.map(r => normalizeRow(table, r));
+        backup.tables[table] = res.rows.map(r => normalizeRow(table, r, settings));
     }
     return backup;
 }
