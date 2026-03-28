@@ -961,6 +961,13 @@ button.journeys-table-link:hover {
   padding: 10px 14px;
 }
 
+/* Responsive Utilities */
+@media (min-width: 1024px) and (max-width: 1439px) {
+  .hide-laptop {
+    display: none !important;
+  }
+}
+
 .input-modern {
   width: 100%;
   max-width: 100%;
@@ -2394,6 +2401,24 @@ button.journeys-table-link:hover {
 .template-studio-editor-grid.is-mobile {
   grid-template-columns: 1fr;
   height: auto;
+}
+
+.journeys-matrix-table td {
+  padding: 10px 8px !important;
+}
+
+.journeys-matrix-table th {
+  padding: 10px 8px !important;
+}
+
+.hide-laptop {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .hide-laptop {
+    display: block;
+  }
 }
 
 .template-studio-editor-head {

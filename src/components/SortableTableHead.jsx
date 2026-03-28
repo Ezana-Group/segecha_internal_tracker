@@ -42,7 +42,7 @@ export function SortableTableHead({
                     return (
                         <th 
                             key={col.key} 
-                            className={isFirst ? "sticky-col" : ""}
+                            className={`${isFirst ? "sticky-col" : ""} ${col.className || ""}`}
                             style={{ 
                                 verticalAlign: "middle",
                                 padding: "12px 16px",

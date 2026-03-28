@@ -237,10 +237,10 @@ export function Journeys({ data, isMobile, modal, form, setForm, openModal, clos
                                 { key: "_customer", label: "Client", sortable: !isDriverPreview || jpv("colClient") },
                                 { key: "_vehicle", label: "Vehicle", sortable: !isDriverPreview || jpv("colVehicle") },
                                 { key: "driver", label: "Crew", sortable: !isDriverPreview || jpv("colCrew") },
-                                { key: "cargoType", label: "Cargo", sortable: !isDriverPreview || jpv("colCargo") },
-                                { key: "_distance", label: "Distance", sortable: !isDriverPreview || jpv("colDistance"), align: "right" },
-                                { key: "notes", label: "Notes", sortable: !isDriverPreview || jpv("colNotes") },
-                                { key: "_revenue", label: "Revenue", sortable: !isDriverPreview || jpv("colRevenue"), align: "right" },
+                                { key: "cargoType", label: "Cargo", className: "hide-laptop", sortable: !isDriverPreview || jpv("colCargo") },
+                                { key: "_distance", label: "Distance", className: "hide-laptop", sortable: !isDriverPreview || jpv("colDistance"), align: "right" },
+                                { key: "notes", label: "Notes", className: "hide-laptop", sortable: !isDriverPreview || jpv("colNotes") },
+                                { key: "_revenue", label: "Revenue", className: "hide-laptop", sortable: !isDriverPreview || jpv("colRevenue"), align: "right" },
                                 { key: "status", label: "Status", sortable: !isDriverPreview || jpv("colStatus") },
                                 { key: "actions", label: "Actions", sortable: false, align: "right" }
                             ].filter(c => c.sortable !== false || c.key === 'actions')}
@@ -351,7 +351,7 @@ export function Journeys({ data, isMobile, modal, form, setForm, openModal, clos
                                         </td>
                                     )}
                                     {(!isDriverPreview || jpv("colCargo")) && (
-                                        <td title={`${j.cargo || "General cargo"} ${j.weight ? `(${j.weight} T)` : ""}`}>
+                                        <td className="hide-laptop" title={`${j.cargo || "General cargo"} ${j.weight ? `(${j.weight} T)` : ""}`}>
                                             <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-primary)" }}>{j.cargo || "General cargo"}</div>
                                             {j.weight != null && j.weight !== "" ? (
                                                 <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>{j.weight} T</div>
@@ -359,14 +359,14 @@ export function Journeys({ data, isMobile, modal, form, setForm, openModal, clos
                                         </td>
                                     )}
                                     {(!isDriverPreview || jpv("colDistance")) && (
-                                        <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }} title={j.distance != null && j.distance !== "" ? `${Number(j.distance).toLocaleString()} km` : "—"}>
+                                        <td className="hide-laptop" style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }} title={j.distance != null && j.distance !== "" ? `${Number(j.distance).toLocaleString()} km` : "—"}>
                                             <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>
                                                 {j.distance != null && j.distance !== "" ? `${Number(j.distance).toLocaleString()} km` : "—"}
                                             </div>
                                         </td>
                                     )}
                                     {(!isDriverPreview || jpv("colNotes")) && (
-                                        <td className="journeys-col-notes" title={j.notes && String(j.notes).trim() ? String(j.notes).trim() : "—"}>
+                                        <td className="journeys-col-notes hide-laptop" title={j.notes && String(j.notes).trim() ? String(j.notes).trim() : "—"}>
                                             {j.notes && String(j.notes).trim() ? (
                                                 <span>{String(j.notes).trim()}</span>
                                             ) : (
@@ -375,7 +375,7 @@ export function Journeys({ data, isMobile, modal, form, setForm, openModal, clos
                                         </td>
                                     )}
                                     {(!isDriverPreview || jpv("colRevenue")) && (
-                                        <td style={{ textAlign: "right" }} title={fmt(j._revenue)}>
+                                        <td className="hide-laptop" style={{ textAlign: "right" }} title={fmt(j._revenue)}>
                                             <div style={{ fontWeight: 800, color: (j.status === 'Completed' && !j.isReturn && (!j._revenue || Number(j._revenue) === 0)) ? "#ef4444" : "#10b981", fontSize: 13, fontVariantNumeric: "tabular-nums" }}>
                                                 {fmt(j._revenue)}
                                             </div>
