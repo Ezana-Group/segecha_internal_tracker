@@ -3,7 +3,7 @@ import { SEED } from "../constants/seed";
 import { today, uid } from "../utils/formatters";
 import { TYRE_WARN_KM } from "../constants/nav";
 import { PAYMENT_API, ADMIN_KEY, DRIVER_PORTAL_URL } from "../utils/env";
-import { readSettings, getCrossBorderRules } from "../utils/settingsStore.js";
+import { readSettings, patchSettings, syncSettingsFromServer, syncSettingsToServer } from "../utils/settingsStore.js";
 import { mergeProfilePermissions } from "../utils/profilePermissions.js";
 import { expandMessageTemplateContext } from "../utils/templateContext.js";
 import { readPreviewFromSession, writePreviewToSession } from "../constants/previewNav.js";
@@ -69,7 +69,12 @@ export function useAppState() {
         setLoading(true);
         try {
             const token = adminAuth.getToken();
-            const res = await fetch(`${PAYMENT_API}/api/tracker/data-full`, {
+            
+            // 1. Sync Settings from Server
+            await syncSettingsFromServer(token);
+
+            // 2. Sync Full Data
+            const res = await fetch(`${PAYMENT_API}/api/tracker/data`, {
                 headers: {
                     'x-admin-key': ADMIN_KEY,
                     ...(token ? { 'Authorization': `Bearer ${token}` } : {})
@@ -92,7 +97,7 @@ export function useAppState() {
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [setData]);
 
     useEffect(() => {
         fetchTrackerData();
@@ -330,56 +335,54 @@ export function useAppState() {
         setWaybillModalJourney(journey);
     }, [data.trucks, data.drivers, data.trailers, data.invoices, data.customers]);
 
-    const saveItem = (col, item, options = {}) => {
+    const saveItem = async (col, item, options = {}) => {
         const skipClose = options?.skipClose === true;
         let isNew = false;
-        setData(d => {
-            const arr = [...(d[col] || [])];
-            const i = arr.findIndex(x => x.id === item.id);
+        let finalItem = { ...item };
 
-            let finalItem = { ...item };
-            if (col === 'journeys') {
-                if (finalItem.startOdom && finalItem.finalOdom) {
-                    finalItem.distance = Number(finalItem.finalOdom) - Number(finalItem.startOdom);
-                }
+        // 1. Prepare data (ID generation, mileage calculation, etc.)
+        if (col === 'journeys') {
+            if (finalItem.startOdom && finalItem.finalOdom) {
+                finalItem.distance = Number(finalItem.finalOdom) - Number(finalItem.startOdom);
             }
+        }
 
-            if (i >= 0) {
-                arr[i] = finalItem;
-            } else {
-                isNew = true;
-                // Auto-generate Internal Unique ID (uId) for specific collections
-                let uId = finalItem.uId;
-                if (!uId) {
-                    try {
-                        const settings = readSettings();
-                        const prefixes = {
-                            trucks: settings.vehicleIdPrefix || 'TRK-',
-                            drivers: settings.driverIdPrefix || 'DRV-',
-                            turnboys: settings.turnboyIdPrefix || 'TBY-',
-                            staff: settings.staffIdPrefix || 'EMP-',
-                            payroll: settings.payrollIdPrefix || 'PAY-',
-                            customers: settings.customerIdPrefix || 'CST-',
-                            trailers: settings.trailerIdPrefix || 'TRL-',
-                        };
+        const currentData = data[col] || [];
+        const i = currentData.findIndex(x => x.id === finalItem.id);
 
-                        if (prefixes[col]) {
-                            const count = (d[col] || []).length + 1;
-                            uId = prefixes[col] + String(count).padStart(3, '0');
-                        }
-                    } catch (e) {
-                        console.error("Error generating uId:", e);
+        if (i < 0) {
+            isNew = true;
+            let uId = finalItem.uId;
+            if (!uId) {
+                try {
+                    const settings = readSettings();
+                    const prefixes = {
+                        trucks: settings.vehicleIdPrefix || 'TRK-',
+                        drivers: settings.driverIdPrefix || 'DRV-',
+                        turnboys: settings.turnboyIdPrefix || 'TBY-',
+                        staff: settings.staffIdPrefix || 'EMP-',
+                        payroll: settings.payrollIdPrefix || 'PAY-',
+                        customers: settings.customerIdPrefix || 'CST-',
+                        trailers: settings.trailerIdPrefix || 'TRL-',
+                    };
+
+                    if (prefixes[col]) {
+                        const count = currentData.length + 1;
+                        uId = prefixes[col] + String(count).padStart(3, '0');
                     }
+                } catch (e) {
+                    console.error("Error generating uId:", e);
                 }
-
-                finalItem = { ...finalItem, id: finalItem.id || uid(), uId };
-                arr.push(finalItem);
             }
+            finalItem = { ...finalItem, id: finalItem.id || uid(), uId };
+        }
 
-            // Sync single item to server if API is available
-            if (PAYMENT_API) {
+        // 2. Sync to server BEFORE updating local state to ensure FK integrity for sequential calls
+        // Or at least return the promise. For FK integrity, we MUST wait for the server success.
+        if (PAYMENT_API) {
+            try {
                 const token = adminAuth.getToken();
-                fetch(`${PAYMENT_API}/api/admin/${col}`, {
+                const res = await fetch(`${PAYMENT_API}/api/admin/${col}`, {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json",
@@ -387,9 +390,30 @@ export function useAppState() {
                         ...(token ? { Authorization: `Bearer ${token}` } : {}),
                     },
                     body: JSON.stringify(finalItem),
-                }).catch((err) => console.warn(`Sync failed for ${col}:`, err.message));
+                });
+                
+                const result = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                    const errorMsg = result.error || res.statusText || "Server error";
+                    console.error(`Sync failed for ${col}:`, errorMsg);
+                    throw new Error(errorMsg);
+                }
+                
+                // If backend returned an updated item (e.g. with server-side fields), use it
+                if (result.item) finalItem = { ...finalItem, ...result.item };
+            } catch (err) {
+                console.error(`Sync failed for ${col}:`, err.message);
+                showToast(`Could not save ${col} to server: ` + err.message, "error");
+                throw err; // Re-throw so caller can stop sequencing
             }
+        }
 
+        // 3. Update local state
+        setData(d => {
+            const arr = [...(d[col] || [])];
+            const idx = arr.findIndex(x => x.id === finalItem.id);
+            if (idx >= 0) arr[idx] = finalItem;
+            else arr.push(finalItem);
             return { ...d, [col]: arr };
         });
 
@@ -442,8 +466,6 @@ export function useAppState() {
         const desc = label ? `"${label}"` : 'this record';
         if (!window.confirm(`Delete ${desc}? This cannot be undone.`)) return;
 
-        setData(d => ({ ...d, [col]: d[col].filter(x => x.id !== id) }));
-
         if (PAYMENT_API) {
             try {
                 const token = adminAuth.getToken();
@@ -455,47 +477,176 @@ export function useAppState() {
                     }
                 });
                 const j = await res.json().catch(() => ({}));
-                if (res.ok && j.success) {
-                    console.log(`Backend sync: deleted ${id} from ${col}`);
-                } else {
-                    console.warn(`Backend delete failed: ${j.error || res.status}. Local delete persists.`);
+                if (!res.ok) {
+                    throw new Error(j.error || res.statusText || "Delete failed");
                 }
+                
+                // Successfully deleted on server, now update local
+                setData(d => ({ ...d, [col]: (d[col] || []).filter(x => x.id !== id) }));
+                showToast(`${label || 'Record'} deleted`, "success");
             } catch (err) {
-                console.warn(`Sync failed: ${err.message}. Local delete persists.`);
+                console.error(`Delete failed for ${col}:`, err.message);
+                showToast(`Could not delete from server: ` + err.message, "error");
             }
+        } else {
+            // No API, just local (demo mode)
+            setData(d => ({ ...d, [col]: (d[col] || []).filter(x => x.id !== id) }));
+            showToast(`${label || 'Record'} removed locally`, "success");
         }
-
-        showToast(`${label || 'Record'} deleted`, "success");
     };
 
-    const markPayrollPaid = (id) => {
-        setData(d => ({
-            ...d,
-            payroll: d.payroll.map(p => p.id === id ? { ...p, status: "Paid", paidDate: today(), mpesaRef: "MPESA" + uid().slice(0, 8) } : p)
-        }));
-        showToast("Payroll marked as paid", "success");
+    const markPayrollPaid = async (id) => {
+        const item = data.payroll.find(p => p.id === id);
+        if (!item) return;
+
+        try {
+            const token = adminAuth.getToken();
+            const res = await fetch(`${PAYMENT_API}/api/admin/payroll/${id}/pay`, {
+                method: "POST",
+                headers: { 
+                    "Content-Type": "application/json",
+                    "x-admin-key": ADMIN_KEY,
+                    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                }
+            });
+            if (!res.ok) throw new Error("Could not mark as paid on server");
+            
+            setData(d => ({
+                ...d,
+                payroll: d.payroll.map(p => p.id === id ? { ...p, status: "Paid" } : p)
+            }));
+            showToast("Payroll record marked as Paid", "success");
+        } catch (err) {
+            showToast("Failed to sync status: " + err.message, "error");
+        }
     };
 
-    const markInvoicePaid = (id) => {
-        setData(d => ({
-            ...d,
-            invoices: d.invoices.map(i => i.id === id ? {
-                ...i,
-                status: "Paid",
-                paidAmount: +i.amount,
-                paidDate: today(),
-                mpesaRef: "QJK" + uid().slice(0, 7),
-                payments: [...(i.payments || []), {
-                    id: uid().slice(0, 8),
-                    date: today(),
-                    amount: +i.amount - (+i.paidAmount || 0),
-                    method: 'Quick Pay',
-                    ref: "QJK" + uid().slice(0, 7),
-                    notes: 'Marked as paid by admin'
-                }]
-            } : i)
+    /** Update system settings and sync to server */
+    const updateSettings = async (patch) => {
+        const next = patchSettings(patch);
+        const token = adminAuth.getToken();
+        const success = await syncSettingsToServer(token);
+        if (!success) {
+            console.warn("Settings updated locally but failed to persist to server.");
+        }
+        return next;
+    };
+
+    /** Unified helper for staff/driver account credential resets */
+    const resetAccountCredentials = async (type, entity, forcePasswordReset = false) => {
+        if (!PAYMENT_API) return;
+        const res = await fetch(`${PAYMENT_API}/api/${type}/account/regenerate-credentials`, {
+            method: "POST",
+            headers: { 
+                "Content-Type": "application/json",
+                "x-admin-key": ADMIN_KEY 
+            },
+            body: JSON.stringify({
+                [`${type}Id`]: entity.id,
+                email: entity.email || entity.name,
+                phone: entity.phone || "",
+                name: entity.name,
+                role: entity.role,
+                forcePasswordReset,
+                adminKey: ADMIN_KEY,
+            }),
+        });
+        const j = await res.json();
+        if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
+        
+        setData(prev => ({
+            ...prev,
+            [type]: (prev[type] || []).map(x =>
+                x.id === entity.id ? { ...x, ...j, firstLogin: true } : x
+            )
         }));
-        showToast("Invoice marked as paid", "success");
+        return j;
+    };
+
+    /** Unified helper for staff account deletion */
+    const deleteStaffAccount = async (staffId) => {
+        if (!PAYMENT_API) return;
+        const res = await fetch(`${PAYMENT_API}/api/staff/account/${staffId}?adminKey=${encodeURIComponent(ADMIN_KEY)}`, { method: "DELETE" });
+        const j = await res.json();
+        if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
+        
+        setData(prev => ({
+            ...prev,
+            staff: (prev.staff || []).filter(x => x.id !== staffId),
+            payroll: (prev.payroll || []).filter(p => p.driver !== staffId),
+        }));
+    };
+
+    /** Unified helper for driver account deletion */
+    const deleteDriverAccount = async (driverId) => {
+        if (!PAYMENT_API) return;
+        const res = await fetch(`${PAYMENT_API}/api/driver/account/${driverId}?adminKey=${encodeURIComponent(ADMIN_KEY)}`, { method: "DELETE" });
+        const j = await res.json();
+        if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
+        
+        setData(prev => ({
+            ...prev,
+            drivers: (prev.drivers || []).filter(x => x.id !== driverId),
+            journeys: (prev.journeys || []).filter(x => x.driver !== driverId),
+            fuel: (prev.fuel || []).filter(x => x.driver !== driverId && x._submittedBy !== driverId),
+            expenses: (prev.expenses || []).filter(x => x.driver !== driverId && x._submittedBy !== driverId),
+            payroll: (prev.payroll || []).filter(p => p.driver !== driverId),
+        }));
+    };
+
+
+    const markInvoicePaid = async (id) => {
+        const item = data.invoices.find(i => i.id === id);
+        if (!item) return;
+        const updated = {
+            ...item,
+            status: "Paid",
+            paidAmount: +item.amount,
+            paidDate: today(),
+            mpesaRef: "QJK" + uid().slice(0, 7),
+            payments: [...(item.payments || []), {
+                id: uid().slice(0, 8),
+                date: today(),
+                amount: +item.amount - (+item.paidAmount || 0),
+                method: 'Quick Pay',
+                ref: "QJK" + uid().slice(0, 7),
+                notes: 'Marked as paid by admin'
+            }]
+        };
+        try {
+            await saveItem("invoices", updated);
+            showToast("Invoice marked as paid and synced", "success");
+        } catch (e) {
+            // error already handled
+        }
+    };
+
+    const addInvoicePayment = async (payment) => {
+        const inv = data.invoices.find(i => i.id === payment.invoiceId);
+        if (!inv) throw new Error("Invoice not found");
+
+        const newPayments = [...(inv.payments || []), { ...payment, id: payment.id || uid().slice(0, 8) }];
+        const newPaidAmount = newPayments.reduce((s, p) => s + +p.amount, 0);
+        const newStatus = newPaidAmount >= +inv.amount ? "Paid" : "Partial";
+
+        const updatedInvoice = {
+            ...inv,
+            paidAmount: newPaidAmount,
+            status: newStatus,
+            payments: newPayments,
+            paidDate: newStatus === "Paid" ? today() : inv.paidDate
+        };
+
+        try {
+            // 1. Save the payment record for audit
+            await saveItem("payments", payment);
+            // 2. Sync invoice status to backend
+            await saveItem("invoices", updatedInvoice);
+            showToast("Payment logged and invoice updated", "success");
+        } catch (e) {
+            console.error("Payment logging failed:", e);
+            throw e;
+        }
     };
 
     const resetData = () => {
@@ -631,7 +782,6 @@ export function useAppState() {
 
     const syncToServer = useCallback(async () => {
         try {
-            const s = readSettings();
             const token = adminAuth.getToken();
             const res = await fetch(`${PAYMENT_API}/api/tracker/data`, {
                 method: "POST",
@@ -640,20 +790,12 @@ export function useAppState() {
                     "x-admin-key": ADMIN_KEY,
                     ...(token ? { 'Authorization': `Bearer ${token}` } : {})
                 },
-                body: JSON.stringify({
-                    data,
-                    adminKey: ADMIN_KEY,
-                    profilePermissions: mergeProfilePermissions(s.profilePermissions),
-                    // Persist email sender identities and other admin-tunable defaults for server-side emails.
-                    settings: s,
-                }),
+                body: JSON.stringify({ data }),
             });
             const j = await res.json().catch(() => ({}));
             if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
             localStorage.setItem(LAST_SYNC_KEY, new Date().toISOString());
-            showToast("Server snapshot updated. Driver portal and M-Pesa callbacks use tracker-data.json.", "success");
-
-            // Refresh backups list if sync was successful (a new backup might have been triggered)
+            showToast("Server snapshot updated via PostgreSQL sync.", "success");
             fetchBackups();
             return true;
         } catch (e) {
@@ -1388,16 +1530,19 @@ export function useAppState() {
         }
     }, [data.maintenanceSettings, data.maintenanceLogs]);
 
-    const logMaintenance = (truckId, typeId, cost, desc, odom, date) => {
+    const logMaintenance = async (truckId, typeId, cost, desc, odom, date) => {
         const log = { id: 'ml' + uid().slice(0, 6), truck: truckId, type: typeId, cost: +cost, desc, odom: +odom, date: date || today() };
-        const expense = { id: 'e' + uid().slice(0, 6), truck: truckId, cat: "Maintenance", amount: +cost, date: date || today(), desc: `${data.maintenanceSettings.find(s => s.id === typeId)?.name}: ${desc}`, journey: "" };
+        const setting = data.maintenanceSettings.find(s => s.id === typeId);
+        const expense = { id: 'e' + uid().slice(0, 6), truck: truckId, cat: "Maintenance", amount: +cost, date: date || today(), desc: `${setting?.name || "Maintenance"}: ${desc}`, journey: "" };
 
-        setData(d => ({
-            ...d,
-            maintenanceLogs: [log, ...d.maintenanceLogs],
-            expenses: [expense, ...d.expenses]
-        }));
-        showToast("Maintenance logged and expense added", "success");
+        try {
+            // Sync both to backend
+            await saveItem("maintenance_logs", log);
+            await saveItem("expenses", expense);
+            showToast("Maintenance logged and expense added", "success");
+        } catch (e) {
+            // individual error toasts shown by saveItem
+        }
     };
 
     const tyreStatus = (truck) => maintenanceStatus(truck, "m16"); // Default to tyre replacement setting
@@ -1429,7 +1574,8 @@ export function useAppState() {
         invoicePreview, setInvoicePreview,
         sideOpen, setSideOpen,
         dark, setDark,
-        saveItem, delItem, markPayrollPaid, markInvoicePaid, resetData, hardResetSystem,
+        saveItem, delItem, markPayrollPaid, markInvoicePaid, addInvoicePayment, resetData, hardResetSystem,
+        updateSettings, resetAccountCredentials, deleteStaffAccount, deleteDriverAccount,
         verifyJourney, fetchPendingVerifications, syncToServer,
         verifySubmission,
         driverName, driverPhone, staffName, truckReg, customerName, truckStats, tyreStatus, maintenanceStatus, logMaintenance,
@@ -1442,8 +1588,11 @@ export function useAppState() {
         setPreviewMode,
         clearPreviewMode,
 
+        driverName, driverPhone, staffName, truckReg, customerName, truckStats, tyreStatus, maintenanceStatus, logMaintenance,
+        toasts, showToast,
         backups,
         backupsLoading,
+
         fetchBackups,
         createManualBackup,
         restoreFromBackup,

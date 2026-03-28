@@ -55,7 +55,7 @@ const DRIVER_TAB_PERM = {
     pnl: "tabFinancials",
 };
 
-export function DriverProfile({ data, setData, dark, isMobile, truckReg, openModal, showToast, previewMode }) {
+export function DriverProfile({ data, setData, dark, isMobile, truckReg, openModal, showToast, previewMode, resetAccountCredentials, deleteDriverAccount }) {
     const { id } = useParams();
     const navigate = useNavigate();
     const [tab, setTab] = useState('overview');
@@ -186,25 +186,7 @@ export function DriverProfile({ data, setData, dark, isMobile, truckReg, openMod
     const regenerateCredentials = async (forcePasswordReset = true) => {
         try {
             setAccountBusy(true);
-            const res = await fetch(`${PAYMENT_API}/api/driver/account/regenerate-credentials`, {
-                method: "POST",
-                headers: { 
-                    "Content-Type": "application/json",
-                    "x-admin-key": ADMIN_KEY 
-                },
-                body: JSON.stringify({
-                    driverId: driver.id,
-                    email: driver.email || driver.name,
-                    phone: driver.phone || "",
-                    driverName: driver.name,
-                    forcePasswordReset,
-                    adminKey: ADMIN_KEY,
-                }),
-
-            });
-
-            const j = await res.json();
-            if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
+            const j = await resetAccountCredentials("driver", driver, forcePasswordReset);
             setLastCreds({ otp: j.otp, tempPassword: j.tempPassword, at: new Date().toISOString() });
             showToast?.("New OTP and temporary password generated.", "success");
             setAccountStatus((prev) => ({ ...(prev || {}), requiresPasswordChange: true, hasOtp: true, hasTempPassword: true }));
@@ -234,17 +216,7 @@ export function DriverProfile({ data, setData, dark, isMobile, truckReg, openMod
         if (!window.confirm(`Delete ${driver.name}'s full account and related records? This cannot be undone.`)) return;
         try {
             setAccountBusy(true);
-            const res = await fetch(`${PAYMENT_API}/api/driver/account/${driver.id}?adminKey=${encodeURIComponent(ADMIN_KEY)}`, { method: "DELETE" });
-            const j = await res.json();
-            if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
-            setData((prev) => ({
-                ...prev,
-                drivers: prev.drivers.filter((x) => x.id !== driver.id),
-                journeys: prev.journeys.filter((x) => x.driver !== driver.id),
-                fuel: prev.fuel.filter((x) => x.driver !== driver.id && x._submittedBy !== driver.id),
-                expenses: prev.expenses.filter((x) => x.driver !== driver.id && x._submittedBy !== driver.id),
-                payroll: prev.payroll.filter((x) => x.driver !== driver.id),
-            }));
+            await deleteDriverAccount(driver.id);
             showToast?.("Driver account deleted.", "success");
             navigate("/drivers");
         } catch (err) {

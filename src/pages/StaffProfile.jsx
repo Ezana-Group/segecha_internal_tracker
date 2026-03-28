@@ -60,7 +60,7 @@ const TAB_PERM = {
     pay: "tabPayHistory",
 };
 
-export function StaffProfile({ data, setData, dark, isMobile, openModal, showToast, previewMode }) {
+export function StaffProfile({ data, setData, dark, isMobile, openModal, showToast, previewMode, updateSettings, resetAccountCredentials, deleteStaffAccount }) {
     const { id } = useParams();
     const navigate = useNavigate();
     const [tab, setTab] = useState("overview");
@@ -201,7 +201,6 @@ export function StaffProfile({ data, setData, dark, isMobile, openModal, showToa
         );
 
     const handleResetPassword = async () => {
-        // Enforce: a super admin cannot reset their own password; only another super admin may do it.
         if (isSuperAdmin && targetEmail && operatorEmail && targetEmail === operatorEmail) {
             showToast?.("Only another Super Admin can reset a Super Admin's password.", "error");
             return;
@@ -209,35 +208,8 @@ export function StaffProfile({ data, setData, dark, isMobile, openModal, showToa
         if (!window.confirm(`Reset password for ${staff.name}? They will be required to log in with a new OTP.`)) return;
         try {
             setAccountBusy(true);
-            const res = await fetch(`${PAYMENT_API}/api/staff/account/regenerate-credentials`, {
-                method: "POST",
-                headers: { 
-                    "Content-Type": "application/json",
-                    "x-admin-key": ADMIN_KEY 
-                },
-                body: JSON.stringify({
-                    staffId: staff.id,
-                    email: staff.email || staff.name,
-                    phone: staff.phone || "",
-                    name: staff.name,
-                    role: staff.role,
-                    forcePasswordReset: true,
-                    adminKey: ADMIN_KEY,
-                }),
-
-            });
-
-            const j = await res.json();
-            if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
+            const j = await resetAccountCredentials("staff", staff, true);
             setLastCreds({ otp: j.otp, tempPassword: j.tempPassword, at: new Date().toISOString() });
-            setData((prev) => ({
-                ...prev,
-                staff: (prev.staff || []).map((x) =>
-                    x.id === staff.id
-                        ? { ...x, email: j.email || x.email, phone: j.phone || x.phone, firstLogin: true, otp: j.otp, tempPassword: j.tempPassword }
-                        : x
-                ),
-            }));
             showToast?.("New OTP and temporary password generated.", "success");
             fetchAccountStatus();
         } catch (err) {
@@ -250,14 +222,7 @@ export function StaffProfile({ data, setData, dark, isMobile, openModal, showToa
         if (!window.confirm(`Delete ${staff.name}'s account and payroll records? This cannot be undone.`)) return;
         try {
             setAccountBusy(true);
-            const res = await fetch(`${PAYMENT_API}/api/staff/account/${staff.id}?adminKey=${encodeURIComponent(ADMIN_KEY)}`, { method: "DELETE" });
-            const j = await res.json();
-            if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
-            setData((prev) => ({
-                ...prev,
-                staff: (prev.staff || []).filter((x) => x.id !== staff.id),
-                payroll: (prev.payroll || []).filter((p) => p.driver !== staff.id),
-            }));
+            await deleteStaffAccount(staff.id);
             showToast?.("Staff account deleted", "success");
             navigate("/staff");
         } catch (err) {
@@ -308,42 +273,14 @@ export function StaffProfile({ data, setData, dark, isMobile, openModal, showToa
     };
     const mask = (v) => (v ? "•".repeat(Math.max(8, String(v).length)) : "—");
     const regenerateOtpAndTemp = async () => {
-        // Same restriction as `handleResetPassword`: super admins can't initiate password resets for their own account.
         if (isSuperAdmin && targetEmail && operatorEmail && targetEmail === operatorEmail) {
             showToast?.("Only another Super Admin can reset a Super Admin's password.", "error");
             return;
         }
         try {
             setAccountBusy(true);
-            const res = await fetch(`${PAYMENT_API}/api/staff/account/regenerate-credentials`, {
-                method: "POST",
-                headers: { 
-                    "Content-Type": "application/json",
-                    "x-admin-key": ADMIN_KEY 
-                },
-                body: JSON.stringify({
-                    staffId: staff.id,
-                    email: staff.email || staff.name,
-                    phone: staff.phone || "",
-                    name: staff.name,
-                    role: staff.role,
-                    forcePasswordReset: false,
-                    adminKey: ADMIN_KEY,
-                }),
-
-            });
-
-            const j = await res.json();
-            if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
+            const j = await resetAccountCredentials("staff", staff, false);
             setLastCreds({ otp: j.otp, tempPassword: j.tempPassword, at: new Date().toISOString() });
-            setData((prev) => ({
-                ...prev,
-                staff: (prev.staff || []).map((x) =>
-                    x.id === staff.id
-                        ? { ...x, email: j.email || x.email, phone: j.phone || x.phone, firstLogin: true, otp: j.otp, tempPassword: j.tempPassword }
-                        : x
-                ),
-            }));
             showToast?.("New OTP and temporary password generated.", "success");
             fetchAccountStatus();
         } catch (err) {
@@ -354,7 +291,7 @@ export function StaffProfile({ data, setData, dark, isMobile, openModal, showToa
     };
 
     const updateAccessLists = (patch) => {
-        patchSettings(patch);
+        updateSettings(patch);
     };
 
     const addAdminAccess = () => {

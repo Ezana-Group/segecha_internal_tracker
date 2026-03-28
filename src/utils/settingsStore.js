@@ -14,6 +14,8 @@
  * elsewhere should gradually migrate here.
  */
 
+import { PAYMENT_API, ADMIN_KEY } from "./env";
+
 export const SETTINGS_STORAGE_KEY = "segecha_settings";
 
 /** Default PSV / DL class labels when Settings has none configured */
@@ -150,6 +152,49 @@ export function subscribeSettings(callback) {
     const fn = (e) => callback(e.detail);
     window.addEventListener(CHANGE_EVENT, fn);
     return () => window.removeEventListener(CHANGE_EVENT, fn);
+}
+
+/** Fetch settings from PostgreSQL and update localStorage */
+export async function syncSettingsFromServer(token) {
+    if (!PAYMENT_API) return null;
+    try {
+        const res = await fetch(`${PAYMENT_API}/api/admin/settings`, {
+            headers: {
+                'x-admin-key': ADMIN_KEY,
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+            }
+        });
+        if (!res.ok) return null;
+        const j = await res.json();
+        if (j.success && j.settings && j.settings.segecha_settings) {
+            return writeSettings(j.settings.segecha_settings);
+        }
+    } catch (e) {
+        console.warn("Failed to sync settings from server:", e.message);
+    }
+    return null;
+}
+
+/** Save local settings to PostgreSQL */
+export async function syncSettingsToServer(token) {
+    if (!PAYMENT_API) return false;
+    try {
+        const settings = readSettings();
+        const res = await fetch(`${PAYMENT_API}/api/admin/settings`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-admin-key': ADMIN_KEY,
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+            },
+            body: JSON.stringify({ settings })
+        });
+        const j = await res.json();
+        return j.success;
+    } catch (e) {
+        console.warn("Failed to sync settings to server:", e.message);
+        return false;
+    }
 }
 
 /**

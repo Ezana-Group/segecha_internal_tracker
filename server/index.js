@@ -29,6 +29,7 @@ if (!PORT) console.warn('WARNING: PORT not set, some environments may fail to bi
 
 // Core Dependencies (Must be before autoSeed)
 const db = require('./db');
+const { upsertEntity, syncFullData } = require('./utils/db-helpers');
 const driverAuth = require('./driver-auth');
 const staffAuth = require('./staff-auth');
 const driverData = require('./driver-data');
@@ -78,7 +79,12 @@ if (!JWT_SECRET || !ADMIN_KEY) {
     console.log(`[AUTH] ADMIN_KEY loaded from ${ADMIN_KEY_SOURCE}: ${maskedKey} (Length: ${ADMIN_KEY.length})`);
 }
 
-const PUBLIC_ROUTES = ['/admin/login', '/driver/login', '/staff/login', '/health'];
+const PUBLIC_ROUTES = [
+    '/admin/login', 
+    '/driver/login', '/driver/forgot-password', '/driver/set-password',
+    '/staff/login', '/staff/forgot-password', '/staff/set-password',
+    '/health'
+];
 
 const adminAuth = async (req, res, next) => {
     // 0. Skip for preflight
@@ -429,7 +435,7 @@ app.post('/api/admin/reset', async (req, res) => {
 });
 
 // FULL DATA VIEW (Unified)
-app.get('/api/tracker/data-full', async (req, res) => {
+app.get('/api/tracker/data', async (req, res) => {
     try {
         const data = await backupEverything();
         res.json({ success: true, data });
@@ -513,139 +519,10 @@ async function getSettings() {
 }
 
 // Helper to upsert any entity into its table
-async function upsertEntity(table, item) {
-    if (!item || !item.id) throw new Error('Item ID is required for upsert');
+// Note: upsertEntity is now imported from ./utils/db-helpers
 
-    // 1. Get existing columns for this table to avoid SQL errors
-    const colRes = await db.query(
-        "SELECT column_name FROM information_schema.columns WHERE table_name = $1",
-        [table]
-    );
-    const validCols = colRes.rows.map(r => r.column_name);
+// Generic utility functions for data normalization and database operations are now consolidated.
 
-    if (validCols.length === 0) throw new Error(`Table ${table} not found or has no columns`);
-
-    const entries = Object.entries(item).filter(([k]) => {
-        if (['created_at', 'updated_at', '_type', '_Salary', '_contact', '_joined'].includes(k)) return false;
-        return true;
-    });
-
-    const finalData = {};
-    const metadata = item.metadata || {};
-
-    entries.forEach(([k, v]) => {
-        let dbKey = k;
-
-        // Generic camelCase → snake_case mappings (table-agnostic)
-        if (k === 'expiryDate') dbKey = 'expiry_date';
-        else if (k === 'customerId') dbKey = 'customer_id';
-        else if (k === 'journeyId') dbKey = 'journey_id';
-        else if (k === 'truckId') dbKey = 'truck_id';
-        else if (k === 'driverId') dbKey = 'driver_id';
-        else if (k === 'licenseNumber') dbKey = 'license_number';
-        else if (k === 'plateNumber') dbKey = 'registration_number';
-        else if (k === 'registrationNumber') dbKey = 'registration_number';
-        else if (k === 'currentMileage') dbKey = 'current_mileage';
-        else if (k === 'startDate') dbKey = 'start_date';
-        else if (k === 'endDate') dbKey = 'end_date';
-        else if (k === 'cargoType') dbKey = 'cargo_type';
-        else if (k === 'nextServiceMileage') dbKey = 'next_service_mileage';
-        else if (k === 'entityId') dbKey = 'entity_id';
-        else if (k === 'entityType') dbKey = 'entity_type';
-        else if (k === 'dueDate') dbKey = 'due_date';
-        else if (k === 'serialNumber') dbKey = 'serial_number';
-        else if (k === 'staffId') dbKey = 'staff_id';
-
-        // Short-form frontend keys — TABLE-AWARE mappings
-        else if (k === 'reg') dbKey = 'registration_number';
-        else if (k === 'license') dbKey = 'license_number';
-        else if (k === 'dest') dbKey = 'destination';
-        else if (k === 'cargo') dbKey = 'cargo_type';
-        else if (k === 'cat') dbKey = 'category';
-        else if (k === 'desc') dbKey = 'description';
-        else if (k === 'due') dbKey = 'due_date';
-        else if (k === 'pricePerL') dbKey = 'amount';
-
-        // 'truck' → truck_id for tables that have that column
-        else if (k === 'truck') dbKey = 'truck_id';
-
-        // 'journey' → journey_id for tables that have that column
-        else if (k === 'journey') dbKey = 'journey_id';
-
-        // 'driver' → driver_id for journeys, entity_id for payroll
-        else if (k === 'driver') {
-            dbKey = table === 'payroll' ? 'entity_id' : 'driver_id';
-        }
-
-        // 'date' → start_date only for journeys; stays 'date' elsewhere
-        else if (k === 'date') {
-            dbKey = table === 'journeys' ? 'start_date' : 'date';
-        }
-
-        // 'odom' → current_mileage only for trucks; goes to metadata elsewhere
-        else if (k === 'odom') {
-            dbKey = table === 'trucks' ? 'current_mileage' : 'odom'; // will fall to metadata
-        }
-
-        if (validCols.includes(dbKey)) {
-            finalData[dbKey] = v;
-        } else if (k !== 'metadata') {
-            metadata[k] = v;
-        }
-    });
-
-    // For expenses: compute description and journey_id from short keys if not already set
-    if (table === 'expenses') {
-        if (!finalData.description && metadata.desc) finalData.description = metadata.desc;
-        if (!finalData.journey_id && metadata.journey) finalData.journey_id = metadata.journey;
-        delete metadata.desc;
-        delete metadata.journey;
-        delete metadata.cat;
-    }
-
-    // For invoices: compute journey_id and due_date from short keys if not already set
-    if (table === 'invoices') {
-        if (!finalData.journey_id && metadata.journey) finalData.journey_id = metadata.journey;
-        if (!finalData.due_date && metadata.due) finalData.due_date = metadata.due;
-        delete metadata.journey;
-        delete metadata.due;
-    }
-
-    // For payroll: compute entity_id and amount if not already set
-    if (table === 'payroll') {
-        if (!finalData.entity_id && metadata.driver) finalData.entity_id = metadata.driver;
-        if (!finalData.amount) {
-            const base = parseFloat(metadata.baseSalary) || 0;
-            const allowance = parseFloat(metadata.allowance) || 0;
-            const deductions = parseFloat(metadata.deductions) || 0;
-            finalData.amount = base + allowance - deductions;
-        }
-        delete metadata.driver;
-    }
-
-    if (validCols.includes('metadata')) {
-        finalData.metadata = metadata;
-    }
-
-    const keys = Object.keys(finalData);
-    const values = Object.values(finalData).map(v =>
-        (typeof v === 'object' && v !== null) ? JSON.stringify(v) : v
-    );
-
-    const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
-    const updates = keys.map((k, i) => {
-        if (k === 'id') return null;
-        return `${k} = EXCLUDED.${k}`;
-    }).filter(Boolean).join(', ');
-
-    const query = `
-        INSERT INTO ${table} (${keys.join(', ')})
-        VALUES (${placeholders})
-        ON CONFLICT (id) DO UPDATE SET ${updates}
-    `;
-
-    return db.query(query, values);
-}
 
 
 
@@ -1070,8 +947,40 @@ app.post('/api/tracker/snapshot', async (req, res) => {
 
 // FULL DATA VIEW logic moved to top
 
-app.post('/api/tracker/data', (req, res) => {
-    res.json({ success: true, message: 'Live data is handled via PostgreSQL' });
+// Get current system settings
+app.get('/api/admin/settings', async (req, res) => {
+    try {
+        const result = await db.query("SELECT key, value FROM system_settings");
+        const settings = {};
+        result.rows.forEach(r => settings[r.key] = r.value);
+        res.json({ success: true, settings });
+    } catch (e) {
+        res.status(500).json({ error: 'Failed to fetch settings' });
+    }
+});
+
+// Update system settings (Unified segecha_settings blob)
+app.post('/api/admin/settings', async (req, res) => {
+    const { settings } = req.body;
+    try {
+        await saveSystemSetting('segecha_settings', settings);
+        res.json({ success: true, message: 'Settings saved to database' });
+    } catch (e) {
+        console.error('SETTINGS_SAVE_ERROR:', e);
+        res.status(500).json({ error: 'Failed to save settings: ' + e.message });
+    }
+});
+
+app.post('/api/tracker/data', async (req, res) => {
+    const { data } = req.body;
+    try {
+        if (!data) return res.status(400).json({ error: 'No data provided' });
+        await syncFullData(data);
+        res.json({ success: true, message: 'Live data synchronized to PostgreSQL' });
+    } catch (e) {
+        console.error('SYNC_ERROR:', e);
+        res.status(500).json({ error: 'Sync failed: ' + e.message });
+    }
 });
 
 // List Backups

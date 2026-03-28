@@ -308,7 +308,7 @@ export function GlobalModals(props) {
     const { 
         modal, form, setForm, closeModal, saveItem, data, setData, 
         S, T, dark, truckReg, isMobile,
-        logMaintenance,
+        logMaintenance, addInvoicePayment,
         showToast,
         openWaybillGenerator,
     } = props;
@@ -332,7 +332,7 @@ export function GlobalModals(props) {
         const hasErrors = Object.values(errors).some(Boolean);
 
         return (
-            <Modal title={form.id ? "Edit Fuel Entry" : "Log Fuel Fill-up"} onSave={() => saveItem("fuel", form)} S={S} closeModal={closeModal} saveDisabled={hasErrors} wide>
+            <Modal title={form.id ? "Edit Fuel Entry" : "Log Fuel Fill-up"} onSave={async () => await saveItem("fuel", form)} S={S} closeModal={closeModal} saveDisabled={hasErrors} wide>
                 <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
                     {/* ── Section 1: Core Details ── */}
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px 24px" }}>
@@ -380,7 +380,7 @@ export function GlobalModals(props) {
         const CATS = ["Maintenance", "Toll", "Permit", "Tyre", "Fuel", "Salary", "Allowance", "Other"];
 
         return (
-            <Modal title={form.id ? "Edit Expense" : "Add New Expense"} onSave={() => saveItem("expenses", form)} S={S} closeModal={closeModal} saveDisabled={hasErrors} wide>
+            <Modal title={form.id ? "Edit Expense" : "Add New Expense"} onSave={async () => await saveItem("expenses", form)} S={S} closeModal={closeModal} saveDisabled={hasErrors} wide>
                 <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
                     {/* ── Classification ── */}
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px 24px" }}>
@@ -437,9 +437,9 @@ export function GlobalModals(props) {
         const hasErrors = Object.values(errors).some(Boolean);
 
         return (
-            <Modal title={form.id ? "Edit Invoice" : "Generate New Invoice"} onSave={() => { 
+            <Modal title={form.id ? "Edit Invoice" : "Generate New Invoice"} onSave={async () => { 
                 if (!form.id) form.id = INVOICE_PREFIX + "-" + uid().slice(0, 5); 
-                saveItem("invoices", form); 
+                await saveItem("invoices", form); 
             }} S={S} closeModal={closeModal} saveDisabled={hasErrors}>
                 <div style={S.fgg(2)}>
                     <Field label="Customer" k="customerId" options={data.customers.map(c => ({ v: c.id, l: c.name }))} form={form} setForm={setForm} S={S} />
@@ -471,7 +471,7 @@ export function GlobalModals(props) {
     // ── LOG PAYMENT MODAL ──
     if (modal === "logPayment") {
         return (
-            <Modal title={`Log Payment for ${form.invoiceId}`} onSave={() => saveItem("payments", form)} S={S} closeModal={closeModal}>
+            <Modal title={`Log Payment for ${form.invoiceId}`} onSave={async () => await addInvoicePayment(form)} S={S} closeModal={closeModal}>
                 <div style={S.fgg(2)}>
                     <Field label="Payment Date" k="date" type="date" form={form} setForm={setForm} S={S} />
                     <Field label="Amount (KES)" k="amount" type="number" form={form} setForm={setForm} S={S} />
@@ -490,7 +490,7 @@ export function GlobalModals(props) {
         const hasErrors = Object.values(errors).some(Boolean);
 
         return (
-            <Modal title={form.id ? "Edit Pay Record" : "Add New Pay Record"} onSave={() => saveItem("payroll", form)} S={S} closeModal={closeModal} saveDisabled={hasErrors}>
+            <Modal title={form.id ? "Edit Pay Record" : "Add New Pay Record"} onSave={async () => await saveItem("payroll", form)} S={S} closeModal={closeModal} saveDisabled={hasErrors}>
                 <div style={S.fgg(2)}>
                     <Field label="Employee / Driver" k="driver" options={[
                         ...data.drivers.map(d => ({ v: d.id, l: `Driver: ${d.name}` })),
@@ -645,7 +645,7 @@ export function GlobalModals(props) {
         };
 
 
-        const onSave = () => {
+        const onSave = async () => {
             if (!form.returningEmpty && (!form.customerId || !form.deliveryCustomerId)) {
                 showToast?.('Billing customer and delivery customer are required (used on the waybill).', 'error');
                 return;
@@ -670,94 +670,102 @@ export function GlobalModals(props) {
                 mileageRouteOverride: rates.isOverride,
                 isFlatRate: rates.isFlatRate
             };
-            saveItem("journeys", enrichedForm, { skipClose: true, silent: true });
 
-            if (driverMileage > 0 && !form.id) {
-                const descPrefix = rates.isFlatRate ? "Flat rate allowance" : `Mileage allowance (${dist} km @ KES ${rates.driver}/km)`;
-                saveItem("expenses", {
-                    date: form.date || today(),
-                    truck: form.truck,
-                    cat: "Allowance",
-                    category: "Allowance",
-                    amount: driverMileage,
-                    desc: `Driver ${descPrefix} — ${form.origin} → ${form.dest}`,
-                    journey: enrichedForm.id,
-                    status: "Unpaid"
-                }, { skipClose: true, silent: true });
-            }
-            if (turnboyMileage > 0 && !form.id && (form.turnboyId || form.turnboyName)) {
-                const tbName = form.turnboyId ? (data.turnboys?.find(t => t.id === form.turnboyId)?.name || form.turnboyId) : form.turnboyName;
-                const descPrefix = rates.isFlatRate ? "Flat rate allowance" : `Mileage allowance (${dist} km @ KES ${rates.turnboy}/km)`;
-                saveItem("expenses", {
-                    date: form.date || today(),
-                    truck: form.truck,
-                    cat: "Allowance",
-                    category: "Allowance",
-                    amount: turnboyMileage,
-                    desc: `Turnboy ${descPrefix} (${tbName}) — ${form.origin} → ${form.dest}`,
-                    journey: enrichedForm.id,
-                    status: "Unpaid"
-                }, { skipClose: true, silent: true });
-            }
+            try {
+                // 1. Save the primary journey record and WAIT for it to be confirmed by the server
+                await saveItem("journeys", enrichedForm, { skipClose: true, silent: true });
 
-            // Auto-create Road User Allowance expense
-            if (roadUserAllowance > 0 && !form.id) {
-                saveItem("expenses", {
-                    date: form.date || today(),
-                    truck: form.truck,
-                    cat: "Allowance",
-                    category: "Allowance",
-                    amount: roadUserAllowance,
-                    desc: `Road User Allowance${form.returningEmpty ? " (Return)" : ""} — ${form.origin} → ${form.dest}`,
-                    journey: enrichedForm.id,
-                    status: "Unpaid"
-                }, { skipClose: true, silent: true });
-            }
-            
-            // Auto-generate invoice when journey is Accepted or Loading
-            if (!form.returningEmpty && (enrichedForm.status === "Accepted" || enrichedForm.status === "Loading")) {
-                const existingInvoice = data.invoices?.find(inv => inv.journey === enrichedForm.id);
-                if (!existingInvoice) {
-                    const invoiceId = (INVOICE_PREFIX || "INV") + "-" + uid().slice(0, 5);
-                    const issuedDate = today();
-                    const dueDate = new Date();
-                    dueDate.setDate(dueDate.getDate() + (PAYMENT_TERMS_DAYS || 14));
-                    const dueDateStr = dueDate.toISOString().split('T')[0];
-                    
-                    const billingCust = data.customers.find(c => c.id === form.customerId);
-                    
-                    saveItem("invoices", {
-                        id: invoiceId,
-                        customerId: form.customerId,
-                        client: billingCust?.name || "",
-                        phone: billingCust?.phone || "",
+                // 2. Now that the journey exists, save related records (expenses, invoices)
+                if (driverMileage > 0 && wasNew) {
+                    const descPrefix = rates.isFlatRate ? "Flat rate allowance" : `Mileage allowance (${dist} km @ KES ${rates.driver}/km)`;
+                    await saveItem("expenses", {
+                        date: form.date || today(),
+                        truck: form.truck,
+                        cat: "Allowance",
+                        category: "Allowance",
+                        amount: driverMileage,
+                        desc: `Driver ${descPrefix} — ${form.origin} → ${form.dest}`,
                         journey: enrichedForm.id,
-                        amount: enrichedForm.revenue,
-                        issued: issuedDate,
-                        due: dueDateStr,
-                        status: "Pending",
-                        notes: `Automated invoice for journey ${enrichedForm.origin} → ${enrichedForm.dest}. Cargo: ${enrichedForm.cargo || "N/A"}`
+                        status: "Unpaid"
                     }, { skipClose: true, silent: true });
-                    
-                    showToast?.(`Invoice ${invoiceId} generated automatically.`, "success");
                 }
-            }
+                
+                if (turnboyMileage > 0 && wasNew && (form.turnboyId || form.turnboyName)) {
+                    const tbName = form.turnboyId ? (data.turnboys?.find(t => t.id === form.turnboyId)?.name || form.turnboyId) : form.turnboyName;
+                    const descPrefix = rates.isFlatRate ? "Flat rate allowance" : `Mileage allowance (${dist} km @ KES ${rates.turnboy}/km)`;
+                    await saveItem("expenses", {
+                        date: form.date || today(),
+                        truck: form.truck,
+                        cat: "Allowance",
+                        category: "Allowance",
+                        amount: turnboyMileage,
+                        desc: `Turnboy ${descPrefix} (${tbName}) — ${form.origin} → ${form.dest}`,
+                        journey: enrichedForm.id,
+                        status: "Unpaid"
+                    }, { skipClose: true, silent: true });
+                }
 
-            showToast?.("Record saved", "success");
-            closeModal();
+                if (roadUserAllowance > 0 && wasNew) {
+                    await saveItem("expenses", {
+                        date: form.date || today(),
+                        truck: form.truck,
+                        cat: "Allowance",
+                        category: "Allowance",
+                        amount: roadUserAllowance,
+                        desc: `Road User Allowance${form.returningEmpty ? " (Return)" : ""} — ${form.origin} → ${form.dest}`,
+                        journey: enrichedForm.id,
+                        status: "Unpaid"
+                    }, { skipClose: true, silent: true });
+                }
+                
+                if (!form.returningEmpty && (enrichedForm.status === "Accepted" || enrichedForm.status === "Loading")) {
+                    const existingInvoice = data.invoices?.find(inv => inv.journey === enrichedForm.id);
+                    if (!existingInvoice) {
+                        const invoiceId = (INVOICE_PREFIX || "INV") + "-" + uid().slice(0, 5);
+                        const issuedDate = today();
+                        const dueDate = new Date();
+                        dueDate.setDate(dueDate.getDate() + (PAYMENT_TERMS_DAYS || 14));
+                        const dueDateStr = dueDate.toISOString().split('T')[0];
+                        
+                        const billingCust = data.customers.find(c => c.id === form.customerId);
+                        
+                        await saveItem("invoices", {
+                            id: invoiceId,
+                            customerId: form.customerId,
+                            client: billingCust?.name || "",
+                            phone: billingCust?.phone || "",
+                            journey: enrichedForm.id,
+                            amount: enrichedForm.revenue,
+                            issued: issuedDate,
+                            due: dueDateStr,
+                            status: "Pending",
+                            notes: `Automated invoice for journey ${enrichedForm.origin} → ${enrichedForm.dest}. Cargo: ${enrichedForm.cargo || "N/A"}`
+                        }, { skipClose: true, silent: true });
+                        
+                        showToast?.(`Invoice ${invoiceId} generated automatically.`, "success");
+                    }
+                }
 
-            if (
-                wasNew &&
-                openWaybillGenerator &&
-                (enrichedForm.status === "Loading" || enrichedForm.status === "In Transit")
-            ) {
+                // 3. Open waybill generator if required
                 if (
-                    window.confirm(
-                        "Generate a road freight waybill for this journey? You can complete carrier, cargo, and customs details, then print four copies (consignor, consignee, driver, KRA / customs)."
-                    )
+                    wasNew &&
+                    openWaybillGenerator &&
+                    (enrichedForm.status === "Loading" || enrichedForm.status === "In Transit")
                 ) {
-                    openWaybillGenerator(enrichedForm);
+                    if (
+                        window.confirm(
+                            "Generate a road freight waybill for this journey? You can complete carrier, cargo, and customs details, then print four copies (consignor, consignee, driver, KRA / customs)."
+                        )
+                    ) {
+                        openWaybillGenerator(enrichedForm);
+                    }
                 }
+
+                showToast?.("Record saved", "success");
+                closeModal();
+            } catch (err) {
+                // Error toast is already shown by saveItem
+                console.error("Journey save sequence failed:", err);
             }
         };
 
@@ -846,13 +854,17 @@ export function GlobalModals(props) {
                                                 <button
                                                     type="button"
                                                     style={{ padding: "0 12px", borderRadius: 8, background: "var(--brand-primary)", color: "white", border: "none", fontWeight: 800, fontSize: 11 }}
-                                                    onClick={() => {
+                                                    onClick={async () => {
                                                         const name = document.getElementById("qa-bill-name")?.value;
                                                         const phone = document.getElementById("qa-bill-phone")?.value;
                                                         if (!name?.trim() || !phone?.trim()) return alert("Name & Phone required");
                                                         const id = uid();
-                                                        saveItem("customers", { id, name: name.trim(), phone: phone || "", type: "Individual", status: "Active" });
-                                                        setForm((f) => ({ ...f, customerId: id, _quickAddBill: false }));
+                                                        try {
+                                                            await saveItem("customers", { id, name: name.trim(), phone: phone || "", type: "Individual", status: "Active" });
+                                                            setForm((f) => ({ ...f, customerId: id, _quickAddBill: false }));
+                                                        } catch (e) {
+                                                            // error already handled by saveItem toast
+                                                        }
                                                     }}
                                                 >
                                                     Save
@@ -892,13 +904,17 @@ export function GlobalModals(props) {
                                                 <button
                                                     type="button"
                                                     style={{ padding: "0 12px", borderRadius: 8, background: "var(--brand-primary)", color: "white", border: "none", fontWeight: 800, fontSize: 11 }}
-                                                    onClick={() => {
+                                                    onClick={async () => {
                                                         const name = document.getElementById("qa-del-name")?.value;
                                                         const phone = document.getElementById("qa-del-phone")?.value;
                                                         if (!name?.trim() || !phone?.trim()) return alert("Name & Phone required");
                                                         const id = uid();
-                                                        saveItem("customers", { id, name: name.trim(), phone: phone || "", type: "Individual", status: "Active" });
-                                                        setForm((f) => ({ ...f, deliveryCustomerId: id, _quickAddDel: false }));
+                                                        try {
+                                                            await saveItem("customers", { id, name: name.trim(), phone: phone || "", type: "Individual", status: "Active" });
+                                                            setForm((f) => ({ ...f, deliveryCustomerId: id, _quickAddDel: false }));
+                                                        } catch (e) {
+                                                                // error already handled by saveItem toast
+                                                        }
                                                     }}
                                                 >
                                                     Save
@@ -1100,7 +1116,7 @@ export function GlobalModals(props) {
 
     // ── MAINTENANCE MODAL ──
     if (modal === "maintenance") {
-        const submitLog = () => {
+        const submitLog = async () => {
             if (!form.date || !form.odom) {
                 alert('❌ Date and odometer reading are required');
                 return;
@@ -1123,7 +1139,7 @@ export function GlobalModals(props) {
                     notes: form.notes || '',
                 },
             };
-            saveItem('expenses', entry);
+            await saveItem('expenses', entry);
 
             // Update truck odometer if new reading is higher
             const truckObj = data.trucks.find(t => t.id === form.truck);
@@ -1249,7 +1265,7 @@ export function GlobalModals(props) {
         const hasErrors = Object.values(errors).some(Boolean);
 
         return (
-            <Modal title={form.id ? "Edit Truck" : "Add Truck"} onSave={() => saveItem("trucks", form)} S={S} closeModal={closeModal} saveDisabled={hasErrors}>
+            <Modal title={form.id ? "Edit Truck" : "Add Truck"} onSave={async () => await saveItem("trucks", form)} S={S} closeModal={closeModal} saveDisabled={hasErrors}>
                 <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
                     {/* ── ID ── */}
                     <div style={{ background: "var(--surface-subtle)", color: "var(--brand-primary)", fontWeight: 800, fontFamily: "var(--font-mono)", border: "1px dashed var(--brand-primary)40", display: "flex", alignItems: "center", padding: "0 14px", height: 42, borderRadius: 8, fontSize: 13 }}>
@@ -1321,15 +1337,10 @@ export function GlobalModals(props) {
 
             const otp = form.otp || Math.floor(100000 + Math.random() * 900000).toString();
             const next = { ...form, id: driverId, email: driverEmail, otp, firstLogin: isNew ? true : form.firstLogin };
-            saveItem("drivers", next);
-
+            
             try {
-                // 1. Persist the driver record to the backend 'drivers' table
-                await fetch(`${PAYMENT_API}/api/driver/save`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json", "x-admin-key": ADMIN_KEY },
-                    body: JSON.stringify(next),
-                });
+                // 1. Persist the driver record to the backend 'drivers' table and WAIT
+                await saveItem("drivers", next);
 
                 // 2. If new, create the auth account
                 if (isNew && driverEmail && driverEmail.includes('@')) {
@@ -1346,11 +1357,11 @@ export function GlobalModals(props) {
                     }
                 } else if (!isNew) {
                     showToast?.("Driver record updated.", "success");
-                    closeModal();
                 }
+                closeModal();
             } catch (err) {
                 console.warn('Persistence failed:', err.message);
-                showToast?.("Persistence error.", "error");
+                // error already handled by saveItem toast
             }
         };
 
@@ -1416,7 +1427,7 @@ export function GlobalModals(props) {
         const hasErrors = Object.values(errors).some(Boolean);
 
         return (
-            <Modal title={form.id ? "Edit Customer" : "Add New Customer"} onSave={() => saveItem("customers", form)} S={S} closeModal={closeModal} saveDisabled={hasErrors}>
+            <Modal title={form.id ? "Edit Customer" : "Add New Customer"} onSave={async () => await saveItem("customers", form)} S={S} closeModal={closeModal} saveDisabled={hasErrors}>
                 <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
                     {/* ── ID ── */}
                     <div style={{ background: "var(--surface-subtle)", color: "var(--brand-primary)", fontWeight: 800, fontFamily: "var(--font-mono)", border: "1px dashed var(--brand-primary)40", display: "flex", alignItems: "center", padding: "0 14px", height: 42, borderRadius: 8, fontSize: 13 }}>
@@ -1443,7 +1454,7 @@ export function GlobalModals(props) {
     // ── TRAILER MODAL ──
     if (modal === "trailer") {
         return (
-            <Modal title={form.id ? "Edit Trailer" : "Add Trailer"} onSave={() => saveItem("trailers", form)} S={S} closeModal={closeModal}>
+            <Modal title={form.id ? "Edit Trailer" : "Add Trailer"} onSave={async () => await saveItem("trailers", form)} S={S} closeModal={closeModal}>
                 <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
                     {/* ── ID ── */}
                     <div style={{ background: "var(--surface-subtle)", color: "var(--brand-primary)", fontWeight: 800, fontFamily: "var(--font-mono)", border: "1px dashed var(--brand-primary)40", display: "flex", alignItems: "center", padding: "0 14px", height: 42, borderRadius: 8, fontSize: 13 }}>
@@ -1507,15 +1518,10 @@ export function GlobalModals(props) {
                     tempPassword: next.tempPassword || "",
                 };
             }
-            saveItem("staff", next);
 
             try {
-                // 1. Persist the staff record to the backend 'staff' table
-                await fetch(`${PAYMENT_API}/api/staff/save`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json", "x-admin-key": ADMIN_KEY },
-                    body: JSON.stringify(next),
-                });
+                // 1. Persist the staff record to the backend 'staff' table and WAIT
+                await saveItem("staff", next);
 
                 // 2. If new, create the auth account
                 if (isNew && email.includes("@")) {
