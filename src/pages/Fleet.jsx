@@ -55,11 +55,15 @@ export function Fleet({ data, setData, dark, isMobile, modal, form, setForm, ope
     });
 
     // Refine trailers for sorting and filtering
-    const refinedTrailers = (data.trailers || []).map(t => ({
-        ...t,
-        _reg: t.reg || "",
-        _truck: truckReg ? truckReg(t.truck) : (t.truck || "")
-    }));
+    const refinedTrailers = (data.trailers || []).map(t => {
+        const assignedDriver = data.drivers?.find(d => d.assignedTrailer === t.id) || data.staff?.find(s => s.assignedTrailer === t.id);
+        return {
+            ...t,
+            _reg: t.reg || "",
+            _truck: truckReg ? truckReg(t.truck) : (t.truck || ""),
+            _driver: assignedDriver ? assignedDriver.name : "None"
+        };
+    });
 
     const { 
         filteredRows: sortedTrailers, 
@@ -267,6 +271,7 @@ export function Fleet({ data, setData, dark, isMobile, modal, form, setForm, ope
                                     { key: "make", label: "Manufacturer", sortable: true },
                                     { key: "status", label: "Status", sortable: true },
                                     { key: "_truck", label: "Assigned Truck", sortable: true },
+                                    { key: "_driver", label: "Assigned Personnel", sortable: true },
                                     { key: "actions", label: "Actions", sortable: false, align: "right" }
                                 ]}
                             />
@@ -303,6 +308,11 @@ export function Fleet({ data, setData, dark, isMobile, modal, form, setForm, ope
                                         <td title={truckReg(t.truck)}>
                                             <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)" }}>
                                                 {truckReg(t.truck)}
+                                            </div>
+                                        </td>
+                                        <td title={t._driver}>
+                                            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)" }}>
+                                                {t._driver}
                                             </div>
                                         </td>
                                         <td style={{ textAlign: "right", verticalAlign: "middle" }}>

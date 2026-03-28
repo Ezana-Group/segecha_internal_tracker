@@ -438,10 +438,31 @@ export function useAppState() {
             if (currentTruck && currentTruck.driver !== finalItem.id) {
                 saveItem('trucks', { ...currentTruck, driver: finalItem.id }, { silent: true, skipClose: true }).catch(console.error);
             }
+        } else if (col === 'staff' && (finalItem.role === 'Driver' || finalItem.role === 'Turnboy') && finalItem.truck) {
+            const currentTruck = data.trucks?.find(t => t.id === finalItem.truck);
+            if (currentTruck && currentTruck.driver !== finalItem.id) {
+                saveItem('trucks', { ...currentTruck, driver: finalItem.id }, { silent: true, skipClose: true }).catch(console.error);
+            }
         } else if (col === 'trucks' && finalItem.driver) {
-            const currentDriver = data.drivers?.find(d => d.id === finalItem.driver);
+            const currentDriver = data.drivers?.find(d => d.id === finalItem.driver) || data.staff?.find(s => s.id === finalItem.driver);
             if (currentDriver && currentDriver.truck !== finalItem.id) {
-                saveItem('drivers', { ...currentDriver, truck: finalItem.id }, { silent: true, skipClose: true }).catch(console.error);
+                const targetCol = data.drivers?.find(d => d.id === finalItem.driver) ? 'drivers' : 'staff';
+                saveItem(targetCol, { ...currentDriver, truck: finalItem.id }, { silent: true, skipClose: true }).catch(console.error);
+            }
+        } else if (col === 'trailers' && finalItem.truck) {
+            const currentTruck = data.trucks?.find(t => t.id === finalItem.truck);
+            if (currentTruck && currentTruck.assignedTrailer !== finalItem.id) {
+                saveItem('trucks', { ...currentTruck, assignedTrailer: finalItem.id }, { silent: true, skipClose: true }).catch(console.error);
+            }
+        } else if (col === 'fuel_logs') {
+            // Fuel entry creates an auto-expense on server, refresh local expenses if possible
+            if (PAYMENT_API) {
+                const token = adminAuth.getToken();
+                fetch(`${PAYMENT_API}/api/admin/expenses`, {
+                    headers: { 'x-admin-key': ADMIN_KEY, ...(token ? { 'Authorization': `Bearer ${token}` } : {}) }
+                }).then(r => r.json()).then(j => {
+                    if (Array.isArray(j)) setData(prev => ({ ...prev, expenses: j }));
+                }).catch(console.warn);
             }
         }
 
@@ -509,8 +530,26 @@ export function useAppState() {
                     throw new Error(j.error || res.statusText || "Delete failed");
                 }
                 
-                // Successfully deleted on server, now update local
-                setData(d => ({ ...d, [col]: (d[col] || []).filter(x => x.id !== id) }));
+                // Successfully deleted on server, now update local and cleanup references
+                setData(d => {
+                    const next = { ...d, [col]: (d[col] || []).filter(x => x.id !== id) };
+                    
+                    // Cleanup common references
+                    if (col === 'trucks') {
+                        next.drivers = (next.drivers || []).map(x => x.truck === id ? { ...x, truck: "" } : x);
+                        next.staff = (next.staff || []).map(x => x.truck === id ? { ...x, truck: "" } : x);
+                        next.trailers = (next.trailers || []).map(x => x.truck === id ? { ...x, truck: "" } : x);
+                    } else if (col === 'drivers' || col === 'staff') {
+                        next.trucks = (next.trucks || []).map(x => x.driver === id ? { ...x, driver: "" } : x);
+                    } else if (col === 'trailers') {
+                        next.drivers = (next.drivers || []).map(x => x.assignedTrailer === id ? { ...x, assignedTrailer: "" } : x);
+                        next.trucks = (next.trucks || []).map(x => x.assignedTrailer === id ? { ...x, assignedTrailer: "" } : x);
+                    } else if (col === 'customers') {
+                        next.journeys = (next.journeys || []).map(x => x.customerId === id ? { ...x, customerId: "" } : x);
+                    }
+                    
+                    return next;
+                });
                 showToast(`${label || 'Record'} deleted`, "success");
             } catch (err) {
                 console.error(`Delete failed for ${col}:`, err.message);
@@ -518,7 +557,16 @@ export function useAppState() {
             }
         } else {
             // No API, just local (demo mode)
-            setData(d => ({ ...d, [col]: (d[col] || []).filter(x => x.id !== id) }));
+            setData(d => {
+                const next = { ...d, [col]: (d[col] || []).filter(x => x.id !== id) };
+                if (col === 'trucks') {
+                    next.drivers = (next.drivers || []).map(x => x.truck === id ? { ...x, truck: "" } : x);
+                    next.staff = (next.staff || []).map(x => x.truck === id ? { ...x, truck: "" } : x);
+                } else if (col === 'drivers' || col === 'staff') {
+                    next.trucks = (next.trucks || []).map(x => x.driver === id ? { ...x, driver: "" } : x);
+                }
+                return next;
+            });
             showToast(`${label || 'Record'} removed locally`, "success");
         }
     };

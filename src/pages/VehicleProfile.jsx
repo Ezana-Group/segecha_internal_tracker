@@ -160,6 +160,7 @@ export function VehicleProfile({ data, setData, dark, isMobile, openModal, maint
                                         ['Payload Capacity', `${truck.capacity} kg`],
                                         ['Live Odometer', `${Number(truck.odom || 0).toLocaleString()} km`],
                                         ['Assigned Operator', driverName(truck.driver)],
+                                        ['Assigned Trailer', truck.assignedTrailer ? (data.trailers?.find(t => t.id === truck.assignedTrailer)?.reg || truck.assignedTrailer) : 'None'],
                                         ['KRA PIN Ref', truck.kraPin || 'Unset'],
                                         ['Insurance ID', truck.insurancePolicy || 'Unset'],
                                     ].map(([l, v]) => (
