@@ -93,7 +93,8 @@ CREATE TABLE IF NOT EXISTS journeys (
     tr_form_url TEXT,
     t1_form_url TEXT,
     booking_no TEXT,
-    is_international BOOLEAN DEFAULT FALSE
+    is_international BOOLEAN DEFAULT FALSE,
+    delivery_customer_id TEXT REFERENCES customers(id)
 );
 
 -- 5. Financials
@@ -106,7 +107,9 @@ CREATE TABLE IF NOT EXISTS fuel_logs (
     litres DECIMAL(10,2),
     station TEXT,
     metadata JSONB DEFAULT '{}',
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    driver_id TEXT REFERENCES drivers(id),
+    _submitted_by TEXT
 );
 
 CREATE TABLE IF NOT EXISTS expenses (
@@ -117,7 +120,10 @@ CREATE TABLE IF NOT EXISTS expenses (
     date DATE,
     description TEXT,
     metadata JSONB DEFAULT '{}',
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    driver_id TEXT REFERENCES drivers(id),
+    truck_id TEXT REFERENCES trucks(id),
+    _submitted_by TEXT
 );
 
 CREATE TABLE IF NOT EXISTS invoices (
@@ -172,7 +178,10 @@ CREATE TABLE IF NOT EXISTS incidents (
     description TEXT,
     status TEXT DEFAULT 'Open',
     metadata JSONB DEFAULT '{}',
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    driver_id TEXT REFERENCES drivers(id),
+    truck_id TEXT REFERENCES trucks(id),
+    _submitted_by TEXT
 );
 
 -- 7. Documents & System

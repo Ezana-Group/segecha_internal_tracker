@@ -71,13 +71,13 @@ async function getDriverData(driverId) {
     ] = await Promise.all([
         db.query("SELECT * FROM drivers WHERE id = $1", [driverId]),
         db.query("SELECT * FROM trucks"),
-        db.query("SELECT * FROM journeys WHERE driver = $1", [driverId]),
-        db.query("SELECT * FROM fuel_logs WHERE (_submitted_by = $1 OR driver = $1)", [driverId]),
+        db.query("SELECT * FROM journeys WHERE driver_id = $1", [driverId]),
+        db.query("SELECT * FROM fuel_logs WHERE (_submitted_by = $1 OR driver_id = $1)", [driverId]),
         db.query("SELECT * FROM expenses WHERE (truck_id IN (SELECT id FROM trucks WHERE driver_id = $1) OR driver_id = $1 OR _submitted_by = $1)", [driverId]),
-        db.query("SELECT * FROM incidents WHERE (driver_id = $1 OR driver = $1)", [driverId]),
+        db.query("SELECT * FROM incidents WHERE (driver_id = $1 OR _submitted_by = $1)", [driverId]),
         db.query("SELECT * FROM customers"),
         db.query("SELECT * FROM trailers"),
-        db.query("SELECT * FROM payroll WHERE driver = $1", [driverId]),
+        db.query("SELECT * FROM payroll WHERE entity_id = $1 AND entity_type = 'driver'", [driverId]),
         db.query("SELECT * FROM system_settings")
     ]);
 
@@ -143,7 +143,7 @@ async function getDriverData(driverId) {
 
 async function updateJourneyPartyCustomers(driverId, journeyId, body = {}) {
     const [journeyRes, customersRes] = await Promise.all([
-        db.query("SELECT * FROM journeys WHERE id = $1 AND driver = $2", [journeyId, driverId]),
+        db.query("SELECT * FROM journeys WHERE id = $1 AND driver_id = $2", [journeyId, driverId]),
         db.query("SELECT * FROM customers")
     ]);
 
@@ -187,8 +187,8 @@ async function createJourneyStartRequest(driverId, payload = {}) {
     const driverRes = await db.query("SELECT * FROM drivers WHERE id = $1", [driverId]);
     const driver = driverRes.rows[0];
     if (!driver || !driver.truck) return { success: false, error: 'No vehicle assigned' };
-
-    const activeRes = await db.query("SELECT id FROM journeys WHERE driver = $1 AND status IN ('Loading', 'Approved', 'In Transit', 'Awaiting Start Verification', 'Awaiting Verification')", [driverId]);
+    const activeStat = "status IN ('Loading', 'Approved', 'In Transit', 'Awaiting Start Verification', 'Awaiting Verification')";
+    const activeRes = await db.query(`SELECT id FROM journeys WHERE driver_id = $1 AND ${activeStat}`, [driverId]);
     if (activeRes.rows.length > 0) return { success: false, error: 'Finish your previous trip first' };
 
     const id = Date.now().toString(36).toUpperCase() + Math.random().toString(36).substr(2, 3).toUpperCase();
@@ -197,8 +197,8 @@ async function createJourneyStartRequest(driverId, payload = {}) {
     const journey = {
         id,
         uId,
-        driver: driverId,
-        truck: driver.truck,
+        driver_id: driverId,
+        truck_id: driver.truck,
         origin: payload.origin || '',
         dest: payload.dest || '',
         cargo: payload.cargo || '',
@@ -233,7 +233,7 @@ async function createJourneyStartPlaceholder(driverId, payload = {}) {
 }
 
 async function updateJourneyStatus(driverId, journeyId, newStatus, extras = {}) {
-    const journeyRes = await db.query("SELECT * FROM journeys WHERE id = $1 AND driver = $2", [journeyId, driverId]);
+    const journeyRes = await db.query("SELECT * FROM journeys WHERE id = $1 AND driver_id = $2", [journeyId, driverId]);
     const journey = journeyRes.rows[0];
     if (!journey) return { success: false, error: 'Journey not found' };
 
@@ -294,7 +294,7 @@ async function verifyJourneyCompletion(journeyId, approved, rejectionReason = ''
 
     // If completed, update truck odom
     if (approved && newStatus === 'Completed' && journey.end_odom) {
-        await db.query("UPDATE trucks SET odom = $1 WHERE id = $2 AND odom < $1", [journey.end_odom, journey.truck]);
+        await db.query("UPDATE trucks SET current_mileage = $1 WHERE id = $2 AND current_mileage < $1", [journey.end_odom, journey.truck_id || journey.truck]);
     }
 
     return { success: true };
