@@ -113,6 +113,24 @@ async function upsertEntity(table, item) {
         ON CONFLICT (id) DO UPDATE SET ${updates}
     `;
 
+    if (table === 'journeys') {
+        if (finalData.truck_id) {
+            const truckRes = await db.query('SELECT kra_pin, insurance_id FROM trucks WHERE id = $1', [finalData.truck_id]);
+            if (truckRes.rows.length > 0) {
+                const t = truckRes.rows[0];
+                if (!t.kra_pin || t.kra_pin === 'Unset' || !t.insurance_id || t.insurance_id === 'Unset') {
+                    throw new Error("Cannot dispatch a vehicle with missing KRA PIN or Insurance ID");
+                }
+            }
+        }
+        if (finalData.status === 'Completed') {
+            const finalOdom = finalData.metadata?.finalOdom || finalData.final_odom;
+            if (finalOdom == null || finalOdom === '') {
+                throw new Error("Validation Error: final odometer is required when completing a journey.");
+            }
+        }
+    }
+
     await db.query(query, values);
 
     // ── Fuel-Expense Sync: Automatically create/update expense when fuel is logged ──
@@ -287,6 +305,25 @@ async function upsertEntityInTransaction(client, table, item) {
     const updates = keys.map((k) => k === 'id' ? null : `${k} = EXCLUDED.${k}`).filter(Boolean).join(', ');
 
     const query = `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders}) ON CONFLICT (id) DO UPDATE SET ${updates}`;
+    
+    if (table === 'journeys') {
+        if (finalData.truck_id) {
+            const truckRes = await client.query('SELECT kra_pin, insurance_id FROM trucks WHERE id = $1', [finalData.truck_id]);
+            if (truckRes.rows.length > 0) {
+                const t = truckRes.rows[0];
+                if (!t.kra_pin || t.kra_pin === 'Unset' || !t.insurance_id || t.insurance_id === 'Unset') {
+                    throw new Error("Cannot dispatch a vehicle with missing KRA PIN or Insurance ID");
+                }
+            }
+        }
+        if (finalData.status === 'Completed') {
+            const finalOdom = finalData.metadata?.finalOdom || finalData.final_odom;
+            if (finalOdom == null || finalOdom === '') {
+                throw new Error("Validation Error: final odometer is required when completing a journey.");
+            }
+        }
+    }
+    
     return client.query(query, values);
 }
 

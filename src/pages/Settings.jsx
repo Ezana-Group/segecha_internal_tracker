@@ -118,6 +118,7 @@ const SETTINGS_MENU = [
             { id: "security", label: "Portal & API", icon: ShieldCheck },
             { id: "permissions", label: "Profile permissions", icon: UserRoundCog },
             { id: "data", label: "Backup & import", icon: Database },
+            { id: "audit", label: "Audit Log", icon: ClipboardList },
         ],
     },
 ];
@@ -136,6 +137,7 @@ const SETTINGS_WORKSPACE_TABS = new Set([
     "alerts",
     "staff",
     "permissions",
+    "audit",
 ]);
 const SECTION_BY_ID = Object.fromEntries(
     SETTINGS_MENU.flatMap((g) => g.items.map((it) => [it.id, { ...it, groupLabel: g.label }]))
@@ -319,7 +321,30 @@ export function Settings({
         }
     };
 
+    // Audit log state
+    const [auditLogs, setAuditLogs] = useState([]);
+    const [auditLoading, setAuditLoading] = useState(false);
 
+    const fetchAuditLogs = useCallback(async () => {
+        setAuditLoading(true);
+        try {
+            const res = await fetch(`${PAYMENT_API}/api/admin/settings/audit`, {
+                headers: { "Authorization": `Bearer ${adminAuth.getToken()}` }
+            });
+            const d = await res.json();
+            if (d.success) setAuditLogs(d.audit || []);
+        } catch (err) {
+            showToast?.("Failed to fetch audit logs", "error");
+        } finally {
+            setAuditLoading(false);
+        }
+    }, [showToast]);
+
+    useEffect(() => {
+        if (activeTab === 'audit') {
+            fetchAuditLogs();
+        }
+    }, [activeTab, fetchAuditLogs]);
 
     useEffect(() => {
         if (activeTab === 'data' && fetchBackups) {
@@ -852,6 +877,96 @@ export function Settings({
                             <p className="settings-save-strip-text">
                                 <strong>Driver app:</strong> toggles apply when <strong>Edit</strong> is on. Use <strong>Backup &amp; import → Push snapshot to API</strong> so the driver portal loads these rules from the server.
                             </p>
+                        </div>
+                    )}
+
+                    {/* ── AUDIT LOG ── */}
+                    {activeTab === "audit" && (
+                        <div className="settings-section">
+                            <SettingsShellSectionHeader
+                                title="System Audit Log"
+                                desc="Track changes made to system-wide settings and configurations."
+                                icon={ClipboardList}
+                            />
+                            
+                            <div style={{ marginBottom: 20, display: 'flex', justifyContent: 'flex-end', gap: 12 }}>
+                                <Badge variant="subtle" icon={ShieldCheck}>
+                                    Production Audit Enabled
+                                </Badge>
+                                <Button 
+                                    variant="secondary" 
+                                    icon={RefreshCw} 
+                                    onClick={fetchAuditLogs} 
+                                    disabled={auditLoading}
+                                >
+                                    Refresh Log
+                                </Button>
+                            </div>
+
+                            <div className="table-responsive">
+                                <table className="table-premium">
+                                    <thead>
+                                        <tr>
+                                            <th>Time</th>
+                                            <th>User</th>
+                                            <th>Setting</th>
+                                            <th>Changes</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {auditLogs.length === 0 ? (
+                                            <tr>
+                                                <td colSpan="4" style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-dim)' }}>
+                                                    {auditLoading ? 'Loading logs...' : 'No audit entries found.'}
+                                                </td>
+                                            </tr>
+                                        ) : (
+                                            auditLogs.map((log) => {
+                                                const isSegechaSettings = log.setting_key === 'segecha_settings';
+                                                return (
+                                                    <tr key={log.id}>
+                                                        <td style={{ whiteSpace: 'nowrap', fontSize: 13 }}>
+                                                            {new Date(log.changed_at).toLocaleString()}
+                                                        </td>
+                                                        <td>
+                                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                                <div style={{ 
+                                                                    width: 24, height: 24, borderRadius: '50%', 
+                                                                    background: 'var(--brand-primary)20', color: 'var(--brand-primary)',
+                                                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                                    fontSize: 10, fontWeight: 800
+                                                                }}>
+                                                                    {(log.changed_by || 'A').charAt(0).toUpperCase()}
+                                                                </div>
+                                                                <span style={{ fontWeight: 600 }}>{log.changed_by || 'System'}</span>
+                                                            </div>
+                                                        </td>
+                                                        <td>
+                                                            <Badge variant="subtle">{log.setting_key}</Badge>
+                                                        </td>
+                                                        <td>
+                                                            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                                                                {isSegechaSettings ? (
+                                                                    <span>Updated workspace configuration</span>
+                                                                ) : (
+                                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                                                        <div style={{ textDecoration: 'line-through', opacity: 0.6 }}>
+                                                                            {JSON.stringify(log.old_value)}
+                                                                        </div>
+                                                                        <div style={{ color: 'var(--success-text)', fontWeight: 600 }}>
+                                                                            {JSON.stringify(log.new_value)}
+                                                                        </div>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     )}
                     {/* ── PROFILE ── */}

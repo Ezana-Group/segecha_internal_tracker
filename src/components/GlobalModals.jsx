@@ -593,6 +593,9 @@ export function GlobalModals(props) {
             errors.customerId = validators.required(form.customerId);
             errors.deliveryCustomerId = validators.required(form.deliveryCustomerId);    
         }
+        if (form.status === 'Completed') {
+            errors.finalOdom = validators.required(form.finalOdom);
+        }
         if (form.isInternational) {
             errors.booking_no = validators.required(form.booking_no);
             errors.tr_form_url = validators.required(form.tr_form_url);
@@ -606,6 +609,13 @@ export function GlobalModals(props) {
 
         const selectedDriver = data.drivers.find((d) => d.id === form.driver);
         const vehicleLocked = !!selectedDriver?.lockVehicleAssignment;
+        
+        const selectedTruckObj = data.trucks.find(t => t.id === form.truck);
+        if (form.truck && selectedTruckObj && selectedTruckObj.status === 'Active') {
+            if (!selectedTruckObj.kraPin || selectedTruckObj.kraPin === 'Unset' || !selectedTruckObj.insuranceId || selectedTruckObj.insuranceId === 'Unset') {
+                errors.truck = "Vehicle missing KRA PIN or Insurance ID compliance fields";
+            }
+        }
 
         const getEffectiveRates = (origin, dest) => {
             if (!origin || !dest) return { driver: DRIVER_PER_KM, turnboy: TURNBOY_PER_KM };
@@ -634,16 +644,8 @@ export function GlobalModals(props) {
                 // If no route override, check for International/Domestic Flat Rates
                 let flatDriver, flatTurnboy;
                 if (isReturning) {
-                    const fallbackDriver = isInternational ? (_S.flatRateOutsideDriver || 0) : (_S.flatRateInsideDriver || 0);
-                    const fallbackTurnboy = isInternational ? (_S.flatRateOutsideTurnboy || 0) : (_S.flatRateInsideTurnboy || 0);
-
-                    const retDriver = isInternational ? _S.flatRateOutsideDriverReturn : _S.flatRateInsideDriverReturn;
-                    const retTurnboy = isInternational ? _S.flatRateOutsideTurnboyReturn : _S.flatRateInsideTurnboyReturn;
-
-                    // Only fall back if the return rate is explicitly null, undefined, or an empty string. 
-                    // If it is 0, we use 0.
-                    flatDriver = (retDriver === null || retDriver === undefined || retDriver === "") ? fallbackDriver : +retDriver;
-                    flatTurnboy = (retTurnboy === null || retTurnboy === undefined || retTurnboy === "") ? fallbackTurnboy : +retTurnboy;
+                    flatDriver = isInternational ? _S.flatRateOutsideDriverReturn : _S.flatRateInsideDriverReturn;
+                    flatTurnboy = isInternational ? _S.flatRateOutsideTurnboyReturn : _S.flatRateInsideTurnboyReturn;
                 } else {
                     flatDriver = isInternational ? (_S.flatRateOutsideDriver || 0) : (_S.flatRateInsideDriver || 0);
                     flatTurnboy = isInternational ? (_S.flatRateOutsideTurnboy || 0) : (_S.flatRateInsideTurnboy || 0);
@@ -721,7 +723,8 @@ export function GlobalModals(props) {
                 if (driverMileage > 0) {
                     const existing = existingExpenses.find(e => e.desc?.startsWith("Driver"));
                     if (wasNew || existing) {
-                        const descPrefix = rates.isFlatRate ? "Flat rate allowance" : `Mileage allowance (${dist} km @ KES ${rates.driver}/km)`;
+                        const isEffectivelyFlat = rates.isFlatRate || !dist || isNaN(dist) || rates.driver === 0;
+                        const descPrefix = isEffectivelyFlat ? "Flat rate allowance" : `Mileage allowance (${dist} km @ KES ${rates.driver}/km)`;
                         // If it's an existing record and amount was manually adjusted, keep the adjustment
                         const finalAmount = (existing && !wasNew) ? Number(existing.amount) : driverMileage;
                         
@@ -746,7 +749,8 @@ export function GlobalModals(props) {
                     const existing = existingExpenses.find(e => e.desc?.startsWith("Turnboy"));
                     if (wasNew || existing) {
                         const tbName = form.turnboyId ? (data.turnboys?.find(t => t.id === form.turnboyId)?.name || form.turnboyId) : form.turnboyName;
-                        const descPrefix = rates.isFlatRate ? "Flat rate allowance" : `Mileage allowance (${dist} km @ KES ${rates.turnboy}/km)`;
+                        const isEffectivelyFlat = rates.isFlatRate || !dist || isNaN(dist) || rates.turnboy === 0;
+                        const descPrefix = isEffectivelyFlat ? "Flat rate allowance" : `Mileage allowance (${dist} km @ KES ${rates.turnboy}/km)`;
                         // If it's an existing record and amount was manually adjusted, keep the adjustment
                         const finalAmount = (existing && !wasNew) ? Number(existing.amount) : turnboyMileage;
                         

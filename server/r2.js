@@ -12,7 +12,7 @@ const r2 = new S3Client({
 });
 
 const BUCKET = process.env.R2_BUCKET_NAME;
-const PUBLIC_URL = process.env.R2_PUBLIC_URL || '';
+const PUBLIC_URL = process.env.R2_PUBLIC_URL || 'https://segecha.com/cdn';
 
 // Mock bypass for testing if credentials are missing
 const isMock = !process.env.R2_ACCESS_KEY_ID || process.env.R2_ACCESS_KEY_ID.includes('your_');

@@ -67,7 +67,7 @@ export default function DriverPortal() {
     // --- Data Fetching ---
     const prevDataRef = useRef(null);
     const fetchDriverData = useCallback(async (tok, isBackground = false) => {
-        if (!tok) return;
+        if (!tok) return false;
         if (!isBackground) setLoading(true);
         try {
             const res = await fetch(`${API}/api/driver/portal-data`, { headers: { Authorization: `Bearer ${tok}` } });
@@ -78,7 +78,7 @@ export default function DriverPortal() {
                 setLoginError('Session expired. Please log in again.');
                 localStorage.removeItem('driver_token');
                 if (!isBackground) setLoading(false);
-                return;
+                return false;
             }
             const payload = await res.json().catch(() => ({}));
             if (!res.ok || !payload?.driver) {
@@ -90,17 +90,20 @@ export default function DriverPortal() {
                     localStorage.removeItem('driver_token');
                 }
                 if (!isBackground) setLoading(false);
-                return;
+                return false;
             }
             const newJson = JSON.stringify(payload);
             if (newJson !== prevDataRef.current) {
                 prevDataRef.current = newJson;
                 setDriverData(payload);
             }
+            if (!isBackground) setLoading(false);
+            return true;
         } catch {
             if (!isBackground) setLoginError('Could not connect to server. Please try again.');
+            if (!isBackground) setLoading(false);
+            return false;
         }
-        if (!isBackground) setLoading(false);
     }, []);
 
     useEffect(() => {
@@ -115,9 +118,36 @@ export default function DriverPortal() {
 
     useEffect(() => { 
         if (!token) return;
-        fetchDriverData(token, false);
-        const pid = setInterval(() => fetchDriverData(token, true), 10000);
-        return () => clearInterval(pid);
+        let timeoutId;
+        let isActive = true;
+        let currentInterval = 5000;
+        const maxInterval = 60000;
+
+        const poll = async () => {
+            if (!isActive) return;
+            const success = await fetchDriverData(token, true);
+            
+            if (success) {
+                currentInterval = 5000; // Reset to fast polling on success
+            } else {
+                currentInterval = Math.min(currentInterval * 2, maxInterval); // Exponential backoff max 60s
+            }
+
+            if (isActive && localStorage.getItem('driver_token')) {
+                timeoutId = setTimeout(poll, currentInterval);
+            }
+        };
+
+        fetchDriverData(token, false).then(() => {
+            if (isActive && localStorage.getItem('driver_token')) {
+                timeoutId = setTimeout(poll, currentInterval);
+            }
+        });
+
+        return () => {
+            isActive = false;
+            clearTimeout(timeoutId);
+        };
     }, [token, fetchDriverData]);
 
     // --- Actions ---

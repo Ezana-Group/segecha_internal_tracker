@@ -98,6 +98,7 @@ CREATE TABLE IF NOT EXISTS journeys (
     tr_form_url TEXT,
     t1_form_url TEXT,
     booking_no TEXT,
+    tracking_id TEXT UNIQUE,
     is_international BOOLEAN DEFAULT FALSE,
     delivery_customer_id TEXT REFERENCES customers(id)
 );
@@ -244,4 +245,13 @@ CREATE TABLE IF NOT EXISTS system_settings (
     key TEXT PRIMARY KEY,
     value JSONB,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS system_settings_audit (
+    id SERIAL PRIMARY KEY,
+    setting_key TEXT NOT NULL,
+    old_value JSONB,
+    new_value JSONB,
+    changed_by TEXT,
+    changed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );

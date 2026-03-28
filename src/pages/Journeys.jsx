@@ -17,7 +17,8 @@ import {
     Droplet,
     Receipt,
     DollarSign,
-    ExternalLink
+    ExternalLink,
+    AlertTriangle
 } from "lucide-react";
 import { fmt, today, uid, fmtDate } from "../utils/formatters";
 import { STATUSES_JOURNEY, CARGO_TYPES } from "../constants/nav";
@@ -357,8 +358,15 @@ export function Journeys({ data, isMobile, modal, form, setForm, openModal, clos
                                         </td>
                                     )}
                                     {(!isDriverPreview || jpv("colRevenue")) && (
-                                        <td style={{ textAlign: "right" }} title={fmt(j.revenue)}>
-                                            <div style={{ fontWeight: 800, color: "#10b981", fontSize: 13, fontVariantNumeric: "tabular-nums" }}>{fmt(j.revenue)}</div>
+                                        <td style={{ textAlign: "right" }} title={fmt(j._revenue)}>
+                                            <div style={{ fontWeight: 800, color: (j.status === 'Completed' && !j.isReturn && (!j._revenue || Number(j._revenue) === 0)) ? "#ef4444" : "#10b981", fontSize: 13, fontVariantNumeric: "tabular-nums" }}>
+                                                {fmt(j._revenue)}
+                                            </div>
+                                            {(j.status === 'Completed' && !j.isReturn && (!j._revenue || Number(j._revenue) === 0)) && (
+                                                <div style={{ fontSize: 10, color: "#ef4444", marginTop: 4, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4, padding: "2px 6px", background: "#ef444415", borderRadius: 4, width: "fit-content", marginLeft: "auto" }}>
+                                                    <AlertTriangle size={12} /> Missing Revenue
+                                                </div>
+                                            )}
                                             {j.driverMileage && (!isDriverPreview || jpv("colAllowanceSubline")) ? (
                                                 <div style={{ fontSize: 10, color: "var(--text-dim)", marginTop: 2, fontVariantNumeric: "tabular-nums", display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4 }}>
                                                     Allowance {fmt(j.driverMileage)}

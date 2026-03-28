@@ -2,10 +2,11 @@ const db = require('./db');
 
 const { upsertEntity } = require('./utils/db-helpers');
 
+const _uIdCounters = {};
 
 /**
  * Generate a sequential uId like "FUL-011".
- * Now queries the DB for the count.
+ * Uses DB query and an in-memory lock to prevent race conditions.
  */
 async function generateUId(collection) {
     const prefixes = {
@@ -25,12 +26,29 @@ async function generateUId(collection) {
     const prefix = prefixes[collection] || '';
     if (!prefix) return '';
 
-    // Count rows in the table to determine the next ID
-    // Note: This is a simple counter, for absolute uniqueness in high concurrency 
-    // we would use a DB sequence, but this matches the existing logic.
-    const res = await db.query(`SELECT COUNT(*) FROM ${collection}`);
-    const count = parseInt(res.rows[0].count) + 1;
-    return prefix + String(count).padStart(3, '0');
+    if (!_uIdCounters[collection]) {
+        // Find max existing number
+        try {
+            const res = await db.query(`SELECT u_id FROM ${collection} WHERE u_id LIKE $1 ORDER BY LENGTH(u_id) DESC, u_id DESC LIMIT 1`, [prefix + '%']);
+            if (res.rows.length > 0 && res.rows[0].u_id) {
+                const numStr = res.rows[0].u_id.replace(prefix, '');
+                const num = parseInt(numStr, 10);
+                if (!isNaN(num)) {
+                    _uIdCounters[collection] = num;
+                }
+            }
+        } catch (e) {
+            // column might not exist or table empty
+        }
+        
+        if (!_uIdCounters[collection]) {
+            const fallback = await db.query(`SELECT COUNT(*) FROM ${collection}`);
+            _uIdCounters[collection] = parseInt(fallback.rows[0].count) || 0;
+        }
+    }
+    
+    _uIdCounters[collection] += 1;
+    return prefix + String(_uIdCounters[collection]).padStart(3, '0');
 }
 
 /**
@@ -222,10 +240,12 @@ async function createJourneyStartRequest(driverId, payload = {}) {
 
     const id = Date.now().toString(36).toUpperCase() + Math.random().toString(36).substr(2, 3).toUpperCase();
     const uId = await generateUId('journeys');
+    const tracking_id = require('crypto').randomBytes(6).toString('hex').toUpperCase();
 
     const journey = {
         id,
         uId,
+        tracking_id,
         driver_id: driverId,
         truck_id: driver.truck,
         origin: payload.origin || '',

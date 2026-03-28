@@ -22,16 +22,29 @@ const { uploadToR2 } = require('./r2');
 const upload = multer();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
+const rateLimit = require('express-rate-limit');
 
 const app = express();
 app.set('trust proxy', true);
 
-async function saveSystemSetting(key, value) {
+async function saveSystemSetting(key, value, changedBy = 'System') {
+    const currentRes = await db.query('SELECT value FROM system_settings WHERE key = $1', [key]);
+    const oldValue = currentRes.rows.length > 0 ? currentRes.rows[0].value : null;
+    const newValue = typeof value === 'object' ? JSON.stringify(value) : value;
+
     await db.query(`
         INSERT INTO system_settings (key, value, updated_at)
         VALUES ($1, $2, CURRENT_TIMESTAMP)
         ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP
-    `, [key, typeof value === 'object' ? JSON.stringify(value) : value]);
+    `, [key, newValue]);
+
+    if (JSON.stringify(oldValue) !== JSON.stringify(newValue)) {
+        await db.query(`
+            INSERT INTO system_settings_audit (setting_key, old_value, new_value, changed_by)
+            VALUES ($1, $2, $3, $4)
+        `, [key, oldValue, newValue, changedBy]);
+    }
 }
 const PORT = process.env.PORT;
 if (!PORT) console.warn('WARNING: PORT not set, some environments may fail to bind.');
@@ -111,7 +124,11 @@ const adminAuth = async (req, res, next) => {
 
     // Check Admin Key
     if (adminKey && adminKey.trim() === ADMIN_KEY && ADMIN_KEY !== '') {
-        return next();
+        if (process.env.NODE_ENV === 'production') {
+            console.warn(`[AUTH] Ignoring legacy x-admin-key in production. Enforcing JWT.`);
+        } else {
+            return next();
+        }
     }
 
     // Diagnostic logging for auth failure
@@ -255,6 +272,43 @@ app.use((req, res, next) => {
     return res.status(404).send('Portal not found');
 });
 
+
+// --- PUBLIC TRACKING ENDPOINT ---
+const trackRateLimit = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 30,
+    message: { error: 'Too many tracking requests. Please try again later.' }
+});
+
+app.get('/api/track/:ref', trackRateLimit, async (req, res) => {
+    const { ref } = req.params;
+    try {
+        const query = `
+            SELECT j.*, t.registration_number as truck_reg
+            FROM journeys j
+            LEFT JOIN trucks t ON j.truck_id = t.id
+            WHERE j.tracking_id = $1 OR j.booking_no = $1 OR j.id = $1
+        `;
+        const result = await db.query(query, [ref.trim().toUpperCase()]);
+        
+        if (result.rows.length === 0) {
+            return res.status(404).json({ success: false, error: 'Shipment not found' });
+        }
+
+        const j = result.rows[0];
+        res.json({
+            success: true,
+            waybillNo: j.tracking_id || j.booking_no || j.id,
+            status: j.status,
+            origin: j.origin,
+            dest: j.destination,
+            cargo: j.cargo_type,
+            updatedAt: j.created_at
+        });
+    } catch (e) {
+        res.status(500).json({ success: false, error: 'Tracking service error' });
+    }
+});
 
 // --- AUTHENTICATED API ROUTES ---
 // Apply AUTH to all /api routes except public ones
@@ -809,30 +863,17 @@ app.delete('/api/documents/:id', async (req, res) => {
 });
 
 
-// Admin upload (Cloudinary for images, R2 for docs)
+// Admin upload (Unified Cloudflare R2)
 app.post('/api/admin/upload', upload.single('file'), async (req, res) => {
     try {
         if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
-        const ext = path.extname(req.file.originalname).toLowerCase();
-        const isImage = ['.jpg', '.jpeg', '.png', '.webp', '.gif'].includes(ext);
-        const isDoc = ['.pdf', '.doc', '.docx'].includes(ext);
         const folder = req.body.folder || 'admin_uploads';
-
-
-        if (isDoc) {
-            // Upload to Cloudflare R2
-            const key = `${folder}/${Date.now()}_${req.file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-            const url = await uploadToR2(req.file.buffer, key, req.file.mimetype);
-            return res.json({ success: true, url });
-        } else if (isImage) {
-            // Upload to Cloudinary
-            const result = await uploadBuffer(req.file.buffer, folder, req.file.originalname);
-            return res.json({ success: true, url: result.secure_url });
-        } else {
-            return res.status(400).json({ error: 'Unsupported file type. Use PDF, DOC, or Images.' });
-        }
+        const key = `${folder}/${Date.now()}_${req.file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+        const url = await uploadToR2(req.file.buffer, key, req.file.mimetype);
+        return res.json({ success: true, url });
     } catch (e) {
+        console.error('UPLOAD_ERROR:', e);
         res.status(500).json({ error: 'File upload failed' });
     }
 });
@@ -1025,11 +1066,21 @@ app.get('/api/admin/settings', async (req, res) => {
     }
 });
 
+app.get('/api/admin/settings/audit', async (req, res) => {
+    try {
+        const result = await db.query("SELECT * FROM system_settings_audit ORDER BY changed_at DESC LIMIT 100");
+        res.json({ success: true, audit: result.rows });
+    } catch (e) {
+        res.status(500).json({ error: 'Failed to fetch audit log' });
+    }
+});
+
 // Update system settings (Unified segecha_settings blob)
 app.post('/api/admin/settings', async (req, res) => {
     const { settings } = req.body;
+    const changedBy = req.admin ? (req.admin.email || req.admin.id) : 'Admin';
     try {
-        await saveSystemSetting('segecha_settings', settings);
+        await saveSystemSetting('segecha_settings', settings, changedBy);
         res.json({ success: true, message: 'Settings saved to database' });
     } catch (e) {
         console.error('SETTINGS_SAVE_ERROR:', e);
@@ -1073,9 +1124,22 @@ app.get('/api/tracker/backups', (req, res) => {
     }
 });
 
+let lastManualBackupTime = 0;
+const BACKUP_COOLDOWN_MS = 60 * 60 * 1000; // 1 hour
+
 // Create Manual Backup (Unified)
 app.post('/api/tracker/backup-now', async (req, res) => {
     try {
+        const now = Date.now();
+        if (now - lastManualBackupTime < BACKUP_COOLDOWN_MS) {
+            const minutesLeft = Math.ceil((BACKUP_COOLDOWN_MS - (now - lastManualBackupTime)) / 60000);
+            return res.status(429).json({ error: `Manual backups are rate-limited. Please try again in ${minutesLeft} minutes.` });
+        }
+
+        const adminContext = req.admin ? (req.admin.email || req.admin.name || req.admin.id) : 'Unknown Admin';
+        console.log(`[AUDIT] Manual backup triggered by: ${adminContext} at ${new Date().toISOString()}`);
+
+        lastManualBackupTime = now;
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
         const filename = `backup_master_${timestamp}.json`;
         const backup = await backupEverything();
@@ -1084,6 +1148,7 @@ app.post('/api/tracker/backup-now', async (req, res) => {
         res.json({ success: true, message: 'Master backup created: ' + filename });
     } catch (e) {
         console.error('BACKUP_ERROR:', e);
+        lastManualBackupTime = 0; // Reset on failure
         res.status(500).json({ error: 'Backup failed: ' + e.message });
     }
 });
@@ -1141,9 +1206,60 @@ app.post('/api/tracker/upload-backup', (req, res) => {
 
         res.json({ success: true, message: 'Backup uploaded successfully' });
     } catch (e) {
-        res.status(500).json({ error: 'Upload failed: ' + e.message });
+        res.status(500).json({ error: 'Failed to upload backup: ' + e.message });
     }
 });
+
+// --- SECURE PAYMENT WEBHOOKS ---
+
+app.post('/api/webhooks/mpesa', async (req, res) => {
+    try {
+        // Assume Safaricom sends signature in headers if configured, or validate payload 
+        // using shared secret (based on Safaricom's specific HMAC setup, often just ip whitelisting, 
+        // but here we implement standard HMAC if a secret is provided).
+        // Since standard STK push callbacks don't use HMAC but rather strict IP whitelisting + body validation,
+        // we'll implement a basic validation here. If a secret is provided, we check HMAC.
+        const secret = process.env.MPESA_WEBHOOK_SECRET;
+        if (secret) {
+            const signature = req.headers['x-mpesa-signature'] || req.headers['x-signature'];
+            if (!signature) {
+                console.warn('[WEBHOOK] Rejected M-Pesa webhook: Missing signature');
+                return res.status(401).send('Missing signature');
+            }
+            const hash = crypto.createHmac('sha256', secret).update(JSON.stringify(req.body)).digest('hex');
+            // Allow matching direct hex or base64 equivalent
+            if (hash !== signature && crypto.createHmac('sha256', secret).update(JSON.stringify(req.body)).digest('base64') !== signature) {
+                console.warn('[WEBHOOK] Rejected M-Pesa webhook: Invalid signature');
+                return res.status(401).send('Invalid signature');
+            }
+        }
+        
+        console.log('[WEBHOOK] M-Pesa payload received:', req.body);
+        // Process M-Pesa payment here (e.g. marking invoice paid)
+        res.status(200).send('OK');
+    } catch (e) {
+        console.error('[WEBHOOK ERROR]', e);
+        res.status(500).send('Internal Server Error');
+    }
+});
+
+app.post('/api/webhooks/flutterwave', async (req, res) => {
+    try {
+        const secretHash = process.env.FLW_SECRET_HASH;
+        const signature = req.headers['verif-hash'];
+        if (!signature || signature !== secretHash) {
+            console.warn('[WEBHOOK] Rejected Flutterwave webhook: Invalid signature');
+            return res.status(401).send('Invalid signature');
+        }
+        console.log('[WEBHOOK] Flutterwave payload received:', req.body);
+        // Process Flutterwave payment here (e.g. marking invoice paid)
+        res.status(200).send('OK');
+    } catch (e) {
+        console.error('[WEBHOOK ERROR]', e);
+        res.status(500).send('Internal Server Error');
+    }
+});
+
 
 // --- AUTOMATED BACKUP SCHEDULER ---
 let backupInterval = null;
@@ -1494,19 +1610,12 @@ app.post('/api/driver/upload', driverAuth.authMiddleware, upload.single('file'),
     try {
         if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
-        const ext = path.extname(req.file.originalname).toLowerCase();
-        const isImage = ['.jpg', '.jpeg', '.png', '.webp', '.gif'].includes(ext);
         const folder = req.body.folder || `drivers/${req.driver.driverId}`;
 
-        if (isImage) {
-            const result = await uploadBuffer(req.file.buffer, folder);
-            res.json({ success: true, url: result.secure_url });
-        } else {
-            // General driver upload (like a scan of something) - use R2
-            const key = `${folder}/${Date.now()}_${req.file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-            const url = await uploadToR2(req.file.buffer, key, req.file.mimetype);
-            res.json({ success: true, url });
-        }
+        // General driver upload - unified to R2
+        const key = `${folder}/${Date.now()}_${req.file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+        const url = await uploadToR2(req.file.buffer, key, req.file.mimetype);
+        res.json({ success: true, url });
     } catch (e) {
         console.error('DRIVER_UPLOAD_ERROR:', e);
         res.status(500).json({ error: e.message });

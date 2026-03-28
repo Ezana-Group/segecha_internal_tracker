@@ -19,6 +19,7 @@ import {
     Shield,
     Pencil,
     CheckCircle2,
+    AlertCircle,
 } from "lucide-react";
 import { fmt, fmtN, today, fmtDate } from "../utils/formatters";
 import { Card } from "../components/Card";
@@ -64,6 +65,7 @@ export function VehicleProfile({ data, setData, dark, isMobile, openModal, maint
     const totalKm        = truckJourneys.reduce((s, j) => s + +j.distance, 0);
     const totalLitres    = truckFuel.reduce((s, f) => s + +f.litres, 0);
     const avgKmPerL      = totalLitres > 0 ? (totalKm / totalLitres).toFixed(2) : '—';
+    const missingOdomJourneys = truckJourneys.filter(j => j.status === 'Completed' && (j.distance == null || String(j.distance).trim() === '' || isNaN(Number(j.distance))));
 
     const DEFAULT_SCHEDULE = [
         { task: 'Oil Change',                  intervalKm: 10000 },
@@ -117,6 +119,12 @@ export function VehicleProfile({ data, setData, dark, isMobile, openModal, maint
                 {/* OVERVIEW */}
                 {tab === 'overview' && (
                     <div style={{ padding: 32 }}>
+                        {missingOdomJourneys.length > 0 && (
+                            <div style={{ padding: "12px 16px", background: "#ef444415", color: "#ef4444", borderRadius: 12, marginBottom: 20, display: "flex", alignItems: "center", gap: 10, fontWeight: 600, fontSize: 13, border: "1px solid #ef444430" }}>
+                                <AlertCircle size={18} />
+                                <div>Distance data missing — final odometer not recorded for {missingOdomJourneys.length} completed journey(s).</div>
+                            </div>
+                        )}
                         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4,1fr)', gap: 20, marginBottom: 40 }}>
                             {[
                                 { l: 'Revenue',        v: fmt(truckRevenue),  c: '#10b981', i: Navigation },

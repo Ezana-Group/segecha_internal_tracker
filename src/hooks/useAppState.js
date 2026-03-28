@@ -370,8 +370,20 @@ export function useAppState() {
                     };
 
                     if (prefixes[col]) {
-                        const count = currentData.length + 1;
-                        uId = prefixes[col] + String(count).padStart(3, '0');
+                        window._uIdCounters = window._uIdCounters || {};
+                        if (!window._uIdCounters[col]) {
+                            let maxNum = currentData.length;
+                            for (const item of currentData) {
+                                if (item.uId && typeof item.uId === 'string' && item.uId.startsWith(prefixes[col])) {
+                                    const numStr = item.uId.replace(prefixes[col], '');
+                                    const num = parseInt(numStr, 10);
+                                    if (!isNaN(num) && num > maxNum) maxNum = num;
+                                }
+                            }
+                            window._uIdCounters[col] = maxNum;
+                        }
+                        window._uIdCounters[col] += 1;
+                        uId = prefixes[col] + String(window._uIdCounters[col]).padStart(3, '0');
                     }
                 } catch (e) {
                     console.error("Error generating uId:", e);

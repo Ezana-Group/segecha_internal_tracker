@@ -27,6 +27,7 @@ import {
     Download,
     Trash2,
     KeyRound,
+    AlertCircle,
 } from "lucide-react";
 import { fmt, fmtDate, today } from "../utils/formatters";
 import { Card } from "../components/Card";
@@ -111,6 +112,7 @@ export function DriverProfile({ data, setData, dark, isMobile, truckReg, openMod
     const totalKm       = driverJourneys.reduce((s, j) => s + +j.distance, 0);
     const totalLitres   = driverFuel.reduce((s, f) => s + +f.litres, 0);
     const avgKmPerL     = totalLitres > 0 ? (totalKm / totalLitres).toFixed(2) : '—';
+    const missingOdomJourneys = driverJourneys.filter(j => j.status === 'Completed' && (j.distance == null || String(j.distance).trim() === '' || isNaN(Number(j.distance))));
     
     // Safety score (mock based on status)
     const safetyScore   = driver.status === 'Active' ? 94 : 45;
@@ -344,6 +346,12 @@ export function DriverProfile({ data, setData, dark, isMobile, truckReg, openMod
                 {/* OVERVIEW */}
                 {tab === 'overview' && d.tabOverview !== false && (
                     <div style={{ padding: isMobile ? 16 : 32 }}>
+                        {missingOdomJourneys.length > 0 && (
+                            <div style={{ padding: "12px 16px", background: "#ef444415", color: "#ef4444", borderRadius: 12, marginBottom: 20, display: "flex", alignItems: "center", gap: 10, fontWeight: 600, fontSize: 13, border: "1px solid #ef444430" }}>
+                                <AlertCircle size={18} />
+                                <div>Distance data missing — final odometer not recorded for {missingOdomJourneys.length} completed journey(s).</div>
+                            </div>
+                        )}
                         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4,1fr)', gap: 20, marginBottom: 40 }}>
                             {[
                                 { l: 'Total Revenue',  v: fmt(driverRevenue),  c: '#10b981', i: TrendingUp, pk: 'kpiRevenue' },
