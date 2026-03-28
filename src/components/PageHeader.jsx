@@ -8,7 +8,7 @@ export function PageHeader({
     actions,
     belowTitle,
     className = "",
-    marginBottom = 28,
+    marginBottom = 22,
 }) {
     return (
         <header
