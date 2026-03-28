@@ -6,21 +6,22 @@ const db = require('../db');
  */
 
 const ALLOWED_METADATA = {
-    journeys: ['finalOdom', '_isRejected', '_rejectionReason', '_rejectedFields', '_pendingApproval', 'tr_form_url', 't1_form_url'],
+    journeys: ['finalOdom', '_isRejected', '_rejectionReason', '_rejectedFields', '_pendingApproval', 'tr_form_url', 't1_form_url', 'booking_no'],
     fuel_logs: ['paymentRef', 'isPetrolCard', '_pendingApproval', '_isRejected', '_rejectionReason', 'station_coords'],
     expenses: ['fuel_log_id', 'paymentRef', 'isPetrolCard', '_pendingApproval', '_isRejected', '_rejectionReason'],
-    payroll: ['baseSalary', 'allowance', 'deductions', 'mpesaRef', 'paidAt', 'workingDays'],
-    drivers: ['truck', 'class', 'bankName', 'bankAccount', 'emergencyContact', 'address'],
-    staff: ['bankName', 'bankAccount', 'emergencyContact', 'address', 'id_number'],
-    trucks: ['model_year', 'engine_number', 'chassis_number', 'kra_pin', 'insurance_id'],
-    trailers: ['make', 'year', 'capacity'],
-    customers: ['contact_person', 'tax_id', 'credit_limit'],
-    incidents: ['_pendingApproval', '_isRejected', '_rejectionReason', 'police_report_url', 'witness_contact'],
-    documents: ['driverId']
+    payroll: ['baseSalary', 'allowance', 'deductions', 'mpesaRef', 'paidAt', 'workingDays']
 };
+
+const RESTRICTED_METADATA_TABLES = ['journeys', 'fuel_logs', 'expenses', 'payroll'];
 
 function sanitizeMetadata(table, metadata) {
     if (!metadata) return {};
+    
+    // For operational master data, allow all metadata fields to prevent data loss on reload
+    if (!RESTRICTED_METADATA_TABLES.includes(table)) {
+        return metadata;
+    }
+
     const allowed = ALLOWED_METADATA[table] || [];
     const sanitized = {};
     allowed.forEach(key => {
@@ -28,10 +29,12 @@ function sanitizeMetadata(table, metadata) {
             sanitized[key] = metadata[key];
         }
     });
-    // Always allow audit/system fields starting with _
+
+    // Always allow audit/system fields starting with _ (e.g., _isSuperAdminOverride)
     Object.keys(metadata).forEach(key => {
         if (key.startsWith('_') && !sanitized[key]) sanitized[key] = metadata[key];
     });
+
     return sanitized;
 }
 

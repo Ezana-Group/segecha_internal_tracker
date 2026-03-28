@@ -537,10 +537,10 @@ async function getEntityData(table) {
 
 // Normalize DB rows back to frontend field names
 function normalizeTruck(t) {
-    return { ...t, reg: t.registration_number, odom: t.current_mileage, ...t.metadata };
+    return { ...t, uId: t.id, reg: t.registration_number, odom: t.current_mileage, ...t.metadata };
 }
 function normalizeTrailer(t) {
-    return { ...t, reg: t.registration_number, ...t.metadata };
+    return { ...t, uId: t.id, reg: t.registration_number, ...t.metadata };
 }
 function normalizeDriver(d) {
     let licenseClass = d.license_class;
@@ -553,11 +553,15 @@ function normalizeDriver(d) {
     }
     return { 
         ...d, 
+        uId: d.id,
         license: d.license_number, 
         class: licenseClass || d.metadata?.class || [],
         truck: d.truck || d.metadata?.truck || "",
         ...d.metadata 
     };
+}
+function normalizeStaff(s) {
+    return { ...s, uId: s.id, ...s.metadata };
 }
 function normalizeJourney(j) {
     return { ...j, truck: j.truck_id, driver: j.driver_id, date: j.start_date, endDate: j.end_date, dest: j.destination, cargo: j.cargo_type, customerId: j.customer_id, ...j.metadata };
@@ -596,6 +600,7 @@ function normalizeRow(table, row) {
     if (table === 'expenses') return normalizeExpense(row);
     if (table === 'invoices') return normalizeInvoice(row);
     if (table === 'maintenance_logs') return normalizeMaintenance(row);
+    if (table === 'staff') return normalizeStaff(row);
     if (table === 'payroll') return normalizePayroll(row);
     if (table === 'documents') return normalizeDocument(row);
     return row;
