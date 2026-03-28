@@ -1250,12 +1250,19 @@ app.post('/api/driver/save', async (req, res) => {
 
 // Generic Admin Entity Save
 app.post('/api/admin/:table', async (req, res) => {
-    const { table } = req.params;
+    let { table } = req.params;
+
+    // Map frontend collection names to DB table names
+    const tableMap = {
+        'fuel': 'fuel_logs',
+        'maintenance': 'maintenance_logs'
+    };
+    if (tableMap[table]) table = tableMap[table];
 
     // Validate table name against allowed list
-    const allowed = ['trucks', 'drivers', 'staff', 'journeys', 'fuel_logs', 'expenses', 'incidents', 'customers', 'trailers', 'payroll', 'invoices', 'payments', 'maintenance_logs', 'tyre_logs'];
+    const allowed = ['trucks', 'drivers', 'staff', 'journeys', 'fuel_logs', 'expenses', 'incidents', 'customers', 'trailers', 'payroll', 'invoices', 'payments', 'maintenance_logs', 'tyre_logs', 'documents'];
     if (!allowed.includes(table)) {
-        return res.status(400).json({ error: 'Invalid entity type: ' + table });
+        return res.status(400).json({ error: 'Invalid entity type: ' + req.params.table });
     }
 
     try {
