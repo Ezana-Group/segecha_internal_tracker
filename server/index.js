@@ -3,8 +3,12 @@ const { existsSync, writeFileSync } = require('fs');
 const AdmZip = require('adm-zip');
 
 // Load environment variables from both root and local (robust for multiple root-folder setups)
+const originalPort = process.env.PORT;
 const envPaths = [path.join(__dirname, '..', '.env'), path.join(__dirname, '.env')];
 envPaths.forEach(p => { if (existsSync(p)) require('dotenv').config({ path: p, override: true }); });
+
+// Restore system port if it existed (don't let .env override the host-provided PORT)
+if (originalPort) process.env.PORT = originalPort;
 
 const express = require('express');
 const cors = require('cors');
