@@ -997,10 +997,13 @@ app.post('/api/admin/settings', async (req, res) => {
 });
 
 app.post('/api/tracker/data', async (req, res) => {
-    const { data } = req.body;
+    // Handle both { data: {...} } and {...} direct payloads
+    const syncData = req.body.data || req.body;
     try {
-        if (!data) return res.status(400).json({ error: 'No data provided' });
-        await syncFullData(data);
+        if (!syncData || Object.keys(syncData).length === 0) {
+            return res.status(400).json({ error: 'No data provided' });
+        }
+        await syncFullData(syncData);
         res.json({ success: true, message: 'Live data synchronized to PostgreSQL' });
     } catch (e) {
         console.error('SYNC_ERROR:', e);
