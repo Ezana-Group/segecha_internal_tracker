@@ -275,6 +275,9 @@ async function syncFullData(data) {
             // We use upsert for each item to avoid truncating and losing data not in the snapshot
             for (const item of items) {
                 // We use the same upsert logic but with the client from the transaction
+                // For sync operations, we inherently treat as an administrative override (SuperAdmin role)
+                // because sync/restore is a privileged system-level operation.
+                item._isSuperAdminOverride = true;
                 await upsertEntityInTransaction(client, tableName, item);
             }
         }
@@ -406,7 +409,12 @@ async function upsertEntityInTransaction(client, table, item) {
         }
     }
     
-    return client.query(query, values);
+    try {
+        return await client.query(query, values);
+    } catch (e) {
+        console.error(`[UPSERT_FAILED] Table: ${table}, ID: ${item.id}:`, e.message);
+        throw e;
+    }
 }
 
 module.exports = {

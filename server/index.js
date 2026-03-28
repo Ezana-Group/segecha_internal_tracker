@@ -28,12 +28,7 @@ const rateLimit = require('express-rate-limit');
 const app = express();
 app.set('trust proxy', true);
 
-const APP_VERSION = '2.1.0'; 
 
-// Public version endpoint
-app.get('/api/version', (req, res) => {
-    res.json({ version: APP_VERSION });
-});
 
 async function saveSystemSetting(key, value, changedBy = 'System') {
     const currentRes = await db.query('SELECT value FROM system_settings WHERE key = $1', [key]);
@@ -94,6 +89,13 @@ process.on('unhandledRejection', (reason, promise) => {
 
 
 app.use(express.json());
+
+const APP_VERSION = '2.1.0';
+
+// Public version endpoint (no auth required for handshake)
+app.get('/api/version', (req, res) => {
+    res.json({ version: APP_VERSION });
+});
 
 // 3. Admin Auth Middleware
 const JWT_SECRET = process.env.JWT_SECRET;
