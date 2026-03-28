@@ -129,6 +129,22 @@ export function Payroll({ data, setData, dark, isMobile, modal, form, setForm, o
                         <Button variant="secondary" icon={Download}>
                             Export paysheets
                         </Button>
+                        {!monthPayroll.every(p => p.finalized) && monthPayroll.length > 0 && (
+                            <Button 
+                                variant="primary" 
+                                icon={ShieldCheck} 
+                                onClick={async () => {
+                                    if (window.confirm(`Finalize all payroll records for ${monthLabel(selMonth)}? This will lock all linked trip and expense data.`)) {
+                                        for (const p of monthPayroll) {
+                                            if (!p.finalized) await saveItem("payroll", { ...p, finalized: true }, { silent: true });
+                                        }
+                                        showToast?.("Payroll period finalized and locked.", "success");
+                                    }
+                                }}
+                            >
+                                Finalize Period
+                            </Button>
+                        )}
                         <Button variant="premium" icon={Plus} onClick={() => openModal("payroll", { month: selMonth, status: "Pending" })}>
                             Add pay record
                         </Button>
@@ -265,13 +281,16 @@ export function Payroll({ data, setData, dark, isMobile, modal, form, setForm, o
                                         )}
                                     </td>
                                     <td className="status-col" title={p.status}>
-                                        <Badge status={p.status} text={p.status} />
+                                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                            <Badge status={p.status} text={p.status} />
+                                            {p.finalized && <ShieldCheck size={16} color="var(--brand-primary)" title="Finalized & Locked" />}
+                                        </div>
                                     </td>
                                     <td style={{ textAlign: "right", verticalAlign: "middle" }}>
                                         <TableRowActions
                                             ariaLabel={`Payroll actions for ${p._name}`}
                                             items={[
-                                                ...(p._isVirtual ? [
+                                                ...(p._isVirtual && !p.finalized ? [
                                                     {
                                                         id: "configure",
                                                         label: "Configure pay",
@@ -285,7 +304,7 @@ export function Payroll({ data, setData, dark, isMobile, modal, form, setForm, o
                                                         }),
                                                     }
                                                 ] : []),
-                                                ...(!p._isVirtual && p.status === "Pending"
+                                                ...(!p._isVirtual && p.status === "Pending" && !p.finalized
                                                     ? [
                                                           {
                                                               id: "b2c",
@@ -295,7 +314,7 @@ export function Payroll({ data, setData, dark, isMobile, modal, form, setForm, o
                                                           },
                                                       ]
                                                     : []),
-                                                ...(!p._isVirtual ? [
+                                                ...(!p._isVirtual && !p.finalized ? [
                                                     {
                                                         id: "edit",
                                                         label: "Edit payroll",
@@ -308,6 +327,15 @@ export function Payroll({ data, setData, dark, isMobile, modal, form, setForm, o
                                                         icon: Trash2,
                                                         danger: true,
                                                         onClick: () => delItem("payroll", p.id, (p._name || "") + " " + p.month),
+                                                    }
+                                                ] : []),
+                                                ...(p.finalized ? [
+                                                    {
+                                                        id: "locked",
+                                                        label: "Record Locked",
+                                                        icon: ShieldCheck,
+                                                        disabled: true,
+                                                        onClick: () => {}
                                                     }
                                                 ] : [])
                                             ]}

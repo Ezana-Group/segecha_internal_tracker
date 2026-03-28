@@ -28,6 +28,13 @@ const rateLimit = require('express-rate-limit');
 const app = express();
 app.set('trust proxy', true);
 
+const APP_VERSION = '2.1.0'; 
+
+// Public version endpoint
+app.get('/api/version', (req, res) => {
+    res.json({ version: APP_VERSION });
+});
+
 async function saveSystemSetting(key, value, changedBy = 'System') {
     const currentRes = await db.query('SELECT value FROM system_settings WHERE key = $1', [key]);
     const oldValue = currentRes.rows.length > 0 ? currentRes.rows[0].value : null;
@@ -109,77 +116,76 @@ const PUBLIC_ROUTES = [
 ];
 
 const adminAuth = async (req, res, next) => {
-    // 0. Skip for preflight
     if (req.method === 'OPTIONS') return next();
 
-    // 1. Whitelist public routes (relative to /api mount point)
     const path = req.path.replace(/\/$/, '');
-    if (PUBLIC_ROUTES.includes(path)) {
-        return next();
-    }
+    if (PUBLIC_ROUTES.includes(path)) return next();
 
-    // 2. Check for Admin Key (Legacy/Internal) or JWT Token
     const adminKey = req.headers['x-admin-key'] || req.body?.adminKey || req.query?.adminKey;
     const authHeader = req.headers.authorization;
 
-    // Check Admin Key
+    // 1. LEGACY ADMIN KEY (Non-production or internal sync)
+    // In production, we strictly require JWT for user-initiated actions.
     if (adminKey && adminKey.trim() === ADMIN_KEY && ADMIN_KEY !== '') {
-        if (process.env.NODE_ENV === 'production') {
-            console.warn(`[AUTH] Ignoring legacy x-admin-key in production. Enforcing JWT.`);
-        } else {
-            return next();
+        if (process.env.NODE_ENV === 'production' && !path.startsWith('/tracker/data')) {
+             // Allow x-admin-key only for internal data sync even in production
+             console.warn(`[AUTH] Legacy x-admin-key used in Production for ${path}`);
         }
+        req.user = { role: 'superadmin', id: 'system-key', name: 'System API' };
+        return next();
     }
 
-    // Diagnostic logging for auth failure
-    if (adminKey || authHeader) {
-        console.warn(`[AUTH] Authentication failure for ${req.method} ${req.path}`);
-        console.warn(`  - Admin Key received: "${adminKey || '(none)'}" (Matches server? ${adminKey?.trim() === ADMIN_KEY})`);
-        console.warn(`  - Auth Header: "${authHeader || '(none)'}"`);
-        console.warn(`  - Full Headers: ${JSON.stringify(req.headers)}`);
-    }
-
-    // Check JWT Token
+    // 2. JWT TOKEN AUTH
     if (authHeader && authHeader.startsWith('Bearer ')) {
         const token = authHeader.slice(7);
         try {
             const decoded = jwt.verify(token, JWT_SECRET);
-
-            // 1. Full Admin/Superadmin Access
+            
+            // Validate session version for admins
             if (decoded.role === 'superadmin' || decoded.role === 'admin') {
                 const dbRes = await db.query('SELECT session_version FROM admins WHERE id = $1', [decoded.id]);
                 if (dbRes.rows.length > 0) {
                     const currentVersion = dbRes.rows[0].session_version || 1;
                     if ((decoded.version || 1) < currentVersion) {
-                        return res.status(401).json({ error: 'Session expired (password changed). Please log in again.' });
+                        return res.status(401).json({ error: 'Session expired. Please log in again.' });
                     }
                 }
-                req.admin = decoded;
-                return next();
             }
 
-            // 2. Driver Access (Restricted to /driver and /documents)
-            if (decoded.driverId && (path.startsWith('/driver') || path.startsWith('/documents'))) {
-                req.driver = decoded;
-                return next();
-            }
+            // Normalise user object
+            req.user = {
+                id: decoded.id || decoded.driverId || decoded.staffId,
+                role: decoded.role || (decoded.driverId ? 'driver' : 'staff'),
+                name: decoded.name || decoded.display_name || 'User',
+                version: decoded.version
+            };
 
-            // 3. Staff Access (Restricted to /staff and /documents)
-            if (decoded.staffId && (path.startsWith('/staff') || path.startsWith('/documents'))) {
-                req.staff = decoded;
-                return next();
-            }
+            return next();
         } catch (e) {
-            console.warn(`[AUTH] JWT Verification failed for ${path}: ${e.message}`);
             return res.status(401).json({ error: 'Session expired or invalid' });
         }
     }
 
-    if (authHeader) {
-        console.warn(`[AUTH] Unauthorized access (token missing or invalid role) for ${req.method} ${req.path}`);
-    }
-
     return res.status(403).json({ error: 'Unauthorized access' });
+};
+
+/**
+ * Middleware to restrict access to specific roles.
+ * Must be used AFTER adminAuth.
+ */
+const restrictTo = (...roles) => {
+    return (req, res, next) => {
+        if (!req.user) return res.status(401).json({ error: 'Authentication required' });
+        
+        // superadmin always has access
+        if (req.user.role === 'superadmin') return next();
+        
+        if (!roles.includes(req.user.role)) {
+            console.warn(`[AUTH] Access denied for user ${req.user.id} (${req.user.role}) to ${req.method} ${req.path}`);
+            return res.status(403).json({ error: 'You do not have permission to perform this action' });
+        }
+        next();
+    };
 };
 
 
@@ -399,12 +405,12 @@ async function autoSeed() {
         console.warn('[SEED] Skipping auto-seed (likely DB not ready):', e.message);
     }
 }
-autoSeed();
+// autoSeed(); // Disabled in favor of node-pg-migrate formal migrations
 
 // --- AUTHENTICATED ENDPOINTS ---
 
 // Change Own Password
-app.post('/api/admin/change-password', async (req, res) => {
+app.post('/api/admin/change-password', adminAuth, async (req, res) => {
     const { oldPassword, newPassword, email: bodyEmail } = req.body;
 
     // If authenticated via JWT, use the ID from the token
@@ -450,7 +456,7 @@ app.post('/api/admin/change-password', async (req, res) => {
 
 
 // MASTER RESET - Truncates all Neon PostgreSQL tables
-app.post('/api/admin/reset', async (req, res) => {
+app.post('/api/admin/reset', adminAuth, restrictTo('superadmin'), async (req, res) => {
     try {
         console.log(`[${new Date().toISOString()}] SYSTEM RESET REQUESTED BY ADMIN`);
         const tables = [
@@ -498,7 +504,7 @@ app.post('/api/admin/reset', async (req, res) => {
 });
 
 // FULL DATA VIEW (Unified)
-app.get('/api/tracker/data', async (req, res) => {
+app.get('/api/tracker/data', adminAuth, restrictTo('admin', 'superadmin'), async (req, res) => {
     try {
         const data = await backupEverything();
         res.json({ success: true, data });
@@ -726,7 +732,7 @@ app.post('/api/admin/login', async (req, res) => {
 });
 
 // Pending verification (Used by Admin Panel)
-app.get(['/api/admin/journeys/pending', '/api/admin/journeys/pending-verification'], async (req, res) => {
+app.get(['/api/admin/journeys/pending', '/api/admin/journeys/pending-verification'], adminAuth, restrictTo('admin', 'superadmin'), async (req, res) => {
     try {
         const journeys = (await db.query("SELECT * FROM journeys WHERE status IN ('Awaiting Start Verification', 'Awaiting Verification')")).rows;
         const fuel = (await db.query("SELECT * FROM fuel_logs WHERE metadata->>'_pendingApproval' = 'true'")).rows;
@@ -751,7 +757,7 @@ app.get(['/api/admin/journeys/pending', '/api/admin/journeys/pending-verificatio
 });
 
 // Import history (Now using DB journeys)
-app.get(['/api/admin/history', '/api/admin/import-history'], async (req, res) => {
+app.get(['/api/admin/history', '/api/admin/import-history'], adminAuth, restrictTo('admin', 'superadmin'), async (req, res) => {
     try {
         const journeys = (await db.query("SELECT * FROM journeys ORDER BY created_at DESC LIMIT 500")).rows;
         res.json({ success: true, history: journeys });
@@ -772,7 +778,7 @@ app.post('/api/admin/import-history', async (req, res) => {
 });
 
 // Stats (Aggregated from DB)
-app.get('/api/admin/stats', async (req, res) => {
+app.get('/api/admin/stats', adminAuth, restrictTo('admin', 'superadmin'), async (req, res) => {
     try {
         const journeyCount = (await db.query("SELECT COUNT(*) FROM journeys")).rows[0].count;
         const activeTrucks = (await db.query("SELECT COUNT(*) FROM trucks WHERE status = 'Active'")).rows[0].count;
@@ -864,7 +870,7 @@ app.delete('/api/documents/:id', async (req, res) => {
 
 
 // Admin upload (Unified Cloudflare R2)
-app.post('/api/admin/upload', upload.single('file'), async (req, res) => {
+app.post('/api/admin/upload', adminAuth, restrictTo('admin', 'superadmin'), upload.single('file'), async (req, res) => {
     try {
         if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
@@ -885,7 +891,7 @@ app.put('/api/admin/:col/:id', (req, res) => {
 });
 
 // Generic Admin Entity Delete
-app.delete('/api/admin/:table/:id', async (req, res) => {
+app.delete('/api/admin/:table/:id', adminAuth, restrictTo('admin', 'superadmin'), async (req, res) => {
     let { table, id } = req.params;
 
     // Map camelCase from frontend to snake_case in DB
@@ -916,7 +922,7 @@ app.delete('/api/admin/:table/:id', async (req, res) => {
 
 
 // Admin verification for journeys (start or completion)
-app.post('/api/admin/journey/:id/verify', async (req, res) => {
+app.post('/api/admin/journey/:id/verify', adminAuth, restrictTo('admin', 'superadmin'), async (req, res) => {
     const { approved, rejectionReason, rejectedFields } = req.body;
 
     try {
@@ -952,7 +958,7 @@ app.post('/api/admin/journey/:id/verify', async (req, res) => {
 
 // Admin verification for fuel/expenses (Now strictly DB-driven internally)
 // NOTE: Logic moved to specific endpoints or handled via metadata updates in DB
-app.post('/api/admin/submission/verify', async (req, res) => {
+app.post('/api/admin/submission/verify', adminAuth, restrictTo('admin', 'superadmin'), async (req, res) => {
     const { id, type, approved, reason, rejectedFields } = req.body;
 
     try {
@@ -1048,7 +1054,7 @@ app.post('/api/tracker/snapshot', async (req, res) => {
 // FULL DATA VIEW logic moved to top
 
 // Get current system settings
-app.get('/api/admin/settings', async (req, res) => {
+app.get('/api/admin/settings', adminAuth, restrictTo('admin', 'superadmin'), async (req, res) => {
     try {
         const result = await db.query("SELECT key, value FROM system_settings");
         const settings = {};
@@ -1066,7 +1072,7 @@ app.get('/api/admin/settings', async (req, res) => {
     }
 });
 
-app.get('/api/admin/settings/audit', async (req, res) => {
+app.get('/api/admin/settings/audit', adminAuth, restrictTo('superadmin'), async (req, res) => {
     try {
         const result = await db.query("SELECT * FROM system_settings_audit ORDER BY changed_at DESC LIMIT 100");
         res.json({ success: true, audit: result.rows });
@@ -1076,7 +1082,7 @@ app.get('/api/admin/settings/audit', async (req, res) => {
 });
 
 // Update system settings (Unified segecha_settings blob)
-app.post('/api/admin/settings', async (req, res) => {
+app.post('/api/admin/settings', adminAuth, restrictTo('admin', 'superadmin'), async (req, res) => {
     const { settings } = req.body;
     const changedBy = req.admin ? (req.admin.email || req.admin.id) : 'Admin';
     try {
@@ -1128,7 +1134,7 @@ let lastManualBackupTime = 0;
 const BACKUP_COOLDOWN_MS = 60 * 60 * 1000; // 1 hour
 
 // Create Manual Backup (Unified)
-app.post('/api/tracker/backup-now', async (req, res) => {
+app.post('/api/tracker/backup-now', adminAuth, restrictTo('superadmin'), async (req, res) => {
     try {
         const now = Date.now();
         if (now - lastManualBackupTime < BACKUP_COOLDOWN_MS) {
@@ -1156,7 +1162,7 @@ app.post('/api/tracker/backup-now', async (req, res) => {
 // Restore from Backup (Unified)
 // MASTER RESET logic moved to top for middleware reachability
 
-app.post('/api/tracker/restore', async (req, res) => {
+app.post('/api/tracker/restore', adminAuth, restrictTo('superadmin'), async (req, res) => {
     const { filename } = req.body;
     try {
         const backupPath = path.join(BACKUPS_DIR, filename);
@@ -1316,7 +1322,7 @@ function updateBackupScheduler(frequency) {
 
 // --- DRIVER ACCOUNT MANAGEMENT (ADMIN) ---
 
-app.post('/api/driver/create-account', async (req, res) => {
+app.post('/api/driver/create-account', adminAuth, restrictTo('admin', 'superadmin'), async (req, res) => {
     const { driverId, email, phone, driverName } = req.body;
     try {
         // Ensure driver record exists (prerequisite for auth)
@@ -1344,7 +1350,7 @@ app.get('/api/driver/account-status/:id', async (req, res) => {
 });
 
 
-app.post('/api/driver/account/regenerate-credentials', async (req, res) => {
+app.post('/api/driver/account/regenerate-credentials', adminAuth, restrictTo('admin', 'superadmin'), async (req, res) => {
     const { driverId, email, phone, driverName, forcePasswordReset } = req.body;
     try {
         // Ensure driver record exists (foreign key prerequisite)
@@ -1373,7 +1379,7 @@ app.get('/api/driver/account-export/:id', async (req, res) => {
     }
 });
 
-app.delete('/api/driver/account/:id', async (req, res) => {
+app.delete('/api/driver/account/:id', adminAuth, restrictTo('admin', 'superadmin'), async (req, res) => {
     try {
         const success = await driverAuth.deleteDriverAccount(req.params.id);
         res.json({ success });
@@ -1385,7 +1391,7 @@ app.delete('/api/driver/account/:id', async (req, res) => {
 
 // --- STAFF ACCOUNT MANAGEMENT (ADMIN) ---
 
-app.post('/api/staff/save', async (req, res) => {
+app.post('/api/staff/save', adminAuth, restrictTo('admin', 'superadmin'), async (req, res) => {
     try {
         await upsertEntity('staff', req.body);
         res.json({ success: true });
@@ -1395,7 +1401,7 @@ app.post('/api/staff/save', async (req, res) => {
     }
 });
 
-app.post('/api/driver/save', async (req, res) => {
+app.post('/api/driver/save', adminAuth, restrictTo('admin', 'superadmin'), async (req, res) => {
     try {
         await upsertEntity('drivers', req.body);
         res.json({ success: true });

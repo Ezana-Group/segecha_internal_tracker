@@ -325,15 +325,12 @@ export function PnL({ data, dark, isMobile, truckStats, truckReg, customerName, 
                                 <div>
                                     {[
                                         { label: "Fuel consumption", value: totalFuelCostFiltered, color: "#f97316", icon: Fuel },
+                                        { label: "Travel allowances", value: data.expenses.filter(e => e.cat === "Allowance").reduce((s, e) => s + +e.amount, 0), color: "#10b981", icon: TrendingUp },
+                                        { label: "Vehicle maintenance", value: data.expenses.filter(e => e.cat === "Maintenance").reduce((s, e) => s + +e.amount, 0), color: "#3b82f6", icon: Briefcase },
                                         { label: "Staff payroll", value: totalSalaries, color: "#a78bfa", icon: Users },
-                                        ...catBreakdown.map((c) => ({
-                                            label: c.cat,
-                                            value: c.total,
-                                            color: "#f59e0b",
-                                            icon: Briefcase,
-                                        })),
+                                        { label: "Other operations", value: data.expenses.filter(e => !["Fuel", "Allowance", "Maintenance"].includes(e.cat)).reduce((s, e) => s + +e.amount, 0), color: "#64748b", icon: PieChart },
                                     ].map((item, idx) => {
-                                        const globalExp = totalFuelCostFiltered + totalSalaries + catBreakdown.reduce((s,c) => s + c.total, 0);
+                                        const totalOpCosts = totalFuelCostFiltered + data.expenses.reduce((s, e) => s + +e.amount, 0) + totalSalaries;
                                         return (
                                             <div key={idx} className="pnl-expense-row">
                                                 <div className="pnl-expense-row-head">
@@ -342,14 +339,14 @@ export function PnL({ data, dark, isMobile, truckStats, truckReg, customerName, 
                                                         <span style={{ color: "var(--text-secondary)", fontWeight: 600 }}>{item.label}</span>
                                                     </div>
                                                     <span style={{ color: "var(--text-primary)", fontWeight: 800, fontVariantNumeric: "tabular-nums" }}>
-                                                        {globalExp > 0 ? ((item.value / globalExp) * 100).toFixed(1) : 0}%
+                                                        {totalOpCosts > 0 ? ((item.value / totalOpCosts) * 100).toFixed(1) : 0}%
                                                     </span>
                                                 </div>
                                                 <div className="pnl-expense-bar">
                                                     <div
                                                         className="pnl-expense-bar-fill"
                                                         style={{
-                                                            width: `${globalExp > 0 ? (item.value / globalExp) * 100 : 0}%`,
+                                                            width: `${totalOpCosts > 0 ? (item.value / totalOpCosts) * 100 : 0}%`,
                                                             background: item.color,
                                                         }}
                                                     />

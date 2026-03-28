@@ -4,6 +4,37 @@ const db = require('../db');
  * Consolidated upsert logic for PostgreSQL.
  * Handles field mapping for all entities (Trucks, Drivers, Journeys, Fuel, Expenses, etc.)
  */
+
+const ALLOWED_METADATA = {
+    journeys: ['finalOdom', '_isRejected', '_rejectionReason', '_rejectedFields', '_pendingApproval', 'tr_form_url', 't1_form_url'],
+    fuel_logs: ['paymentRef', 'isPetrolCard', '_pendingApproval', '_isRejected', '_rejectionReason', 'station_coords'],
+    expenses: ['fuel_log_id', 'paymentRef', 'isPetrolCard', '_pendingApproval', '_isRejected', '_rejectionReason'],
+    payroll: ['baseSalary', 'allowance', 'deductions', 'mpesaRef', 'paidAt', 'workingDays'],
+    drivers: ['truck', 'class', 'bankName', 'bankAccount', 'emergencyContact', 'address'],
+    staff: ['bankName', 'bankAccount', 'emergencyContact', 'address', 'id_number'],
+    trucks: ['model_year', 'engine_number', 'chassis_number', 'kra_pin', 'insurance_id'],
+    trailers: ['make', 'year', 'capacity'],
+    customers: ['contact_person', 'tax_id', 'credit_limit'],
+    incidents: ['_pendingApproval', '_isRejected', '_rejectionReason', 'police_report_url', 'witness_contact'],
+    documents: ['driverId']
+};
+
+function sanitizeMetadata(table, metadata) {
+    if (!metadata) return {};
+    const allowed = ALLOWED_METADATA[table] || [];
+    const sanitized = {};
+    allowed.forEach(key => {
+        if (Object.prototype.hasOwnProperty.call(metadata, key)) {
+            sanitized[key] = metadata[key];
+        }
+    });
+    // Always allow audit/system fields starting with _
+    Object.keys(metadata).forEach(key => {
+        if (key.startsWith('_') && !sanitized[key]) sanitized[key] = metadata[key];
+    });
+    return sanitized;
+}
+
 async function upsertEntity(table, item) {
     if (!item || !item.id) throw new Error('Item ID is required for upsert');
 
@@ -96,7 +127,7 @@ async function upsertEntity(table, item) {
     }
 
     if (validCols.includes('metadata')) {
-        finalData.metadata = metadata;
+        finalData.metadata = sanitizeMetadata(table, metadata);
     }
 
     const keys = Object.keys(finalData);
@@ -112,6 +143,44 @@ async function upsertEntity(table, item) {
         VALUES (${placeholders})
         ON CONFLICT (id) DO UPDATE SET ${updates}
     `;
+
+    if (table === 'journeys' || table === 'expenses') {
+        const journeyId = table === 'journeys' ? finalData.id : finalData.journey_id;
+        if (journeyId) {
+            // Check if this journey is linked to a finalized payroll record
+            // 1. Find the journey date
+            const jrnRes = await db.query('SELECT start_date, driver_id FROM journeys WHERE id = $1', [journeyId]);
+            if (jrnRes.rows.length > 0) {
+                const jrn = jrnRes.rows[0];
+                const dateHeader = jrn.start_date ? new Date(jrn.start_date).toISOString().slice(0, 7) : null;
+                if (dateHeader) {
+                    const payRes = await db.query(
+                        'SELECT finalized FROM payroll WHERE entity_id = $1 AND month = $2',
+                        [jrn.driver_id, dateHeader]
+                    );
+                    if (payRes.rows.length > 0 && payRes.rows[0].finalized) {
+                        // It's finalized. Is this a superadmin override?
+                        if (!item._isSuperAdminOverride) {
+                            throw new Error(`Data Lock: This journey/expense is linked to ${dateHeader} payroll which has been finalized and locked.`);
+                        } else {
+                            console.log(`[AUDIT]: Superadmin override applied to finalized record ${table}:${finalData.id}`);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (table === 'invoices') {
+        const existingRes = await db.query('SELECT status FROM invoices WHERE id = $1', [finalData.id]);
+        if (existingRes.rows.length > 0) {
+            const oldStatus = existingRes.rows[0].status;
+            const newStatus = finalData.status || oldStatus;
+            if ((oldStatus === 'Paid' || oldStatus === 'Cancelled') && newStatus !== oldStatus) {
+                if (!item._isSuperAdminOverride) throw new Error(`State Error: Cannot change status of a ${oldStatus.toUpperCase()} invoice.`);
+            }
+        }
+    }
 
     if (table === 'journeys') {
         if (finalData.truck_id) {
@@ -297,7 +366,9 @@ async function upsertEntityInTransaction(client, table, item) {
         }
     }
 
-    if (validCols.includes('metadata')) finalData.metadata = metadata;
+    if (validCols.includes('metadata')) {
+        finalData.metadata = sanitizeMetadata(table, metadata);
+    }
 
     const keys = Object.keys(finalData);
     const values = Object.values(finalData).map(v => (typeof v === 'object' && v !== null) ? JSON.stringify(v) : v);
@@ -305,7 +376,18 @@ async function upsertEntityInTransaction(client, table, item) {
     const updates = keys.map((k) => k === 'id' ? null : `${k} = EXCLUDED.${k}`).filter(Boolean).join(', ');
 
     const query = `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders}) ON CONFLICT (id) DO UPDATE SET ${updates}`;
-    
+
+    if (table === 'invoices') {
+        const existingRes = await client.query('SELECT status FROM invoices WHERE id = $1', [finalData.id]);
+        if (existingRes.rows.length > 0) {
+            const oldStatus = existingRes.rows[0].status;
+            const newStatus = finalData.status || oldStatus;
+            if ((oldStatus === 'Paid' || oldStatus === 'Cancelled') && newStatus !== oldStatus) {
+                if (!item._isSuperAdminOverride) throw new Error(`State Error: Cannot change status of a ${oldStatus.toUpperCase()} invoice.`);
+            }
+        }
+    }
+
     if (table === 'journeys') {
         if (finalData.truck_id) {
             const truckRes = await client.query('SELECT kra_pin, insurance_id FROM trucks WHERE id = $1', [finalData.truck_id]);

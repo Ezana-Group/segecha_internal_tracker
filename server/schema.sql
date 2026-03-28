@@ -154,6 +154,7 @@ CREATE TABLE IF NOT EXISTS payroll (
     month TEXT, -- e.g. '2025-03'
     status TEXT DEFAULT 'Pending',
     metadata JSONB DEFAULT '{}',
+    finalized BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 

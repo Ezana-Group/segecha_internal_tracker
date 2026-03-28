@@ -102,13 +102,13 @@ async function getDriverData(driverId) {
         settingsRes
     ] = await Promise.all([
         db.query("SELECT * FROM drivers WHERE id = $1", [driverId]),
-        db.query("SELECT * FROM trucks"),
+        db.query("SELECT * FROM trucks WHERE id IN (SELECT truck FROM drivers WHERE id = $1)", [driverId]),
         db.query("SELECT * FROM journeys WHERE driver_id = $1", [driverId]),
         db.query("SELECT * FROM fuel_logs WHERE (_submitted_by = $1 OR driver_id = $1)", [driverId]),
         db.query("SELECT * FROM expenses WHERE (truck_id IN (SELECT id FROM trucks WHERE driver_id = $1) OR driver_id = $1 OR _submitted_by = $1)", [driverId]),
         db.query("SELECT * FROM incidents WHERE (driver_id = $1 OR _submitted_by = $1)", [driverId]),
-        db.query("SELECT * FROM customers"),
-        db.query("SELECT * FROM trailers"),
+        db.query("SELECT * FROM customers WHERE id IN (SELECT customer_id FROM journeys WHERE driver_id = $1 UNION SELECT delivery_customer_id FROM journeys WHERE driver_id = $1)", [driverId]),
+        db.query("SELECT * FROM trailers WHERE truck_id IN (SELECT truck FROM drivers WHERE id = $1) OR id IN (SELECT trailer_id FROM journeys WHERE driver_id = $1)", [driverId]),
         db.query("SELECT * FROM payroll WHERE entity_id = $1 AND entity_type = 'driver'", [driverId]),
         db.query("SELECT * FROM system_settings")
     ]);

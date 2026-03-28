@@ -37,9 +37,31 @@ import { VerificationModal } from "./components/VerificationModal";
 import { getTheme, getStyles } from "./constants/theme";
 import { adminAuth } from "./utils/adminAuth";
 import { Login } from "./pages/Login";
+import { PAYMENT_API } from "./utils/env.js";
+
+const FE_VERSION = '2.1.0';
 
 export default function App() {
     const state = useAppState();
+    
+    // Version Handshake
+    useEffect(() => {
+        if (!PAYMENT_API) return;
+        const checkVersion = async () => {
+            try {
+                const res = await fetch(`${PAYMENT_API}/api/version`);
+                if (!res.ok) return;
+                const { version: serverVersion } = await res.json();
+                if (serverVersion !== FE_VERSION) {
+                    console.warn(`[VERSION_MISMATCH] FE: ${FE_VERSION}, BE: ${serverVersion}`);
+                    state.showToast(`System Update: A newer version (${serverVersion}) is available. Please refresh your browser.`, "info");
+                }
+            } catch (e) {
+                console.warn("Version check skipped:", e);
+            }
+        };
+        checkVersion();
+    }, [state.showToast]);
     const location = useLocation();
     const navigate = useNavigate();
     const winW = useWindowWidth();

@@ -1508,7 +1508,7 @@ export function useAppState() {
         const totalLitres = fuelEntries.reduce((s, f) => s + f.litres, 0);
         const totalKm = jrns.filter(j => j.status === "Completed").reduce((s, j) => s + +j.distance, 0);
         const kmPerL = totalLitres > 0 ? totalKm / totalLitres : 0;
-        const otherExp = data.expenses.filter(e => e.truck === tid).reduce((s, e) => s + +e.amount, 0);
+        const otherExp = data.expenses.filter(e => e.truck === tid && e.cat !== 'Fuel').reduce((s, e) => s + +e.amount, 0);
         const exp = fuelCost + otherExp;
         return { rev, exp, profit: rev - exp, trips: jrns.length, totalKm, totalLitres, fuelCost, kmPerL };
     };
