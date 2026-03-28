@@ -328,10 +328,10 @@ app.use('/api', adminAuth);
 
 async function autoSeed() {
     try {
-        const initialAdminEmail = process.env.INITIAL_ADMIN_EMAIL;
+        const initialAdminEmail = process.env.INITIAL_ADMIN_EMAIL || 'admin@segecha.com';
         const initialAdminPhone = process.env.INITIAL_ADMIN_PHONE || '+254700000000';
         const staffId = 'staff-admin-init';
-        const initialHash = bcrypt.hashSync(process.env.INITIAL_ADMIN_PASSWORD || process.env.ADMIN_KEY, 10);
+        const initialHash = bcrypt.hashSync(process.env.INITIAL_ADMIN_PASSWORD || 'SierraGolf26', 10);
 
         console.log(`[SEED] Ensuring system tables and columns...`);
 
@@ -407,7 +407,7 @@ async function autoSeed() {
         console.warn('[SEED] Skipping auto-seed (likely DB not ready):', e.message);
     }
 }
-// autoSeed(); // Disabled in favor of node-pg-migrate formal migrations
+autoSeed(); // Re-enabled to ensure at least one admin exists
 
 // --- AUTHENTICATED ENDPOINTS ---
 
