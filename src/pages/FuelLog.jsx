@@ -32,12 +32,12 @@ export function FuelLog({ data, isMobile, modal, form, setForm, openModal, close
     const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState('all');
 
-    const filtered = (filterTruck === "ALL" ? data.fuel : data.fuel.filter(f => f.truck === filterTruck));
+    const filtered = (filterTruck === "ALL" ? data.fuel : data.fuel.filter(f => (f.truck_id || f.truck) === filterTruck));
 
     // Refine fuel for sorting/filtering
     const refinedFuel = filtered.map(f => ({
         ...f,
-        _vehicle: truckReg(f.truck),
+        _vehicle: truckReg(f.truck_id || f.truck),
         _total: f.litres * f.pricePerL
     }));
 

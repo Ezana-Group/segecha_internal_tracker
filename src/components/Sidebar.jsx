@@ -47,7 +47,7 @@ const ICON_MAP = {
     "staff-overview": UserRoundCog,
 };
 
-export function Sidebar({ sideOpen, setSideOpen, isMobile, tyreAlertCount, verifyAlertCount, resetData, data, importSession, previewMode }) {
+export function Sidebar({ sideOpen, setSideOpen, isMobile, tyreAlertCount, resetData, data, importSession, previewMode, pendingVerifications }) {
     const activeCount = data?.trucks?.filter((t) => t.status === "Active").length || 0;
     const inTransitCount = data?.journeys?.filter((j) => ["In Transit", "Awaiting Start Verification"].includes(j.status)).length || 0;
     const navItems = previewMode ? getPreviewNavItems(previewMode, data) : NAV;
@@ -94,17 +94,20 @@ export function Sidebar({ sideOpen, setSideOpen, isMobile, tyreAlertCount, verif
                             ? Object.values(importSession.sheets).reduce((acc, sh) => acc + sh.errors.length, 0) || null
                             : null;
 
-                    const hasAlert =
-                        !previewMode &&
-                        ((n.id === "tyres" && tyreAlertCount > 0) ||
-                            (n.id === "journeys" && verifyAlertCount > 0) ||
-                            (n.id === "import" && importErrorCount > 0));
-                    const alertCount = n.id === "tyres" ? tyreAlertCount : n.id === "journeys" ? verifyAlertCount : importErrorCount;
+                    let alertCount = 0;
+                    if (n.id === "tyres") alertCount = tyreAlertCount;
+                    else if (n.id === "journeys") alertCount = pendingVerifications?.filter(v => v._itemType === 'journey').length || 0;
+                    else if (n.id === "fuel") alertCount = pendingVerifications?.filter(v => v._itemType === 'fuel').length || 0;
+                    else if (n.id === "expenses") alertCount = pendingVerifications?.filter(v => v._itemType === 'expense').length || 0;
+                    else if (n.id === "incidents") alertCount = pendingVerifications?.filter(v => v._itemType === 'incident').length || 0;
+                    else if (n.id === "import") alertCount = importErrorCount;
+
+                    const hasAlert = !previewMode && alertCount > 0;
 
                     let badgeClass = "sidebar-nav-badge";
                     if (n.id === "import") badgeClass += " sidebar-nav-badge--warn";
-                    else if (n.id === "tyres") badgeClass += " sidebar-nav-badge--danger";
-                    else if (n.id === "journeys") badgeClass += " sidebar-nav-badge--purple";
+                    else if (n.id === "tyres" || n.id === "incidents") badgeClass += " sidebar-nav-badge--danger";
+                    else if (["journeys", "fuel", "expenses"].includes(n.id)) badgeClass += " sidebar-nav-badge--purple";
 
                     if (n.external && n.href) {
                         return (

@@ -48,6 +48,7 @@ export function Payroll({ data, setData, dark, isMobile, modal, form, setForm, o
     const refinedPayroll = allPayees.map(payee => {
         const existing = monthPayroll.find(p => p.driver === payee.id);
         const journeys = (data.journeys || []).filter(j => (j.driver === payee.id || j.turnboyId === payee.id) && j.date && j.date.startsWith(selMonth) && j.status === 'Completed');
+        const _tripCount = journeys.length;
         const calculatedMileage = journeys.reduce((s, j) => {
             // Priority: Manual Expense Adjustment > Journey Metadata
             const linkedExpenses = (data.expenses || []).filter(e => e.journey === j.id && e.cat === "Allowance");
@@ -70,6 +71,7 @@ export function Payroll({ data, setData, dark, isMobile, modal, form, setForm, o
                 _allowance: Number(existing.allowance || 0),
                 _deductions: Number(existing.deductions || 0),
                 _calculatedMileage: calculatedMileage,
+                _tripCount,
                 _mpesa: existing.mpesaRef || payee.mpesa || "",
                 _isVirtual: false
             };
@@ -91,6 +93,7 @@ export function Payroll({ data, setData, dark, isMobile, modal, form, setForm, o
             _allowance: calculatedMileage,
             _deductions: 0,
             _calculatedMileage: calculatedMileage,
+            _tripCount,
             _mpesa: payee.mpesa || "",
             _isVirtual: true
         };
@@ -243,7 +246,7 @@ export function Payroll({ data, setData, dark, isMobile, modal, form, setForm, o
                                     </td>
                                     <td title={fmt(p._calculatedMileage)}>
                                         <div style={{ fontWeight: 800, color: "var(--brand-primary)", fontSize: 13, textAlign: "right" }}>{fmt(p._calculatedMileage)}</div>
-                                        <div style={{ fontSize: 9, color: "var(--text-dim)", textAlign: "right" }}>From trips</div>
+                                        <div style={{ fontSize: 9, color: "var(--text-dim)", textAlign: "right" }}>{p._tripCount} trips this month</div>
                                     </td>
                                     <td title={fmt(p._deductions)}>
                                         <div style={{ fontSize: 13, fontWeight: 700, color: "#ef4444", textAlign: "right" }}>{fmt(p._deductions)}</div>

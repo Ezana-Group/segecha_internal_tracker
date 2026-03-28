@@ -29,7 +29,7 @@ export function Incidents({ data, dark, isMobile, driverName, truckReg, setVerif
 
     const filtered = (tab === 'pending' ? pendingIncidents : resolvedIncidents).filter(i => {
         const d = driverName(i.driverId || i.driver).toLowerCase();
-        const t = truckReg(i.truck).toLowerCase();
+        const t = truckReg(i.truck_id || i.truck).toLowerCase();
         const type = (i.incidentType || "").toLowerCase();
         const loc = (i.location || "").toLowerCase();
         const q = search.toLowerCase();
@@ -139,7 +139,7 @@ export function Incidents({ data, dark, isMobile, driverName, truckReg, setVerif
                                         <div style={{ width: 28, height: 28, borderRadius: 8, background: "rgba(16, 185, 129, 0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "#10b981" }}>
                                             <Truck size={14} />
                                         </div>
-                                        <span style={{ fontWeight: 700, fontSize: 14 }}>{truckReg(i.truck)}</span>
+                                        <span style={{ fontWeight: 700, fontSize: 14 }}>{truckReg(i.truck_id || i.truck)}</span>
                                     </div>
                                 </td>
                                 <td>

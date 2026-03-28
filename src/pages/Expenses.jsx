@@ -53,7 +53,7 @@ export function Expenses({
         
         return {
             ...e,
-            _vehicle: truckReg(e.truck),
+            _vehicle: truckReg(e.truck_id || e.truck),
             _amount: Number(e.amount || 0),
             _status: isProjected ? 'Projected' : (e.status || 'Processed')
         };
@@ -99,7 +99,7 @@ export function Expenses({
         const truck = data.trucks.find(t => t.id === truckId);
         if (!truck) return null;
 
-        const mainHistory = data.expenses.filter(e => e.truck === truckId && e.cat === 'Maintenance');
+        const mainHistory = data.expenses.filter(e => (e.truck_id || e.truck) === truckId && e.cat === 'Maintenance');
         const totalCost = mainHistory.reduce((s, e) => s + +e.amount, 0);
         const odom = +truck.odom || 0;
 
@@ -234,12 +234,12 @@ export function Expenses({
                                                         {v.uId || v.id.slice(0, 8).toUpperCase()}
                                                     </div>
                                                 </td>
-                                                <td title={truckReg(v.truck)}>
+                                                <td title={truckReg(v.truck_id || v.truck)}>
                                                     <div 
                                                         style={{ fontSize: 13, color: "var(--text-primary)", fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}
                                                     >
                                                         <Truck size={14} color="var(--brand-primary)" />
-                                                        {truckReg(v.truck)}
+                                                        {truckReg(v.truck_id || v.truck)}
                                                     </div>
                                                 </td>
                                                 <td title={v.cat}>
@@ -291,7 +291,7 @@ export function Expenses({
                                             <td title={e._vehicle}>
                                                 <div 
                                                     style={{ fontSize: 13, color: "var(--text-primary)", fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}
-                                                    onClick={(ev) => { ev.stopPropagation(); setPanelTruckId(e.truck); }}
+                                                    onClick={(ev) => { ev.stopPropagation(); setPanelTruckId(e.truck_id || e.truck); }}
                                                 >
                                                     <Truck size={14} color="var(--brand-primary)" />
                                                     {e._vehicle}

@@ -50,7 +50,7 @@ export function Journeys({ data, isMobile, modal, form, setForm, openModal, clos
     const refinedJourneys = scopeJourneys.map(j => ({
         ...j,
         _customer: customerName(j.customerId),
-        _vehicle: truckReg(j.truck),
+        _vehicle: truckReg(j.truck_id || j.truck),
         _distance: Number(j.distance || 0),
         _revenue: Number(j.revenue || 0)
     })).filter(j => {
@@ -192,7 +192,7 @@ export function Journeys({ data, isMobile, modal, form, setForm, openModal, clos
                                 </div>
                                 <div style={{ flex: 1 }}>
                                     <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-dim)", textTransform: "uppercase", marginBottom: 2 }}>
-                                        {v._itemType === 'fuel' ? 'Fuel Log' : 'Expense Claim'} · {truckReg(v.truck)}
+                                        {v._itemType === 'fuel' ? 'Fuel Log' : 'Expense Claim'} · {truckReg(v.truck_id || v.truck)}
                                     </div>
                                     <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)" }}>
                                         {v._itemType === 'fuel' ? `${v.litres}L at ${v.station}` : `${fmt(v.amount)} for ${v.cat}`}
@@ -310,7 +310,7 @@ export function Journeys({ data, isMobile, modal, form, setForm, openModal, clos
                                         </td>
                                     )}
                                     {(!isDriverPreview || jpv("colVehicle")) && (
-                                        <td title={truckReg(j.truck)}>
+                                        <td title={truckReg(j.truck_id || j.truck)}>
                                             <button
                                                 type="button"
                                                 className="journeys-table-link"
@@ -320,7 +320,7 @@ export function Journeys({ data, isMobile, modal, form, setForm, openModal, clos
                                                 }}
                                             >
                                                 <Truck size={12} strokeWidth={2} aria-hidden />
-                                                {truckReg(j.truck)}
+                                                {truckReg(j.truck_id || j.truck)}
                                             </button>
                                         </td>
                                     )}

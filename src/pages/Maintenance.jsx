@@ -119,7 +119,7 @@ export function Maintenance({ data, setData, dark, isMobile, saveItem, truckReg,
         .filter(e => e.cat === 'Maintenance')
         .map(e => ({
             ...e,
-            _vehicle: truckReg(e.truck),
+            _vehicle: truckReg(e.truck_id || e.truck),
             _cost: Number(e.amount || 0),
             _odom: Number(e.odom || 0),
             _workshop: e._maintenanceDetails?.workshop || '—'

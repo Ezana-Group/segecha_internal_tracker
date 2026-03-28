@@ -277,12 +277,12 @@ export const CostsTab = ({ portalPerm, activeJourneys = [], apiPost, driver, tru
                 <div style={{ marginTop: 24 }}>
                     <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 12, color: COLORS.text }}>Recent Incident History</div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                        {(driverData?.incidents || []).map(i => (
+                        {(driverData?.incidentEntries || []).map(i => (
                             <div key={i.id} style={{ ...S.card(), padding: 12 }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                     <div>
-                                        <div style={{ fontSize: 14, fontWeight: 700 }}>{i.incidentType}</div>
-                                        <div style={{ fontSize: 12, color: COLORS.textDim }}>{fmtDate(i.createdAt || i.date)} · {i.location}</div>
+                                        <div style={{ fontSize: 14, fontWeight: 700 }}>{i.type || i.incidentType || 'Other'}</div>
+                                        <div style={{ fontSize: 12, color: COLORS.textDim }}>{fmtDate(i.created_at || i.createdAt || i.date)} · {i.location || i.metadata?.location || 'Unknown location'}</div>
                                         <div style={{ fontSize: 12, color: COLORS.textDim, marginTop: 4, fontStyle: 'italic' }}>{i.description}</div>
                                     </div>
                                     <Badge 
@@ -292,7 +292,7 @@ export const CostsTab = ({ portalPerm, activeJourneys = [], apiPost, driver, tru
                                 </div>
                             </div>
                         ))}
-                        {(!driverData?.incidents || driverData.incidents.length === 0) && (
+                        {(!driverData?.incidentEntries || driverData.incidentEntries.length === 0) && (
                             <div style={{ fontSize: 13, color: COLORS.textFaint, textAlign: 'center', padding: 12 }}>No recent incidents recorded.</div>
                         )}
                     </div>

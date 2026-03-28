@@ -331,8 +331,18 @@ export function GlobalModals(props) {
         errors.pricePerL = validators.required(form.pricePerL) || validators.positiveNumber(form.pricePerL);
         const hasErrors = Object.values(errors).some(Boolean);
 
+        const handleFuelSave = async () => {
+            const truck = data.trucks.find(t => t.id === form.truck);
+            const enriched = { 
+                ...form, 
+                truck_id: form.truck, 
+                driver_id: form.driver_id || truck?.driver_id || truck?.driver || null 
+            };
+            await saveItem("fuel", enriched);
+        };
+
         return (
-            <Modal title={form.id ? "Edit Fuel Entry" : "Log Fuel Fill-up"} onSave={async () => await saveItem("fuel", form)} S={S} closeModal={closeModal} saveDisabled={hasErrors} wide>
+            <Modal title={form.id ? "Edit Fuel Entry" : "Log Fuel Fill-up"} onSave={handleFuelSave} S={S} closeModal={closeModal} saveDisabled={hasErrors} wide>
                 <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
                     {/* ── Section 1: Core Details ── */}
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px 24px" }}>
@@ -389,8 +399,18 @@ export function GlobalModals(props) {
         const hasErrors = Object.values(errors).some(Boolean);
         const CATS = ["Maintenance", "Toll", "Permit", "Tyre", "Fuel", "Salary", "Allowance", "Other"];
 
+        const handleExpenseSave = async () => {
+            const truck = data.trucks.find(t => t.id === form.truck);
+            const enriched = { 
+                ...form, 
+                truck_id: form.truck, 
+                driver_id: form.driver_id || form.driver || truck?.driver_id || truck?.driver || null 
+            };
+            await saveItem("expenses", enriched);
+        };
+
         return (
-            <Modal title={form.id ? "Edit Expense" : "Add New Expense"} onSave={async () => await saveItem("expenses", form)} S={S} closeModal={closeModal} saveDisabled={hasErrors} wide>
+            <Modal title={form.id ? "Edit Expense" : "Add New Expense"} onSave={handleExpenseSave} S={S} closeModal={closeModal} saveDisabled={hasErrors} wide>
                 <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
                     {/* ── Classification ── */}
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px 24px" }}>
@@ -416,6 +436,7 @@ export function GlobalModals(props) {
                             />
                         )}
                         <Field label="Amount (KES)" k="amount" type="number" form={form} setForm={setForm} S={S} error={errors.amount} />
+                        <Field label="Payment Reference / M-Pesa Ref" k="paymentRef" form={form} setForm={setForm} S={S} />
                     </div>
 
                     {/* ── Details ── */}
@@ -708,6 +729,8 @@ export function GlobalModals(props) {
                             id: existing?.id,
                             date: form.date || today(),
                             truck: form.truck,
+                            truck_id: form.truck,
+                            driver_id: form.driver,
                             cat: "Allowance",
                             category: "Allowance",
                             amount: finalAmount,
@@ -731,6 +754,9 @@ export function GlobalModals(props) {
                             id: existing?.id,
                             date: form.date || today(),
                             truck: form.truck,
+                            truck_id: form.truck,
+                            // Note: Turnboys are in staff table, expenses.driver_id has FK to drivers.
+                            // So we rely on the name in desc for turnboys unless we change schema.
                             cat: "Allowance",
                             category: "Allowance",
                             amount: finalAmount,

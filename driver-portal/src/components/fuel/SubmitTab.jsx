@@ -164,7 +164,7 @@ export const SubmitTab = ({ activeJourneys = [], apiPost, driver, truck, portalP
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                 <div>
                                     <div style={{ fontSize: 14, fontWeight: 700 }}>{f.station}</div>
-                                    <div style={{ fontSize: 12, color: COLORS.textDim }}>{f.date} · {f.litres}L · {fmt(+f.litres * +f.pricePerL)}</div>
+                                    <div style={{ fontSize: 12, color: COLORS.textDim }}>{f.date} · {f.litres}L · {fmt(+f.litres * +(f.price_per_l || f.pricePerL || 0))}</div>
                                 </div>
                                 {f._pendingApproval ? (
                                     <span style={{ fontSize: 10, background: '#fef9c3', color: '#854d0e', padding: '2px 6px', borderRadius: 4, fontWeight: 800 }}>PENDING</span>

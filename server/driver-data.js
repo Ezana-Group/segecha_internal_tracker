@@ -47,6 +47,8 @@ function enrichJourneyForPortal(j, customers = [], trailers = [], drivers = []) 
 
     return {
         ...j,
+        dest: j.destination || j.dest || '',
+        distance: j.distance || j.metadata?.distance || 0,
         driverMileage: j.driverMileage || j.metadata?.driverMileage || 0,
         turnboyMileage: j.turnboyMileage || j.metadata?.turnboyMileage || 0,
         roadUserAllowance: j.roadUserAllowance || j.metadata?.roadUserAllowance || 0,
@@ -379,12 +381,13 @@ async function addPendingSubmission(driverId, type, payload) {
             uId,
             driver_id: driverId,
             truck_id: truckId,
-            incident_type: payload.incidentType,
+            type: payload.incidentType || payload.type || 'Other',
+            severity: payload.severity || 'Medium',
             description: payload.description,
-            location: payload.location,
             status: 'Open',
             metadata: {
                 incidentPhotoUrl: payload.incidentPhotoUrl,
+                location: payload.location,
                 _pendingApproval: true
             }
         };
