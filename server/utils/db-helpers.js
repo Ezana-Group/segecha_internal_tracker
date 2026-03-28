@@ -56,22 +56,14 @@ async function upsertEntity(table, item) {
         else if (k === 'pricePerL') dbKey = 'amount';
         else if (k === 'truck') dbKey = 'truck_id';
         else if (k === 'journey') dbKey = 'journey_id';
-        
-        // 'driver' → driver_id for journeys, entity_id for payroll
-        else if (k === 'driver') {
-            dbKey = table === 'payroll' ? 'entity_id' : 'driver_id';
-        }
-        // 'date' → start_date only for journeys; stays 'date' elsewhere
-        else if (k === 'date') {
-            dbKey = table === 'journeys' ? 'start_date' : 'date';
-        }
-        // 'odom' → current_mileage only for trucks; goes to metadata elsewhere
-        else if (k === 'odom') {
-            dbKey = table === 'trucks' ? 'current_mileage' : 'odom';
-        }
+        else if (k === 'customer') dbKey = 'customer_id';
+        else if (k === 'turnboy') dbKey = 'turnboy_id';
+        else if (k === 'driver') dbKey = table === 'payroll' ? 'entity_id' : 'driver_id';
+        else if (k === 'date') dbKey = table === 'journeys' ? 'start_date' : 'date';
+        else if (k === 'odom') dbKey = table === 'trucks' ? 'current_mileage' : 'odom';
 
         if (validCols.includes(dbKey)) {
-            finalData[dbKey] = v;
+            finalData[dbKey] = (v === "" && dbKey.endsWith('_id')) ? null : v;
         } else {
             metadata[k] = v;
         }
@@ -218,11 +210,13 @@ async function upsertEntityInTransaction(client, table, item) {
         else if (k === 'pricePerL') dbKey = 'amount';
         else if (k === 'truck') dbKey = 'truck_id';
         else if (k === 'journey') dbKey = 'journey_id';
+        else if (k === 'customer') dbKey = 'customer_id';
+        else if (k === 'turnboy') dbKey = 'turnboy_id';
         else if (k === 'driver') dbKey = table === 'payroll' ? 'entity_id' : 'driver_id';
         else if (k === 'date') dbKey = table === 'journeys' ? 'start_date' : 'date';
         else if (k === 'odom') dbKey = table === 'trucks' ? 'current_mileage' : 'odom';
 
-        if (validCols.includes(dbKey)) finalData[dbKey] = v;
+        if (validCols.includes(dbKey)) finalData[dbKey] = (v === "" && dbKey.endsWith('_id')) ? null : v;
         else metadata[k] = v;
     });
 
