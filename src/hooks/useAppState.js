@@ -432,40 +432,6 @@ export function useAppState() {
             return { ...d, [col]: arr };
         });
 
-        // 4. Bi-directional assignment sync
-        if (col === 'drivers' && finalItem.truck) {
-            const currentTruck = data.trucks?.find(t => t.id === finalItem.truck);
-            if (currentTruck && currentTruck.driver !== finalItem.id) {
-                saveItem('trucks', { ...currentTruck, driver: finalItem.id }, { silent: true, skipClose: true }).catch(console.error);
-            }
-        } else if (col === 'staff' && (finalItem.role === 'Driver' || finalItem.role === 'Turnboy') && finalItem.truck) {
-            const currentTruck = data.trucks?.find(t => t.id === finalItem.truck);
-            if (currentTruck && currentTruck.driver !== finalItem.id) {
-                saveItem('trucks', { ...currentTruck, driver: finalItem.id }, { silent: true, skipClose: true }).catch(console.error);
-            }
-        } else if (col === 'trucks' && finalItem.driver) {
-            const currentDriver = data.drivers?.find(d => d.id === finalItem.driver) || data.staff?.find(s => s.id === finalItem.driver);
-            if (currentDriver && currentDriver.truck !== finalItem.id) {
-                const targetCol = data.drivers?.find(d => d.id === finalItem.driver) ? 'drivers' : 'staff';
-                saveItem(targetCol, { ...currentDriver, truck: finalItem.id }, { silent: true, skipClose: true }).catch(console.error);
-            }
-        } else if (col === 'trailers' && finalItem.truck) {
-            const currentTruck = data.trucks?.find(t => t.id === finalItem.truck);
-            if (currentTruck && currentTruck.assignedTrailer !== finalItem.id) {
-                saveItem('trucks', { ...currentTruck, assignedTrailer: finalItem.id }, { silent: true, skipClose: true }).catch(console.error);
-            }
-        } else if (col === 'fuel_logs') {
-            // Fuel entry creates an auto-expense on server, refresh local expenses if possible
-            if (PAYMENT_API) {
-                const token = adminAuth.getToken();
-                fetch(`${PAYMENT_API}/api/admin/expenses`, {
-                    headers: { 'x-admin-key': ADMIN_KEY, ...(token ? { 'Authorization': `Bearer ${token}` } : {}) }
-                }).then(r => r.json()).then(j => {
-                    if (Array.isArray(j)) setData(prev => ({ ...prev, expenses: j }));
-                }).catch(console.warn);
-            }
-        }
-
         if (!options?.silent) {
             if (isNew && col === 'drivers') {
                 const portalUrl = `${DRIVER_PORTAL_URL.replace(/\/$/, "")}/set-password`;
@@ -530,26 +496,8 @@ export function useAppState() {
                     throw new Error(j.error || res.statusText || "Delete failed");
                 }
                 
-                // Successfully deleted on server, now update local and cleanup references
-                setData(d => {
-                    const next = { ...d, [col]: (d[col] || []).filter(x => x.id !== id) };
-                    
-                    // Cleanup common references
-                    if (col === 'trucks') {
-                        next.drivers = (next.drivers || []).map(x => x.truck === id ? { ...x, truck: "" } : x);
-                        next.staff = (next.staff || []).map(x => x.truck === id ? { ...x, truck: "" } : x);
-                        next.trailers = (next.trailers || []).map(x => x.truck === id ? { ...x, truck: "" } : x);
-                    } else if (col === 'drivers' || col === 'staff') {
-                        next.trucks = (next.trucks || []).map(x => x.driver === id ? { ...x, driver: "" } : x);
-                    } else if (col === 'trailers') {
-                        next.drivers = (next.drivers || []).map(x => x.assignedTrailer === id ? { ...x, assignedTrailer: "" } : x);
-                        next.trucks = (next.trucks || []).map(x => x.assignedTrailer === id ? { ...x, assignedTrailer: "" } : x);
-                    } else if (col === 'customers') {
-                        next.journeys = (next.journeys || []).map(x => x.customerId === id ? { ...x, customerId: "" } : x);
-                    }
-                    
-                    return next;
-                });
+                // Successfully deleted on server, now update local
+                setData(d => ({ ...d, [col]: (d[col] || []).filter(x => x.id !== id) }));
                 showToast(`${label || 'Record'} deleted`, "success");
             } catch (err) {
                 console.error(`Delete failed for ${col}:`, err.message);
@@ -557,16 +505,7 @@ export function useAppState() {
             }
         } else {
             // No API, just local (demo mode)
-            setData(d => {
-                const next = { ...d, [col]: (d[col] || []).filter(x => x.id !== id) };
-                if (col === 'trucks') {
-                    next.drivers = (next.drivers || []).map(x => x.truck === id ? { ...x, truck: "" } : x);
-                    next.staff = (next.staff || []).map(x => x.truck === id ? { ...x, truck: "" } : x);
-                } else if (col === 'drivers' || col === 'staff') {
-                    next.trucks = (next.trucks || []).map(x => x.driver === id ? { ...x, driver: "" } : x);
-                }
-                return next;
-            });
+            setData(d => ({ ...d, [col]: (d[col] || []).filter(x => x.id !== id) }));
             showToast(`${label || 'Record'} removed locally`, "success");
         }
     };
@@ -974,26 +913,28 @@ export function useAppState() {
 
     const uploadBackup = async (file) => {
         try {
-            const token = adminAuth.getToken();
-            const formData = new FormData();
-            formData.append('file', file);
-            formData.append('filename', file.name);
-
-            const res = await fetch(`${PAYMENT_API}/api/tracker/upload-backup`, {
-                method: 'POST',
-                headers: {
-                    'x-admin-key': ADMIN_KEY,
-                    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-                },
-                body: formData
-            });
-            const j = await res.json();
-            if (j.success) {
-                showToast(j.message || "Backup uploaded successfully.", "success");
-                fetchBackups();
-            } else {
-                showToast("Upload failed: " + j.error, "error");
-            }
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                const content = e.target.result;
+                const token = adminAuth.getToken();
+                const res = await fetch(`${PAYMENT_API}/api/tracker/upload-backup`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-admin-key': ADMIN_KEY,
+                        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                    },
+                    body: JSON.stringify({ filename: file.name, content })
+                });
+                const j = await res.json();
+                if (j.success) {
+                    showToast("Backup uploaded successfully.", "success");
+                    fetchBackups();
+                } else {
+                    showToast("Upload failed: " + j.error, "error");
+                }
+            };
+            reader.readAsText(file);
         } catch (e) {
             showToast("Upload error: " + e.message, "error");
         }
@@ -1222,53 +1163,330 @@ export function useAppState() {
         return 'Other';
     };
 
-    const [importResult, setImportResult] = useState(null);
-    const [showImportPanel, setShowImportPanel] = useState(false);
+    const runExcelImport = async (file) => {
+        return new Promise((resolve, reject) => {
+            if (!window.XLSX) { reject(new Error('SheetJS not loaded yet — wait a moment and try again')); return; }
 
-    const executeImport = async (file, entityType) => {
-        const { runImport } = await import('../utils/importEngine');
-        await runImport(file, entityType, data, setData, setImportResult, setShowImportPanel);
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const wb = window.XLSX.read(e.target.result, { type: 'array', cellDates: true });
+
+                    const session = {
+                        fileName: file.name,
+                        parsedAt: new Date().toISOString(),
+                        sheets: {
+                            trips: { valid: [], errors: [] },
+                            expenses: { valid: [], errors: [] },
+                            maintenance: { valid: [], errors: [] },
+                        },
+                        committed: false,
+                    };
+
+                    const tripsSheet = wb.Sheets['Trips_2025'];
+                    if (tripsSheet) {
+                        const rows = window.XLSX.utils.sheet_to_json(tripsSheet, {
+                            header: 1, defval: null, raw: false, dateNF: 'yyyy-mm-dd'
+                        });
+
+                        const headers = rows[1] || []; // Headers are on row 2 (index 1)
+                        const hMap = (rawHeaders, aliases) => {
+                            const map = {};
+                            rawHeaders.forEach((h, i) => {
+                                const norm = String(h || '').toLowerCase().trim();
+                                for (const [field, aliasList] of Object.entries(aliases)) {
+                                    if (aliasList.includes(norm) && !(field in map)) map[field] = i;
+                                }
+                            });
+                            return map;
+                        };
+
+                        const tripAliases = {
+                            vehicle: ['vehicle', 'truck', 'truck id', 'vehicle reg', 'reg'],
+                            date: ['date', 'departure date', 'trip date'],
+                            origin: ['origin', 'from', 'departure'],
+                            destination: ['destination', 'to', 'arrival', 'dest'],
+                            startOdo: ['start odom', 'start odometer', 'opening mileage', 'opening odom'],
+                            endOdo: ['end odom', 'end odometer', 'closing mileage', 'closing odom'],
+                            standardDist: ['standard distance', 'km', 'dist'],
+                            grossIncome: ['gross income', 'revenue', 'income', 'amount'],
+                            fuelLitres: ['fuel(l)', 'litres', 'liters', 'fuel litres'],
+                            fuelPrice: ['fuel price (per litre)', 'price per litre', 'price/l'],
+                            driverMileage: ['driver millage', 'driver mileage', 'mileage allowance'],
+                            turnboy: ['turn-boy', 'turnboy', 'turnboy allowance'],
+                            roadUsers: ['road users fee', 'road users', 'tolls'],
+                            otherExp: ['other expenses', 'additional expenses'],
+                            progressTrack: ['status', 'progress tracking', 'trip status'],
+                        };
+
+                        const col = hMap(headers, tripAliases);
+                        const dataRows = rows.slice(2).filter(r => r.some(v => v !== null));
+
+                        dataRows.forEach((row, idx) => {
+                            const get = (field) => row[col[field]] ?? null;
+
+                            const rawRow = {
+                                vehicle: get('vehicle'),
+                                date: get('date'),
+                                origin: get('origin'),
+                                destination: get('destination'),
+                                startOdo: get('startOdo'),
+                                endOdo: get('endOdo'),
+                                standardDist: get('standardDist'),
+                                grossIncome: get('grossIncome'),
+                                fuelLitres: get('fuelLitres'),
+                                fuelPrice: get('fuelPrice'),
+                                driverMileage: get('driverMileage'),
+                                turnboy: get('turnboy'),
+                                roadUsers: get('roadUsers'),
+                                otherExp: get('otherExp'),
+                                progressTrack: get('progressTrack'),
+                            };
+
+                            const errors = [];
+                            const warnings = [];
+
+                            const truck = findTruckByReg(rawRow.vehicle);
+                            if (!rawRow.vehicle) errors.push({ field: 'Vehicle', msg: 'Vehicle registration is missing' });
+                            else if (!truck) warnings.push({ field: 'Vehicle', msg: `Truck "${rawRow.vehicle}" not found in fleet` });
+
+                            const date = parseExcelDate(rawRow.date);
+                            if (!date) errors.push({ field: 'Date', msg: 'Date is missing or invalid' });
+
+                            if (!rawRow.origin) errors.push({ field: 'Origin', msg: 'Origin is missing' });
+                            if (!rawRow.destination) errors.push({ field: 'Destination', msg: 'Destination is missing' });
+
+                            const distance = parseNumeric(rawRow.standardDist);
+                            if (!distance || distance <= 0) errors.push({ field: 'Standard Distance', msg: 'Standard distance is missing or zero' });
+
+                            const revenue = parseNumeric(rawRow.grossIncome);
+                            if (!revenue || revenue <= 0) errors.push({ field: 'Gross Income', msg: 'Gross income is missing or zero' });
+
+                            const fuelLitres = parseNumeric(rawRow.fuelLitres);
+                            const fuelPrice = parseNumeric(rawRow.fuelPrice);
+                            if (fuelLitres && !fuelPrice) warnings.push({ field: 'Fuel Price', msg: 'Fuel litres present but price missing' });
+
+                            const mapped = {
+                                _rowNum: idx + 3,
+                                _sheetName: 'Trips_2025',
+                                _rawVehicle: rawRow.vehicle,
+
+                                journeyId: uid(), truck: truck?.id || '', date: date || '',
+                                origin: rawRow.origin || '', dest: rawRow.destination || '', distance: distance || 0,
+                                revenue: revenue || 0, status: tripStatusMap(rawRow.progressTrack),
+                                startOdom: parseNumeric(rawRow.startOdo), endOdom: parseNumeric(rawRow.endOdo),
+
+                                hasFuel: !!(fuelLitres && fuelPrice), fuelLitres: fuelLitres || 0, fuelPrice: fuelPrice || 0,
+
+                                driverMileage: parseNumeric(rawRow.driverMileage) || 0, turnboy: parseNumeric(rawRow.turnboy) || 0,
+                                roadUsers: parseNumeric(rawRow.roadUsers) || 0, otherExp: parseNumeric(rawRow.otherExp) || 0,
+
+                                errors, warnings,
+                                accepted: errors.length === 0,
+                                edited: false,
+                            };
+
+                            if (errors.length > 0) session.sheets.trips.errors.push(mapped);
+                            else session.sheets.trips.valid.push(mapped);
+                        });
+                    }
+
+                    const fixedSheet = wb.Sheets['Fixed_Expenses'];
+                    if (fixedSheet) {
+                        const rows = window.XLSX.utils.sheet_to_json(fixedSheet, { header: 1, defval: null, raw: true });
+                        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                        const monthDates = months.map((_, i) => `2025-${String(i + 1).padStart(2, '0')}-01`);
+                        const dataRows = rows.slice(2).filter(r => r[0] !== null);
+
+                        dataRows.forEach((row, idx) => {
+                            const itemName = row[0];
+                            if (!itemName) return;
+
+                            months.forEach((month, mIdx) => {
+                                const amount = parseNumeric(row[3 + mIdx]);
+                                if (!amount || amount <= 0) return;
+
+                                const errors = [];
+                                const mapped = {
+                                    _rowNum: idx + 3, _sheetName: 'Fixed_Expenses', _monthName: month,
+                                    expenseId: uid(), truck: '', date: monthDates[mIdx],
+                                    cat: expenseCatFromDesc(itemName), amount: Math.round(amount),
+                                    desc: `${itemName} (${month} 2025)`,
+                                    errors, warnings: [], accepted: true, edited: false,
+                                };
+                                if (errors.length > 0) session.sheets.expenses.errors.push(mapped);
+                                else session.sheets.expenses.valid.push(mapped);
+                            });
+                        });
+                    }
+
+                    const maintSheet = wb.Sheets['Maintenance'];
+                    if (maintSheet) {
+                        const rows = window.XLSX.utils.sheet_to_json(maintSheet, {
+                            header: 1, defval: null, raw: false, dateNF: 'yyyy-mm-dd'
+                        });
+                        const dataRows = rows.slice(3).filter(r => r.some(v => v !== null));
+
+                        dataRows.forEach((row, idx) => {
+                            const rawRow = {
+                                vehicleReg: row[1], task: row[3], cost: row[6], dateUnder: row[7],
+                                odomReading: row[9], notes: row[10], addlNotes: row[11],
+                            };
+
+                            const errors = [];
+                            const warnings = [];
+
+                            const truck = findTruckByReg(rawRow.vehicleReg);
+                            if (!rawRow.vehicleReg) errors.push({ field: 'Vehicle Reg', msg: 'Vehicle registration is missing' });
+                            else if (!truck) warnings.push({ field: 'Vehicle Reg', msg: `Truck "${rawRow.vehicleReg}" not found in fleet` });
+
+                            const cost = parseNumeric(rawRow.cost);
+                            if (!cost || cost <= 0) errors.push({ field: 'Cost', msg: 'Cost is missing, zero, or "???"' });
+
+                            const date = parseExcelDate(rawRow.dateUnder);
+                            if (!date) errors.push({ field: 'Date Undertaken', msg: 'Date undertaken is missing or invalid' });
+
+                            const task = rawRow.task || 'Other';
+                            const allNotes = [rawRow.notes, rawRow.addlNotes].filter(Boolean).join(' · ');
+
+                            const mapped = {
+                                _rowNum: idx + 4, _sheetName: 'Maintenance', _rawVehicle: rawRow.vehicleReg,
+                                expenseId: uid(), truck: truck?.id || '', date: date || '',
+                                cat: 'Maintenance', amount: cost || 0, desc: `${task}${allNotes ? ' — ' + allNotes : ''}`,
+                                odom: parseNumeric(rawRow.odomReading) || 0, _maintenanceTask: task,
+                                _maintenanceDetails: { task, notes: allNotes, odomReading: parseNumeric(rawRow.odomReading) || 0, cost: cost || 0 },
+                                errors, warnings, accepted: errors.length === 0, edited: false,
+                            };
+                            if (errors.length > 0) session.sheets.maintenance.errors.push(mapped);
+                            else session.sheets.maintenance.valid.push(mapped);
+                        });
+                    }
+
+                    resolve(session);
+                } catch (err) {
+                    reject(err);
+                }
+            };
+            reader.onerror = () => reject(new Error('Failed to read file'));
+            reader.readAsArrayBuffer(file);
+        });
     };
 
-    const commitImportResult = async () => {
-        if (!importResult || importResult.imported.length === 0) return;
-        const { entityType, imported } = importResult;
-        const schema = (await import('../utils/importEngine')).IMPORT_SCHEMAS[entityType];
-        
-        setLoading(true);
-        try {
-            for (const item of imported) {
-                await saveItem(schema.collection, item, { silent: true, skipClose: true });
+    const commitImport = async (session) => {
+        const allTrips = [...session.sheets.trips.valid, ...session.sheets.trips.errors].filter(r => r.accepted);
+        const allExpenses = [...session.sheets.expenses.valid, ...session.sheets.expenses.errors].filter(r => r.accepted);
+        const allMaint = [...session.sheets.maintenance.valid, ...session.sheets.maintenance.errors].filter(r => r.accepted);
+
+        const newJourneys = [];
+        const newFuel = [];
+        const sheetExpenseToRecord = (row) => ({
+            id: row.expenseId || uid(),
+            truck: row.truck || '',
+            date: row.date,
+            cat: row.cat,
+            amount: row.amount,
+            desc: row.desc,
+            journey: row.journey || '',
+            odom: row.odom,
+            ...(row._maintenanceTask != null ? { _maintenanceTask: row._maintenanceTask } : {}),
+            ...(row._maintenanceDetails ? { _maintenanceDetails: row._maintenanceDetails } : {}),
+        });
+        const newExpenses = [...allExpenses, ...allMaint].map(sheetExpenseToRecord);
+
+        const settings = readSettings();
+        const journeyPrefix = settings.journeyIdPrefix || 'JRN-';
+
+        allTrips.forEach((row, tripIdx) => {
+            // Generate uId for journey
+            const journeyCount = data.journeys.length + newJourneys.length + 1;
+            const uId = journeyPrefix + String(journeyCount).padStart(4, '0');
+
+            newJourneys.push({
+                id: row.journeyId,
+                uId: uId,
+                truck: row.truck,
+                date: row.date,
+                origin: row.origin,
+                dest: row.dest,
+                distance: row.distance,
+                revenue: row.revenue,
+                status: row.status,
+                startOdom: row.startOdom,
+                endOdom: row.endOdom,
+                cargo: '',
+                weight: '',
+                notes: `Imported from ${session.fileName}`,
+            });
+
+            if (row.hasFuel && row.fuelLitres > 0 && row.fuelPrice > 0) {
+                newFuel.push({
+                    id: uid(), truck: row.truck, date: row.date, litres: row.fuelLitres,
+                    pricePerL: row.fuelPrice, station: 'Imported', journey: row.journeyId, odom: row.endOdom || 0,
+                });
             }
-            showToast(`Successfully imported/synced ${imported.length} ${schema.label}`, "success");
-            
-            // Record history
-            if (PAYMENT_API) {
+
+            if (row.driverMileage > 0) {
+                newExpenses.push({
+                    id: uid(), truck: row.truck, date: row.date, cat: 'Allowance', amount: row.driverMileage,
+                    desc: `Driver mileage allowance — ${row.origin} → ${row.dest}`, journey: row.journeyId, _mileageAllowance: true,
+                });
+            }
+            if (row.turnboy > 0) {
+                newExpenses.push({
+                    id: uid(), truck: row.truck, date: row.date, cat: 'Allowance', amount: row.turnboy,
+                    desc: `Turnboy allowance — ${row.origin} → ${row.dest}`, journey: row.journeyId,
+                });
+            }
+            if (row.roadUsers > 0) {
+                newExpenses.push({
+                    id: uid(), truck: row.truck, date: row.date, cat: 'Toll', amount: row.roadUsers,
+                    desc: `Road users fee — ${row.origin} → ${row.dest}`, journey: row.journeyId,
+                });
+            }
+            if (row.otherExp > 0) {
+                newExpenses.push({
+                    id: uid(), truck: row.truck, date: row.date, cat: 'Other', amount: row.otherExp,
+                    desc: `Other trip expenses — ${row.origin} → ${row.dest}`, journey: row.journeyId,
+                });
+            }
+        });
+
+        setData(d => ({
+            ...d,
+            journeys: [...d.journeys, ...newJourneys],
+            fuel: [...d.fuel, ...newFuel],
+            expenses: [...d.expenses, ...newExpenses],
+        }));
+
+        setImportSession(s => ({ ...s, committed: true }));
+
+        // Sync to server immediately
+        setTimeout(() => syncToServer(), 500);
+
+        // Record history
+        if (PAYMENT_API) {
+            try {
                 const record = {
-                    fileName: importResult.fileName || 'Universal Import',
-                    entityType,
-                    count: imported.length,
-                    timestamp: new Date().toISOString()
+                    fileName: session.fileName,
+                    trips: allTrips.length,
+                    expenses: allExpenses.length,
+                    maintenance: allMaint.length,
+                    totalRows: allTrips.length + allExpenses.length + allMaint.length
                 };
                 const token = adminAuth.getToken();
-                fetch(`${PAYMENT_API}/api/tracker/import-history` || '/api/tracker/import-history', {
+                await fetch(`${PAYMENT_API}/api/admin/import-history`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'x-admin-key': ADMIN_KEY,
                         ...(token ? { 'Authorization': `Bearer ${token}` } : {})
                     },
-                    body: JSON.stringify(record)
-                }).catch(e => console.warn("History log failed:", e));
+                    body: JSON.stringify({ record })
+                });
+                fetchImportHistory();
+            } catch (err) {
+                console.warn("History recording failed:", err.message);
             }
-
-            setImportResult(null);
-            setShowImportPanel(false);
-            fetchTrackerData(); // Refresh all
-        } catch (e) {
-            showToast("Import failed at some point: " + e.message, "error");
-        } finally {
-            setLoading(false);
         }
     };
 
@@ -1378,21 +1596,13 @@ export function useAppState() {
         driverName, driverPhone, staffName, truckReg, customerName, truckStats, tyreStatus, maintenanceStatus, logMaintenance,
         toasts, showToast,
         verifyModal, setVerifyModal, pendingVerifications, rejectReason, setRejectReason, rejectedFields, setRejectedFields, verifyLoading, verifyMsg, setVerifyMsg,
-        importResult,
-        setImportResult,
-        executeImport,
-        commitImportResult,
-        showImportPanel,
-        setShowImportPanel,
-
+        importSession, setImportSession, importHistory, runExcelImport, commitImport,
         fillTemplate,
         trailerReg: (id) => data.trailers?.find(t => t.id === id)?.reg || id,
         previewMode,
         setPreviewMode,
         clearPreviewMode,
 
-        driverName, driverPhone, staffName, truckReg, customerName, truckStats, tyreStatus, maintenanceStatus, logMaintenance,
-        toasts, showToast,
         backups,
         backupsLoading,
 
