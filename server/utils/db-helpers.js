@@ -142,7 +142,11 @@ async function syncFullData(data) {
         ];
 
         for (const tableName of tableOrder) {
-            const items = data[tableName] || [];
+            let items = data[tableName] || [];
+            // Handle frontend aliases
+            if (tableName === 'fuel_logs' && (!items || !items.length)) {
+                items = data['fuel'] || [];
+            }
             if (!items.length) continue;
             
             // We use upsert for each item to avoid truncating and losing data not in the snapshot

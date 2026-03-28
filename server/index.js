@@ -977,7 +977,14 @@ app.get('/api/admin/settings', async (req, res) => {
     try {
         const result = await db.query("SELECT key, value FROM system_settings");
         const settings = {};
-        result.rows.forEach(r => settings[r.key] = r.value);
+        result.rows.forEach(r => {
+            if (r.key === 'segecha_settings') {
+                const val = (typeof r.value === 'string') ? JSON.parse(r.value) : r.value;
+                Object.assign(settings, val);
+            } else {
+                settings[r.key] = r.value;
+            }
+        });
         res.json({ success: true, settings });
     } catch (e) {
         res.status(500).json({ error: 'Failed to fetch settings' });
