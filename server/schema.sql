@@ -51,7 +51,9 @@ CREATE TABLE IF NOT EXISTS drivers (
     metadata JSONB DEFAULT '{}',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     email TEXT,
-    role TEXT DEFAULT 'Driver'
+    role TEXT DEFAULT 'Driver',
+    truck TEXT REFERENCES trucks(id),
+    license_class TEXT
 );
 
 CREATE TABLE IF NOT EXISTS staff (

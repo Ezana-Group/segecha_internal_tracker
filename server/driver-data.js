@@ -93,6 +93,10 @@ async function getDriverData(driverId) {
     const driver = driverRes.rows[0];
     if (!driver) return null;
 
+    // Map DB fields to frontend legacy names
+    driver.license = driver.license_number;
+    driver.class = driver.license_class;
+
     const trucks = trucksRes.rows;
     const journeys = safeSort(journeysRes.rows, 'date');
     const fuel = safeSort(fuelRes.rows, 'date').slice(0, 20);

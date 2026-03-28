@@ -10,6 +10,7 @@ export const MyDocsTab = ({ token, portalPerm }) => {
     const [uploadForm, setUploadForm] = useState({ docType: '', label: '', expiryDate: '' });
     const [msg, setMsg] = useState('');
     const [uploading, setUploading] = useState(false);
+    const [selectedFile, setSelectedFile] = useState(null);
 
     const DOC_TYPES = [
         { v: 'psv_licence', l: 'PSV Driving Licence' },
@@ -35,7 +36,11 @@ export const MyDocsTab = ({ token, portalPerm }) => {
         fetchMyDocs();
     }, [fetchMyDocs]);
 
-    const handleUpload = async (file) => {
+    const handleUpload = async () => {
+        if (!selectedFile) {
+            setMsg('❌ Please select a file first');
+            return;
+        }
         if (!uploadForm.docType) {
             setMsg('❌ Select document type first');
             return;
@@ -44,9 +49,9 @@ export const MyDocsTab = ({ token, portalPerm }) => {
         setMsg('');
         try {
             const formData = new FormData();
-            formData.append('file', file);
+            formData.append('file', selectedFile);
             formData.append('docType', uploadForm.docType);
-            formData.append('label', uploadForm.label || file.name);
+            formData.append('label', uploadForm.label || selectedFile.name);
             if (uploadForm.expiryDate) formData.append('expiryDate', uploadForm.expiryDate);
 
             const res = await fetch(`${API_URL}/api/documents/driver-upload`, {
@@ -58,6 +63,7 @@ export const MyDocsTab = ({ token, portalPerm }) => {
             if (result.success) {
                 setMsg('✅ Document uploaded successfully');
                 setUploadForm({ docType: '', label: '', expiryDate: '' });
+                setSelectedFile(null);
                 fetchMyDocs();
             } else {
                 setMsg('❌ ' + (result.error || 'Upload failed'));
@@ -96,9 +102,18 @@ export const MyDocsTab = ({ token, portalPerm }) => {
                     <label style={S.lbl}>Expiry Date (if applicable)</label>
                     <input style={S.inp} type="date" value={uploadForm.expiryDate} onChange={(e) => setUploadForm((f) => ({ ...f, expiryDate: e.target.value }))} />
 
-                    <div style={{ marginTop: 12, marginBottom: 12 }}>
-                        <input type="file" accept=".pdf,.doc,.docx" style={S.inp} onChange={(e) => e.target.files[0] && handleUpload(e.target.files[0])} disabled={uploading} />
+                    <div style={{ marginTop: 12, marginBottom: 16 }}>
+                        <input type="file" accept=".pdf,.doc,.docx" style={S.inp} onChange={(e) => setSelectedFile(e.target.files[0] || null)} disabled={uploading} />
                     </div>
+
+                    <button 
+                        type="button" 
+                        style={{ ...S.btn(), width: '100%', borderRadius: 12, minHeight: 48, marginBottom: 12 }} 
+                        onClick={handleUpload} 
+                        disabled={uploading || !selectedFile}
+                    >
+                        {uploading ? '⏳ Uploading…' : 'Upload & Save Document'}
+                    </button>
 
                     <div style={{ fontSize: 11, color: COLORS.textFaint }}>Upload your PSV licence, medical certificate, or ID card for office records.</div>
                 </div>
