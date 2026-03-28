@@ -266,11 +266,16 @@ app.use((req, res, next) => {
 
     // Determine dist path based on hostname or path prefix
     let distPath = ADMIN_DIST;
-    if (host.startsWith('driver.') || req.path.startsWith('/driver')) {
+
+    const isDriverPortal = host.startsWith('driver.') || req.path === '/driver' || req.path.startsWith('/driver/');
+    const isTrackPortal = host.startsWith('track.') || req.path === '/track' || req.path.startsWith('/track/');
+    const isPayPortal = host.startsWith('pay.') || host.startsWith('payment.') || req.path === '/pay' || req.path.startsWith('/pay/') || req.path === '/payment' || req.path.startsWith('/payment/');
+
+    if (isDriverPortal) {
         distPath = DRIVER_DIST;
-    } else if (host.startsWith('track.') || req.path.startsWith('/track')) {
+    } else if (isTrackPortal) {
         distPath = TRACK_DIST;
-    } else if (host.startsWith('pay.') || host.startsWith('payment.') || req.path.startsWith('/pay')) {
+    } else if (isPayPortal) {
         distPath = PAY_DIST;
     }
 
