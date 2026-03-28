@@ -112,6 +112,7 @@ export function DriverProfile({ data, setData, dark, isMobile, truckReg, openMod
     const totalKm       = driverJourneys.reduce((s, j) => s + +j.distance, 0);
     const totalLitres   = driverFuel.reduce((s, f) => s + +f.litres, 0);
     const avgKmPerL     = totalLitres > 0 ? (totalKm / totalLitres).toFixed(2) : '—';
+    const driverAllowances = data.expenses.filter(e => e.cat === "Allowance" && (e.driver_id === driver.id || e.driver === driver.id || (e.journey && driverJourneys.some(j => j.id === e.journey)) || e.desc?.includes(driver.name))).reduce((s, e) => s + +e.amount, 0);
     const missingOdomJourneys = driverJourneys.filter(j => j.status === 'Completed' && (j.distance == null || String(j.distance).trim() === '' || isNaN(Number(j.distance))));
     
     // Safety score (mock based on status)
@@ -678,7 +679,7 @@ export function DriverProfile({ data, setData, dark, isMobile, truckReg, openMod
 
                         {finTab === 'ledger' ? (
                             <>
-                                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 24, marginBottom: 40 }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: 24, marginBottom: 40 }}>
                                     {(!isDriverPreview || d.finGrossRevenueCard !== false) && (
                                     <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)", borderRadius: 16, padding: 24, boxShadow: "var(--glass-shadow)" }}>
                                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
@@ -697,6 +698,16 @@ export function DriverProfile({ data, setData, dark, isMobile, truckReg, openMod
                                             </div>
                                             <div style={{ fontSize: 32, fontWeight: 900, color: "#ef4444" }}>{fmt(driver.salary || 0)}</div>
                                             <div style={{ fontSize: 13, color: "var(--text-dim)", marginTop: 8 }}>Standard monthly salary allocation</div>
+                                        </div>
+                                    )}
+                                    {(!isDriverPreview || d.finAllowancesCard !== false) && (
+                                        <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)", borderRadius: 16, padding: 24, boxShadow: "var(--glass-shadow)" }}>
+                                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                                                <div style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em" }}>Accrued Allowances</div>
+                                                <Award size={18} color="#f59e0b" />
+                                            </div>
+                                            <div style={{ fontSize: 32, fontWeight: 900, color: "#f59e0b" }}>{fmt(driverAllowances)}</div>
+                                            <div style={{ fontSize: 13, color: "var(--text-dim)", marginTop: 8 }}>Total allowances recorded from expenses</div>
                                         </div>
                                     )}
                                 </div>

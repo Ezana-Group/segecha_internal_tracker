@@ -726,34 +726,64 @@ if (!existsSync(__dirname)) {
     // For local dev, but in production Render uses ephemeral disk anyway
 }
 const BACKUPS_DIR = path.join(__dirname, 'backups');
+const UPLOADS_DIR = path.join(__dirname, 'uploads');
+
 if (!require('fs').existsSync(BACKUPS_DIR)) {
     require('fs').mkdirSync(BACKUPS_DIR, { recursive: true });
+}
+if (!require('fs').existsSync(UPLOADS_DIR)) {
+    require('fs').mkdirSync(UPLOADS_DIR, { recursive: true });
 }
 
 async function backupEverything() {
     const settings = await getSettings();
-    const backup = {
-        version: '5.0',
+    const backupData = {
+        version: '6.0',
         timestamp: new Date().toISOString(),
         tables: {}
     };
     for (const table of DB_TABLES) {
         const res = await db.query(`SELECT * FROM ${table}`);
-        backup.tables[table] = res.rows.map(r => normalizeRow(table, r, settings));
+        backupData.tables[table] = res.rows.map(r => normalizeRow(table, r, settings));
     }
-    return backup;
+
+    const zip = new AdmZip();
+    zip.addFile("data.json", Buffer.from(JSON.stringify(backupData, null, 2), "utf8"));
+    
+    if (existsSync(UPLOADS_DIR)) {
+        zip.addLocalFolder(UPLOADS_DIR, "uploads");
+    }
+    
+    return zip;
 }
 
 // Master Restore Helper
-async function restoreEverything(backup) {
-    if (!backup.tables) return;
+// Master Restore Helper (Handles ZIP or Legacy JSON)
+async function restoreEverything(backupSource, isZip = false) {
+    let backupData;
+    if (isZip) {
+        const zip = new AdmZip(backupSource);
+        const dataJson = zip.readAsText("data.json");
+        backupData = JSON.parse(dataJson);
+        
+        // Restore uploads folder
+        if (existsSync(UPLOADS_DIR)) {
+            // Option A: Extract and merge. Option B: Clean and replace. 
+            // The user said "recover information across database, backend and frontend", 
+            // implying a full state recovery. I'll replace.
+            zip.extractEntryTo("uploads/", path.join(__dirname), true, true);
+        }
+    } else {
+        backupData = backupSource;
+    }
 
-    // Use a single transaction for atomicity and performance
+    if (!backupData || !backupData.tables) return;
+
     const client = await db.pool.connect();
     try {
         await client.query('BEGIN');
 
-        for (const [table, rows] of Object.entries(backup.tables)) {
+        for (const [table, rows] of Object.entries(backupData.tables)) {
             if (!DB_TABLES.includes(table)) continue;
 
             await client.query(`TRUNCATE TABLE ${table} CASCADE`);
@@ -1215,7 +1245,7 @@ app.get('/api/tracker/backups', (req, res) => {
     const { readdirSync, statSync } = require('fs');
     try {
         const files = readdirSync(BACKUPS_DIR)
-            .filter(f => f.endsWith('.json'))
+            .filter(f => f.endsWith('.json') || f.endsWith('.zip'))
             .map(f => {
                 const stats = statSync(path.join(BACKUPS_DIR, f));
                 return {
@@ -1248,10 +1278,10 @@ app.post('/api/tracker/backup-now', adminAuth, restrictTo('superadmin'), async (
 
         lastManualBackupTime = now;
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-        const filename = `backup_master_${timestamp}.json`;
-        const backup = await backupEverything();
+        const filename = `backup_master_${timestamp}.zip`;
+        const zip = await backupEverything();
 
-        require('fs').writeFileSync(path.join(BACKUPS_DIR, filename), JSON.stringify(backup, null, 2));
+        writeFileSync(path.join(BACKUPS_DIR, filename), zip.toBuffer());
         res.json({ success: true, message: 'Master backup created: ' + filename });
     } catch (e) {
         console.error('BACKUP_ERROR:', e);
@@ -1269,14 +1299,17 @@ app.post('/api/tracker/restore', adminAuth, restrictTo('superadmin'), async (req
         const backupPath = path.join(BACKUPS_DIR, filename);
         if (!existsSync(backupPath)) return res.status(404).json({ error: 'Backup file not found' });
 
-        const backup = JSON.parse(readFileSync(backupPath, 'utf8'));
-
-        // Handle both legacy (just data/settings) and new unified format
-        if (backup.version === '5.0' || backup.version === '4.0') {
-            await restoreEverything(backup);
+        if (filename.endsWith('.zip')) {
+            await restoreEverything(backupPath, true);
+        } else if (filename.endsWith('.json')) {
+            const backup = JSON.parse(readFileSync(backupPath, 'utf8'));
+            if (backup.version === '5.0' || backup.version === '4.0') {
+                await restoreEverything(backup, false);
+            } else {
+                return res.status(400).json({ error: 'Legacy JSON backup format no longer supported. Please use a version 4.0+ master backup or a .zip backup.' });
+            }
         } else {
-            console.warn('[RESTORE] Attempted to restore legacy JSON format which is no longer supported.');
-            return res.status(400).json({ error: 'Legacy backup format no longer supported. Please use a version 4.0 or 5.0 master backup.' });
+            return res.status(400).json({ error: 'Unsupported backup format' });
         }
 
         res.json({ success: true, message: 'System restored from ' + filename });
@@ -1299,19 +1332,27 @@ app.get('/api/tracker/backups/download/:filename', (req, res) => {
     }
 });
 
-// Upload Backup
-app.post('/api/tracker/upload-backup', (req, res) => {
-    try {
-        const { filename, content } = req.body;
-        if (!filename || !content) return res.status(400).json({ error: 'Missing filename or content' });
+import multer from 'multer';
+const backupUpload = multer({ dest: '/tmp/' });
 
+app.post('/api/tracker/upload-backup', adminAuth, restrictTo('superadmin'), backupUpload.single('file'), (req, res) => {
+    try {
+        if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+
+        const filename = req.body.filename || req.file.originalname;
         const safeName = path.basename(filename);
-        if (!safeName.endsWith('.json')) return res.status(400).json({ error: 'Only JSON backup files are allowed' });
+        if (!safeName.endsWith('.json') && !safeName.endsWith('.zip')) {
+            return res.status(400).json({ error: 'Only JSON or ZIP backup files are allowed' });
+        }
 
         const backupPath = path.join(BACKUPS_DIR, safeName);
-        writeFileSync(backupPath, content, 'utf8');
+        const buffer = readFileSync(req.file.path);
+        writeFileSync(backupPath, buffer);
+        
+        // Clean up temp file
+        require('fs').unlinkSync(req.file.path);
 
-        res.json({ success: true, message: 'Backup uploaded successfully' });
+        res.json({ success: true, message: 'Backup uploaded successfully: ' + safeName });
     } catch (e) {
         res.status(500).json({ error: 'Failed to upload backup: ' + e.message });
     }

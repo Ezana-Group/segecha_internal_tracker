@@ -191,8 +191,12 @@ export function VerificationModal({
                                     { l: 'Assigned Vehicle', v: truckReg(journey.truck), i: Truck, c: "var(--brand-primary)" },
                                     { l: 'Tactical Route', v: (journey.origin || journey.dest) ? `${journey.origin || "—"} → ${journey.dest || "—"}` : "Unspecified route", i: MapPin, c: "var(--text-secondary)" },
                                     { l: 'Cargo Classification', v: journey.cargo ? (journey.weight ? `${journey.cargo} · ${journey.weight}T` : journey.cargo) : (journey.weight ? `${journey.weight}T` : "General Freight"), i: Package, c: "var(--text-secondary)" },
-                                ].map(x => (
-                                    <div key={x.l}>
+                                    ...(journey.kra_booking_no ? [{ l: 'KRA Booking No', v: journey.kra_booking_no, i: Shield, c: "var(--brand-primary)" }] : []),
+                                    ...(journey.is_return ? [{ l: 'Return Trip', v: 'Yes / Empty', i: AlertTriangle, c: "#f59e0b" }] : []),
+                                    ...(journey.fuel_type ? [{ l: 'Fuel Type', v: journey.fuel_type, i: AlertTriangle, c: "var(--text-secondary)" }] : []),
+                                    ...((journey.driverMileage || journey.turnboyMileage) ? [{ l: 'Allocated Allowances', v: `M: ${fmt(journey.driverMileage || 0)} | T: ${fmt(journey.turnboyMileage || 0)}`, i: CheckCircle2, c: "#10b981" }] : []),
+                                ].map((x, i) => (
+                                    <div key={x.l + i}>
                                         <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}>
                                             <x.i size={12} /> {x.l}
                                         </div>

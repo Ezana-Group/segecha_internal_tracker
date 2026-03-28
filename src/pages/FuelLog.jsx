@@ -310,6 +310,9 @@ export function FuelLog({ data, isMobile, modal, form, setForm, openModal, close
                                                 <td title={fmtDate(v.date)}>
                                                     <div style={{ fontWeight: 800, color: "var(--text-primary)", fontSize: 14 }}>{fmtDate(v.date)}</div>
                                                 </td>
+                                                <td title={v.fuel_type || v.metadata?.fuelType}>
+                                                    <div style={{ fontSize: 13, color: "var(--text-primary)", fontWeight: 700 }}>{v.fuel_type || v.metadata?.fuelType || "—"}</div>
+                                                </td>
                                                 <td title={v.station}>
                                                     <div style={{ fontSize: 13, color: "var(--text-primary)", fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
                                                         <MapPin size={12} color="var(--brand-primary)" /> {v.station}

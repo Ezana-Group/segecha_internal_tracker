@@ -3494,7 +3494,7 @@ export function Settings({
                                                 if (e.dataTransfer.files[0]) uploadBackup(e.dataTransfer.files[0]);
                                             }}
                                         >
-                                            <input type="file" accept=".json" style={{ display: "none" }} onChange={(e) => {
+                                            <input type="file" accept=".json,.zip" style={{ display: "none" }} onChange={(e) => {
                                                 if (e.target.files && e.target.files[0]) uploadBackup(e.target.files[0]);
                                                 e.target.value = null;
                                             }} />
