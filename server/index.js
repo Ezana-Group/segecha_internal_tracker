@@ -84,7 +84,8 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 const APP_VERSION = '2.1.0';
 
@@ -1241,7 +1242,7 @@ app.post('/api/tracker/data', adminAuth, restrictTo('superadmin'), async (req, r
         await syncFullData(syncData);
         res.json({ success: true, message: 'Live data synchronized to PostgreSQL' });
     } catch (e) {
-        console.error('SYNC_ERROR:', e);
+        console.error('SYNC_ERROR_STACK:', e.stack || e);
         res.status(500).json({ error: 'Sync failed: ' + e.message });
     }
 });

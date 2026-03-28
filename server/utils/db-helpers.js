@@ -156,13 +156,13 @@ async function upsertEntity(table, item) {
         if (journeyId) {
             // Check if this journey is linked to a finalized payroll record
             // 1. Find the journey date
-            const jrnRes = await db.query('SELECT start_date, driver_id FROM journeys WHERE id = $1', [journeyId]);
+            const jrnRes = await db.query('SELECT start_date, driver_id FROM "journeys" WHERE id = $1', [journeyId]);
             if (jrnRes.rows.length > 0) {
                 const jrn = jrnRes.rows[0];
                 const dateHeader = jrn.start_date ? new Date(jrn.start_date).toISOString().slice(0, 7) : null;
                 if (dateHeader) {
                     const payRes = await db.query(
-                        'SELECT finalized FROM payroll WHERE entity_id = $1 AND month = $2',
+                        'SELECT finalized FROM "payroll" WHERE entity_id = $1 AND month = $2',
                         [jrn.driver_id, dateHeader]
                     );
                     if (payRes.rows.length > 0 && payRes.rows[0].finalized) {
@@ -179,7 +179,7 @@ async function upsertEntity(table, item) {
     }
 
     if (table === 'invoices') {
-        const existingRes = await db.query('SELECT status FROM invoices WHERE id = $1', [finalData.id]);
+        const existingRes = await db.query('SELECT status FROM "invoices" WHERE id = $1', [finalData.id]);
         if (existingRes.rows.length > 0) {
             const oldStatus = existingRes.rows[0].status;
             const newStatus = finalData.status || oldStatus;
@@ -191,7 +191,7 @@ async function upsertEntity(table, item) {
 
     if (table === 'journeys') {
         if (finalData.truck_id && finalData.is_international && finalData.status !== 'Completed') {
-            const truckRes = await db.query("SELECT metadata->>'kra_pin' as kra_pin, metadata->>'insurance_id' as insurance_id FROM trucks WHERE id = $1", [finalData.truck_id]);
+            const truckRes = await db.query("SELECT metadata->>'kra_pin' as kra_pin, metadata->>'insurance_id' as insurance_id FROM \"trucks\" WHERE id = $1", [finalData.truck_id]);
             if (truckRes.rows.length > 0) {
                 const t = truckRes.rows[0];
                 if (!t.kra_pin || t.kra_pin === 'Unset' || !t.insurance_id || t.insurance_id === 'Unset') {
@@ -245,7 +245,7 @@ async function upsertEntity(table, item) {
     }
     // ── Bi-directional Driver-Vehicle Assignment Sync ──
     if (table === 'trucks' && metadata.driver_id) {
-        await db.query('UPDATE drivers SET truck = $1 WHERE id = $2', [finalData.id, metadata.driver_id]);
+        await db.query('UPDATE "drivers" SET truck = $1 WHERE id = $2', [finalData.id, metadata.driver_id]);
     }
 
     return { success: true };
@@ -397,7 +397,7 @@ async function upsertEntityInTransaction(client, table, item) {
     const query = `INSERT INTO "${table}" ("${keys.join('", "')}") VALUES (${placeholders}) ON CONFLICT (id) DO UPDATE SET ${updates}`;
 
     if (table === 'invoices') {
-        const existingRes = await client.query('SELECT status FROM invoices WHERE id = $1', [finalData.id]);
+        const existingRes = await client.query('SELECT status FROM "invoices" WHERE id = $1', [finalData.id]);
         if (existingRes.rows.length > 0) {
             const oldStatus = existingRes.rows[0].status;
             const newStatus = finalData.status || oldStatus;
@@ -409,7 +409,7 @@ async function upsertEntityInTransaction(client, table, item) {
 
     if (table === 'journeys') {
         if (finalData.truck_id && finalData.is_international && finalData.status !== 'Completed') {
-            const truckRes = await client.query("SELECT metadata->>'kra_pin' as kra_pin, metadata->>'insurance_id' as insurance_id FROM trucks WHERE id = $1", [finalData.truck_id]);
+            const truckRes = await client.query("SELECT metadata->>'kra_pin' as kra_pin, metadata->>'insurance_id' as insurance_id FROM \"trucks\" WHERE id = $1", [finalData.truck_id]);
             if (truckRes.rows.length > 0) {
                 const t = truckRes.rows[0];
                 if (!t.kra_pin || t.kra_pin === 'Unset' || !t.insurance_id || t.insurance_id === 'Unset') {
@@ -429,7 +429,7 @@ async function upsertEntityInTransaction(client, table, item) {
 
     // ── Bi-directional Driver-Vehicle Assignment Sync ──
     if (table === 'trucks' && metadata.driver_id) {
-        await client.query('UPDATE drivers SET truck = $1 WHERE id = $2', [finalData.id, metadata.driver_id]);
+        await client.query('UPDATE "drivers" SET truck = $1 WHERE id = $2', [finalData.id, metadata.driver_id]);
     }
 
     return result;
