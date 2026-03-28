@@ -111,6 +111,106 @@ const FuelPhotoField = ({ label, k, form, setForm, S, T }) => {
     );
 };
 
+const COUNTRY_CODES = [
+    { code: "+254", icon: "🇰🇪", label: "Kenya" },
+    { code: "+256", icon: "🇺🇬", label: "Uganda" },
+    { code: "+255", icon: "🇹🇿", label: "Tanzania" },
+    { code: "+250", icon: "🇷🇼", label: "Rwanda" },
+    { code: "+251", icon: "🇪🇹", label: "Ethiopia" },
+    { code: "+211", icon: "🇸🇸", label: "South Sudan" },
+    { code: "+260", icon: "🇿🇲", label: "Zambia" },
+    { code: "+263", icon: "🇿🇼", label: "Zimbabwe" },
+    { code: "+27",  icon: "🇿🇦", label: "South Africa" },
+    { code: "+252", icon: "🇸🇴", label: "Somalia" },
+    { code: "+253", icon: "🇩🇯", label: "Djibouti" },
+    { code: "+44",  icon: "🇬🇧", label: "UK" },
+    { code: "+1",   icon: "🇺🇸", label: "USA" }
+];
+
+function PhoneField({ label, k, form, setForm, S, T, error, full, placeholder }) {
+    const value = String(form[k] || "");
+    
+    // Auto-detect country code from existing value or default to +254
+    let matched = COUNTRY_CODES.find(c => value.startsWith(c.code));
+    
+    // Special handling for local Kenyan format (07...)
+    if (!matched && value.startsWith('0') && value.length >= 10) {
+        matched = COUNTRY_CODES[0]; // Kenya
+    }
+    
+    const active = matched || COUNTRY_CODES[0];
+    
+    let localPart = value;
+    if (value.startsWith(active.code)) {
+        localPart = value.slice(active.code.length);
+    } else if (active.code === '+254' && value.startsWith('0')) {
+        localPart = value.slice(1);
+    }
+
+    const handleCodeChange = (newCode) => {
+        setForm(f => ({ ...f, [k]: newCode + localPart }));
+    };
+
+    const handleNumberChange = (newNumber) => {
+        const clean = newNumber.replace(/\D/g, '');
+        setForm(f => ({ ...f, [k]: active.code + clean }));
+    };
+
+    return (
+        <div style={{ ...S.fg, gridColumn: full ? "1/-1" : undefined }}>
+            <label style={S.lbl}>{label}</label>
+            <div style={{ 
+                display: 'flex', 
+                gap: 0, 
+                borderRadius: 12, 
+                overflow: 'hidden', 
+                border: `1px solid ${error ? '#DC2626' : T.border2}`, 
+                background: 'var(--bg-elevated)',
+                height: 42,
+                transition: 'border-color 0.2s'
+            }}>
+                <select 
+                    style={{ 
+                        width: 85, 
+                        border: 'none', 
+                        padding: '0 8px', 
+                        background: 'var(--bg-sidebar)', 
+                        borderRight: `1px solid ${T.border2}`, 
+                        fontSize: 13,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        color: 'var(--text-primary)',
+                        outline: 'none'
+                    }}
+                    value={active.code}
+                    onChange={e => handleCodeChange(e.target.value)}
+                >
+                    {COUNTRY_CODES.map(c => (
+                        <option key={c.code} value={c.code}>{c.icon} {c.code}</option>
+                    ))}
+                </select>
+                <input 
+                    type="tel"
+                    style={{ 
+                        flex: 1, 
+                        border: 'none', 
+                        padding: '0 14px', 
+                        background: 'transparent', 
+                        fontSize: 14,
+                        fontWeight: 500,
+                        color: 'var(--text-primary)',
+                        outline: 'none'
+                    }}
+                    placeholder={placeholder || "712 345 678"}
+                    value={localPart}
+                    onChange={e => handleNumberChange(e.target.value)}
+                />
+            </div>
+            {error && <p style={{ color: '#DC2626', fontSize: 11, marginTop: 4, fontWeight: 500 }}>{error}</p>}
+        </div>
+    );
+}
+
 function SectionHeader({ title, icon, T, style = {} }) {
     return (
         <div style={{ 
@@ -1431,7 +1531,7 @@ export function GlobalModals(props) {
         const getErrors = () => {
             const e = {};
             e.name = validators.required(form.name);
-            e.phone = validators.required(form.phone) || validators.kenyaPhone(form.phone);
+            e.phone = validators.required(form.phone) || validators.phone(form.phone);
             e.mpesa = validators.required(form.mpesa) || validators.mpesa(form.mpesa);
             e.license = validators.required(form.license);
             e.salary = validators.required(form.salary) || validators.positiveNumber(form.salary);
@@ -1490,7 +1590,7 @@ export function GlobalModals(props) {
                     <SectionHeader title="Personal Details" icon="👤" T={T} style={{ marginTop: 0 }} />
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px 24px" }}>
                         <Field label="Full Name" k="name" full form={form} setForm={setForm} S={S} T={T} error={errors.name} />
-                        <Field label="Phone" k="phone" form={form} setForm={setForm} S={S} T={T} error={errors.phone} />
+                        <PhoneField label="Phone" k="phone" form={form} setForm={setForm} S={S} T={T} error={errors.phone} />
                         <Field label="Email Address" k="email" type="email" placeholder="driver@email.com" form={form} setForm={setForm} S={S} T={T} error={errors.email} />
                         <Field label="M-Pesa Number" k="mpesa" placeholder="07XXXXXXXX" form={form} setForm={setForm} S={S} T={T} error={errors.mpesa} />
                     </div>
@@ -1535,7 +1635,7 @@ export function GlobalModals(props) {
             const existing = data.customers.find(c => c.name.trim().toLowerCase() === normalizedName);
             if (existing) errors.name = "A customer with this name already exists";
         }
-        errors.phone = validators.required(form.phone) || validators.kenyaPhone(form.phone);
+        errors.phone = validators.required(form.phone) || validators.phone(form.phone);
         const hasErrors = Object.values(errors).some(Boolean);
 
         return (
@@ -1553,7 +1653,7 @@ export function GlobalModals(props) {
                         {form.type === "Company" && (
                             <Field label="Contact Person" k="contactPerson" form={form} setForm={setForm} S={S} placeholder="e.g. Procurement Officer" />
                         )}
-                        <Field label="Phone Number" k="phone" form={form} setForm={setForm} S={S} error={errors.phone} />
+                        <PhoneField label="Phone Number" k="phone" form={form} setForm={setForm} S={S} T={T} error={errors.phone} />
                         <Field label="Email Address" k="email" type="email" form={form} setForm={setForm} S={S} />
                     </div>
                     <Field label="Physical Address" k="address" full form={form} setForm={setForm} S={S} />
@@ -1602,7 +1702,7 @@ export function GlobalModals(props) {
             e.name = validators.required(form.name);
             e.role = validators.required(form.role);
             if (isDrivingRole) {
-                e.phone = validators.required(form.phone) || validators.kenyaPhone(form.phone);
+                e.phone = validators.required(form.phone) || validators.phone(form.phone);
                 e.mpesa = validators.required(form.mpesa) || validators.mpesa(form.mpesa);
                 e.license = validators.required(form.license);
             }

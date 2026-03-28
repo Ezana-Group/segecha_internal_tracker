@@ -8,6 +8,13 @@ export const validators = {
             : 'Enter a valid email address';
     },
 
+    phone: (v) => {
+        if (!v) return null;
+        const clean = String(v).replace(/\s+/g, '');
+        // Generic phone validator: must start with + or 0, and have 7-15 digits
+        return /^(\+|0)\d{7,15}$/.test(clean) ? null : 'Enter a valid phone number (e.g. +254712345678)';
+    },
+
     kenyaPhone: (v) => {
         const clean = String(v).replace(/\s+/g, '');
         return /^(\+254|0)7\d{8}$/.test(clean) ? null : 'Enter a valid Kenyan phone number (e.g. 0712 345678)';
