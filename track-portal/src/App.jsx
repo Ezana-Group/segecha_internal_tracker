@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Search, Package, MapPin, Clock, ArrowRight, ShieldCheck, Box } from 'lucide-react';
 
-const API = import.meta.env.VITE_API_URL;
+const API = import.meta.env.VITE_API_URL || 'https://api.segecha.com';
 const LANDING_URL = import.meta.env.VITE_LANDING_URL || 'https://segecha.com';
 const ADMIN_URL = import.meta.env.VITE_ADMIN_URL || 'https://app.segecha.com';
 
