@@ -418,7 +418,10 @@ app.post('/api/webhooks/mpesa', async (req, res) => {
         // We rely on IP whitelisting or other network-level security if needed in production.
         
         const body = req.body;
-        console.log('[WEBHOOK] M-Pesa payload received:', body);
+        console.log('[DEBUG WEBHOOK] M-Pesa callback received at:', new Date().toISOString());
+        console.log('[DEBUG WEBHOOK] Headers:', JSON.stringify(req.headers));
+        console.log('[DEBUG WEBHOOK] Body:', JSON.stringify(body));
+
 
         // STK Push Callback Handling
         if (body.Body && body.Body.stkCallback) {
@@ -1696,7 +1699,7 @@ app.post('/api/admin/refund', async (req, res) => {
 app.get('/api/admin/mpesa-transactions', adminAuth, async (req, res) => {
     try {
         const result = await db.query('SELECT * FROM mpesa_transactions ORDER BY created_at DESC LIMIT 200');
-        res.json(result.rows);
+        res.json({ transactions: result.rows });
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
