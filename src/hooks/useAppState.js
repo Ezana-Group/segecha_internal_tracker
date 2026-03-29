@@ -894,10 +894,7 @@ export function useAppState() {
         try {
             const token = adminAuth.getToken();
             
-            // 1. Ensure settings are also synced to server
-            await syncSettingsToServer(token);
-
-            // 2. Sync main tracker data (PostgreSQL)
+            // 1. Sync main tracker data (PostgreSQL)
             const res = await fetch(`${PAYMENT_API}/api/tracker/data`, {
                 method: "POST",
                 headers: {
