@@ -5,8 +5,8 @@ import { PreviewModeBanner } from "./components/PreviewModeBanner.jsx";
 import { useWindowWidth } from "./hooks/useWindowWidth";
 import { useAppState } from "./hooks/useAppState";
 import { DRIVER_PORTAL_URL } from "./utils/env.js";
-import { Sidebar } from "./components/Sidebar";
-import { Topbar } from "./components/Topbar";
+// import { Sidebar } from "./components/Sidebar";
+// import { Topbar } from "./components/Topbar";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { ToastContainer } from "./components/Toast";
 import { Dashboard } from "./pages/Dashboard";
@@ -196,7 +196,7 @@ export default function App() {
                 />
             )}
             
-            {authed && <Topbar {...p} />}
+            {/* {authed && <Topbar {...p} />} */}
             <PreviewModeBanner
                 previewMode={state.previewMode}
                 label={previewLabel}
@@ -210,7 +210,7 @@ export default function App() {
             />
 
             <div style={{ display: "flex", flex: 1, position: "relative" }}>
-                {authed && !state.previewMode && <Sidebar {...p} />}
+                {/* {authed && !state.previewMode && <Sidebar {...p} />} */}
                 
                 <main style={mainStyle} className="animate-fade-in">
                     <Routes>
