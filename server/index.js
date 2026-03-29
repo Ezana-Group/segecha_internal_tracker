@@ -458,7 +458,7 @@ app.post('/api/webhooks/mpesa', async (req, res) => {
             }
         }
         
-        res.status(200).send('OK');
+        res.status(200).json({ ResultCode: 0, ResultDesc: "Success" });
     } catch (e) {
         console.error('[WEBHOOK ERROR]', e);
         res.status(500).send('Internal Server Error');
