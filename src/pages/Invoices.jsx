@@ -150,34 +150,34 @@ export function Invoices({ data, setData, dark, isMobile, modal, form, setForm, 
                 }
             />
 
-            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: 12, marginBottom: 16 }}>
+            <div className="animate-fade-in" style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: 10, marginBottom: 12 }}>
                 {[
                     { label: "Filtered Revenue", value: fmt(totalInvoicedFiltered), icon: TrendingUp, color: "var(--brand-primary)" },
                     { label: "Filtered Settlements", value: fmt(totalPaidFiltered), icon: CheckCircle2, color: "#10b981" },
                     { label: "Filtered Receivables", value: fmt(totalPendingFiltered), icon: Clock, color: "#f59e0b" }
                 ].map((kpi, idx) => (
-                    <Card key={idx} style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)", borderRadius: 12, padding: "12px 16px" }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                            <div style={{ fontSize: 10, color: "var(--text-dim)", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em" }}>{kpi.label}</div>
-                            <div style={{ width: 28, height: 28, borderRadius: 8, background: `${kpi.color}12`, display: "flex", alignItems: "center", justifyContent: "center", color: kpi.color }}>
-                                <kpi.icon size={14} />
+                    <Card key={idx} style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)", borderRadius: 10, padding: "10px 14px" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                            <div style={{ fontSize: 9.5, color: "var(--text-dim)", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em" }}>{kpi.label}</div>
+                            <div style={{ width: 26, height: 26, borderRadius: 6, background: `${kpi.color}12`, display: "flex", alignItems: "center", justifyContent: "center", color: kpi.color }}>
+                                <kpi.icon size={13} />
                             </div>
                         </div>
-                        <div style={{ fontSize: 16, fontWeight: 900, color: "var(--text-primary)" }}>{kpi.value}</div>
+                        <div style={{ fontSize: 15, fontWeight: 900, color: "var(--text-primary)" }}>{kpi.value}</div>
                     </Card>
                 ))}
             </div>
 
             {/* Main Ledger Table */}
-            <Card style={{ padding: 0, overflow: "hidden", borderRadius: 24 }}>
-                <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", gap: 12 }}>
-                    <Search size={18} color="var(--text-dim)" />
+            <Card style={{ padding: 0, overflow: "hidden", borderRadius: 12 }}>
+                <div style={{ padding: "10px 16px", borderBottom: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", gap: 10 }}>
+                    <Search size={16} color="var(--text-dim)" />
                     <input
                         type="search"
                         placeholder="Search invoices..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        style={{ border: "none", background: "none", padding: 0, fontSize: 14, flex: 1, color: "var(--text-primary)", fontWeight: 500 }}
+                        style={{ border: "none", background: "none", padding: 0, fontSize: 13, flex: 1, color: "var(--text-primary)", fontWeight: 500 }}
                     />
                 </div>
                 <div className="table-container">

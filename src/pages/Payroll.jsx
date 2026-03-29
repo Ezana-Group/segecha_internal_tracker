@@ -153,21 +153,21 @@ export function Payroll({ data, setData, dark, isMobile, modal, form, setForm, o
             />
 
             {/* Financial Summary */}
-            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)", gap: 20, marginBottom: 32 }}>
+            <div className="animate-fade-in" style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)", gap: 12, marginBottom: 20 }}>
                 {[
                     { label: "Filtered Net Liability", value: fmt(filteredTotalNet), icon: DollarSign, color: "var(--brand-primary)" },
                     { label: "Filtered Paid", value: fmt(filteredPaidAmount), icon: CheckCircle2, color: "#10b981" },
                     { label: "Filtered Pending", value: fmt(filteredPendingAmount), icon: Clock, color: "#ef4444" }
                 ].map((kpi, idx) => (
-                    <Card key={idx} style={{ padding: 20, background: "var(--bg-card)", border: "1px solid var(--border-subtle)", borderRadius: 16 }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
-                            <div style={{ width: 40, height: 40, borderRadius: 10, background: `${kpi.color}10`, display: "flex", alignItems: "center", justifyContent: "center", color: kpi.color }}>
-                                <kpi.icon size={20} />
+                    <Card key={idx} style={{ padding: 12, background: "var(--bg-card)", border: "1px solid var(--border-subtle)", borderRadius: 12 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
+                            <div style={{ width: 32, height: 32, borderRadius: 8, background: `${kpi.color}10`, display: "flex", alignItems: "center", justifyContent: "center", color: kpi.color }}>
+                                <kpi.icon size={16} />
                             </div>
-                            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", background: "var(--surface-subtle)", padding: "4px 8px", borderRadius: 6 }}>{monthLabel(selMonth)}</div>
+                            <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-muted)", background: "var(--surface-subtle)", padding: "2px 6px", borderRadius: 4 }}>{monthLabel(selMonth)}</div>
                         </div>
-                        <div style={{ fontSize: 11, color: "var(--text-dim)", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 2 }}>{kpi.label}</div>
-                        <div style={{ fontSize: 20, fontWeight: 900, color: "var(--text-primary)" }}>{kpi.value}</div>
+                        <div style={{ fontSize: 10, color: "var(--text-dim)", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 2 }}>{kpi.label}</div>
+                        <div style={{ fontSize: 18, fontWeight: 900, color: "var(--text-primary)" }}>{kpi.value}</div>
                     </Card>
                 ))}
             </div>
@@ -177,25 +177,25 @@ export function Payroll({ data, setData, dark, isMobile, modal, form, setForm, o
                 display: "flex", 
                 justifyContent: "flex-end", 
                 alignItems: "center", 
-                marginBottom: 24, 
+                marginBottom: 16, 
                 flexWrap: "wrap", 
-                gap: 16,
+                gap: 12,
                 background: "var(--bg-card)",
-                padding: "16px 20px",
-                borderRadius: 20,
+                padding: "10px 16px",
+                borderRadius: 12,
                 border: "1px solid var(--border-subtle)",
                 backdropFilter: "blur(12px)"
             }}>
-                <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                    <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                        <Calendar size={18} color="var(--brand-primary)" />
-                        <div style={{ fontSize: 13, fontWeight: 800, color: "var(--text-primary)" }}>Select Payroll Month:</div>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                        <Calendar size={16} color="var(--brand-primary)" />
+                        <div style={{ fontSize: 12, fontWeight: 800, color: "var(--text-primary)" }}>Select Payroll Month:</div>
                     </div>
                     <div style={{ position: "relative" }}>
-                        <Calendar style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--text-dim)", pointerEvents: "none" }} size={14} />
+                        <Calendar style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--text-dim)", pointerEvents: "none" }} size={12} />
                         <select 
                             className="input-premium"
-                            style={{ width: 180, fontSize: 13, height: 44, padding: "0 12px 0 34px", borderRadius: 12, background: "var(--surface-subtle)" }}
+                            style={{ width: 160, fontSize: 12, height: 34, padding: "0 10px 0 30px", borderRadius: 8, background: "var(--surface-subtle)" }}
                             value={selMonth}
                             onChange={e => setSelMonth(e.target.value)}
                         >
@@ -206,15 +206,15 @@ export function Payroll({ data, setData, dark, isMobile, modal, form, setForm, o
             </div>
 
             {/* Payroll Table */}
-            <Card style={{ padding: 0, overflow: "hidden", borderRadius: 24 }}>
-                <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", gap: 12 }}>
-                    <SearchIcon size={18} color="var(--text-dim)" />
+            <Card style={{ padding: 0, overflow: "hidden", borderRadius: 12 }}>
+                <div style={{ padding: "10px 16px", borderBottom: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", gap: 10 }}>
+                    <SearchIcon size={16} color="var(--text-dim)" />
                     <input
                         type="search"
                         placeholder="Search payroll..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        style={{ border: "none", background: "none", padding: 0, fontSize: 14, flex: 1, color: "var(--text-primary)", fontWeight: 500 }}
+                        style={{ border: "none", background: "none", padding: 0, fontSize: 13, flex: 1, color: "var(--text-primary)", fontWeight: 500 }}
                     />
                 </div>
                 <div className="table-container">

@@ -83,13 +83,13 @@ export function VehicleProfile({ data, setData, dark, isMobile, openModal, maint
     return (
         <div className="page-shell">
             {/* Header / Banner */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24, flexWrap: 'wrap' }}>
                 <Button variant="secondary" icon={ArrowLeft} onClick={() => navigate('/fleet')}>Back</Button>
-                <div style={{ width: 48, height: 48, borderRadius: 12, background: "var(--brand-primary)15", display: 'flex', alignItems: 'center', justifyContent: 'center', color: "var(--brand-primary)" }}>
-                    <Truck size={24} />
+                <div style={{ width: 44, height: 44, borderRadius: 12, background: "var(--brand-primary)15", display: 'flex', alignItems: 'center', justifyContent: 'center', color: "var(--brand-primary)" }}>
+                    <Truck size={22} />
                 </div>
                 <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 26, fontWeight: 900, color: "var(--text-primary)", lineHeight: 1.1, letterSpacing: "-0.04em" }}>{truck.reg}</div>
+                    <div style={{ fontSize: 24, fontWeight: 900, color: "var(--text-primary)", lineHeight: 1.1, letterSpacing: "-0.04em" }}>{truck.reg}</div>
                     <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 2, display: "flex", alignItems: "center", gap: 10, fontWeight: 500 }}>
                         {truck.make} · {truck.type} · {truck.year} · <Badge status={truck.status} />
                     </div>
@@ -125,7 +125,7 @@ export function VehicleProfile({ data, setData, dark, isMobile, openModal, maint
                                 <div>Distance data missing — final odometer not recorded for {missingOdomJourneys.length} completed journey(s).</div>
                             </div>
                         )}
-                        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4,1fr)', gap: 20, marginBottom: 40 }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4,1fr)', gap: 16, marginBottom: 32 }}>
                             {[
                                 { l: 'Revenue',        v: fmt(truckRevenue),  c: '#10b981', i: Navigation },
                                 { l: 'Total Costs',    v: fmt(truckTotalCost), c: '#f59e0b', i: Wallet },

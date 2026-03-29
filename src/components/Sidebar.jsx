@@ -89,7 +89,7 @@ export function Sidebar({ sideOpen, setSideOpen, isMobile, tyreAlertCount, verif
 
             <nav className="sidebar-nav-wrap">
                 <div className="sidebar-section-label">Navigation</div>
-                {navItems.map((n) => {
+                {navItems.map((n, idx) => {
                     const Icon = ICON_MAP[n.id] || LayoutDashboard;
                     const importErrorCount =
                         importSession && !importSession.committed
@@ -108,6 +108,8 @@ export function Sidebar({ sideOpen, setSideOpen, isMobile, tyreAlertCount, verif
                     else if (n.id === "tyres") badgeClass += " sidebar-nav-badge--danger";
                     else if (n.id === "journeys") badgeClass += " sidebar-nav-badge--purple";
 
+                    const delayClass = `delay-${Math.min(idx + 1, 8)}`;
+
                     if (n.external && n.href) {
                         return (
                             <a
@@ -115,7 +117,7 @@ export function Sidebar({ sideOpen, setSideOpen, isMobile, tyreAlertCount, verif
                                 href={n.href}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="sidebar-nav-link sidebar-nav-link--external"
+                                className={`sidebar-nav-link sidebar-nav-link--external animate-slide-up ${delayClass}`}
                                 onClick={() => {
                                     if (isMobile) setSideOpen(false);
                                 }}
@@ -135,7 +137,7 @@ export function Sidebar({ sideOpen, setSideOpen, isMobile, tyreAlertCount, verif
                             onClick={() => {
                                 if (isMobile) setSideOpen(false);
                             }}
-                            className="sidebar-nav-link"
+                            className={`sidebar-nav-link animate-slide-up ${delayClass}`}
                         >
                             <Icon size={18} strokeWidth={2} />
                             <span style={{ flex: 1 }}>{n.label}</span>

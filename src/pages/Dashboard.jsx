@@ -142,15 +142,16 @@ export function Dashboard({ data, dark, truckStats, tyreStatus, truckReg, driver
             />
 
             {/* Top Stats Grid */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 12, marginBottom: 16 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12, marginBottom: 16 }}>
                 <Card 
                     title="Net Profit" 
                     subtitle={`${margin}% profit margin`}
                     icon={TrendingUp} 
                     accent="#3b82f6"
+                    className="animate-slide-up delay-1"
                 >
                     <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
-                        <div style={{ fontSize: 24, fontWeight: 800, color: "var(--text-primary)", letterSpacing: "-0.5px" }}>{fmt(netProfit)}</div>
+                        <div style={{ fontSize: 22, fontWeight: 800, color: "var(--text-primary)", letterSpacing: "-0.5px" }}>{fmt(netProfit)}</div>
                         <Sparkline data={[10, 15, 8, 12, 18, 14, 22]} color="#3b82f6" />
                     </div>
                 </Card>
@@ -159,9 +160,10 @@ export function Dashboard({ data, dark, truckStats, tyreStatus, truckReg, driver
                     subtitle={`${fmt(invPendingTotal)} outstanding`}
                     icon={Wallet} 
                     accent="#10b981"
+                    className="animate-slide-up delay-2"
                 >
                     <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
-                        <div style={{ fontSize: 24, fontWeight: 800, color: "var(--text-primary)", letterSpacing: "-0.5px" }}>{fmt(invPaidTotal)}</div>
+                        <div style={{ fontSize: 22, fontWeight: 800, color: "var(--text-primary)", letterSpacing: "-0.5px" }}>{fmt(invPaidTotal)}</div>
                         <Sparkline data={[5, 12, 18, 14, 20, 25, 30]} color="#10b981" />
                     </div>
                 </Card>
@@ -170,9 +172,10 @@ export function Dashboard({ data, dark, truckStats, tyreStatus, truckReg, driver
                     subtitle={`${totalLitres.toLocaleString()}L consumed`}
                     icon={Droplet} 
                     accent="#f59e0b"
+                    className="animate-slide-up delay-3"
                 >
                     <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
-                        <div style={{ fontSize: 24, fontWeight: 800, color: "var(--text-primary)", letterSpacing: "-0.5px" }}>{fmt(totalFuelCost)}</div>
+                        <div style={{ fontSize: 22, fontWeight: 800, color: "var(--text-primary)", letterSpacing: "-0.5px" }}>{fmt(totalFuelCost)}</div>
                         <Sparkline data={[20, 18, 22, 15, 12, 10, 8]} color="#f59e0b" />
                     </div>
                 </Card>
@@ -180,16 +183,17 @@ export function Dashboard({ data, dark, truckStats, tyreStatus, truckReg, driver
                     title="Efficiency" 
                     icon={ArrowUpRight} 
                     accent="#a78bfa"
+                    className="animate-slide-up delay-4"
                 >
                     <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
-                        <div style={{ fontSize: 24, fontWeight: 800, color: "var(--text-primary)", letterSpacing: "-0.5px" }}>{overallKmPerL}<span style={{ fontSize: 13, marginLeft: 4, color: "var(--text-muted)" }}>km/L</span></div>
+                        <div style={{ fontSize: 22, fontWeight: 800, color: "var(--text-primary)", letterSpacing: "-0.5px" }}>{overallKmPerL}<span style={{ fontSize: 13, marginLeft: 4, color: "var(--text-muted)" }}>km/L</span></div>
                         <Sparkline data={[2.1, 2.3, 2.2, 2.5, 2.4, 2.6, 2.8]} color="#a78bfa" />
                     </div>
                 </Card>
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 320px), 1fr))", gap: 16, marginBottom: 16 }}>
-                <Card title="Monthly Performance Comparison" subtitle="Revenue vs Expenses (KES)">
+                <Card title="Monthly Performance Comparison" subtitle="Revenue vs Expenses (KES)" className="animate-slide-up delay-5">
                     <BarChart data={last3Months} />
                     <div style={{ display: 'flex', gap: 16, marginTop: 12, justifyContent: 'center' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 600, color: 'var(--text-dim)' }}>
@@ -201,16 +205,16 @@ export function Dashboard({ data, dark, truckStats, tyreStatus, truckReg, driver
                     </div>
                 </Card>
 
-                <Card title="Operating Efficiency by Truck" subtitle="Liters per KM comparison">
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: '20px 0' }}>
+                <Card title="Operating Efficiency by Truck" subtitle="Liters per KM comparison" className="animate-slide-up delay-6">
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '12px 0' }}>
                         {data.trucks.map(t => {
                             const st = truckStats(t.id);
                             const lkm = st.kmPerL > 0 ? (1 / st.kmPerL).toFixed(2) : 0;
                             const pct = Math.min(100, (lkm / 1) * 100); // normalized against 1L/km
                             return (
-                                <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                                    <div style={{ width: 100, fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>{t.reg}</div>
-                                    <div style={{ flex: 1, height: 12, background: 'var(--bg-main)', borderRadius: 6, overflow: 'hidden' }}>
+                                <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                    <div style={{ width: 80, fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>{t.reg}</div>
+                                    <div style={{ flex: 1, height: 8, background: 'var(--bg-main)', borderRadius: 6, overflow: 'hidden' }}>
                                         <div style={{ width: `${pct}%`, height: '100%', background: lkm > 0.6 ? '#f59e0b' : '#10b981', borderRadius: 6 }} />
                                     </div>
                                     <div style={{ width: 60, fontSize: 12, fontWeight: 800, textAlign: 'right' }}>{lkm} <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>L/km</span></div>
@@ -221,10 +225,10 @@ export function Dashboard({ data, dark, truckStats, tyreStatus, truckReg, driver
                 </Card>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "3fr 2fr", gap: 16 }}>
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1.8fr 1.2fr", gap: 16 }}>
                 {/* Fleet performance table */}
                 <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                    <Card title="Vehicle Performance Summary">
+                    <Card title="Vehicle Performance Summary" className="animate-slide-up delay-7">
                         <div className="table-container">
                             <table className="table-modern">
                                 <SortableTableHead 

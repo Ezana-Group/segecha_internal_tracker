@@ -51,63 +51,72 @@ export const getStyles = (T) => ({
     ovl: {
         position: "fixed",
         inset: 0,
-        background: "rgba(0,0,0,0.5)",
-        backdropFilter: "blur(4px)",
+        background: "rgba(0,0,0,0.6)",
+        backdropFilter: "blur(8px)",
         zIndex: 1000,
         display: "flex",
         alignItems: "flex-start",
         justifyContent: "center",
-        overflowY: "auto",
-        overscrollBehavior: "contain",
         padding: SAFE_PAD,
     },
     mbox: {
         background: "var(--bg-surface)",
         borderRadius: 12,
-        padding: 20,
+        padding: 16,
         boxShadow: "var(--shadow-lg)",
         border: "1px solid var(--border-medium)",
         margin: "auto 0",
         position: "relative",
-        maxHeight: "min(94dvh, 920px)",
+        maxHeight: "min(96dvh, 920px)",
         display: "flex",
         flexDirection: "column",
         overflow: "hidden",
     },
-    mtitle: { fontSize: 18, fontWeight: 800, color: "var(--text-primary)" },
-    lbl: { fontSize: 10.5, fontWeight: 700, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6, display: "block" },
+    mtitle: { fontSize: 17, fontWeight: 800, color: "var(--text-primary)" },
+    lbl: { fontSize: 10, fontWeight: 700, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4, display: "block" },
     inp: {
         width: "100%",
-        padding: "10px 12px",
+        padding: "8px 10px",
         borderRadius: 8,
         border: "1px solid var(--border-medium)",
         background: "var(--bg-surface)",
         color: "var(--text-primary)",
-        fontSize: 13.5,
+        fontSize: 13,
         fontFamily: "inherit",
         transition: "border-color 0.15s ease, box-shadow 0.15s ease",
     },
-    fg: { marginBottom: 14 },
-    fgg: (cols) => ({ display: "grid", gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: 14 }),
+    fg: { marginBottom: 12 },
+    fgg: (cols) => ({ display: "grid", gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: 12 }),
     btn: (variant) => {
         const sm = variant === "sm";
         const base = {
-            padding: sm ? "5px 10px" : "8px 16px",
-            borderRadius: 8,
+            padding: sm ? "4px 8px" : "6px 12px",
+            borderRadius: 7,
             border: "none",
             fontWeight: 700,
             cursor: "pointer",
-            fontSize: sm ? 10.5 : 13,
+            fontSize: sm ? 10 : 12.5,
+            transition: "all 0.2s ease",
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 6
         };
         if (variant === "primary") return { ...base, background: "var(--brand-primary)", color: "white" };
         if (variant === "green") return { ...base, background: "#16a34a", color: "white" };
-        if (variant === "del") return { ...base, background: "#dc2626", color: "white", padding: "5px 8px", fontSize: 11.5 };
-        if (variant === "ghost") return { ...base, background: "var(--bg-card)", color: "var(--text-primary)", border: "1px solid var(--border-subtle)" };
+        if (variant === "del") return { ...base, background: "#dc2626", color: "white", padding: "4px 8px", fontSize: 11 };
+        if (variant === "ghost") return { ...base, background: "rgba(255,255,255,0.03)", color: "var(--text-primary)", border: "1px solid var(--border-subtle)" };
         if (variant === "sm") return { ...base, background: "var(--bg-card)", color: "var(--text-primary)", border: "1px solid var(--border-subtle)" };
         return { ...base, background: "rgba(255,255,255,0.05)", color: "white" };
     },
-    tbl: { width: "100%", borderCollapse: "collapse", fontSize: 11.5 },
-    th: { textAlign: "left", padding: "7px 10px", borderBottom: "1px solid var(--border-subtle)", color: "var(--text-dim)", fontWeight: 700 },
-    td: { padding: "7px 10px", borderBottom: "1px solid var(--border-subtle)", verticalAlign: "middle" },
-    grid: (d, t, m) => ({ display: "grid", gridTemplateColumns: `repeat(${d}, 1fr)`, gap: 14 }),
+    tbl: { width: "100%", borderCollapse: "collapse", fontSize: 11 },
+    th: { textAlign: "left", padding: "6px 8px", borderBottom: "1px solid var(--border-subtle)", color: "var(--text-dim)", fontWeight: 700 },
+    td: { padding: "6px 8px", borderBottom: "1px solid var(--border-subtle)", verticalAlign: "middle" },
+    grid: (d, t, m) => ({ display: "grid", gridTemplateColumns: `repeat(${d}, 1fr)`, gap: 12 }),
+    glass: {
+        background: "var(--bg-glass)",
+        backdropFilter: "blur(12px)",
+        border: "1px solid var(--border-glass)",
+        borderRadius: 12
+    }
 });

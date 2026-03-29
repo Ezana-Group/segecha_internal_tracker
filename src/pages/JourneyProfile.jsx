@@ -87,11 +87,11 @@ export function JourneyProfile({
             {/* Header / Banner */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 20, marginBottom: 32, flexWrap: 'wrap' }}>
                 <Button variant="secondary" icon={ArrowLeft} onClick={() => navigate('/journeys')}>Back</Button>
-                <div style={{ width: 56, height: 56, borderRadius: 16, background: "var(--brand-primary)15", display: 'flex', alignItems: 'center', justifyContent: 'center', color: "var(--brand-primary)" }}>
-                    <Navigation size={32} />
+                <div style={{ width: 52, height: 52, borderRadius: 12, background: "var(--brand-primary)15", display: 'flex', alignItems: 'center', justifyContent: 'center', color: "var(--brand-primary)" }}>
+                    <Navigation size={26} />
                 </div>
                 <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 32, fontWeight: 900, color: "var(--text-primary)", lineHeight: 1.1, letterSpacing: "-0.04em" }}>{journey.origin} <ChevronRight size={24} style={{ verticalAlign: 'middle', opacity: 0.3 }} /> {journey.dest}</div>
+                    <div style={{ fontSize: 26, fontWeight: 900, color: "var(--text-primary)", lineHeight: 1.1, letterSpacing: "-0.04em" }}>{journey.origin} <ChevronRight size={20} style={{ verticalAlign: 'middle', opacity: 0.3 }} /> {journey.dest}</div>
                     <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 4 }}>
                         Mission ID: {journey.id.split('-')[0].toUpperCase()} · {fmtDate(journey.date)} · <Badge status={journey._isRejected ? "Rejected" : journey.status} />
                     </div>
@@ -174,19 +174,19 @@ export function JourneyProfile({
                 {/* OVERVIEW */}
                 {tab === 'overview' && (
                     <div style={{ padding: 32 }}>
-                        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4,1fr)', gap: 20, marginBottom: 40 }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4,1fr)', gap: 16, marginBottom: 32 }}>
                             {[
                                 { l: 'Gross Revenue',  v: fmt(journey.revenue),  c: '#10b981', i: TrendingUp },
                                 { l: 'Estimated Profit', v: fmt(netProfit),       c: netProfit >= 0 ? 'var(--brand-primary)' : '#ef4444', i: PieChart },
                                 { l: 'Mission Distance', v: `${journey.distance || 0} km`, c: "var(--text-primary)", i: Navigation },
                                 { l: 'Journey Status',   v: journey._isRejected ? "Rejected" : journey.status,        c: journey._isRejected ? "#dc2626" : '#3b82f6', i: CheckCircle2 },
                             ].map(k => (
-                                <div key={k.l} style={{ background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: 16, padding: 20 }}>
-                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                                        <div style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>{k.l}</div>
-                                        <k.i size={16} color="var(--text-dim)" />
+                                <div key={k.l} style={{ background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: 12, padding: 16 }}>
+                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                                        <div style={{ fontSize: 10.5, color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>{k.l}</div>
+                                        <k.i size={14} color="var(--text-dim)" />
                                     </div>
-                                    <div style={{ fontSize: 22, fontWeight: 900, color: k.c }}>{k.v}</div>
+                                    <div style={{ fontSize: 19, fontWeight: 900, color: k.c }}>{k.v}</div>
                                 </div>
                             ))}
                         </div>
@@ -197,7 +197,7 @@ export function JourneyProfile({
                                     <Info size={20} color="var(--brand-primary)" />
                                     Strategic Route Details
                                 </h3>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, background: "var(--bg-surface)", padding: 24, borderRadius: 20, border: "1px solid var(--border-subtle)" }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: isMobile ? 12 : 16, background: "var(--bg-surface)", padding: 16, borderRadius: 16, border: "1px solid var(--border-subtle)" }}>
                                     {[
                                         { l: 'Consignor (Billing)', v: data.customers.find(c => c.id === journey.customerId)?.name || '—' },
                                         { l: 'Consignee (Delivery)', v: data.customers.find(c => c.id === journey.deliveryCustomerId)?.name || '—' },
@@ -217,12 +217,12 @@ export function JourneyProfile({
                                         { l: 'Net Distance', v: `${journey.distance || 0} km` },
                                     ].map((row) => (
                                         <div key={row.l}>
-                                            <div style={{ fontSize: 11, color: "var(--text-dim)", fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>{row.l}</div>
-                                            <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)" }}>{row.v || row.val}</div>
+                                            <div style={{ fontSize: 10, color: "var(--text-dim)", fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>{row.l}</div>
+                                            <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>{row.v || row.val}</div>
                                             {row.img && (
                                                 <div style={{ marginTop: 8 }}>
                                                     <a href={row.img} target="_blank" rel="noreferrer">
-                                                        <img src={row.img} alt={row.l} style={{ width: "100%", maxWidth: 120, borderRadius: 8, border: "1px solid var(--border-subtle)" }} />
+                                                        <img src={row.img} alt={row.l} style={{ width: "100%", maxWidth: 100, borderRadius: 8, border: "1px solid var(--border-subtle)" }} />
                                                     </a>
                                                 </div>
                                             )}

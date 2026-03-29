@@ -25,6 +25,15 @@
   animation: slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+.delay-1 { animation-delay: 0.1s; }
+.delay-2 { animation-delay: 0.15s; }
+.delay-3 { animation-delay: 0.2s; }
+.delay-4 { animation-delay: 0.25s; }
+.delay-5 { animation-delay: 0.3s; }
+.delay-6 { animation-delay: 0.35s; }
+.delay-7 { animation-delay: 0.4s; }
+.delay-8 { animation-delay: 0.45s; }
+
 :root {
   --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, monospace;
@@ -63,6 +72,12 @@
   --btn-danger-fg: #fca5a5;
   --btn-danger-bg: rgba(248, 113, 113, 0.14);
   --btn-danger-border: rgba(248, 113, 113, 0.4);
+  --radius-xl: 16px;
+
+  /* Glassmorphism */
+  --glass-bg: rgba(18, 21, 28, 0.7);
+  --glass-blur: blur(14px);
+  --border-glass: rgba(255, 255, 255, 0.08);
 
   --sidebar-width: 240px;
   --topbar-height: 52px;
@@ -352,11 +367,12 @@ h1, h2, h3, h4, h5, h6 {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 24px;
+  padding: 0 16px;
   border-bottom: 1px solid var(--border-subtle);
   background: var(--glass-bg);
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
+  border-bottom: 1px solid var(--border-glass);
 }
 
 .topbar-shell.with-sidebar {
@@ -1755,6 +1771,56 @@ button.journeys-table-link:hover {
   border-color: var(--border-medium);
   background: var(--surface-hover);
 }
+
+.sidebar-brand {
+  height: 64px;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-sidebar);
+}
+
+.sidebar-brand-mark {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
+.sidebar-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  margin: 2px 8px;
+  border-radius: 8px;
+  color: var(--text-secondary);
+  font-size: 13.5px;
+  font-weight: 500;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  text-decoration: none;
+  opacity: 0; /* for animation */
+}
+
+.sidebar-nav-link:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+  transform: translateX(4px);
+}
+
+.sidebar-nav-link.active {
+  background: var(--brand-muted);
+  color: var(--brand-primary);
+}
+
+.animation-delay-75 { animation-delay: 75ms; }
+.animation-delay-150 { animation-delay: 150ms; }
+.animation-delay-225 { animation-delay: 225ms; }
+.animation-delay-300 { animation-delay: 300ms; }
 
 .topbar-user-avatar {
   width: 32px;

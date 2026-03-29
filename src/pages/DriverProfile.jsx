@@ -234,11 +234,11 @@ export function DriverProfile({ data, setData, dark, isMobile, truckReg, openMod
             {/* Header / Banner */}
             <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 12 : 20, marginBottom: isMobile ? 20 : 32, flexWrap: 'wrap' }}>
                 <Button variant="secondary" icon={ArrowLeft} onClick={() => navigate('/drivers')}>Back</Button>
-                <div style={{ width: 56, height: 56, borderRadius: "50%", background: "var(--brand-primary)15", display: 'flex', alignItems: 'center', justifyContent: 'center', color: "var(--brand-primary)", border: "2px solid var(--brand-primary)30" }}>
-                    <User size={28} />
+                <div style={{ width: 52, height: 52, borderRadius: "50%", background: "var(--brand-primary)15", display: 'flex', alignItems: 'center', justifyContent: 'center', color: "var(--brand-primary)", border: "2px solid var(--brand-primary)30" }}>
+                    <User size={26} />
                 </div>
                 <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: isMobile ? 20 : 26, fontWeight: 900, color: "var(--text-primary)", lineHeight: 1.1, letterSpacing: "-0.04em" }}>{driver.name}</div>
+                    <div style={{ fontSize: isMobile ? 20 : 24, fontWeight: 900, color: "var(--text-primary)", lineHeight: 1.1, letterSpacing: "-0.04em" }}>{driver.name}</div>
                     <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 4, display: "flex", alignItems: "center", gap: 10, fontWeight: 500 }}>
                         ID: {driver.id.split('-')[0].toUpperCase()} · Joined {fmtDate(driver.joined)} · <Badge status={driver.status} />
                     </div>
@@ -380,7 +380,7 @@ export function DriverProfile({ data, setData, dark, isMobile, truckReg, openMod
                                 <p style={{ fontSize: 13, color: "var(--text-muted)", margin: "0 0 16px", lineHeight: 1.5 }}>
                                     Drivers update phone and licence in the driver portal; other fields are maintained here by the office.
                                 </p>
-                                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: isMobile ? 16 : 24, background: "var(--bg-surface)", padding: isMobile ? 16 : 24, borderRadius: 20, border: "1px solid var(--border-subtle)" }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: isMobile ? 12 : 16, background: "var(--bg-surface)", padding: isMobile ? 16 : 16, borderRadius: 16, border: "1px solid var(--border-subtle)" }}>
                                     {[
                                         ['Full Legal Name', driver.name, 'overviewFieldName'],
                                         ['Phone Connection', driver.phone, 'overviewFieldPhone'],
@@ -395,8 +395,8 @@ export function DriverProfile({ data, setData, dark, isMobile, truckReg, openMod
                                         ['Turnboy (active trips)', turnboySummary, 'overviewFieldTurnboy'],
                                     ].filter((row) => !isDriverPreview || d[row[2]] !== false).map(([l, v]) => (
                                         <div key={l}>
-                                            <div style={{ fontSize: 11, color: "var(--text-dim)", fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>{l}</div>
-                                            <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)" }}>{v}</div>
+                                            <div style={{ fontSize: 10, color: "var(--text-dim)", fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>{l}</div>
+                                            <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>{v}</div>
                                         </div>
                                     ))}
                                 </div>
@@ -414,8 +414,8 @@ export function DriverProfile({ data, setData, dark, isMobile, truckReg, openMod
                                         gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
                                         gap: 12,
                                         background: "var(--bg-surface)",
-                                        padding: 20,
-                                        borderRadius: 20,
+                                        padding: 16,
+                                        borderRadius: 16,
                                         border: "1px solid var(--border-subtle)",
                                     }}
                                 >

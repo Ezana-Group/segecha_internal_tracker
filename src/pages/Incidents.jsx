@@ -104,24 +104,21 @@ export function Incidents({ data, dark, isMobile, driverName, truckReg, setVerif
                     </p>
                 </div>
             ) : (
-            <div className="table-container" style={{ background: "var(--bg-card)", borderRadius: 16, border: "1px solid var(--border-subtle)", overflow: "hidden" }}>
+            <div className="table-container animate-fade-in" style={{ background: "var(--bg-card)", borderRadius: 12, border: "1px solid var(--border-subtle)", overflow: "hidden" }}>
                 <table className="table-modern">
                     <thead>
                         <tr>
-                            <th style={{ width: 140 }}>Date</th>
-                            <th style={{ width: 180 }}>Incident Type</th>
-                            <th>Driver</th>
-                            <th>Vehicle</th>
-                            <th>Location</th>
-                            <th style={{ width: 140 }}>Status</th>
-                            <th style={{ width: 120 }}>Action</th>
-                            <th style={{ width: 120 }}>Status</th>
-                            <th style={{ width: 100 }}>Action</th>
+                            <th style={{ width: 130 }}>Date / Time</th>
+                            <th style={{ width: 160 }}>Classification</th>
+                            <th>Resource Context</th>
+                            <th>Incident Location</th>
+                            <th style={{ width: 140 }}>Verification</th>
+                            <th style={{ width: 100, textAlign: "right" }}>Action</th>
                         </tr>
                     </thead>
                     <tbody>
                         {filtered.map(i => (
-                            <tr key={i.id} style={{ opacity: i._pendingApproval ? 1 : 0.8 }}>
+                            <tr key={i.id} style={{ opacity: i._pendingApproval ? 1 : 0.85 }}>
                                 <td style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)" }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                         <Calendar size={12} style={{ color: "var(--brand-primary)" }} />
@@ -129,30 +126,41 @@ export function Incidents({ data, dark, isMobile, driverName, truckReg, setVerif
                                     </div>
                                 </td>
                                 <td>
+                                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>{i.incidentType || "General Incident"}</div>
+                                </td>
+                                <td>
+                                    <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                                        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: 6 }}>
+                                            <User size={12} style={{ opacity: 0.5 }} /> {driverName(i.driverId || i.driver)}
+                                        </div>
+                                        <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-dim)", display: "flex", alignItems: "center", gap: 6 }}>
+                                            <Truck size={12} style={{ opacity: 0.5 }} /> {truckReg(i.truck_id || i.truck)}
+                                        </div>
+                                    </div>
                                 </td>
                                 <td>
                                     <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: "var(--text-dim)" }}>
-                                        <MapPin size={14} />
+                                        <MapPin size={13} />
                                         {i.location || "N/A"}
                                     </div>
                                 </td>
                                 <td>
                                     <Badge status={i._isRejected ? "Rejected" : (i._pendingApproval ? "Warning" : "Success")} text={i._isRejected ? "Rejected" : (i._pendingApproval ? "Pending Review" : "Resolved")} />
                                 </td>
-                                <td>
+                                <td style={{ textAlign: "right" }}>
                                     {i._pendingApproval ? (
                                         <Button 
                                             size="sm"
                                             variant="primary" 
-                                            style={{ background: "#ef4444", height: 32, fontSize: 12 }}
+                                            style={{ background: "#ef4444", height: 28, fontSize: 11.5, padding: "0 12px" }}
                                             onClick={() => setVerifyModal({ ...i, _itemType: 'incident' })}
                                         >
                                             Verify
                                         </Button>
                                     ) : (
-                                        <div style={{ display: 'flex', gap: 6 }}>
-                                            <Button size="sm" variant="ghost" style={{ width: 32, height: 32, padding: 0 }} title="View details" onClick={() => window.alert(i.description || "No description provided.")}><Eye size={16} /></Button>
-                                            {i.journey && <Button size="sm" variant="ghost" style={{ width: 32, height: 32, padding: 0 }} title="Go to journey" onClick={() => window.location.href = `/journeys/${i.journey}`}><Navigation size={16} /></Button>}
+                                        <div style={{ display: 'flex', gap: 6, justifyContent: "flex-end" }}>
+                                            <Button size="sm" variant="ghost" style={{ width: 28, height: 28, padding: 0 }} title="View details" onClick={() => window.alert(i.description || "No description provided.")}><Eye size={15} /></Button>
+                                            {i.journey && <Button size="sm" variant="ghost" style={{ width: 28, height: 28, padding: 0 }} title="Go to journey" onClick={() => navigate(`/journeys/${i.journey}`)}><Navigation size={15} /></Button>}
                                         </div>
                                     )}
                                 </td>
