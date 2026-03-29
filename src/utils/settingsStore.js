@@ -19,6 +19,7 @@ export const SETTINGS_STORAGE_KEY = "segecha_settings";
 /** Default PSV / DL class labels when Settings has none configured */
 export const DEFAULT_LICENCE_CLASSES = ["Class G", "Class CE", "Class C", "Class B"];
 export const DEFAULT_TRUCK_TYPES = ["Prime Mover", "Tipper", "Tanker", "Flatbed", "Box Body", "Refrigerated", "Other"];
+export const DEFAULT_TRAILER_TYPES = ["Low Loader", "Flatbed Trailer", "Tanker Trailer", "Skeletal Trailer", "Box Trailer", "Refrigerated Trailer", "Other"];
 export const DEFAULT_CARGO_TYPES = ["Electronics", "FMCG Goods", "Spare Parts", "Machinery", "Cement", "Fertiliser", "Fuel", "Timber", "Other"];
 export const DEFAULT_EXPENSE_CATEGORIES = ["Fuel", "Maintenance", "Toll", "Permit", "Tyre", "Allowance", "Salary", "Insurance", "Other"];
 
@@ -170,6 +171,13 @@ export function getTruckTypes() {
     const raw = s.truckTypes;
     if (Array.isArray(raw)) return raw.filter(Boolean);
     return [...DEFAULT_TRUCK_TYPES];
+}
+
+export function getTrailerTypes() {
+    const s = readSettings();
+    const raw = s.trailerTypes;
+    if (Array.isArray(raw)) return raw.filter(Boolean);
+    return [...DEFAULT_TRAILER_TYPES];
 }
 
 export function getCargoTypes() {
