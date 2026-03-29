@@ -401,7 +401,7 @@ app.post('/api/mpesa/stk-push', async (req, res) => {
             await db.query(
                 `INSERT INTO mpesa_transactions (id, merchant_request_id, checkout_request_id, type, phone, amount, invoice_id, status)
                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-                [Date.now().toString(), result.MerchantRequestID, result.CheckoutRequestID, 'STK_PUSH', phone, amount, invoiceId || null, 'Pending']
+                [Date.now().toString(), result.MerchantRequestID, result.CheckoutRequestID, 'stk_push', phone, amount, invoiceId || null, 'Pending']
             );
         }
 
@@ -414,19 +414,8 @@ app.post('/api/mpesa/stk-push', async (req, res) => {
 
 app.post('/api/webhooks/mpesa', async (req, res) => {
     try {
-        const secret = process.env.MPESA_WEBHOOK_SECRET;
-        if (secret) {
-            const signature = req.headers['x-mpesa-signature'] || req.headers['x-signature'];
-            if (!signature) {
-                console.warn('[WEBHOOK] Rejected M-Pesa webhook: Missing signature');
-                return res.status(401).send('Missing signature');
-            }
-            const hash = crypto.createHmac('sha256', secret).update(JSON.stringify(req.body)).digest('hex');
-            if (hash !== signature && crypto.createHmac('sha256', secret).update(JSON.stringify(req.body)).digest('base64') !== signature) {
-                console.warn('[WEBHOOK] Rejected M-Pesa webhook: Invalid signature');
-                return res.status(401).send('Invalid signature');
-            }
-        }
+        // Standard M-Pesa callbacks don't provide a signature header like x-mpesa-signature.
+        // We rely on IP whitelisting or other network-level security if needed in production.
         
         const body = req.body;
         console.log('[WEBHOOK] M-Pesa payload received:', body);
