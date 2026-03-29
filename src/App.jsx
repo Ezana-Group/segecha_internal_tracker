@@ -196,6 +196,28 @@ export default function App() {
     };
 
 
+    const ProtectedRoute = ({ children, roles = ['admin', 'superadmin'] }) => {
+        const user = adminAuth.getUser();
+        if (!user || !roles.includes(user.role)) {
+            return (
+                <div style={{ padding: 40, textAlign: 'center', flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                    <div style={{ background: 'var(--surface-subtle)', padding: 32, borderRadius: 16, border: '1px solid var(--border-subtle)', maxWidth: 400 }}>
+                        <h2 style={{ color: 'var(--text-primary)', marginBottom: 12 }}>Access Denied</h2>
+                        <p style={{ color: 'var(--text-dim)', marginBottom: 24 }}>You do not have permission to view this page. This area is reserved for administrators.</p>
+                        <button 
+                            className="btn-premium" 
+                            onClick={() => navigate('/')}
+                            style={{ width: '100%' }}
+                        >
+                            Return to Dashboard
+                        </button>
+                    </div>
+                </div>
+            );
+        }
+        return children;
+    };
+
     if (isLogin && !authed) {
         return (
             <div id="app-shell" style={layoutStyle}>
@@ -254,17 +276,17 @@ export default function App() {
                                         <Route path="/fuel" element={<ErrorBoundary><FuelLog {...p} /></ErrorBoundary>} />
                                         <Route path="/expenses" element={<ErrorBoundary><Expenses {...p} /></ErrorBoundary>} />
                                         <Route path="/incidents" element={<ErrorBoundary><Incidents {...p} /></ErrorBoundary>} />
-                                        <Route path="/mpesa-logs" element={<ErrorBoundary><MpesaTransactions {...p} /></ErrorBoundary>} />
+                                        <Route path="/mpesa-logs" element={<ProtectedRoute><ErrorBoundary><MpesaTransactions {...p} /></ErrorBoundary></ProtectedRoute>} />
                                         <Route path="/invoices" element={<ErrorBoundary><Invoices {...p} /></ErrorBoundary>} />
-                                        <Route path="/payroll" element={<ErrorBoundary><Payroll {...p} /></ErrorBoundary>} />
+                                        <Route path="/payroll" element={<ProtectedRoute><ErrorBoundary><Payroll {...p} /></ErrorBoundary></ProtectedRoute>} />
                                         <Route path="/maintenance" element={<ErrorBoundary><Maintenance {...p} /></ErrorBoundary>} />
                                         <Route path="/tyres" element={<ErrorBoundary><TyreMonitor {...p} /></ErrorBoundary>} />
-                                        <Route path="/staff" element={<ErrorBoundary><Staff {...p} /></ErrorBoundary>} />
-                                        <Route path="/staff/:id" element={<ErrorBoundary><StaffProfile {...p} /></ErrorBoundary>} />
-                                        <Route path="/pnl" element={<ErrorBoundary><PnL {...p} /></ErrorBoundary>} />
+                                        <Route path="/staff" element={<ProtectedRoute><ErrorBoundary><Staff {...p} /></ErrorBoundary></ProtectedRoute>} />
+                                        <Route path="/staff/:id" element={<ProtectedRoute><ErrorBoundary><StaffProfile {...p} /></ErrorBoundary></ProtectedRoute>} />
+                                        <Route path="/pnl" element={<ProtectedRoute><ErrorBoundary><PnL {...p} /></ErrorBoundary></ProtectedRoute>} />
                                         <Route path="/documents" element={<ErrorBoundary><Documents {...p} /></ErrorBoundary>} />
-                                        <Route path="/settings" element={<ErrorBoundary><Settings {...p} /></ErrorBoundary>} />
-                                        <Route path="/import" element={<ErrorBoundary><ImportReview {...p} /></ErrorBoundary>} />
+                                        <Route path="/settings" element={<ProtectedRoute><ErrorBoundary><Settings {...p} /></ErrorBoundary></ProtectedRoute>} />
+                                        <Route path="/import" element={<ProtectedRoute><ErrorBoundary><ImportReview {...p} /></ErrorBoundary></ProtectedRoute>} />
                                     </Routes>
                                 </Suspense>
                             ) : (

@@ -32,6 +32,7 @@ export function TopbarUserMenu({ showToast, data, previewMode, setPreviewMode, c
     }, [open]);
 
     const adminUser = adminAuth.getUser();
+    const isAdmin = adminUser?.role === 'admin' || adminUser?.role === 'superadmin';
     const name = adminUser?.displayName || (settings.operatorDisplayName || "").trim() || "Operator";
     const email = adminUser?.email || (settings.operatorWorkEmail || "").trim() || (settings.email || "").trim() || "";
     const company = (settings.companyName || "").trim() || "Workspace";
@@ -123,7 +124,7 @@ export function TopbarUserMenu({ showToast, data, previewMode, setPreviewMode, c
                                         Exit preview
                                     </button>
                                 ) : null}
-                                {!previewMode ? (
+                                {isAdmin && !previewMode ? (
                                     <>
                                         <button
                                             type="button"
@@ -145,7 +146,7 @@ export function TopbarUserMenu({ showToast, data, previewMode, setPreviewMode, c
                                         </button>
                                     </>
                                 ) : null}
-                                {!previewMode ? (
+                                {isAdmin && !previewMode ? (
                                     <button
                                         type="button"
                                         className="topbar-user-dropdown-item"

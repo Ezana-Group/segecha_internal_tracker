@@ -3,7 +3,7 @@ import { SEED } from "../constants/seed";
 import { today, uid } from "../utils/formatters";
 import { TYRE_WARN_KM } from "../constants/nav";
 import { PAYMENT_API, ADMIN_KEY, DRIVER_PORTAL_URL } from "../utils/env";
-import { readSettings, getCrossBorderRules } from "../utils/settingsStore.js";
+import { readSettings, writeSettings, getCrossBorderRules } from "../utils/settingsStore.js";
 import { mergeProfilePermissions } from "../utils/profilePermissions.js";
 import { expandMessageTemplateContext } from "../utils/templateContext.js";
 import { readPreviewFromSession, writePreviewToSession } from "../constants/previewNav.js";
@@ -73,6 +73,11 @@ export function useAppState() {
                 const result = await res.json();
                 if (result.success && result.data) {
                     setData(d => ({ ...d, ...result.data }));
+                    
+                    // Also sync settings from server to local storage
+                    if (result.settings && typeof result.settings === 'object') {
+                        writeSettings(result.settings);
+                    }
                 }
             }
         } catch (e) {

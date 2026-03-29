@@ -56,7 +56,9 @@ const DRIVER_TAB_PERM = {
     pnl: "tabFinancials",
 };
 
-export function DriverProfile({ data, setData, dark, isMobile, truckReg, openModal, showToast, previewMode, resetAccountCredentials, deleteDriverAccount }) {
+export function DriverProfile({ data, setData, dark, isMobile, truckReg, openModal, showToast, previewMode, resetAccountCredentials, deleteDriverAccount, adminAuth }) {
+    const role = adminAuth.getUser()?.role || 'staff';
+    const isAdmin = role === 'admin' || role === 'superadmin';
     const { id } = useParams();
     const navigate = useNavigate();
     const [tab, setTab] = useState('overview');
@@ -93,7 +95,8 @@ export function DriverProfile({ data, setData, dark, isMobile, truckReg, openMod
     const tabs = useMemo(
         () =>
             allTabs.filter((t) => {
-                if (t.adminOnly) return !isDriverPreview;
+                if (t.adminOnly) return isAdmin && !isDriverPreview;
+                if (t.id === 'pnl') return isAdmin;
                 if (!isDriverPreview) return true;
                 return d[DRIVER_TAB_PERM[t.id]] !== false;
             }),

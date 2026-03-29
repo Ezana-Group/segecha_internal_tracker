@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { NAV } from "../constants/nav";
 import { getPreviewNavItems } from "../constants/previewNav.js";
+import { adminAuth } from "../utils/adminAuth";
 
 const ICON_MAP = {
     dashboard: LayoutDashboard,
@@ -52,7 +53,14 @@ const ICON_MAP = {
 export function Sidebar({ sideOpen, setSideOpen, isMobile, tyreAlertCount, verifyAlertCount, resetData, data, importSession, previewMode }) {
     const activeCount = data?.trucks?.filter((t) => t.status === "Active").length || 0;
     const inTransitCount = data?.journeys?.filter((j) => ["In Transit", "Awaiting Start Verification"].includes(j.status)).length || 0;
-    const navItems = previewMode ? getPreviewNavItems(previewMode, data) : NAV;
+    const role = adminAuth.getUser()?.role || 'staff';
+    const navItems = (previewMode ? getPreviewNavItems(previewMode, data) : NAV).filter(n => {
+        if (role !== 'admin' && role !== 'superadmin') {
+            const restricted = ['staff', 'payroll', 'pnl', 'mpesa-logs', 'import', 'settings'];
+            return !restricted.includes(n.id);
+        }
+        return true;
+    });
 
     const s = (() => {
         try {

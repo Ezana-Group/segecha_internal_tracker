@@ -21,6 +21,8 @@ export function Dashboard({ data, dark, truckStats, tyreStatus, truckReg, driver
     const [expiringDocs, setExpiringDocs] = useState([]);
     
     // Determine the latest month from payroll, or fallback to current month
+    const role = adminAuth.getUser()?.role || 'staff';
+    const isAdmin = role === 'admin' || role === 'superadmin';
     const payrollRows = Array.isArray(data.payroll) ? data.payroll : [];
     const latestMonth = payrollRows.length > 0
         ? [...payrollRows].sort((a, b) => b.month.localeCompare(a.month))[0]?.month
@@ -141,69 +143,73 @@ export function Dashboard({ data, dark, truckStats, tyreStatus, truckReg, driver
                 }
             />
 
-            {/* Top Stats Grid */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12, marginBottom: 16 }}>
-                <Card 
-                    title="Net Profit" 
-                    subtitle={`${margin}% profit margin`}
-                    icon={TrendingUp} 
-                    accent="#3b82f6"
-                    className="animate-slide-up delay-1"
-                >
-                    <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
-                        <div style={{ fontSize: 22, fontWeight: 800, color: "var(--text-primary)", letterSpacing: "-0.5px" }}>{fmt(netProfit)}</div>
-                        <Sparkline data={[10, 15, 8, 12, 18, 14, 22]} color="#3b82f6" />
-                    </div>
-                </Card>
-                <Card 
-                    title="Revenue Collected" 
-                    subtitle={`${fmt(invPendingTotal)} outstanding`}
-                    icon={Wallet} 
-                    accent="#10b981"
-                    className="animate-slide-up delay-2"
-                >
-                    <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
-                        <div style={{ fontSize: 22, fontWeight: 800, color: "var(--text-primary)", letterSpacing: "-0.5px" }}>{fmt(invPaidTotal)}</div>
-                        <Sparkline data={[5, 12, 18, 14, 20, 25, 30]} color="#10b981" />
-                    </div>
-                </Card>
-                <Card 
-                    title="Estimated Fuel" 
-                    subtitle={`${totalLitres.toLocaleString()}L consumed`}
-                    icon={Droplet} 
-                    accent="#f59e0b"
-                    className="animate-slide-up delay-3"
-                >
-                    <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
-                        <div style={{ fontSize: 22, fontWeight: 800, color: "var(--text-primary)", letterSpacing: "-0.5px" }}>{fmt(totalFuelCost)}</div>
-                        <Sparkline data={[20, 18, 22, 15, 12, 10, 8]} color="#f59e0b" />
-                    </div>
-                </Card>
-                <Card 
-                    title="Efficiency" 
-                    icon={ArrowUpRight} 
-                    accent="#a78bfa"
-                    className="animate-slide-up delay-4"
-                >
-                    <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
-                        <div style={{ fontSize: 22, fontWeight: 800, color: "var(--text-primary)", letterSpacing: "-0.5px" }}>{overallKmPerL}<span style={{ fontSize: 13, marginLeft: 4, color: "var(--text-muted)" }}>km/L</span></div>
-                        <Sparkline data={[2.1, 2.3, 2.2, 2.5, 2.4, 2.6, 2.8]} color="#a78bfa" />
-                    </div>
-                </Card>
-            </div>
+            {/* Top Stats Grid - Only for Admins */}
+            {isAdmin && (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12, marginBottom: 16 }}>
+                    <Card 
+                        title="Net Profit" 
+                        subtitle={`${margin}% profit margin`}
+                        icon={TrendingUp} 
+                        accent="#3b82f6"
+                        className="animate-slide-up delay-1"
+                    >
+                        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
+                            <div style={{ fontSize: 22, fontWeight: 800, color: "var(--text-primary)", letterSpacing: "-0.5px" }}>{fmt(netProfit)}</div>
+                            <Sparkline data={[10, 15, 8, 12, 18, 14, 22]} color="#3b82f6" />
+                        </div>
+                    </Card>
+                    <Card 
+                        title="Revenue Collected" 
+                        subtitle={`${fmt(invPendingTotal)} outstanding`}
+                        icon={Wallet} 
+                        accent="#10b981"
+                        className="animate-slide-up delay-2"
+                    >
+                        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
+                            <div style={{ fontSize: 22, fontWeight: 800, color: "var(--text-primary)", letterSpacing: "-0.5px" }}>{fmt(invPaidTotal)}</div>
+                            <Sparkline data={[5, 12, 18, 14, 20, 25, 30]} color="#10b981" />
+                        </div>
+                    </Card>
+                    <Card 
+                        title="Estimated Fuel" 
+                        subtitle={`${totalLitres.toLocaleString()}L consumed`}
+                        icon={Droplet} 
+                        accent="#f59e0b"
+                        className="animate-slide-up delay-3"
+                    >
+                        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
+                            <div style={{ fontSize: 22, fontWeight: 800, color: "var(--text-primary)", letterSpacing: "-0.5px" }}>{fmt(totalFuelCost)}</div>
+                            <Sparkline data={[20, 18, 22, 15, 12, 10, 8]} color="#f59e0b" />
+                        </div>
+                    </Card>
+                    <Card 
+                        title="Efficiency" 
+                        icon={ArrowUpRight} 
+                        accent="#a78bfa"
+                        className="animate-slide-up delay-4"
+                    >
+                        <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
+                            <div style={{ fontSize: 22, fontWeight: 800, color: "var(--text-primary)", letterSpacing: "-0.5px" }}>{overallKmPerL}<span style={{ fontSize: 13, marginLeft: 4, color: "var(--text-muted)" }}>km/L</span></div>
+                            <Sparkline data={[2.1, 2.3, 2.2, 2.5, 2.4, 2.6, 2.8]} color="#a78bfa" />
+                        </div>
+                    </Card>
+                </div>
+            )}
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 320px), 1fr))", gap: 16, marginBottom: 16 }}>
-                <Card title="Monthly Performance Comparison" subtitle="Revenue vs Expenses (KES)" className="animate-slide-up delay-5">
-                    <BarChart data={last3Months} />
-                    <div style={{ display: 'flex', gap: 16, marginTop: 12, justifyContent: 'center' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 600, color: 'var(--text-dim)' }}>
-                            <div style={{ width: 10, height: 10, borderRadius: 3, background: '#3b82f6' }} /> Revenue
+                {isAdmin && (
+                    <Card title="Monthly Performance Comparison" subtitle="Revenue vs Expenses (KES)" className="animate-slide-up delay-5">
+                        <BarChart data={last3Months} />
+                        <div style={{ display: 'flex', gap: 16, marginTop: 12, justifyContent: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 600, color: 'var(--text-dim)' }}>
+                                <div style={{ width: 10, height: 10, borderRadius: 3, background: '#3b82f6' }} /> Revenue
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 600, color: 'var(--text-dim)' }}>
+                                <div style={{ width: 10, height: 10, borderRadius: 3, background: '#ec4899' }} /> Expenses
+                            </div>
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 600, color: 'var(--text-dim)' }}>
-                            <div style={{ width: 10, height: 10, borderRadius: 3, background: '#ec4899' }} /> Expenses
-                        </div>
-                    </div>
-                </Card>
+                    </Card>
+                )}
 
                 <Card title="Operating Efficiency by Truck" subtitle="Liters per KM comparison" className="animate-slide-up delay-6">
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '12px 0' }}>
@@ -240,8 +246,10 @@ export function Dashboard({ data, dark, truckStats, tyreStatus, truckReg, driver
                                     columns={[
                                         { key: "reg", label: "Vehicle", sortable: true },
                                         { key: "status", label: "Status", sortable: true },
-                                        { key: "_rev", label: "Revenue", sortable: true, align: "right" },
-                                        { key: "_profPerKm", label: "Prof/KM", sortable: true, align: "right" },
+                                        ...(isAdmin ? [
+                                            { key: "_rev", label: "Revenue", sortable: true, align: "right" },
+                                            { key: "_profPerKm", label: "Prof/KM", sortable: true, align: "right" }
+                                        ] : []),
                                         { key: "_kmPerL", label: "Efficiency", sortable: true },
                                         { key: "actions", label: "", sortable: false, align: "right" }
                                     ]}

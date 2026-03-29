@@ -85,10 +85,57 @@
   --radius-md: 6px;
   --radius-lg: 8px;
   --radius-xl: 12px;
+}
 
-  --glass-bg: rgba(18, 21, 28, 0.82);
-  --glass-blur: blur(12px);
-  --glass-border: 1px solid var(--border-subtle);
+/* 13" - 15" Laptop Density Refinements (1024px to 1440px) */
+@media screen and (max-width: 1440px) and (min-width: 1024px) {
+  :root {
+    --sidebar-width: 210px;
+    --topbar-height: 48px;
+  }
+
+  body {
+    font-size: 13px;
+  }
+
+  .hide-laptop {
+    display: none !important;
+  }
+
+  .page-shell {
+    padding: 0 16px 32px;
+  }
+
+  .page-header {
+    margin-bottom: 12px !important;
+  }
+
+  .page-header-icon {
+    width: 36px !important;
+    height: 36px !important;
+  }
+
+  .page-header-title {
+    font-size: 18px !important;
+  }
+
+  .page-header-desc {
+    font-size: 11.5px !important;
+  }
+
+  .card-premium {
+    padding: 12px !important;
+  }
+
+  .card-premium-title {
+    font-size: 10px !important;
+  }
+}
+
+@media screen and (max-width: 1023px) {
+  .hide-tablet {
+    display: none !important;
+  }
 }
 
 [data-theme='light'] {
@@ -241,12 +288,12 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .sidebar-section-label {
-  font-size: 10px;
-  font-weight: 600;
+  font-size: 9.5px;
+  font-weight: 700;
   color: var(--text-dim);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  padding: 8px 12px 6px;
+  letter-spacing: 0.08em;
+  padding: 12px 12px 8px;
 }
 
 .sidebar-nav-link {
@@ -749,7 +796,7 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Journeys list — wide matrix, full notes */
 .journeys-matrix-table {
-  min-width: 1180px;
+  min-width: 960px;
 }
 
 .journeys-col-notes {

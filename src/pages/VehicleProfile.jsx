@@ -29,7 +29,9 @@ import { DocumentPanel, DOC_TYPES_TRUCK } from "../components/DocumentPanel";
 import { TableRowActions } from "../components/TableRowActions";
 import { ProfileQuickActionTile } from "../components/ProfileQuickActionTile";
 
-export function VehicleProfile({ data, setData, dark, isMobile, openModal, maintenanceStatus, driverName, truckReg, customerName, truckStats, setVerifyModal }) {
+export function VehicleProfile({ data, setData, dark, isMobile, openModal, maintenanceStatus, driverName, truckReg, customerName, truckStats, setVerifyModal, adminAuth }) {
+    const role = adminAuth.getUser()?.role || 'staff';
+    const isAdmin = role === 'admin' || role === 'superadmin';
     const { id } = useParams();
     const navigate = useNavigate();
     const [tab, setTab] = useState('overview');
@@ -50,7 +52,7 @@ export function VehicleProfile({ data, setData, dark, isMobile, openModal, maint
         { id: 'journeys',   label: 'Journeys' },
         { id: 'maintenance', label: 'Maintenance' },
         { id: 'documents',  label: 'Documents' },
-        { id: 'pnl',        label: 'P&L' },
+        ...(isAdmin ? [{ id: 'pnl', label: 'P&L' }] : []),
     ];
 
     // ── Per-truck data
@@ -127,9 +129,11 @@ export function VehicleProfile({ data, setData, dark, isMobile, openModal, maint
                         )}
                         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4,1fr)', gap: 16, marginBottom: 32 }}>
                             {[
-                                { l: 'Revenue',        v: fmt(truckRevenue),  c: '#10b981', i: Navigation },
-                                { l: 'Total Costs',    v: fmt(truckTotalCost), c: '#f59e0b', i: Wallet },
-                                { l: 'Net Profit',     v: fmt(truckProfit),   c: truckProfit >= 0 ? 'var(--brand-primary)' : '#ef4444', i: PieChart },
+                                ...(isAdmin ? [
+                                    { l: 'Revenue',        v: fmt(truckRevenue),  c: '#10b981', i: Navigation },
+                                    { l: 'Total Costs',    v: fmt(truckTotalCost), c: '#f59e0b', i: Wallet },
+                                    { l: 'Net Profit',     v: fmt(truckProfit),   c: truckProfit >= 0 ? 'var(--brand-primary)' : '#ef4444', i: PieChart },
+                                ] : []),
                                 { l: 'Trips',          v: truckJourneys.length, c: '#3b82f6', i: Clock },
                                 { l: 'Distance',       v: `${totalKm.toLocaleString()} km`, c: "var(--text-primary)", i: Navigation },
                                 { l: 'Fuel Used',      v: `${totalLitres.toLocaleString()} L`, c: "var(--text-primary)", i: Fuel },
@@ -285,7 +289,7 @@ export function VehicleProfile({ data, setData, dark, isMobile, openModal, maint
                                             <th className="sticky-col" title="Date">Date</th>
                                             <th title="Strategic Route">Strategic Route</th>
                                             <th title="Distance">Distance</th>
-                                            <th title="Revenue">Revenue</th>
+                                            {isAdmin && <th title="Revenue">Revenue</th>}
                                             <th className="status-col" title="Status">Status</th>
                                             <th style={{ textAlign: "right" }} title="Actions">Actions</th>
                                         </tr>
@@ -296,7 +300,7 @@ export function VehicleProfile({ data, setData, dark, isMobile, openModal, maint
                                                 <td className="sticky-col" title={fmtDate(j.date)}>{fmtDate(j.date)}</td>
                                                 <td style={{ fontWeight: 800, color: "var(--text-primary)" }} title={`${j.origin} → ${j.dest}`}>{j.origin} → {j.dest}</td>
                                                 <td style={{ fontWeight: 600 }} title={`${j.distance} km`}>{j.distance} km</td>
-                                                <td style={{ color: "#10b981", fontWeight: 800 }} title={fmt(j.revenue)}>{fmt(j.revenue)}</td>
+                                                {isAdmin && <td style={{ color: "#10b981", fontWeight: 800 }} title={fmt(j.revenue)}>{fmt(j.revenue)}</td>}
                                                 <td className="status-col" title={j.status}><Badge status={j.status} /></td>
                                                 <td style={{ textAlign: "right", verticalAlign: "middle" }}>
                                                     <TableRowActions

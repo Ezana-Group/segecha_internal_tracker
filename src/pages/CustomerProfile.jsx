@@ -22,7 +22,9 @@ import { Card } from "../components/Card";
 import { Badge } from "../components/Badge";
 import { Button } from "../components/Button";
 
-export function CustomerProfile({ data, isMobile, truckReg, customerName }) {
+export function CustomerProfile({ data, isMobile, truckReg, customerName, adminAuth }) {
+    const role = adminAuth.getUser()?.role || 'staff';
+    const isAdmin = role === 'admin' || role === 'superadmin';
     const { id } = useParams();
     const navigate = useNavigate();
     
@@ -97,32 +99,36 @@ export function CustomerProfile({ data, isMobile, truckReg, customerName }) {
                     <div style={{ fontSize: 19, fontWeight: 900, color: "var(--brand-primary)" }}>{journeys.length}</div>
                     <div style={{ fontSize: 11.5, color: "var(--text-dim)", marginTop: 2 }}>Completed missions</div>
                 </div>
-                <div style={{ background: "var(--bg-card)", padding: 14, borderRadius: 12, border: "1px solid var(--border-subtle)" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
-                        <div style={{ fontSize: 10, fontWeight: 800, color: "var(--text-dim)", letterSpacing: "0.05em" }}>TOTAL INVOICED</div>
-                        <FileText size={14} color="#3b82f6" />
-                    </div>
-                    <div style={{ fontSize: 19, fontWeight: 900, color: "var(--text-primary)" }}>{fmt(totalInvoiced)}</div>
-                </div>
-                <div style={{ background: "var(--bg-card)", padding: 14, borderRadius: 12, border: "1px solid var(--border-subtle)" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
-                        <div style={{ fontSize: 10, fontWeight: 800, color: "var(--text-dim)", letterSpacing: "0.05em" }}>PAYMENTS RECEIVED</div>
-                        <CheckCircle2 size={14} color="#10b981" />
-                    </div>
-                    <div style={{ fontSize: 19, fontWeight: 900, color: "#10b981" }}>{fmt(totalPaid)}</div>
-                </div>
-                <div style={{ background: "var(--bg-card)", padding: 14, borderRadius: 12, border: "1px solid var(--border-subtle)" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
-                        <div style={{ fontSize: 10, fontWeight: 800, color: "var(--text-dim)", letterSpacing: "0.05em" }}>BALANCE OVERDUE</div>
-                        <AlertCircle size={14} color="#ef4444" />
-                    </div>
-                    <div style={{ fontSize: 19, fontWeight: 900, color: totalOverdue > 0 ? "#ef4444" : "var(--text-primary)" }}>{fmt(totalOverdue)}</div>
-                </div>
+                {isAdmin && (
+                    <>
+                        <div style={{ background: "var(--bg-card)", padding: 14, borderRadius: 12, border: "1px solid var(--border-subtle)" }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
+                                <div style={{ fontSize: 10, fontWeight: 800, color: "var(--text-dim)", letterSpacing: "0.05em" }}>TOTAL INVOICED</div>
+                                <FileText size={14} color="#3b82f6" />
+                            </div>
+                            <div style={{ fontSize: 19, fontWeight: 900, color: "var(--text-primary)" }}>{fmt(totalInvoiced)}</div>
+                        </div>
+                        <div style={{ background: "var(--bg-card)", padding: 14, borderRadius: 12, border: "1px solid var(--border-subtle)" }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
+                                <div style={{ fontSize: 10, fontWeight: 800, color: "var(--text-dim)", letterSpacing: "0.05em" }}>PAYMENTS RECEIVED</div>
+                                <CheckCircle2 size={14} color="#10b981" />
+                            </div>
+                            <div style={{ fontSize: 19, fontWeight: 900, color: "#10b981" }}>{fmt(totalPaid)}</div>
+                        </div>
+                        <div style={{ background: "var(--bg-card)", padding: 14, borderRadius: 12, border: "1px solid var(--border-subtle)" }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 10 }}>
+                                <div style={{ fontSize: 10, fontWeight: 800, color: "var(--text-dim)", letterSpacing: "0.05em" }}>BALANCE OVERDUE</div>
+                                <AlertCircle size={14} color="#ef4444" />
+                            </div>
+                            <div style={{ fontSize: 19, fontWeight: 900, color: totalOverdue > 0 ? "#ef4444" : "var(--text-primary)" }}>{fmt(totalOverdue)}</div>
+                        </div>
+                    </>
+                )}
             </div>
 
             {/* Tabs Navigation */}
             <div style={{ display: "flex", gap: 40, borderBottom: "1px solid var(--border-subtle)", marginBottom: 24, overflowX: "auto" }}>
-                {["Overview", "Missions", "Invoices", "Documents & SLA"].map(tab => (
+                {["Overview", "Missions", ...(isAdmin ? ["Invoices"] : []), "Documents & SLA"].map(tab => (
                     <button
                         key={tab}
                         onClick={() => setActiveTab(tab)}

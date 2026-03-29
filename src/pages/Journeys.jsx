@@ -148,17 +148,17 @@ export function Journeys({ data, isMobile, modal, form, setForm, openModal, clos
             {/* Quick Stats */}
             {(!isDriverPreview || jpv("statsRow")) && (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 20, marginBottom: 32 }}>
-                <Card title="Filtered Missions" icon={Navigation} accent="#3b82f6">
-                    <div style={{ fontSize: 18, fontWeight: 800, color: "var(--text-primary)" }}>{sortedItems.length} missions</div>
+                <Card title="Filtered Missions" icon={Navigation} accent="#3b82f6" className="card-premium">
+                    <div style={{ fontSize: 16, fontWeight: 800, color: "var(--text-primary)" }}>{sortedItems.length} missions</div>
                 </Card>
-                <Card title="Filtered Distance" icon={Navigation} accent="#a78bfa">
-                    <div style={{ fontSize: 18, fontWeight: 800, color: "var(--text-primary)" }}>{totalDistanceFiltered.toLocaleString()} <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 500 }}>KM</span></div>
+                <Card title="Filtered Distance" icon={Navigation} accent="#a78bfa" className="card-premium">
+                    <div style={{ fontSize: 16, fontWeight: 800, color: "var(--text-primary)" }}>{totalDistanceFiltered.toLocaleString()} <span style={{ fontSize: 10, color: "var(--text-muted)", fontWeight: 500 }}>KM</span></div>
                 </Card>
-                <Card title="Filtered Revenue" icon={DollarSign} accent="#10b981">
-                    <div style={{ fontSize: 18, fontWeight: 800, color: "var(--text-primary)" }}>{fmt(totalRevenueFiltered)}</div>
+                <Card title="Filtered Revenue" icon={DollarSign} accent="#10b981" className="card-premium">
+                    <div style={{ fontSize: 16, fontWeight: 800, color: "var(--text-primary)" }}>{fmt(totalRevenueFiltered)}</div>
                 </Card>
-                <Card title="Ongoing trips" icon={Clock} accent="#f59e0b">
-                    <div style={{ fontSize: 18, fontWeight: 800, color: "var(--text-primary)" }}>{sortedItems.filter(j => ["Loading", "In Transit", "Awaiting Start Verification"].includes(j.status)).length} active</div>
+                <Card title="Ongoing trips" icon={Clock} accent="#f59e0b" className="card-premium">
+                    <div style={{ fontSize: 16, fontWeight: 800, color: "var(--text-primary)" }}>{sortedItems.filter(j => ["Loading", "In Transit", "Awaiting Start Verification"].includes(j.status)).length} active</div>
                 </Card>
             </div>
             )}
@@ -229,18 +229,18 @@ export function Journeys({ data, isMobile, modal, form, setForm, openModal, clos
                             isFiltered={isFiltered}
                             isSorted={isSorted}
                             columns={[
-                                { key: "uId", label: "Mission ID", sortable: !isDriverPreview || jpv("colMissionId") },
+                                { key: "uId", label: "ID", sortable: !isDriverPreview || jpv("colMissionId") },
                                 { key: "isReturn", label: "Type", sortable: !isDriverPreview || jpv("colType") },
-                                { key: "date", label: "Departure", sortable: !isDriverPreview || jpv("colDate") },
-                                { key: "origin", label: "Origin", sortable: !isDriverPreview || jpv("colRoute") },
-                                { key: "dest", label: "Destination", sortable: !isDriverPreview || jpv("colRoute") },
+                                { key: "date", label: "Date", sortable: !isDriverPreview || jpv("colDate") },
+                                { key: "origin", label: "Route", sortable: !isDriverPreview || jpv("colRoute") },
+                                { key: "dest", label: "Dest", sortable: !isDriverPreview || jpv("colRoute") },
                                 { key: "_customer", label: "Client", sortable: !isDriverPreview || jpv("colClient") },
                                 { key: "_vehicle", label: "Vehicle", sortable: !isDriverPreview || jpv("colVehicle") },
                                 { key: "driver", label: "Crew", sortable: !isDriverPreview || jpv("colCrew") },
                                 { key: "cargoType", label: "Cargo", className: "hide-laptop", sortable: !isDriverPreview || jpv("colCargo") },
-                                { key: "_distance", label: "Distance", className: "hide-laptop", sortable: !isDriverPreview || jpv("colDistance"), align: "right" },
+                                { key: "_distance", label: "Dist", className: "hide-laptop", sortable: !isDriverPreview || jpv("colDistance"), align: "right" },
                                 { key: "notes", label: "Notes", className: "hide-laptop", sortable: !isDriverPreview || jpv("colNotes") },
-                                { key: "_revenue", label: "Revenue", className: "hide-laptop", sortable: !isDriverPreview || jpv("colRevenue"), align: "right" },
+                                { key: "_revenue", label: "Revenue", sortable: !isDriverPreview || jpv("colRevenue"), align: "right" },
                                 { key: "status", label: "Status", sortable: !isDriverPreview || jpv("colStatus") },
                                 { key: "actions", label: "Actions", sortable: false, align: "right" }
                             ].filter(c => c.sortable !== false || c.key === 'actions')}
@@ -264,10 +264,10 @@ export function Journeys({ data, isMobile, modal, form, setForm, openModal, clos
                                                     fontWeight: 700,
                                                     color: "var(--brand-primary)",
                                                     fontFamily: "var(--font-mono)",
-                                                    fontSize: 11,
+                                                    fontSize: 10,
                                                     background: "var(--surface-subtle)",
-                                                    padding: "2px 8px",
-                                                    borderRadius: 6,
+                                                    padding: "1px 6px",
+                                                    borderRadius: 4,
                                                     display: "inline-block",
                                                 }}
                                             >
@@ -293,19 +293,19 @@ export function Journeys({ data, isMobile, modal, form, setForm, openModal, clos
                                     )}
                                     {(!isDriverPreview || jpv("colDate")) && (
                                         <td title={fmtDate(j.date)}>
-                                            <div style={{ fontWeight: 800, color: "var(--text-primary)", fontSize: 13, display: "flex", alignItems: "center", gap: 6 }}>
-                                                <Calendar size={12} color="var(--text-dim)" /> {fmtDate(j.date)}
+                                            <div style={{ fontWeight: 800, color: "var(--text-primary)", fontSize: 12, display: "flex", alignItems: "center", gap: 4 }}>
+                                                <Calendar size={11} color="var(--text-dim)" /> {fmtDate(j.date)}
                                             </div>
                                         </td>
                                     )}
                                     {(!isDriverPreview || jpv("colRoute")) && (
                                         <td title={j.origin}>
-                                            <div style={{ fontWeight: 800, color: "var(--text-primary)", fontSize: 13 }}>{j.origin}</div>
+                                            <div style={{ fontWeight: 800, color: "var(--text-primary)", fontSize: 12 }}>{j.origin}</div>
                                         </td>
                                     )}
                                     {(!isDriverPreview || jpv("colRoute")) && (
                                         <td title={j.dest}>
-                                            <div style={{ fontWeight: 800, color: "var(--text-primary)", fontSize: 13 }}>{j.dest}</div>
+                                            <div style={{ fontWeight: 800, color: "var(--text-primary)", fontSize: 12 }}>{j.dest}</div>
                                         </td>
                                     )}
                                     {(!isDriverPreview || jpv("colClient")) && (
@@ -375,8 +375,8 @@ export function Journeys({ data, isMobile, modal, form, setForm, openModal, clos
                                         </td>
                                     )}
                                     {(!isDriverPreview || jpv("colRevenue")) && (
-                                        <td className="hide-laptop" style={{ textAlign: "right" }} title={fmt(j._revenue)}>
-                                            <div style={{ fontWeight: 800, color: (j.status === 'Completed' && !j.isReturn && (!j._revenue || Number(j._revenue) === 0)) ? "#ef4444" : "#10b981", fontSize: 13, fontVariantNumeric: "tabular-nums" }}>
+                                        <td className="journeys-col-revenue" style={{ textAlign: "right" }} title={fmt(j._revenue)}>
+                                            <div style={{ fontWeight: 800, color: (j.status === 'Completed' && !j.isReturn && (!j._revenue || Number(j._revenue) === 0)) ? "#ef4444" : "#10b981", fontSize: 12, fontVariantNumeric: "tabular-nums" }}>
                                                 {fmt(j._revenue)}
                                             </div>
                                             {(j.status === 'Completed' && !j.isReturn && (!j._revenue || Number(j._revenue) === 0)) && (

@@ -25,10 +25,10 @@
   padding: 0 8px;     /* Match padding to negative margin */
 }
 
-/* 1024px to 1279px — small desktop / laptop */
-@media screen and (max-width: 1279px) and (min-width: 1024px) {
+/* 1024px to 1440px — small desktop / laptop */
+@media screen and (max-width: 1440px) and (min-width: 1024px) {
   .table-modern {
-    table-layout: auto; /* Changed from fixed to allow proportional column compression */
+    table-layout: auto;
   }
   
   .table-modern thead th {
