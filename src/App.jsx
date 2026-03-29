@@ -1,16 +1,27 @@
-import { useState, useEffect, useMemo, lazy, Suspense } from "react";
-import React from "react";
+import React, { useState, useEffect, useMemo, lazy, Suspense } from "react";
 import { Routes, Route, useLocation, useNavigate } from "react-router-dom";
-import { isPathAllowedInPreview, defaultPreviewPath } from "./constants/previewNav.js";
-import { PreviewModeBanner } from "./components/PreviewModeBanner.jsx";
-import { useWindowWidth } from "./hooks/useWindowWidth";
+
+// 1. Core Hooks & Utils
 import { useAppState } from "./hooks/useAppState";
-import { DRIVER_PORTAL_URL } from "./utils/env.js";
 import { adminAuth } from "./utils/adminAuth";
+import { useWindowWidth } from "./hooks/useWindowWidth";
+import { DRIVER_PORTAL_URL } from "./utils/env.js";
+
+// 2. Components
 import { Sidebar } from "./components/Sidebar";
 import { Topbar } from "./components/Topbar";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { ToastContainer } from "./components/Toast";
+import { GlobalModals } from "./components/GlobalModals";
+import { WaybillModal } from "./components/WaybillModal";
+import { VerificationModal } from "./components/VerificationModal";
+import { PreviewModeBanner } from "./components/PreviewModeBanner.jsx";
+
+// 3. Constant / Domain Logic
+import { isPathAllowedInPreview, defaultPreviewPath } from "./constants/previewNav.js";
+import { getTheme, getStyles } from "./constants/theme";
+
+// 4. Page Definitions (Static Imports)
 import { Dashboard } from "./pages/Dashboard";
 import { Fleet } from "./pages/Fleet";
 import { Drivers } from "./pages/Drivers";
@@ -33,13 +44,8 @@ import { StaffProfile } from "./pages/StaffProfile";
 import { Incidents } from "./pages/Incidents";
 import { ImportReview } from "./pages/ImportReview";
 import { TyreMonitor } from "./pages/TyreMonitor";
-import { GlobalModals } from "./components/GlobalModals";
-import { WaybillModal } from "./components/WaybillModal";
-import { VerificationModal } from "./components/VerificationModal";
-import { getTheme, getStyles } from "./constants/theme";
 import { Login } from "./pages/Login";
-
-const MpesaTransactions = lazy(() => import("./pages/MpesaTransactions").then(m => ({ default: m.MpesaTransactions })));
+import { MpesaTransactions } from "./pages/MpesaTransactions";
 
 
 export default function App() {
@@ -237,13 +243,7 @@ export default function App() {
                                     <Route path="/fuel" element={<ErrorBoundary><FuelLog {...p} /></ErrorBoundary>} />
                                     <Route path="/expenses" element={<ErrorBoundary><Expenses {...p} /></ErrorBoundary>} />
                                     <Route path="/incidents" element={<ErrorBoundary><Incidents {...p} /></ErrorBoundary>} />
-                                    <Route path="/mpesa-logs" element={
-                                        <ErrorBoundary>
-                                            <Suspense fallback={<div className="page-shell">Loading...</div>}>
-                                                <MpesaTransactions {...p} />
-                                            </Suspense>
-                                        </ErrorBoundary>
-                                    } />
+                                    <Route path="/mpesa-logs" element={<ErrorBoundary><MpesaTransactions {...p} /></ErrorBoundary>} />
                                     <Route path="/invoices" element={<ErrorBoundary><Invoices {...p} /></ErrorBoundary>} />
                                     <Route path="/payroll" element={<ErrorBoundary><Payroll {...p} /></ErrorBoundary>} />
                                     <Route path="/maintenance" element={<ErrorBoundary><Maintenance {...p} /></ErrorBoundary>} />
