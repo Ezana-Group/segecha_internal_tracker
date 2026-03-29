@@ -133,13 +133,11 @@ h1, h2, h3, h4, h5, h6 {
 /* ─── Layout shell ─────────────────────────────────────────── */
 .page-shell {
   max-width: 1600px;
-  margin: 0 auto;
   width: 100%;
 }
 
 .page-shell-wide {
   max-width: 1500px;
-  margin: 0 auto;
   padding: 0 24px 32px;
 }
 

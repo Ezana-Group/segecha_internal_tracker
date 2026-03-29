@@ -784,7 +784,7 @@ export function Settings({
                         </SettingsShellSelect>
                     </div>
                 )}
-                <Card className="settings-content-card" style={{ padding: isMobile ? 18 : "clamp(20px, 3vw, 40px)" }}>
+                <Card className="settings-content-card" style={{ padding: isMobile ? 16 : "clamp(16px, 2.5vw, 24px)" }}>
                     {currentSection && (
                         <div className="settings-toolbar" role="status" aria-live="polite">
                             <div className="settings-toolbar-crumb">
