@@ -33,7 +33,21 @@ export default function PaymentPortal() {
             .catch(() => {});
     }, []);
 
-    const { companyName, paybillNumber, bankName, bankAccount, bankBranch, pesalinkBank, pesalinkAccount, currency = 'KES' } = settings;
+    const { 
+        companyName, 
+        mpesaDisplayName,
+        mpesaMode = 'paybill',
+        paybillNumber, 
+        tillNumber,
+        mpesaAccountNoTemplate = 'Invoice No',
+        bankName, 
+        bankAccountName,
+        bankAccountNumber, 
+        bankBranch, 
+        pesalinkBank, 
+        pesalinkAccount, 
+        currency = 'KES' 
+    } = settings;
 
     const triggerSTK = async () => {
         if (!/^(0|254|\+254)7\d{8}$/.test(phone.replace(/\s/g, ''))) {
@@ -90,12 +104,12 @@ export default function PaymentPortal() {
     };
 
     const METHODS = [
-        { id: STEPS.MPESA_STK, icon: '💚', label: 'M-Pesa STK Push', sub: 'We send a payment prompt straight to your phone' },
-        { id: STEPS.MPESA_MANUAL, icon: '📱', label: 'M-Pesa Paybill', sub: 'Pay manually — enter Paybill number on your phone' },
+        { id: STEPS.MPESA_STK, icon: '💚', label: 'M-Pesa STK Push', sub: 'Instant prompt on your phone' },
+        { id: STEPS.MPESA_MANUAL, icon: '📱', label: mpesaMode === 'buygoods' ? 'Lipa na M-Pesa (Till)' : 'M-Pesa Paybill', sub: 'Pay manually via M-Pesa menu' },
         { id: STEPS.BANK, icon: '🏦', label: 'Bank Transfer / EFT', sub: 'Pay directly to our bank account' },
-        { id: STEPS.PESALINK, icon: '🔗', label: 'Pesalink', sub: 'Instant interbank transfer via your banking app' },
-        { id: STEPS.PESAPAL, icon: '💳', label: 'PesaPal (Card/Mobile)', sub: 'Pay via PesaPal — Secured Online Payment' },
-        { id: STEPS.CASH, icon: '💵', label: 'Cash Payment', sub: 'Pay in person — confirm your intention here' },
+        { id: STEPS.PESALINK, icon: '🔗', label: 'Pesalink', sub: 'Instant interbank transfer' },
+        { id: STEPS.PESAPAL, icon: '💳', label: 'PesaPal (Card/Mobile)', sub: 'Pay secured Online' },
+        { id: STEPS.CASH, icon: '💵', label: 'Cash Payment', sub: 'Pay in person' },
     ];
 
     return (
@@ -172,27 +186,45 @@ export default function PaymentPortal() {
                     </>
                 )}
 
-                {/* ── MPESA PAYBILL ── */}
+                {/* ── MPESA MANUAL (PAYBILL / TILL) ── */}
                 {step === STEPS.MPESA_MANUAL && (
                     <>
                         <button style={S.back} onClick={goBack}>← Back</button>
-                        <div style={S.stepTitle}>📱 M-Pesa Paybill</div>
+                        <div style={S.stepTitle}>{mpesaMode === 'buygoods' ? '🛒 Lipa na M-Pesa (Till)' : '📱 M-Pesa Paybill'}</div>
                         <div style={S.infoBox()}>
                             <div style={{ fontWeight: 700, color: '#065f46', fontSize: 14, marginBottom: 14 }}>Steps to pay on your phone:</div>
-                            {[
-                                'Open M-Pesa on your phone',
-                                'Select Lipa na M-Pesa',
-                                'Select Pay Bill',
-                                `Business No: ${paybillNumber || '—'}`,
-                                `Account No: ${invoiceId}`,
-                                `Amount: KES ${amount.toLocaleString('en-KE')}`,
-                                'Enter your M-Pesa PIN and confirm',
-                            ].map((s, i) => (
-                                <div key={i} style={S.step(i)}>
-                                    <span style={S.stepNum}>{i + 1}</span>
-                                    <span style={{ paddingTop: 2 }}>{s}</span>
-                                </div>
-                            ))}
+                            {mpesaMode === 'buygoods' ? (
+                                [
+                                    'Open M-Pesa on your phone',
+                                    'Select Lipa na M-Pesa',
+                                    'Select Buy Goods and Services',
+                                    `Till Number: ${tillNumber || '—'}`,
+                                    `Amount: KES ${amount.toLocaleString('en-KE')}`,
+                                    'Enter your M-Pesa PIN and confirm',
+                                    `Recipient: ${mpesaDisplayName || companyName}`
+                                ].map((s, i) => (
+                                    <div key={i} style={S.step(i)}>
+                                        <span style={S.stepNum}>{i + 1}</span>
+                                        <span style={{ paddingTop: 2 }}>{s}</span>
+                                    </div>
+                                ))
+                            ) : (
+                                [
+                                    'Open M-Pesa on your phone',
+                                    'Select Lipa na M-Pesa',
+                                    'Select Pay Bill',
+                                    `Business No: ${paybillNumber || '—'}`,
+                                    `Account No: ${invoiceId}`,
+                                    `Amount: KES ${amount.toLocaleString('en-KE')}`,
+                                    'Enter your M-Pesa PIN and confirm',
+                                    `Recipient: ${mpesaDisplayName || companyName}`
+                                ].map((s, i) => (
+                                    <div key={i} style={S.step(i)}>
+                                        <span style={S.stepNum}>{i + 1}</span>
+                                        <span style={{ paddingTop: 2 }}>{s}</span>
+                                    </div>
+                                ))
+                            )}
                         </div>
                         <button style={S.btn('green')} onClick={() => setStep(STEPS.SUCCESS)}>I've completed this payment ✓</button>
                     </>
@@ -207,9 +239,9 @@ export default function PaymentPortal() {
                             <div style={{ fontWeight: 700, color: '#1e40af', fontSize: 14, marginBottom: 14 }}>Bank Account Details</div>
                             {[
                                 ['Bank', bankName || '—'],
-                                ['Account Name', companyName],
-                                ['Account Number', bankAccount || '—'],
-                                ['Branch', bankBranch || '—'],
+                                ['Account Holder', bankAccountName || companyName],
+                                ['Account Number', bankAccountNumber || '—'],
+                                ['Branch / Code', bankBranch || '—'],
                                 ['Reference', invoiceId],
                                 ['Amount', fmt(amount)],
                             ].map(([l, v]) => (

@@ -31,7 +31,7 @@ import { TableRowActions } from "../components/TableRowActions";
 import { SortableTableHead } from "../components/SortableTableHead";
 import { useTableFilter } from "../hooks/useTableFilter";
 
-export function Payroll({ data, setData, dark, isMobile, modal, form, setForm, openModal, closeModal, saveItem, delItem, markPayrollPaid, truckReg, customerName, driverName }) {
+export function Payroll({ data, setData, dark, isMobile, modal, form, setForm, openModal, closeModal, saveItem, delItem, disbursePayroll, truckReg, customerName, driverName }) {
     const payrollRows = Array.isArray(data.payroll) ? data.payroll : [];
     const months = [...new Set(payrollRows.map((p) => p.month))].sort().reverse();
     const [selMonth, setSelMonth] = useState(months[0] || new Date().toISOString().slice(0, 7));
@@ -308,9 +308,23 @@ export function Payroll({ data, setData, dark, isMobile, modal, form, setForm, o
                                                     ? [
                                                           {
                                                               id: "b2c",
-                                                              label: "M-Pesa B2C pay",
+                                                              label: "Pay via M-Pesa B2C",
                                                               icon: Smartphone,
-                                                              onClick: () => markPayrollPaid(p.id),
+                                                              onClick: () => {
+                                                                  if (window.confirm(`Disburse ${fmt(p._net)} to ${p._name} via M-Pesa B2C?`)) {
+                                                                      disbursePayroll(p.id, { method: 'mpesa', phone: p._mpesa });
+                                                                  }
+                                                              },
+                                                          },
+                                                          {
+                                                              id: "bank-pay",
+                                                              label: "Pay via Bank Transfer",
+                                                              icon: CreditCard,
+                                                              onClick: () => {
+                                                                  if (window.confirm(`Mark ${p._name}'s payroll as paid via Bank Transfer?`)) {
+                                                                      disbursePayroll(p.id, { method: 'bank' });
+                                                                  }
+                                                              },
                                                           },
                                                       ]
                                                     : []),

@@ -546,9 +546,15 @@ export function useAppState() {
         }
     };
 
-    const markPayrollPaid = async (id) => {
-        const item = data.payroll.find(p => p.id === id);
-        if (!item) return;
+    const disbursePayroll = async (id, params = {}) => {
+        const item = (data.payroll || []).find(p => p.id === id);
+        if (!item) {
+            showToast("Payroll record not found", "error");
+            return;
+        }
+
+        const { method = 'mpesa', phone, remarks } = params;
+        const amount = item._net || item.amount; // Use calculated net if available
 
         try {
             const token = adminAuth.getToken();
@@ -558,17 +564,66 @@ export function useAppState() {
                     "Content-Type": "application/json",
                     "x-admin-key": ADMIN_KEY,
                     ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-                }
+                },
+                body: JSON.stringify({
+                    amount,
+                    phone: phone || item._mpesa || "",
+                    method,
+                    remarks: remarks || `Disbursement for ${item._name || id}`
+                })
             });
-            if (!res.ok) throw new Error("Could not mark as paid on server");
+            
+            const result = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(result.error || "Disbursement failed");
             
             setData(d => ({
                 ...d,
-                payroll: d.payroll.map(p => p.id === id ? { ...p, status: "Paid" } : p)
+                payroll: d.payroll.map(p => p.id === id ? { ...p, status: "Paid", metadata: { ...(p.metadata || {}), ...result.data } } : p)
             }));
-            showToast("Payroll record marked as Paid", "success");
+            showToast(result.message || "Payroll marked as Paid", "success");
+            return { success: true, result };
         } catch (err) {
-            showToast("Failed to sync status: " + err.message, "error");
+            showToast("Payroll Error: " + err.message, "error");
+            return { success: false, error: err.message };
+        }
+    };
+
+    const refundInvoice = async (invoiceId, params = {}) => {
+        const item = (data.invoices || []).find(i => i.id === invoiceId);
+        if (!item) {
+            showToast("Invoice not found", "error");
+            return;
+        }
+
+        const { method = 'mpesa_b2b', receiverShortcode, remarks } = params;
+        const amount = params.amount || item.paidAmount || 0;
+
+        try {
+            const token = adminAuth.getToken();
+            const res = await fetch(`${PAYMENT_API}/api/admin/refund`, {
+                method: "POST",
+                headers: { 
+                    "Content-Type": "application/json",
+                    "x-admin-key": ADMIN_KEY,
+                    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                },
+                body: JSON.stringify({
+                    invoiceId,
+                    amount,
+                    method,
+                    remarks: remarks || `Refund for ${invoiceId}`,
+                    receiverShortcode
+                })
+            });
+            
+            const result = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(result.error || "Refund failed");
+            
+            showToast(result.message || "Refund processed successfully", "success");
+            return { success: true, result };
+        } catch (err) {
+            showToast("Refund Error: " + err.message, "error");
+            return { success: false, error: err.message };
         }
     };
 
@@ -1777,8 +1832,8 @@ export function useAppState() {
         invoicePreview, setInvoicePreview,
         sideOpen, setSideOpen,
         dark, setDark,
-        saveItem, delItem, markPayrollPaid, markInvoicePaid, addInvoicePayment, resetData, hardResetSystem,
-        updateSettings, resetAccountCredentials, deleteStaffAccount, deleteDriverAccount,
+        saveItem, delItem, disbursePayroll, markInvoicePaid, addInvoicePayment, resetData, hardResetSystem,
+        updateSettings, resetAccountCredentials, deleteStaffAccount, deleteDriverAccount, refundInvoice,
         verifyJourney, fetchPendingVerifications, syncToServer,
         verifySubmission,
         driverName, driverPhone, staffName, truckReg, customerName, truckStats, tyreStatus, maintenanceStatus, logMaintenance,

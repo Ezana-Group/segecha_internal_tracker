@@ -50,6 +50,9 @@ import {
     ArrowLeft,
     Send,
     UserRoundCog,
+    Smartphone,
+    ExternalLink,
+    Search as SearchIcon,
 } from "lucide-react";
 
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -1449,99 +1452,148 @@ export function Settings({
                     {activeTab === 'finance' && (
                         <fieldset disabled={!workspaceTabEditable.finance || !canEditSettings} className="settings-workspace-fieldset">
                             <legend className="settings-fieldset-sr-only">Finance settings</legend>
-                            <SettingsShellSectionHeader title="Finance & M-Pesa" desc="Configure payment automation and invoice defaults." icon={Wallet} />
-                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
-                                <SettingsShellField label="M-Pesa Paybill Number" sub="For manual M-Pesa payments.">
-                                    <SettingsShellInput value={localS.paybillNumber || ''} onChange={e => saveSettings({ paybillNumber: e.target.value })} placeholder="400XXX" />
-                                </SettingsShellField>
-                                <SettingsShellField label="M-Pesa Business Shortcode" sub="For automated STK Push.">
-                                    <SettingsShellInput value={localS.mpesaShortcode || ''} onChange={e => saveSettings({ mpesaShortcode: e.target.value })} placeholder="600XXX" />
-                                </SettingsShellField>
-                                <SettingsShellField label="Currency Symbol">
-                                    <SettingsShellSelect value={localS.currency || 'KES'} onChange={e => saveSettings({ currency: e.target.value })}>
-                                        <option value="KES">KES — Kenyan Shilling</option>
-                                        <option value="USD">USD — US Dollar</option>
-                                    </SettingsShellSelect>
-                                </SettingsShellField>
-                                <SettingsShellField label="Default Tax (VAT) %">
-                                    <SettingsShellInput type="number" value={localS.vatRate || 16} onChange={e => saveSettings({ vatRate: +e.target.value })} />
-                                </SettingsShellField>
-                                <SettingsShellField label="Invoice Prefix">
-                                    <SettingsShellInput value={localS.invoicePrefix || 'INV'} onChange={e => saveSettings({ invoicePrefix: e.target.value })} />
-                                </SettingsShellField>
-                                <SettingsShellField label="Payment Terms (Days)">
-                                    <SettingsShellInput type="number" value={localS.paymentTermsDays || 14} onChange={e => saveSettings({ paymentTermsDays: +e.target.value })} />
-                                </SettingsShellField>
-                                <SettingsShellField label="PDF Template">
-                                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                                        <SettingsShellSelect 
-                                            style={{ flex: 1, height: 38 }}
-                                            value={localS.defaultInvoiceTemplate || ''} 
-                                            onChange={e => saveSettings({ defaultInvoiceTemplate: e.target.value })}
-                                        >
-                                            <option value="">Built-in</option>
-                                            {(data.templates || []).filter((t) => canonicalTemplateType(t.type) === "PDF").map((t) => (
-                                                <option key={t.id} value={t.id}>{t.name}</option>
-                                            ))}
+                            <SettingsShellSectionHeader 
+                                title="Finance & M-Pesa" 
+                                desc="Configure how customers pay you and how you disburse money." 
+                                icon={Wallet} 
+                            />
+                            
+                            {/* M-Pesa Collection Section */}
+                            <div style={{ padding: 16, background: "rgba(16, 185, 129, 0.04)", borderRadius: 12, border: "1px solid rgba(16, 185, 129, 0.12)", marginBottom: 20 }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+                                    <div style={{ width: 28, height: 28, borderRadius: 6, background: "#10b98115", display: "flex", alignItems: "center", justifyContent: "center", color: "#10b981" }}>
+                                        <Smartphone size={14} />
+                                    </div>
+                                    <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text-primary)", margin: 0 }}>M-Pesa Collection (C2B / STK)</h4>
+                                </div>
+                                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
+                                    <SettingsShellField label="M-Pesa Display Name" sub="The name customers will see on the portal.">
+                                        <SettingsShellInput value={localS.mpesaDisplayName || ''} onChange={e => saveSettings({ mpesaDisplayName: e.target.value })} placeholder="e.g. Segecha Logistics LTD" />
+                                    </SettingsShellField>
+                                    <SettingsShellField label="M-Pesa Mode" sub="Choose how you receive money.">
+                                        <SettingsShellSelect value={localS.mpesaMode || 'paybill'} onChange={e => saveSettings({ mpesaMode: e.target.value })}>
+                                            <option value="paybill">Lipa na M-Pesa (Paybill)</option>
+                                            <option value="buygoods">Buy Goods (Till Number)</option>
                                         </SettingsShellSelect>
-                                        <Button 
-                                            variant="ghost" 
-                                            size="sm" 
-                                            onClick={() => { 
-                                                if (typeof setTemplateType === 'function') setTemplateType('PDF');
-                                                setActiveTab('templates'); 
-                                            }}
-                                            style={{ fontSize: 10, padding: "4px 8px", height: 38 }}
-                                        >
-                                            Edit
-                                        </Button>
+                                    </SettingsShellField>
+                                </div>
+
+                                {localS.mpesaMode === 'paybill' ? (
+                                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, padding: 12, background: "rgba(16, 185, 129, 0.05)", borderRadius: 8 }}>
+                                        <SettingsShellField label="Paybill Number">
+                                            <SettingsShellInput value={localS.paybillNumber || ''} onChange={e => saveSettings({ paybillNumber: e.target.value })} placeholder="e.g. 400222" />
+                                        </SettingsShellField>
+                                        <SettingsShellField label="Shortcode (Automation)">
+                                            <SettingsShellInput value={localS.mpesaShortcode || ''} onChange={e => saveSettings({ mpesaShortcode: e.target.value })} placeholder="Automation Shortcode" />
+                                        </SettingsShellField>
+                                        <SettingsShellField label="Account Name Template" sub="Usually 'Invoice No'.">
+                                            <SettingsShellInput value={localS.mpesaAccountNoTemplate || 'Invoice No'} onChange={e => saveSettings({ mpesaAccountNoTemplate: e.target.value })} placeholder="e.g. Invoice No" />
+                                        </SettingsShellField>
                                     </div>
-                                </SettingsShellField>
+                                ) : (
+                                    <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 12, padding: 12, background: "rgba(16, 185, 129, 0.05)", borderRadius: 8 }}>
+                                        <SettingsShellField label="Till Number">
+                                            <SettingsShellInput value={localS.tillNumber || ''} onChange={e => saveSettings({ tillNumber: e.target.value })} placeholder="e.g. 600333" />
+                                        </SettingsShellField>
+                                    </div>
+                                )}
                             </div>
 
-                            <div style={{ marginTop: 20, padding: 16, background: "var(--surface-subtle)", borderRadius: 12, border: "1px solid var(--border-subtle)" }}>
-                                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-                                    <Wallet size={14} style={{ color: "var(--brand-primary)" }} />
-                                    <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text-primary)", margin: 0 }}>Bank, Pesalink & PesaPal</h4>
+                            {/* Bank Details Section */}
+                            <div style={{ padding: 16, background: "rgba(59, 130, 246, 0.04)", borderRadius: 12, border: "1px solid rgba(59, 130, 246, 0.12)", marginBottom: 20 }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+                                    <div style={{ width: 28, height: 28, borderRadius: 6, background: "#3b82f615", display: "flex", alignItems: "center", justifyContent: "center", color: "#3b82f6" }}>
+                                        <Building2 size={14} />
+                                    </div>
+                                    <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text-primary)", margin: 0 }}>Bank Account Details</h4>
                                 </div>
-                                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr", gap: 12 }}>
+                                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 12 }}>
                                     <SettingsShellField label="Bank Name">
-                                        <SettingsShellInput value={localS.bankName || ''} onChange={e => saveSettings({ bankName: e.target.value })} placeholder="Bank" />
+                                        <SettingsShellInput value={localS.bankName || ''} onChange={e => saveSettings({ bankName: e.target.value })} placeholder="e.g. Equity Bank" />
                                     </SettingsShellField>
-                                    <SettingsShellField label="Account">
-                                        <SettingsShellInput value={localS.bankAccount || ''} onChange={e => saveSettings({ bankAccount: e.target.value })} placeholder="No" />
+                                    <SettingsShellField label="Account Holder Name">
+                                        <SettingsShellInput value={localS.bankAccountName || ''} onChange={e => saveSettings({ bankAccountName: e.target.value })} placeholder="e.g. Segecha Logistics LTD" />
                                     </SettingsShellField>
-                                    <SettingsShellField label="Branch">
-                                        <SettingsShellInput value={localS.bankBranch || ''} onChange={e => saveSettings({ bankBranch: e.target.value })} placeholder="Branch" />
+                                </div>
+                                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                                    <SettingsShellField label="Account Number">
+                                        <SettingsShellInput value={localS.bankAccountNumber || ''} onChange={e => saveSettings({ bankAccountNumber: e.target.value })} placeholder="Acc Number" />
                                     </SettingsShellField>
-                                    <SettingsShellField label="Pesalink Bank">
-                                        <SettingsShellInput value={localS.pesalinkBank || ''} onChange={e => saveSettings({ pesalinkBank: e.target.value })} placeholder="Bank" />
-                                    </SettingsShellField>
-                                    <SettingsShellField label="Pesalink Acc">
-                                        <SettingsShellInput value={localS.pesalinkAccount || ''} onChange={e => saveSettings({ pesalinkAccount: e.target.value })} placeholder="Acc/Phone" />
-                                    </SettingsShellField>
-                                    <SettingsShellField label="PesaPal Key">
-                                        <SettingsShellInput value={localS.pesapalConsumerKey || ''} onChange={e => saveSettings({ pesapalConsumerKey: e.target.value })} placeholder="Consumer Key" />
-                                    </SettingsShellField>
-                                    <SettingsShellField label="PesaPal Secret">
-                                        <SettingsShellInput type="password" value={localS.pesapalConsumerSecret || ''} onChange={e => saveSettings({ pesapalConsumerSecret: e.target.value })} placeholder="Consumer Secret" />
+                                    <SettingsShellField label="Bank Branch / Code">
+                                        <SettingsShellInput value={localS.bankBranch || ''} onChange={e => saveSettings({ bankBranch: e.target.value })} placeholder="Branch Name/Code" />
                                     </SettingsShellField>
                                 </div>
                             </div>
 
-                            <div style={{ marginTop: 32 }}>
-                                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-                                    <div style={{ width: 36, height: 36, borderRadius: 10, background: "var(--brand-primary)12", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--brand-primary)" }}>
-                                        <Wallet size={18} aria-hidden />
+                            {/* Disbursement & Automation (B2C) */}
+                            <div style={{ padding: 16, background: "rgba(139, 92, 246, 0.04)", borderRadius: 12, border: "1px solid rgba(139, 92, 246, 0.12)", marginBottom: 20 }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+                                    <div style={{ width: 28, height: 28, borderRadius: 6, background: "#8b5cf615", display: "flex", alignItems: "center", justifyContent: "center", color: "#8b5cf6" }}>
+                                        <ExternalLink size={14} />
                                     </div>
-                                    <div>
-                                        <h4 style={{ fontSize: 16, fontWeight: 800, color: "var(--text-primary)", margin: 0 }}>Expense categories</h4>
-                                        <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "4px 0 0", fontWeight: 500 }}>
-                                            Standard labels for classification of fleet and operational costs.
-                                        </p>
+                                    <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text-primary)", margin: 0 }}>Disbursement & Automation (M-Pesa B2C / STK)</h4>
+                                </div>
+                                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 16 }}>
+                                    <SettingsShellField label="Consumer Key (Shared)">
+                                        <SettingsShellInput type="password" value={localS.mpesaKey || ''} onChange={e => saveSettings({ mpesaKey: e.target.value })} />
+                                    </SettingsShellField>
+                                    <SettingsShellField label="Consumer Secret">
+                                        <SettingsShellInput type="password" value={localS.mpesaSecret || ''} onChange={e => saveSettings({ mpesaSecret: e.target.value })} />
+                                    </SettingsShellField>
+                                    <SettingsShellField label="Passkey (STK Push)">
+                                        <SettingsShellInput type="password" value={localS.mpesaPasskey || ''} onChange={e => saveSettings({ mpesaPasskey: e.target.value })} />
+                                    </SettingsShellField>
+                                </div>
+                                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, padding: 12, background: "rgba(139, 92, 246, 0.05)", borderRadius: 8 }}>
+                                    <SettingsShellField label="B2C Shortcode" sub="For disbursements.">
+                                        <SettingsShellInput value={localS.mpesaB2CShortcode || ''} onChange={e => saveSettings({ mpesaB2CShortcode: e.target.value })} placeholder="Shortcode" />
+                                    </SettingsShellField>
+                                    <SettingsShellField label="Initiator Name">
+                                        <SettingsShellInput value={localS.mpesaInitiator || ''} onChange={e => saveSettings({ mpesaInitiator: e.target.value })} placeholder="Initiator" />
+                                    </SettingsShellField>
+                                    <SettingsShellField label="Security Credential">
+                                        <SettingsShellInput type="password" value={localS.mpesaSecurityCredential || ''} onChange={e => saveSettings({ mpesaSecurityCredential: e.target.value })} />
+                                    </SettingsShellField>
+                                </div>
+                            </div>
+
+                            {/* PesaPal & General Finance */}
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginBottom: 20 }}>
+                                <div style={{ padding: 16, background: "var(--surface-subtle)", borderRadius: 12, border: "1px solid var(--border-subtle)" }}>
+                                    <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text-primary)", marginBottom: 16, marginTop: 0 }}>PesaPal Connection</h4>
+                                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                                        <SettingsShellField label="Consumer Key">
+                                            <SettingsShellInput value={localS.pesapalConsumerKey || ''} onChange={e => saveSettings({ pesapalConsumerKey: e.target.value })} />
+                                        </SettingsShellField>
+                                        <SettingsShellField label="Consumer Secret">
+                                            <SettingsShellInput type="password" value={localS.pesapalConsumerSecret || ''} onChange={e => saveSettings({ pesapalConsumerSecret: e.target.value })} />
+                                        </SettingsShellField>
                                     </div>
                                 </div>
-                                <div style={{ background: "var(--surface-subtle)", borderRadius: 12, border: "1px solid var(--border-subtle)", padding: 20 }}>
+                                <div style={{ padding: 16, background: "var(--surface-subtle)", borderRadius: 12, border: "1px solid var(--border-subtle)" }}>
+                                    <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text-primary)", marginBottom: 16, marginTop: 0 }}>Currency & Invoicing</h4>
+                                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                                        <SettingsShellField label="Currency Selection">
+                                            <SettingsShellSelect value={localS.currency || 'KES'} onChange={e => saveSettings({ currency: e.target.value })}>
+                                                <option value="KES">Kenyan Shilling (KES)</option>
+                                                <option value="USD">US Dollar (USD)</option>
+                                            </SettingsShellSelect>
+                                        </SettingsShellField>
+                                        <SettingsShellField label="VAT Rate %">
+                                            <SettingsShellInput type="number" value={localS.vatRate || 16} onChange={e => saveSettings({ vatRate: +e.target.value })} />
+                                        </SettingsShellField>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div style={{ marginTop: 24 }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                                    <div style={{ width: 32, height: 32, borderRadius: 8, background: "var(--brand-primary)10", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--brand-primary)" }}>
+                                        <Wallet size={16} aria-hidden />
+                                    </div>
+                                    <h4 style={{ fontSize: 14, fontWeight: 800, color: "var(--text-primary)", margin: 0 }}>Expense categories</h4>
+                                </div>
+                                <div style={{ background: "var(--surface-subtle)", borderRadius: 12, border: "1px solid var(--border-subtle)", padding: 16 }}>
                                     {(() => {
                                         const expenseCatList = Array.isArray(localS.expenseCategories)
                                             ? localS.expenseCategories
@@ -1549,18 +1601,24 @@ export function Settings({
                                         const persistExpenseCats = (next) => saveSettings({ expenseCategories: next });
                                         return (
                                             <>
-                                                {expenseCatList.map((cat, i) => (
-                                                    <div key={`${cat}-${i}`} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, padding: "12px 14px", background: "var(--bg-card)", borderRadius: 10, border: "1px solid var(--border-subtle)" }}>
-                                                        <span style={{ fontWeight: 700, color: "var(--text-primary)", fontSize: 14 }}>{cat}</span>
-                                                        <Button variant="danger" size="sm" onClick={() => persistExpenseCats(expenseCatList.filter((_, idx) => idx !== i))}>
-                                                            <Trash2 size={14} aria-hidden />
-                                                        </Button>
-                                                    </div>
-                                                ))}
-                                                <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 16, paddingTop: 16, borderTop: "1px dashed var(--border-subtle)", alignItems: "center" }}>
+                                                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
+                                                    {expenseCatList.map((cat, i) => (
+                                                        <div key={`${cat}-${i}`} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 10px", background: "var(--bg-card)", borderRadius: 8, border: "1px solid var(--border-subtle)", fontSize: 12 }}>
+                                                            <span style={{ fontWeight: 700, color: "var(--text-primary)" }}>{cat}</span>
+                                                            <button 
+                                                                onClick={() => persistExpenseCats(expenseCatList.filter((_, idx) => idx !== i))} 
+                                                                style={{ border: "none", background: "none", padding: 0, color: "#ef4444", cursor: "pointer", display: "flex" }}
+                                                                title="Remove category"
+                                                            >
+                                                                <X size={12} />
+                                                            </button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                                                     <SettingsShellInput
-                                                        style={{ flex: "1 1 200px", minWidth: 160 }}
-                                                        placeholder="e.g. Parking, Fines, Loading"
+                                                        style={{ flex: 1, height: 36 }}
+                                                        placeholder="Add new category..."
                                                         value={newExpenseCategory}
                                                         onChange={(e) => setNewExpenseCategory(e.target.value)}
                                                         onKeyDown={(e) => {
@@ -1573,21 +1631,12 @@ export function Settings({
                                                             }
                                                         }}
                                                     />
-                                                    <Button variant="premium" onClick={() => {
+                                                    <Button size="sm" onClick={() => {
                                                         const t = newExpenseCategory.trim();
                                                         if (!t) return;
                                                         persistExpenseCats([...expenseCatList, t]);
                                                         setNewExpenseCategory("");
-                                                    }}>
-                                                        <Plus size={16} aria-hidden style={{ marginRight: 6 }} />
-                                                        Add category
-                                                    </Button>
-                                                    <Button variant="ghost" onClick={() => {
-                                                        persistExpenseCats([...DEFAULT_EXPENSE_CATEGORIES]);
-                                                        showToast?.("Expense categories reset to defaults", "success");
-                                                    }}>
-                                                        Restore defaults
-                                                    </Button>
+                                                    }}>Add Category</Button>
                                                 </div>
                                             </>
                                         );
@@ -1596,6 +1645,7 @@ export function Settings({
                             </div>
                         </fieldset>
                     )}
+
 
                     {/* ── FLEET ── */}
                     {activeTab === 'fleet' && (

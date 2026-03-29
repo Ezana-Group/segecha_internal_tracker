@@ -39,7 +39,7 @@ import { useTableFilter } from "../hooks/useTableFilter";
 
 // const PORTAL_URL = 'https://payment.example.com'; removed, imported from env.js above
 
-export function Invoices({ data, setData, dark, isMobile, modal, form, setForm, openModal, closeModal, saveItem, delItem, markInvoicePaid, invoicePreview, setInvoicePreview, customerName, ...props }) {
+export function Invoices({ data, setData, dark, isMobile, modal, form, setForm, openModal, closeModal, saveItem, delItem, markInvoicePaid, refundInvoice, invoicePreview, setInvoicePreview, customerName, ...props }) {
     const navigate = useNavigate();
     
     const [paymentModal, setPaymentModal] = useState(null);
@@ -264,6 +264,27 @@ export function Invoices({ data, setData, dark, isMobile, modal, form, setForm, 
                                                         });
                                                     },
                                                 },
+                                                ...(inv.status === "Paid" || inv.status === "Partial" ? [
+                                                    {
+                                                        id: "refund",
+                                                        label: "Refund Invoice",
+                                                        icon: ArrowDownRight,
+                                                        danger: true,
+                                                        onClick: (e) => {
+                                                            e.stopPropagation();
+                                                            const refundAmt = window.prompt(`Enter refund amount for ${inv.id}:`, inv.paidAmount);
+                                                            if (refundAmt) {
+                                                                const method = window.confirm("Refund via M-Pesa B2B?") ? 'mpesa_b2b' : 'bank';
+                                                                let b2bShortcode = "";
+                                                                if (method === 'mpesa_b2b') {
+                                                                    b2bShortcode = window.prompt("Enter receiver B2B shortcode:");
+                                                                    if (!b2bShortcode) return;
+                                                                }
+                                                                refundInvoice(inv.id, { amount: Number(refundAmt), method, receiverShortcode: b2bShortcode });
+                                                            }
+                                                        },
+                                                    }
+                                                ] : []),
                                             ]}
                                         />
                                     </td>

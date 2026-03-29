@@ -348,10 +348,20 @@ app.get('/api/public-settings', async (req, res) => {
         // Return only what the payment portal needs
         res.json({
             companyName: settings.companyName || 'Segecha Group',
+            // M-Pesa
+            mpesaDisplayName: settings.mpesaDisplayName || settings.companyName || 'Segecha Group',
+            mpesaMode: settings.mpesaMode || 'paybill',
             paybillNumber: settings.paybillNumber || '',
+            tillNumber: settings.tillNumber || '',
+            mpesaAccountNoTemplate: settings.mpesaAccountNoTemplate || 'Invoice No',
+            
+            // Bank
             bankName: settings.bankName || '',
-            bankAccount: settings.bankAccount || '',
+            bankAccountName: settings.bankAccountName || settings.companyName || '',
+            bankAccountNumber: settings.bankAccountNumber || settings.bankAccount || '',
             bankBranch: settings.bankBranch || '',
+            
+            // Legacy/PesaPal
             pesalinkBank: settings.pesalinkBank || '',
             pesalinkAccount: settings.pesalinkAccount || '',
             pesapalEnv: process.env.PESAPAL_ENV || settings.pesapalEnv || 'sandbox',
@@ -1454,7 +1464,76 @@ app.post('/api/tracker/upload-backup', adminAuth, restrictTo('superadmin'), back
 });
 
 // --- SECURE PAYMENT WEBHOOKS ---
-const { stkPush } = require('./mpesa');
+const { stkPush, b2cPayment, b2bPayment } = require('./mpesa');
+
+/**
+ * Disburse payroll to driver/staff
+ */
+app.post('/api/admin/payroll/:id/pay', async (req, res) => {
+    const { id } = req.params;
+    const { amount, phone, method, remarks } = req.body;
+    
+    try {
+        // 1. Fetch settings for credentials
+        const settingsRes = await db.query("SELECT value FROM system_settings WHERE key = 'segecha_settings'");
+        const settings = settingsRes.rows.length > 0 ? (typeof settingsRes.rows[0].value === 'string' ? JSON.parse(settingsRes.rows[0].value) : settingsRes.rows[0].value) : {};
+
+        if (method === 'mpesa') {
+            const result = await b2cPayment({
+                phone,
+                amount,
+                remarks: remarks || `Payroll disbursement for ${id}`,
+                config: settings
+            });
+            
+            if (result.ResponseCode === '0') {
+                await db.query("UPDATE payroll SET status = 'Paid', metadata = metadata || $1 WHERE id = $2", [JSON.stringify({ disbursement_ref: result.ConversationID, method: 'mpesa' }), id]);
+                return res.json({ success: true, message: 'M-Pesa disbursement initiated', data: result });
+            } else {
+                return res.status(400).json({ success: false, error: result.ResponseDescription || 'M-Pesa failed' });
+            }
+        } else {
+            // Bank or other manual methods
+            await db.query("UPDATE payroll SET status = 'Paid', metadata = metadata || $1 WHERE id = $2", [JSON.stringify({ method: method || 'bank', remarks: remarks || 'Manual' }), id]);
+            res.json({ success: true, message: 'Payroll marked as paid' });
+        }
+    } catch (e) {
+        console.error('PAYROLL_DISBURSE_ERROR:', e.response?.data || e.message);
+        res.status(500).json({ success: false, error: e.response?.data?.errorMessage || e.message });
+    }
+});
+
+/**
+ * Refund an invoice
+ */
+app.post('/api/admin/refund', async (req, res) => {
+    const { invoiceId, amount, method, remarks, receiverShortcode } = req.body;
+    
+    try {
+        const settingsRes = await db.query("SELECT value FROM system_settings WHERE key = 'segecha_settings'");
+        const settings = settingsRes.rows.length > 0 ? (typeof settingsRes.rows[0].value === 'string' ? JSON.parse(settingsRes.rows[0].value) : settingsRes.rows[0].value) : {};
+
+        if (method === 'mpesa_b2b') {
+            const result = await b2bPayment({
+                receiverShortcode,
+                amount,
+                remarks: remarks || `Refund for ${invoiceId}`,
+                config: settings
+            });
+            
+            if (result.ResponseCode === '0') {
+                return res.json({ success: true, message: 'B2B Refund initiated', data: result });
+            } else {
+                return res.status(400).json({ success: false, error: result.ResponseDescription || 'B2B failed' });
+            }
+        } else {
+            res.json({ success: true, message: 'Refund documented' });
+        }
+    } catch (e) {
+        console.error('REFUND_ERROR:', e.response?.data || e.message);
+        res.status(500).json({ success: false, error: e.response?.data?.errorMessage || e.message });
+    }
+});
 
 app.post('/api/mpesa/stk-push', async (req, res) => {
     const { phone, amount, invoiceId, clientName } = req.body;
@@ -1462,11 +1541,17 @@ app.post('/api/mpesa/stk-push', async (req, res) => {
         if (!phone || !amount) {
             return res.status(400).json({ success: false, error: 'Phone and amount are required' });
         }
+
+        // Fetch current settings for credentials
+        const settingsRes = await db.query("SELECT value FROM system_settings WHERE key = 'segecha_settings'");
+        const settings = settingsRes.rows.length > 0 ? (typeof settingsRes.rows[0].value === 'string' ? JSON.parse(settingsRes.rows[0].value) : settingsRes.rows[0].value) : {};
+
         const result = await stkPush({
             phone,
             amount,
             accountRef: invoiceId || 'Payment',
-            description: `Payment for ${clientName || invoiceId || 'Invoice'}`
+            description: `Payment for ${clientName || invoiceId || 'Invoice'}`,
+            config: settings
         });
         res.json({ success: true, ...result });
     } catch (e) {
