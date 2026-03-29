@@ -429,7 +429,7 @@ app.post('/api/webhooks/mpesa', async (req, res) => {
                 if (item) receipt = item.Value;
             }
 
-            const status = ResultCode === 0 ? 'Success' : 'Failed';
+            const status = ResultCode === 0 ? 'Completed' : 'Failed';
             
             await db.query(
                 `UPDATE mpesa_transactions 
