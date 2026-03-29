@@ -20,7 +20,8 @@ import {
     FilterX,
     CreditCard,
     ArrowRightLeft,
-    Wallet
+    Wallet,
+    AlertCircle
 } from 'lucide-react';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
@@ -37,7 +38,7 @@ export function MpesaTransactions({ data, setData, isMobile, showToast }) {
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
-    const [sourceTab, setSourceTab] = useState('all'); // 'all', 'mpesa', 'bank', 'manual'
+    const [sourceTab, setSourceTab] = useState('all');
     const [assigningTo, setAssigningTo] = useState(null); 
     const [showManualModal, setShowManualModal] = useState(false);
     const [manualLoading, setManualLoading] = useState(false);
@@ -70,7 +71,8 @@ export function MpesaTransactions({ data, setData, isMobile, showToast }) {
                 (tx.mpesa_receipt?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
                 (tx.receipt_number?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
                 (tx.phone?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
-                (tx.checkout_request_id?.toLowerCase() || '').includes(searchQuery.toLowerCase());
+                (tx.checkout_request_id?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
+                (tx.invoice_id?.toLowerCase() || '').includes(searchQuery.toLowerCase());
             
             const matchesStatus = statusFilter === 'all' || tx.status === statusFilter;
             const matchesSource = sourceTab === 'all' || tx.source === sourceTab;
@@ -92,7 +94,7 @@ export function MpesaTransactions({ data, setData, isMobile, showToast }) {
                     transactionId: tx.id, 
                     truckId: additionalData.truckId || '', 
                     category: additionalData.category || 'Other',
-                    description: additionalData.description || `M-Pesa ${tx.type}: ${tx.mpesa_receipt || tx.receipt_number}`
+                    description: additionalData.description || `M-Pesa ${tx.type}: ${tx.receipt_number || tx.id}`
                   };
 
             const res = await fetch(endpoint, {
@@ -148,6 +150,7 @@ export function MpesaTransactions({ data, setData, isMobile, showToast }) {
             case 'Completed': return <Badge status="Success" text="Completed" icon={CheckCircle2} />;
             case 'Pending': return <Badge status="Warning" text="Pending" icon={Clock} />;
             case 'Failed': return <Badge status="Error" text="Failed" icon={XCircle} />;
+            case 'Reversed': return <Badge status="Default" text="Reversed" icon={AlertCircle} style={{ background: '#fef3f2', color: '#b42318' }} />;
             default: return <Badge status="Default" text={s} />;
         }
     };
@@ -203,7 +206,7 @@ export function MpesaTransactions({ data, setData, isMobile, showToast }) {
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(4, 1fr)', gap: 12, marginBottom: 16 }}>
                 <Card style={{ padding: 16 }}>
                     <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-dim)', marginBottom: 4 }}>TOTAL VOLUME</div>
-                    <div style={{ fontSize: 20, fontWeight: 900 }}>KES {fmt(transactions.reduce((sum, tx) => sum + (tx.status === 'Completed' ? Number(tx.amount) : 0), 0))}</div>
+                    <div style={{ fontSize: 20, fontWeight: 900 }}>{fmt(transactions.reduce((sum, tx) => sum + (tx.status === 'Completed' ? Number(tx.amount) : 0), 0))}</div>
                     <div style={{ fontSize: 11, color: '#10b981', marginTop: 4 }}>{transactions.filter(t => t.status === 'Completed').length} successful</div>
                 </Card>
                 <Card style={{ padding: 16 }}>
@@ -230,7 +233,7 @@ export function MpesaTransactions({ data, setData, isMobile, showToast }) {
                         <input 
                             className="input-premium" 
                             style={{ paddingLeft: 40, width: '100%' }} 
-                            placeholder="Search Receipt, Ref, Phone or Request ID..."
+                            placeholder="Search Receipt, Ref, Phone or Invoice..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                         />
@@ -240,6 +243,7 @@ export function MpesaTransactions({ data, setData, isMobile, showToast }) {
                         <option value="Completed">Completed</option>
                         <option value="Pending">Pending</option>
                         <option value="Failed">Failed</option>
+                        <option value="Reversed">Reversed</option>
                     </select>
                     {(searchQuery || statusFilter !== 'all') && (
                         <Button variant="ghost" icon={FilterX} onClick={() => { setSearchQuery(''); setStatusFilter('all'); }}>Clear Filters</Button>
@@ -253,11 +257,11 @@ export function MpesaTransactions({ data, setData, isMobile, showToast }) {
                         <thead>
                             <tr>
                                 <th>Date & Source</th>
-                                <th>Reference / Entity</th>
+                                <th>Reference</th>
+                                <th>Linked Entity</th>
                                 <th>Type</th>
                                 <th style={{ textAlign: 'right' }}>Amount</th>
                                 <th>Status</th>
-                                <th>Linked To</th>
                                 <th style={{ textAlign: 'right' }}>Actions</th>
                             </tr>
                         </thead>
@@ -273,37 +277,38 @@ export function MpesaTransactions({ data, setData, isMobile, showToast }) {
                                         <div>{sourceBadge(tx.source)}</div>
                                     </td>
                                     <td>
-                                        <div style={{ fontWeight: 800, fontFamily: 'monospace', letterSpacing: '0.05em' }}>{tx.receipt_number || tx.mpesa_receipt || tx.id.slice(0, 10)}</div>
-                                        <div style={{ fontSize: 10, color: 'var(--text-dim)' }}>{tx.phone || 'System Entry'}</div>
+                                        <div style={{ fontWeight: 800, fontFamily: 'monospace', letterSpacing: '0.05em', color: 'var(--brand-primary)' }}>
+                                            {tx.receipt_number || tx.id.slice(0, 10)}
+                                        </div>
+                                        {tx.phone && <div style={{ fontSize: 10, color: 'var(--text-dim)' }}>{tx.phone}</div>}
                                     </td>
-                                    <td>
-                                        <div style={{ fontSize: 12, fontWeight: 600, textTransform: 'uppercase' }}>{tx.type}</div>
-                                        {tx.checkout_request_id && <div style={{ fontSize: 9, color: 'var(--text-dim)', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 100 }}>{tx.checkout_request_id}</div>}
-                                    </td>
-                                    <td style={{ textAlign: 'right', fontWeight: 800 }}>
-                                        <span style={{ color: (tx.type === 'stk_push' || tx.amount > 0) ? '#10b981' : '#ef4444' }}>
-                                            {(tx.type === 'stk_push' || tx.amount > 0) ? '+' : '-'} KES {fmt(Math.abs(tx.amount))}
-                                        </span>
-                                    </td>
-                                    <td>{statusBadge(tx)}</td>
                                     <td>
                                         {tx.invoice_id ? (
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--brand-primary)', fontWeight: 700 }}>
-                                                <FileText size={14} /> {tx.invoice_id}
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700 }}>
+                                                <FileText size={14} color="var(--brand-primary)" /> {tx.invoice_id}
                                             </div>
                                         ) : tx.expense_id ? (
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#ef4444', fontWeight: 700 }}>
-                                                <DollarSign size={14} /> {tx.expense_id}
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700 }}>
+                                                <DollarSign size={14} color="#ef4444" /> {tx.expense_id}
                                             </div>
                                         ) : (
                                             <span style={{ color: 'var(--text-dim)', fontSize: 11 }}>Unlinked</span>
                                         )}
                                     </td>
+                                    <td style={{ fontSize: 12, fontWeight: 600, textTransform: 'uppercase' }}>
+                                        {tx.type}
+                                    </td>
+                                    <td style={{ textAlign: 'right', fontWeight: 800 }}>
+                                        <span style={{ color: (tx.type === 'stk_push' || tx.amount > 0) ? '#10b981' : '#ef4444' }}>
+                                            {(tx.type === 'stk_push' || tx.amount > 0) ? '+' : '-'} {fmt(Math.abs(tx.amount))}
+                                        </span>
+                                    </td>
+                                    <td>{statusBadge(tx)}</td>
                                     <td style={{ textAlign: 'right' }}>
                                         <TableRowActions 
                                             items={[
-                                                { id: 'link-inv', label: 'Link to Invoice', icon: Link, onClick: () => setAssigningTo({ tx, type: 'invoice' }) },
-                                                { id: 'link-exp', label: 'Link to Expense', icon: Plus, onClick: () => setAssigningTo({ tx, type: 'expense' }) },
+                                                { id: 'link-inv', label: 'Link to Invoice', icon: Link, disabled: !!tx.invoice_id, onClick: () => setAssigningTo({ tx, type: 'invoice' }) },
+                                                { id: 'link-exp', label: 'Link to Expense', icon: Plus, disabled: !!tx.expense_id, onClick: () => setAssigningTo({ tx, type: 'expense' }) },
                                                 { id: 'copy', label: 'Copy Ref', icon: Copy, onClick: () => { navigator.clipboard.writeText(tx.receipt_number || tx.id); showToast?.('Copied', 'info'); } },
                                             ]}
                                         />
@@ -316,6 +321,8 @@ export function MpesaTransactions({ data, setData, isMobile, showToast }) {
             </Card>
 
             {/* Manual Entry Modal */}
+            {/* ... keep previous implementation ... */}
+
             {showManualModal && (
                 <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
                     <Card style={{ width: '100%', maxWidth: 500, padding: 24 }}>
@@ -328,8 +335,8 @@ export function MpesaTransactions({ data, setData, isMobile, showToast }) {
                             e.preventDefault();
                             const fd = new FormData(e.target);
                             handleManualEntry({
-                                type: fd.get('type'), // 'atm_withdrawal', 'transfer', etc
-                                source: fd.get('source'), // 'bank', 'manual', 'mpesa'
+                                type: fd.get('type'), 
+                                source: fd.get('source'),
                                 amount: fd.get('type') === 'transfer' ? Math.abs(Number(fd.get('amount'))) : -Math.abs(Number(fd.get('amount'))),
                                 receipt_number: fd.get('ref'),
                                 truckId: fd.get('truckId'),
@@ -421,7 +428,7 @@ export function MpesaTransactions({ data, setData, isMobile, showToast }) {
                         </div>
                         <div style={{ marginBottom: 20, padding: 12, background: 'var(--bg-surface)', borderRadius: 12 }}>
                             <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-dim)' }}>TRANSACTION INFO</div>
-                            <div style={{ fontWeight: 800, fontSize: 15 }}>KES {fmt(Math.abs(assigningTo.tx.amount))} • {assigningTo.tx.mpesa_receipt || assigningTo.tx.receipt_number || 'No Ref'}</div>
+                            <div style={{ fontWeight: 800, fontSize: 15 }}>{fmt(Math.abs(assigningTo.tx.amount))} • {assigningTo.tx.receipt_number || assigningTo.tx.id}</div>
                             <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>{sourceBadge(assigningTo.tx.source)} • {assigningTo.tx.type}</div>
                         </div>
 
@@ -432,7 +439,7 @@ export function MpesaTransactions({ data, setData, isMobile, showToast }) {
                                     <option value="">Select invoice...</option>
                                     {(data.invoices || []).map(item => (
                                         <option key={item.id} value={item.id}>
-                                            {item.id} - {item.client} (KES {fmt(item.amount)})
+                                            {item.id} - {item.client} ({fmt(item.amount)})
                                         </option>
                                     ))}
                                 </select>
@@ -459,7 +466,7 @@ export function MpesaTransactions({ data, setData, isMobile, showToast }) {
                                 </select>
 
                                 <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: 'var(--text-dim)', marginBottom: 8 }}>DESCRIPTION</label>
-                                <input name="description" className="input-premium" style={{ width: '100%', marginBottom: 24 }} defaultValue={`Linked ${assigningTo.tx.source}: ${assigningTo.tx.mpesa_receipt || assigningTo.tx.receipt_number}`} />
+                                <input name="description" className="input-premium" style={{ width: '100%', marginBottom: 24 }} defaultValue={`Linked ${assigningTo.tx.source}: ${assigningTo.tx.receipt_number || assigningTo.tx.id}`} />
 
                                 <div style={{ display: 'flex', gap: 12 }}>
                                     <Button type="button" style={{ flex: 1 }} variant="ghost" onClick={() => setAssigningTo(null)}>Cancel</Button>

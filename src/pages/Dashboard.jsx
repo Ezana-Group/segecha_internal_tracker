@@ -85,7 +85,7 @@ export function Dashboard({ data, dark, truckStats, tyreStatus, truckReg, driver
     const totalFuelCost = data.fuel.filter(f => f.date?.startsWith(latestMonth)).reduce((s, f) => s + f.litres * f.pricePerL, 0);
     const totalOtherExp = data.expenses.filter(e => e.date?.startsWith(latestMonth) && e.cat !== 'Fuel').reduce((s, e) => s + +e.amount, 0);
     const totalExpenses = totalFuelCost + totalOtherExp;
-    const netProfit = totalRevenue - totalExpenses;
+    const netProfit = invPaidTotal - totalExpenses;
     const invList = Array.isArray(data.invoices) ? data.invoices : [];
     const invOutstanding = (i) => Math.max(0, +i.amount - (+i.paidAmount || 0));
     const invPaidList = invList.filter((i) => i.status === "Paid" && i.date?.startsWith(latestMonth));

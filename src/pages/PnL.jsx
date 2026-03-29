@@ -36,7 +36,9 @@ export function PnL({ data, dark, isMobile, truckStats, truckReg, customerName, 
     const [activeTab, setActiveTab] = useState('analytics'); // 'analytics' | 'statement'
 
     const totalSalaries = data.payroll.filter(p => p.status === "Paid").reduce((s, p) => s + +p.baseSalary + +p.allowance - +p.deductions, 0);
-    const invoicesPaid = data.invoices.filter(i => i.status === "Paid").reduce((s, i) => s + +i.paidAmount || 0, 0);
+    const invoicesPaid = data.invoices.filter(i => i.status === "Paid").reduce((s, i) => s + (+i.paidAmount || +i.amount || 0), 0);
+    const expectedRevenue = data.journeys.filter(j => j.status === "Completed").reduce((s, j) => s + +j.revenue, 0);
+
 
     // Refine trucks for performance matrix sorting
     const refinedMatrix = data.trucks.map(t => {
@@ -393,16 +395,16 @@ export function PnL({ data, dark, isMobile, truckStats, truckReg, customerName, 
                                     </div>
                                     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                            <span style={{ fontWeight: 600, color: "var(--text-secondary)" }}>Freight Revenue (All)</span>
-                                            <span style={{ fontWeight: 800, color: "#10b981" }}>{fmt(data.journeys.filter(j => j.status === "Completed").reduce((s, j) => s + +j.revenue, 0))}</span>
+                                            <span style={{ fontWeight: 600, color: "var(--text-secondary)" }}>Expected Freight Revenue</span>
+                                            <span style={{ fontWeight: 800, color: "var(--text-dim)" }}>{fmt(expectedRevenue)}</span>
                                         </div>
                                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                            <span style={{ fontWeight: 600, color: "var(--text-secondary)" }}>Invoices Collected (M-Pesa)</span>
+                                            <span style={{ fontWeight: 600, color: "var(--text-secondary)" }}>Verified Collections (Paid)</span>
                                             <span style={{ fontWeight: 800, color: "#10b981" }}>{fmt(invoicesPaid)}</span>
                                         </div>
                                         <div style={{ borderTop: "2px solid var(--border-subtle)", paddingTop: 16, marginTop: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                            <span style={{ fontWeight: 900, color: "var(--text-primary)" }}>TOTAL INCOME</span>
-                                            <span style={{ fontWeight: 900, color: "#10b981", fontSize: 18 }}>{fmt(data.journeys.filter(j => j.status === "Completed").reduce((s, j) => s + +j.revenue, 0))}</span>
+                                            <span style={{ fontWeight: 900, color: "var(--text-primary)" }}>TOTAL VERIFIED INCOME</span>
+                                            <span style={{ fontWeight: 900, color: "#10b981", fontSize: 18 }}>{fmt(invoicesPaid)}</span>
                                         </div>
                                     </div>
                                 </div>
