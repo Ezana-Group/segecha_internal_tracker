@@ -150,7 +150,6 @@ export function useAppState() {
     const [form, setForm] = useState({});
     const [filterTruck, setFilterTruck] = useState("ALL");
     const [invoicePreview, setInvoicePreview] = useState(null);
-    const [sideOpen, setSideOpen] = useState(false);
     const [dark, setDark] = useState(() => {
         try {
             const s = readSettings();
@@ -1832,7 +1831,6 @@ export function useAppState() {
         waybillModalJourney, waybillForm, setWaybillForm, openWaybillGenerator, closeWaybillModal,
         filterTruck, setFilterTruck,
         invoicePreview, setInvoicePreview,
-        sideOpen, setSideOpen,
         dark, setDark,
         saveItem, delItem, disbursePayroll, markInvoicePaid, addInvoicePayment, resetData, hardResetSystem,
         updateSettings, resetAccountCredentials, deleteStaffAccount, deleteDriverAccount, refundInvoice,
