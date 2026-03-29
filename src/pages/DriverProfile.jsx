@@ -234,12 +234,12 @@ export function DriverProfile({ data, setData, dark, isMobile, truckReg, openMod
             {/* Header / Banner */}
             <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 12 : 20, marginBottom: isMobile ? 20 : 32, flexWrap: 'wrap' }}>
                 <Button variant="secondary" icon={ArrowLeft} onClick={() => navigate('/drivers')}>Back</Button>
-                <div style={{ width: 64, height: 64, borderRadius: "50%", background: "var(--brand-primary)15", display: 'flex', alignItems: 'center', justifyContent: 'center', color: "var(--brand-primary)", border: "2px solid var(--brand-primary)30" }}>
-                    <User size={32} />
+                <div style={{ width: 56, height: 56, borderRadius: "50%", background: "var(--brand-primary)15", display: 'flex', alignItems: 'center', justifyContent: 'center', color: "var(--brand-primary)", border: "2px solid var(--brand-primary)30" }}>
+                    <User size={28} />
                 </div>
                 <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: isMobile ? 22 : 32, fontWeight: 900, color: "var(--text-primary)", lineHeight: 1.1, letterSpacing: "-0.04em" }}>{driver.name}</div>
-                    <div style={{ fontSize: 14, color: "var(--text-muted)", marginTop: 4, display: "flex", alignItems: "center", gap: 10, fontWeight: 500 }}>
+                    <div style={{ fontSize: isMobile ? 20 : 26, fontWeight: 900, color: "var(--text-primary)", lineHeight: 1.1, letterSpacing: "-0.04em" }}>{driver.name}</div>
+                    <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 4, display: "flex", alignItems: "center", gap: 10, fontWeight: 500 }}>
                         ID: {driver.id.split('-')[0].toUpperCase()} · Joined {fmtDate(driver.joined)} · <Badge status={driver.status} />
                     </div>
                 </div>
@@ -353,19 +353,19 @@ export function DriverProfile({ data, setData, dark, isMobile, truckReg, openMod
                                 <div>Distance data missing — final odometer not recorded for {missingOdomJourneys.length} completed journey(s).</div>
                             </div>
                         )}
-                        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4,1fr)', gap: 20, marginBottom: 40 }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4,1fr)', gap: 16, marginBottom: 32 }}>
                             {[
                                 { l: 'Total Revenue',  v: fmt(driverRevenue),  c: '#10b981', i: TrendingUp, pk: 'kpiRevenue' },
                                 { l: 'Total Distance', v: `${totalKm.toLocaleString()} km`, c: '#3b82f6', i: Navigation, pk: 'kpiDistance' },
                                 { l: 'Efficiency',    v: `${avgKmPerL} km/L`, c: '#a78bfa', i: Award, pk: 'kpiEfficiency' },
                                 { l: 'Safety Score',   v: `${safetyScore}%`,   c: safetyScore > 80 ? 'var(--brand-primary)' : '#f59e0b', i: Shield, pk: 'kpiSafety' },
                             ].filter((k) => !isDriverPreview || d[k.pk] !== false).map(k => (
-                                <div key={k.l} style={{ background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: 16, padding: 20 }}>
-                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                                        <div style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>{k.l}</div>
-                                        <k.i size={16} color="var(--text-dim)" />
+                                <div key={k.l} style={{ background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: 12, padding: 16 }}>
+                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                                        <div style={{ fontSize: 10.5, color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>{k.l}</div>
+                                        <k.i size={14} color="var(--text-dim)" />
                                     </div>
-                                    <div style={{ fontSize: 22, fontWeight: 900, color: k.c }}>{k.v}</div>
+                                    <div style={{ fontSize: 19, fontWeight: 900, color: k.c }}>{k.v}</div>
                                 </div>
                             ))}
                         </div>
@@ -679,35 +679,35 @@ export function DriverProfile({ data, setData, dark, isMobile, truckReg, openMod
 
                         {finTab === 'ledger' ? (
                             <>
-                                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: 24, marginBottom: 40 }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: 16, marginBottom: 32 }}>
                                     {(!isDriverPreview || d.finGrossRevenueCard !== false) && (
-                                    <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)", borderRadius: 16, padding: 24, boxShadow: "var(--glass-shadow)" }}>
-                                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-                                            <div style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em" }}>Gross Value Generated</div>
-                                            <TrendingUp size={18} color="#10b981" />
+                                    <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)", borderRadius: 12, padding: 20, boxShadow: "var(--glass-shadow)" }}>
+                                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                                            <div style={{ fontSize: 10.5, color: "var(--text-muted)", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em" }}>Gross Value Generated</div>
+                                            <TrendingUp size={16} color="#10b981" />
                                         </div>
-                                        <div style={{ fontSize: 32, fontWeight: 900, color: "#10b981" }}>{fmt(driverRevenue)}</div>
-                                        <div style={{ fontSize: 13, color: "var(--text-dim)", marginTop: 8 }}>Cumulative revenue from all missions</div>
+                                        <div style={{ fontSize: 26, fontWeight: 900, color: "#10b981" }}>{fmt(driverRevenue)}</div>
+                                        <div style={{ fontSize: 12, color: "var(--text-dim)", marginTop: 6 }}>Cumulative revenue from all missions</div>
                                     </div>
                                     )}
                                     {(!isDriverPreview || d.finBaseSalaryCard !== false) && (
-                                        <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)", borderRadius: 16, padding: 24, boxShadow: "var(--glass-shadow)" }}>
-                                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-                                                <div style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em" }}>Base Compensation</div>
-                                                <DollarSign size={18} color="#ef4444" />
+                                        <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)", borderRadius: 12, padding: 20, boxShadow: "var(--glass-shadow)" }}>
+                                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                                                <div style={{ fontSize: 10.5, color: "var(--text-muted)", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em" }}>Base Compensation</div>
+                                                <DollarSign size={16} color="#ef4444" />
                                             </div>
-                                            <div style={{ fontSize: 32, fontWeight: 900, color: "#ef4444" }}>{fmt(driver.salary || 0)}</div>
-                                            <div style={{ fontSize: 13, color: "var(--text-dim)", marginTop: 8 }}>Standard monthly salary allocation</div>
+                                            <div style={{ fontSize: 26, fontWeight: 900, color: "#ef4444" }}>{fmt(driver.salary || 0)}</div>
+                                            <div style={{ fontSize: 12, color: "var(--text-dim)", marginTop: 6 }}>Standard monthly salary allocation</div>
                                         </div>
                                     )}
                                     {(!isDriverPreview || d.finAllowancesCard !== false) && (
-                                        <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)", borderRadius: 16, padding: 24, boxShadow: "var(--glass-shadow)" }}>
-                                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-                                                <div style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em" }}>Accrued Allowances</div>
-                                                <Award size={18} color="#f59e0b" />
+                                        <div style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)", borderRadius: 12, padding: 20, boxShadow: "var(--glass-shadow)" }}>
+                                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                                                <div style={{ fontSize: 10.5, color: "var(--text-muted)", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em" }}>Accrued Allowances</div>
+                                                <Award size={16} color="#f59e0b" />
                                             </div>
-                                            <div style={{ fontSize: 32, fontWeight: 900, color: "#f59e0b" }}>{fmt(driverAllowances)}</div>
-                                            <div style={{ fontSize: 13, color: "var(--text-dim)", marginTop: 8 }}>Total allowances recorded from expenses</div>
+                                            <div style={{ fontSize: 26, fontWeight: 900, color: "#f59e0b" }}>{fmt(driverAllowances)}</div>
+                                            <div style={{ fontSize: 12, color: "var(--text-dim)", marginTop: 6 }}>Total allowances recorded from expenses</div>
                                         </div>
                                     )}
                                 </div>

@@ -150,7 +150,7 @@ export function Dashboard({ data, dark, truckStats, tyreStatus, truckReg, driver
                     accent="#3b82f6"
                 >
                     <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
-                        <div style={{ fontSize: 28, fontWeight: 800, color: "var(--text-primary)", letterSpacing: "-0.5px" }}>{fmt(netProfit)}</div>
+                        <div style={{ fontSize: 24, fontWeight: 800, color: "var(--text-primary)", letterSpacing: "-0.5px" }}>{fmt(netProfit)}</div>
                         <Sparkline data={[10, 15, 8, 12, 18, 14, 22]} color="#3b82f6" />
                     </div>
                 </Card>
@@ -161,7 +161,7 @@ export function Dashboard({ data, dark, truckStats, tyreStatus, truckReg, driver
                     accent="#10b981"
                 >
                     <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
-                        <div style={{ fontSize: 28, fontWeight: 800, color: "var(--text-primary)", letterSpacing: "-0.5px" }}>{fmt(invPaidTotal)}</div>
+                        <div style={{ fontSize: 24, fontWeight: 800, color: "var(--text-primary)", letterSpacing: "-0.5px" }}>{fmt(invPaidTotal)}</div>
                         <Sparkline data={[5, 12, 18, 14, 20, 25, 30]} color="#10b981" />
                     </div>
                 </Card>
@@ -172,7 +172,7 @@ export function Dashboard({ data, dark, truckStats, tyreStatus, truckReg, driver
                     accent="#f59e0b"
                 >
                     <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
-                        <div style={{ fontSize: 28, fontWeight: 800, color: "var(--text-primary)", letterSpacing: "-0.5px" }}>{fmt(totalFuelCost)}</div>
+                        <div style={{ fontSize: 24, fontWeight: 800, color: "var(--text-primary)", letterSpacing: "-0.5px" }}>{fmt(totalFuelCost)}</div>
                         <Sparkline data={[20, 18, 22, 15, 12, 10, 8]} color="#f59e0b" />
                     </div>
                 </Card>
@@ -182,7 +182,7 @@ export function Dashboard({ data, dark, truckStats, tyreStatus, truckReg, driver
                     accent="#a78bfa"
                 >
                     <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' }}>
-                        <div style={{ fontSize: 28, fontWeight: 800, color: "var(--text-primary)", letterSpacing: "-0.5px" }}>{overallKmPerL}<span style={{ fontSize: 13, marginLeft: 4, color: "var(--text-muted)" }}>km/L</span></div>
+                        <div style={{ fontSize: 24, fontWeight: 800, color: "var(--text-primary)", letterSpacing: "-0.5px" }}>{overallKmPerL}<span style={{ fontSize: 13, marginLeft: 4, color: "var(--text-muted)" }}>km/L</span></div>
                         <Sparkline data={[2.1, 2.3, 2.2, 2.5, 2.4, 2.6, 2.8]} color="#a78bfa" />
                     </div>
                 </Card>

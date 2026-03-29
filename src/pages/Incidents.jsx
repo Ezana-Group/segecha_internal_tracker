@@ -39,20 +39,20 @@ export function Incidents({ data, dark, isMobile, driverName, truckReg, setVerif
     return (
         <div className="page-shell">
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
-                <div style={{ width: 48, height: 48, borderRadius: 12, background: "rgba(239, 68, 68, 0.1)", display: 'flex', alignItems: 'center', justifyContent: 'center', color: "#ef4444" }}>
-                    <AlertTriangle size={24} />
+                <div style={{ width: 44, height: 44, borderRadius: 10, background: "rgba(239, 68, 68, 0.1)", display: 'flex', alignItems: 'center', justifyContent: 'center', color: "#ef4444" }}>
+                    <AlertTriangle size={22} />
                 </div>
                 <div style={{ flex: 1 }}>
-                    <h1 style={{ fontSize: 26, fontWeight: 900, color: "var(--text-primary)", lineHeight: 1.1, letterSpacing: "-0.04em" }}>Incident Reports</h1>
-                    <p style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 2 }}>
+                    <h1 style={{ fontSize: 22, fontWeight: 900, color: "var(--text-primary)", lineHeight: 1.1, letterSpacing: "-0.03em" }}>Incident Reports</h1>
+                    <p style={{ fontSize: 12.5, color: "var(--text-muted)", marginTop: 2 }}>
                         Monitor and resolve safety incidents reported by the fleet.
                     </p>
                 </div>
-                <div style={{ display: "flex", gap: 8, background: "var(--bg-card)", padding: 6, borderRadius: 16, border: "1px solid var(--border-subtle)" }}>
+                <div style={{ display: "flex", gap: 6, background: "var(--bg-card)", padding: 4, borderRadius: 14, border: "1px solid var(--border-subtle)" }}>
                     <button 
                         onClick={() => setTab('pending')}
                         style={{
-                            padding: "8px 16px", borderRadius: 10, border: "none", fontSize: 13, fontWeight: 700, cursor: "pointer",
+                            padding: "6px 14px", borderRadius: 8, border: "none", fontSize: 12.5, fontWeight: 700, cursor: "pointer",
                             background: tab === 'pending' ? "#ef4444" : "transparent",
                             color: tab === 'pending' ? "white" : "var(--text-dim)",
                             transition: "all 0.2s ease"
@@ -63,7 +63,7 @@ export function Incidents({ data, dark, isMobile, driverName, truckReg, setVerif
                     <button 
                         onClick={() => setTab('resolved')}
                         style={{
-                            padding: "8px 16px", borderRadius: 10, border: "none", fontSize: 13, fontWeight: 700, cursor: "pointer",
+                            padding: "6px 14px", borderRadius: 8, border: "none", fontSize: 12.5, fontWeight: 700, cursor: "pointer",
                             background: tab === 'resolved' ? "var(--brand-primary)" : "transparent",
                             color: tab === 'resolved' ? "white" : "var(--text-dim)",
                             transition: "all 0.2s ease"
@@ -115,35 +115,20 @@ export function Incidents({ data, dark, isMobile, driverName, truckReg, setVerif
                             <th>Location</th>
                             <th style={{ width: 140 }}>Status</th>
                             <th style={{ width: 120 }}>Action</th>
+                            <th style={{ width: 120 }}>Status</th>
+                            <th style={{ width: 100 }}>Action</th>
                         </tr>
                     </thead>
                     <tbody>
                         {filtered.map(i => (
                             <tr key={i.id} style={{ opacity: i._pendingApproval ? 1 : 0.8 }}>
-                                <td style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)" }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                        <Calendar size={14} style={{ color: "var(--brand-primary)" }} />
+                                <td style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)" }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                        <Calendar size={12} style={{ color: "var(--brand-primary)" }} />
                                         {fmtDate(i.date || i.createdAt)}
                                     </div>
                                 </td>
                                 <td>
-                                    <div style={{ fontWeight: 800, color: "var(--text-primary)" }}>{i.incidentType}</div>
-                                </td>
-                                <td>
-                                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                                        <div style={{ width: 28, height: 28, borderRadius: 8, background: "rgba(99, 102, 241, 0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "#6366f1" }}>
-                                            <User size={14} />
-                                        </div>
-                                        <span style={{ fontWeight: 700, fontSize: 14 }}>{driverName(i.driverId || i.driver)}</span>
-                                    </div>
-                                </td>
-                                <td>
-                                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                                        <div style={{ width: 28, height: 28, borderRadius: 8, background: "rgba(16, 185, 129, 0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "#10b981" }}>
-                                            <Truck size={14} />
-                                        </div>
-                                        <span style={{ fontWeight: 700, fontSize: 14 }}>{truckReg(i.truck_id || i.truck)}</span>
-                                    </div>
                                 </td>
                                 <td>
                                     <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: "var(--text-dim)" }}>

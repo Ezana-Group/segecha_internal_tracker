@@ -32,17 +32,18 @@
   }
   
   .table-modern thead th {
-    padding: 8px 8px !important;
+    padding: 6px 10px !important;
     font-size: 10px !important;
   }
   
   .table-modern tbody td {
-    padding: 8px 8px !important;
-    font-size: 11px !important;
+    padding: 6px 10px !important;
+    font-size: 10.5px !important;
   }
 
   .badge {
     padding: 1px 6px !important;
+    font-size: 10px !important;
   }
 }
 
@@ -154,9 +155,9 @@
 /* Adjust top offset for smaller desktop header (8px padding) */
 @media screen and (max-width: 1279px) and (min-width: 1024px) {
   .sticky-totals-row td {
-    top: 33px;
-    padding: 8px 8px !important;
-    font-size: 11px !important;
+    top: 29px;
+    padding: 6px 10px !important;
+    font-size: 10.5px !important;
   }
 }
 

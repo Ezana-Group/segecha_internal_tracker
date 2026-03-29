@@ -58,11 +58,11 @@ export function Topbar({
 
             <div className="topbar-actions">
                 {!previewMode && (
-                    <NotificationCenter 
-                        pendingVerifications={pendingVerifications} 
-                        setVerifyModal={setVerifyModal} 
+                    <NotificationCenter
+                        pendingVerifications={pendingVerifications}
+                        setVerifyModal={setVerifyModal}
                         truckReg={truckReg}
-                        dark={dark} 
+                        dark={dark}
                     />
                 )}
 
@@ -100,7 +100,7 @@ export function Topbar({
                 />
 
                 <button
-                    style={{ ...S.btn('ghost'), padding: '5px 10px', fontSize: 11, marginLeft: 8 }}
+                    style={{ ...S.btn('ghost'), padding: '4px 10px', fontSize: 11, marginLeft: 6 }}
                     onClick={() => {
                         if (window.confirm('Sign out of the admin panel?')) {
                             import("../utils/adminAuth").then(({ adminAuth }) => {

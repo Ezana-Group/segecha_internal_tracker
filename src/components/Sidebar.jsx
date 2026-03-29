@@ -73,15 +73,15 @@ export function Sidebar({ sideOpen, setSideOpen, isMobile, tyreAlertCount, verif
                     : undefined
             }
         >
-            <div className="sidebar-brand" style={{ padding: '24px 20px', borderBottom: '1px solid var(--border-subtle)' }}>
+            <div className="sidebar-brand">
                 <div className="sidebar-brand-mark" style={{ background: 'transparent', padding: 0, boxShadow: 'none' }}>
-                    <img src={s.companyLogo || "/logo.png"} alt="Logo" style={{ height: 38, width: 'auto', objectFit: 'contain' }} />
+                    <img src={s.companyLogo || "/logo.png"} alt="Logo" style={{ height: 32, width: 'auto', objectFit: 'contain' }} />
                 </div>
-                <div style={{ marginLeft: 12 }}>
-                    <div className="sidebar-brand-name" style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>
+                <div style={{ marginLeft: 10 }}>
+                    <div className="sidebar-brand-name" style={{ fontSize: 14.5 }}>
                         {s.companyName || "Segecha Group"}
                     </div>
-                    <div className="sidebar-brand-tag" style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                    <div className="sidebar-brand-tag" style={{ fontSize: 10.5 }}>
                         {previewMode ? "Preview mode" : "Fleet Operations"}
                     </div>
                 </div>
