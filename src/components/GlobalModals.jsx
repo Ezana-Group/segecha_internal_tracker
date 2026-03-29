@@ -650,13 +650,24 @@ export function GlobalModals(props) {
 
     // ── LOG PAYMENT MODAL ──
     if (modal === "logPayment") {
+        const errors = {};
+        errors.amount = validators.required(form.amount) || validators.positiveNumber(form.amount);
+        errors.ref = validators.required(form.ref);
+        const hasErrors = Object.values(errors).some(Boolean);
+
         return (
-            <Modal title={`Log Payment for ${form.invoiceId}`} onSave={async () => await addInvoicePayment(form)} S={S} closeModal={closeModal}>
+            <Modal 
+                title={`Log Payment for ${form.invoiceId}`} 
+                onSave={async () => await addInvoicePayment(form)} 
+                S={S} 
+                closeModal={closeModal} 
+                saveDisabled={hasErrors}
+            >
                 <div style={S.fgg(2)}>
                     <Field label="Payment Date" k="date" type="date" form={form} setForm={setForm} S={S} />
-                    <Field label="Amount (KES)" k="amount" type="number" form={form} setForm={setForm} S={S} />
+                    <Field label="Amount (KES)" k="amount" type="number" form={form} setForm={setForm} S={S} error={errors.amount} />
                     <Field label="Payment Method" k="method" options={['M-Pesa', 'Bank Transfer', 'Cheque', 'Cash']} form={form} setForm={setForm} S={S} />
-                    <Field label="Reference No." k="ref" placeholder="e.g. QJK1234567" form={form} setForm={setForm} S={S} />
+                    <Field label="Reference No." k="ref" placeholder="e.g. QJK1234567" form={form} setForm={setForm} S={S} error={errors.ref} />
                     <Field label="Notes" k="notes" full form={form} setForm={setForm} S={S} />
                 </div>
             </Modal>

@@ -16,10 +16,9 @@ import {
     MessageSquare,
     ArrowUpRight,
     ArrowDownRight,
-    Search as SearchIcon,
-    Filter,
     Share2,
-    Calendar
+    Calendar,
+    Pencil
 } from "lucide-react";
 import { fmt, uid, today, fmtDate } from "../utils/formatters";
 import { validators } from "../utils/validators";
@@ -187,6 +186,7 @@ export function Invoices({ data, setData, dark, isMobile, modal, form, setForm, 
                             getUniqueValues={getInvoiceUniqueValues}
                             columns={[
                                 { key: "id", label: "Invoice ID", sortable: true },
+                                { key: "journeyId", label: "Journey ID", sortable: true },
                                 { key: "_client", label: "Client Name", sortable: true },
                                 { key: "date", label: "Issue Date", sortable: true },
                                 { key: "dueDate", label: "Due Date", sortable: true },
@@ -207,6 +207,7 @@ export function Invoices({ data, setData, dark, isMobile, modal, form, setForm, 
                             ) : sortedInvoices.map(inv => (
                                 <tr key={inv.id} onClick={() => setInvoicePreview(inv)} style={{ cursor: "pointer" }} className="hover-scale">
                                     <td className="sticky-col" title={inv.id} style={{ fontWeight: 800, color: "var(--brand-primary)" }}>{inv.id}</td>
+                                    <td title={inv.journeyId || inv.journey}>{inv.journeyId || inv.journey || "-"}</td>
                                     <td title={inv._client}>
                                         <div style={{ fontWeight: 700, color: "var(--text-primary)" }}>
                                             {inv._client}
@@ -230,6 +231,15 @@ export function Invoices({ data, setData, dark, isMobile, modal, form, setForm, 
                                                     onClick: (e) => {
                                                         e.stopPropagation();
                                                         setInvoicePreview(inv);
+                                                    },
+                                                },
+                                                {
+                                                    id: "edit",
+                                                    label: "Edit invoice",
+                                                    icon: Pencil,
+                                                    onClick: (e) => {
+                                                        e.stopPropagation();
+                                                        openModal("invoice", inv);
                                                     },
                                                 },
                                                 {

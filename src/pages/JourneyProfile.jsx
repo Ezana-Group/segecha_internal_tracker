@@ -331,7 +331,7 @@ export function JourneyProfile({
                         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1.2fr 1.8fr', gap: 32 }}>
                             <div>
                                 <h3 style={{ fontSize: 18, fontWeight: 800, color: "var(--text-primary)", marginBottom: 20 }}>Financial Summary</h3>
-                                <div style={{ background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: 20, padding: 24 }}>
+                                <div style={{ background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: 20, padding: 24, marginBottom: 24 }}>
                                     <div style={{ display: 'grid', gap: 16 }}>
                                         {[
                                             { l: 'Gross Revenue', v: journey.revenue, c: '#10b981', i: TrendingUp },
@@ -351,6 +351,67 @@ export function JourneyProfile({
                                             <div style={{ fontSize: 24, fontWeight: 900, color: netProfit >= 0 ? 'var(--brand-primary)' : '#ef4444' }}>{fmt(netProfit)}</div>
                                         </div>
                                     </div>
+                                </div>
+
+                                <h3 style={{ fontSize: 18, fontWeight: 800, color: "var(--text-primary)", marginBottom: 20 }}>Invoicing & Settlements</h3>
+                                <div style={{ background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: 20, padding: 24 }}>
+                                    {(() => {
+                                        const invoice = data.invoices?.find(inv => (inv.journeyId === journey.id || inv.journey === journey.id));
+                                        if (!invoice) return (
+                                            <div style={{ textAlign: 'center', padding: '20px 0' }}>
+                                                <div style={{ color: 'var(--text-dim)', fontSize: 13, marginBottom: 16 }}>No invoice has been generated for this mission yet.</div>
+                                                <Button variant="premium" size="sm" onClick={() => openModal('invoice', { journey: journey.id, customerId: journey.customerId, amount: journey.revenue })}>Generate Invoice</Button>
+                                            </div>
+                                        );
+                                        // Use either embedded payments or filter from global payments table
+                                        const payments = invoice.payments || data.payments?.filter(p => p.journeyId === journey.id || p.invoiceId === invoice.id) || [];
+                                        const paid = payments.reduce((s, p) => s + Number(p.amount || 0), 0);
+                                        const balance = Number(invoice.amount || 0) - paid;
+                                        return (
+                                            <div style={{ display: 'grid', gap: 16 }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                    <div style={{ fontSize: 14, color: 'var(--text-secondary)', fontWeight: 600 }}>Invoice ID</div>
+                                                    <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--brand-primary)', fontFamily: 'var(--font-mono)' }}>{invoice.id}</div>
+                                                </div>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                    <div style={{ fontSize: 14, color: 'var(--text-secondary)', fontWeight: 600 }}>Total Invoiced</div>
+                                                    <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)' }}>{fmt(invoice.amount)}</div>
+                                                </div>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                    <div style={{ fontSize: 14, color: 'var(--text-secondary)', fontWeight: 600 }}>Amount Paid (Deposits)</div>
+                                                    <div style={{ fontSize: 14, fontWeight: 800, color: '#10b981' }}>{fmt(paid)}</div>
+                                                </div>
+                                                <div style={{ height: 1, background: 'var(--border-subtle)' }} />
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                    <div style={{ fontSize: 15, fontWeight: 900, color: 'var(--text-primary)' }}>Balance Due</div>
+                                                    <div style={{ fontSize: 18, fontWeight: 900, color: balance > 0 ? '#f59e0b' : '#10b981' }}>{fmt(balance)}</div>
+                                                </div>
+                                                <div style={{ marginTop: 8 }}>
+                                                    <Badge status={invoice.status} />
+                                                </div>
+
+                                                {payments && payments.length > 0 && (
+                                                    <div style={{ marginTop: 16 }}>
+                                                        <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-dim)', textTransform: 'uppercase', marginBottom: 12, letterSpacing: '0.05em' }}>Payment History</div>
+                                                        <div style={{ display: 'grid', gap: 10 }}>
+                                                            {payments.map((p, idx) => (
+                                                                <div key={p.id || idx} style={{ background: 'var(--surface-subtle)', borderRadius: 12, padding: '10px 14px', border: '1px solid var(--border-subtle)' }}>
+                                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                                                                        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>{fmt(p.amount)}</div>
+                                                                        <div style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 600 }}>{fmtDate(p.date)}</div>
+                                                                    </div>
+                                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                                        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--brand-primary)', background: 'var(--brand-primary-faded)', padding: '2px 6px', borderRadius: 4 }}>{p.method}</div>
+                                                                        <div style={{ fontSize: 11, fontWeight: 800, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>{p.ref}</div>
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })()}
                                 </div>
                             </div>
 

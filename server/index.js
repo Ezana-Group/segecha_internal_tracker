@@ -394,6 +394,20 @@ async function autoSeed() {
                 IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='journeys' AND column_name='is_return') THEN
                     ALTER TABLE journeys ADD COLUMN is_return BOOLEAN DEFAULT FALSE;
                 END IF;
+
+                -- Payments Table
+                CREATE TABLE IF NOT EXISTS payments (
+                    id TEXT PRIMARY KEY,
+                    invoice_id TEXT REFERENCES invoices(id) ON DELETE CASCADE,
+                    journey_id TEXT REFERENCES journeys(id) ON DELETE CASCADE,
+                    amount DECIMAL(12,2) NOT NULL,
+                    date DATE NOT NULL,
+                    method TEXT,
+                    ref TEXT UNIQUE,
+                    notes TEXT,
+                    metadata JSONB DEFAULT '{}',
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+                );
             END $$;
         `);
 
@@ -492,7 +506,7 @@ app.post('/api/admin/reset', adminAuth, restrictTo('superadmin'), async (req, re
     try {
         console.log(`[${new Date().toISOString()}] SYSTEM RESET REQUESTED BY ADMIN`);
         const tables = [
-            'invoices', 'payroll', 'fuel_logs', 'expenses', 'incidents', 'maintenance_logs', 'tyre_logs',
+            'payments', 'invoices', 'payroll', 'fuel_logs', 'expenses', 'incidents', 'maintenance_logs', 'tyre_logs',
             'documents', 'journeys', 'driver_auth', 'staff_auth',
             'trucks', 'trailers', 'drivers', 'staff', 'customers', 'admins', 'superadmins', 'system_settings'
         ];
@@ -560,7 +574,7 @@ app.get('/api/tracker/data', adminAuth, restrictTo('admin', 'superadmin'), async
 const DB_TABLES = [
     'admins', 'trucks', 'trailers', 'drivers',
     'staff', 'customers', 'journeys', 'fuel_logs', 'expenses',
-    'invoices', 'payroll', 'maintenance_logs', 'tyre_logs',
+    'invoices', 'payments', 'payroll', 'maintenance_logs', 'tyre_logs',
     'incidents', 'documents', 'system_settings', 'staff_auth', 'driver_auth'
 ];
 
@@ -1163,7 +1177,12 @@ app.post('/api/admin/submission/verify', adminAuth, restrictTo('admin', 'superad
 app.post('/api/admin/reset', async (req, res) => {
     try {
         // 1. Reset all database tables (CASCADE handles order)
-        for (const table of DB_TABLES) {
+        const tables = [
+            'payments', 'invoices', 'payroll', 'fuel_logs', 'expenses', 'incidents', 'maintenance_logs', 'tyre_logs',
+            'documents', 'journeys', 'driver_auth', 'staff_auth',
+            'trucks', 'trailers', 'drivers', 'staff', 'customers', 'admins', 'superadmins', 'system_settings'
+        ];
+        for (const table of tables) {
             await db.query(`TRUNCATE TABLE ${table} CASCADE`);
         }
 
@@ -1382,6 +1401,27 @@ app.post('/api/tracker/upload-backup', adminAuth, restrictTo('superadmin'), back
 });
 
 // --- SECURE PAYMENT WEBHOOKS ---
+const { stkPush } = require('./mpesa');
+
+app.post('/api/mpesa/stk-push', async (req, res) => {
+    const { phone, amount, invoiceId, clientName } = req.body;
+    try {
+        if (!phone || !amount) {
+            return res.status(400).json({ success: false, error: 'Phone and amount are required' });
+        }
+        const result = await stkPush({
+            phone,
+            amount,
+            accountRef: invoiceId || 'Payment',
+            description: `Payment for ${clientName || invoiceId || 'Invoice'}`
+        });
+        res.json({ success: true, ...result });
+    } catch (e) {
+        console.error('STK_PUSH_ERROR:', e.response?.data || e.message);
+        res.status(500).json({ success: false, error: e.response?.data?.errorMessage || e.message });
+    }
+});
+
 
 app.post('/api/webhooks/mpesa', async (req, res) => {
     try {

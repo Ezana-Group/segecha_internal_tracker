@@ -1,13 +1,18 @@
 // Segecha Frontend Environment Constants
 const getApiUrl = () => {
     const envUrl = import.meta.env.VITE_API_URL;
+
+    // If the value is missing or the literal string "undefined" (common build artifact error)
+    if (!envUrl || envUrl === "undefined") {
+        return '';
+    }
     
     // If we have an absolute URL via env, use it
-    if (envUrl && envUrl.startsWith('http')) {
+    if (envUrl.startsWith('http')) {
         return envUrl.replace(/\/+$/, '');
     }
 
-    // Default to empty string for relative paths (supports Vite proxy in dev & same-origin in prod)
+    // Default to empty string for relative paths
     return '';
 };
 

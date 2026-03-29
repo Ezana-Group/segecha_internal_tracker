@@ -430,7 +430,42 @@ export function useAppState() {
             const idx = arr.findIndex(x => x.id === finalItem.id);
             if (idx >= 0) arr[idx] = finalItem;
             else arr.push(finalItem);
-            return { ...d, [col]: arr };
+            
+            let nextData = { ...d, [col]: arr };
+
+            // 4. Automatic Sync: If journey revenue changed, update linked invoice amount
+            if (col === 'journeys') {
+                const linkedInvoices = (d.invoices || []).filter(inv => (inv.journeyId === finalItem.id || inv.journey === finalItem.id));
+                if (linkedInvoices.length > 0) {
+                    const updatedInvoices = d.invoices.map(inv => {
+                        if (inv.journeyId === finalItem.id || inv.journey === finalItem.id) {
+                            return { ...inv, amount: Number(finalItem.revenue || 0) };
+                        }
+                        return inv;
+                    });
+                    nextData.invoices = updatedInvoices;
+
+                    // Trigger server sync for these invoices as well
+                    linkedInvoices.forEach(inv => {
+                        const updatedInv = { ...inv, amount: Number(finalItem.revenue || 0) };
+                        // We call the API directly here to avoid infinite recursion with saveItem/setData
+                        if (PAYMENT_API) {
+                            const token = adminAuth.getToken();
+                            fetch(`${PAYMENT_API}/api/admin/invoices`, {
+                                method: "POST",
+                                headers: {
+                                    "Content-Type": "application/json",
+                                    "x-admin-key": ADMIN_KEY,
+                                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                                },
+                                body: JSON.stringify(updatedInv),
+                            }).catch(err => console.error("Linked invoice sync failed:", err));
+                        }
+                    });
+                }
+            }
+
+            return nextData;
         });
 
         if (!options?.silent) {
@@ -641,7 +676,11 @@ export function useAppState() {
         const inv = data.invoices.find(i => i.id === payment.invoiceId);
         if (!inv) throw new Error("Invoice not found");
 
-        const newPayments = [...(inv.payments || []), { ...payment, id: payment.id || uid().slice(0, 8) }];
+        const newPayments = [...(inv.payments || []), { 
+            ...payment, 
+            id: payment.id || uid().slice(0, 8),
+            journeyId: payment.journeyId || inv.journeyId || inv.journey
+        }];
         const newPaidAmount = newPayments.reduce((s, p) => s + +p.amount, 0);
         const newStatus = newPaidAmount >= +inv.amount ? "Paid" : "Partial";
 

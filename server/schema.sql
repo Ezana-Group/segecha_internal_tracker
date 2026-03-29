@@ -146,6 +146,19 @@ CREATE TABLE IF NOT EXISTS invoices (
     issued_date DATE
 );
 
+CREATE TABLE IF NOT EXISTS payments (
+    id TEXT PRIMARY KEY,
+    invoice_id TEXT REFERENCES invoices(id) ON DELETE CASCADE,
+    journey_id TEXT REFERENCES journeys(id) ON DELETE CASCADE,
+    amount DECIMAL(12,2) NOT NULL,
+    date DATE NOT NULL,
+    method TEXT,
+    ref TEXT UNIQUE,
+    notes TEXT,
+    metadata JSONB DEFAULT '{}',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS payroll (
     id TEXT PRIMARY KEY,
     entity_id TEXT, -- Can be driver_id or staff_id
