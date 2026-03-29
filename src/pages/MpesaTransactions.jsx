@@ -16,7 +16,7 @@ import {
     Receipt
 } from 'lucide-react';
 
-export default function MpesaTransactions({ state, S, T }) {
+export function MpesaTransactions({ state, S, T }) {
     const [transactions, setTransactions] = useState([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState('All');
