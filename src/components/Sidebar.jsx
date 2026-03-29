@@ -48,7 +48,7 @@ const ICON_MAP = {
     "staff-overview": UserRoundCog,
 };
 
-export function Sidebar({ sideOpen, setSideOpen, isMobile, tyreAlertCount, resetData, data, importSession, previewMode, pendingVerifications }) {
+export function Sidebar({ isMobile, tyreAlertCount, resetData, data, importSession, previewMode, pendingVerifications }) {
     const activeCount = data?.trucks?.filter((t) => t.status === "Active").length || 0;
     const inTransitCount = data?.journeys?.filter((j) => ["In Transit", "Awaiting Start Verification"].includes(j.status)).length || 0;
     const navItems = previewMode ? getPreviewNavItems(previewMode, data) : NAV;
@@ -64,13 +64,6 @@ export function Sidebar({ sideOpen, setSideOpen, isMobile, tyreAlertCount, reset
     return (
         <aside
             className={`sidebar-shell${isMobile ? " is-mobile-drawer" : ""}`}
-            style={
-                isMobile
-                    ? {
-                          transform: sideOpen ? "translateX(0)" : "translateX(-100%)",
-                      }
-                    : undefined
-            }
         >
             <div className="sidebar-brand" style={{ padding: '24px 20px', borderBottom: '1px solid var(--border-subtle)' }}>
                 <div className="sidebar-brand-mark" style={{ background: 'transparent', padding: 0, boxShadow: 'none' }}>
