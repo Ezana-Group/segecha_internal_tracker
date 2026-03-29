@@ -20,6 +20,7 @@ const cleanEnv = (val) => (val === "undefined" || !val) ? "" : val;
 
 export const PAYMENT_API = cleanEnv(import.meta.env.VITE_API_URL);
 export const ADMIN_KEY = cleanEnv(import.meta.env.VITE_ADMIN_KEY);
+window.ADMIN_KEY = ADMIN_KEY;
 export const PORTAL_URL = cleanEnv(import.meta.env.VITE_PAYMENT_URL) || "https://payment.segecha.com";
 
 export const TRACK_URL = cleanEnv(import.meta.env.VITE_TRACK_URL) || "https://track.segecha.com";
