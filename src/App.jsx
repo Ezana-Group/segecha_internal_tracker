@@ -22,30 +22,30 @@ import { isPathAllowedInPreview, defaultPreviewPath } from "./constants/previewN
 import { getTheme, getStyles } from "./constants/theme";
 
 // 4. Page Definitions (Static Imports)
-import { Dashboard } from "./pages/Dashboard";
-import { Fleet } from "./pages/Fleet";
-import { Drivers } from "./pages/Drivers";
-import { Journeys } from "./pages/Journeys";
-import { FuelLog } from "./pages/FuelLog";
-import { Expenses } from "./pages/Expenses";
-import { Invoices } from "./pages/Invoices";
-import { Payroll } from "./pages/Payroll";
-import { Maintenance } from "./pages/Maintenance";
-import { PnL } from "./pages/PnL";
-import { Settings } from "./pages/Settings";
-import { Staff } from "./pages/Staff";
-import { Documents } from "./pages/Documents";
-import { VehicleProfile } from "./pages/VehicleProfile";
-import { DriverProfile } from "./pages/DriverProfile";
-import { JourneyProfile } from "./pages/JourneyProfile";
-import { Customers } from "./pages/Customers";
-import { CustomerProfile } from "./pages/CustomerProfile";
-import { StaffProfile } from "./pages/StaffProfile";
-import { Incidents } from "./pages/Incidents";
-import { ImportReview } from "./pages/ImportReview";
-import { TyreMonitor } from "./pages/TyreMonitor";
-import { Login } from "./pages/Login";
-import { MpesaTransactions } from "./pages/MpesaTransactions";
+const Dashboard = lazy(() => import("./pages/Dashboard").then(m => ({ default: m.Dashboard })));
+const Fleet = lazy(() => import("./pages/Fleet").then(m => ({ default: m.Fleet })));
+const Drivers = lazy(() => import("./pages/Drivers").then(m => ({ default: m.Drivers })));
+const Journeys = lazy(() => import("./pages/Journeys").then(m => ({ default: m.Journeys })));
+const FuelLog = lazy(() => import("./pages/FuelLog").then(m => ({ default: m.FuelLog })));
+const Expenses = lazy(() => import("./pages/Expenses").then(m => ({ default: m.Expenses })));
+const Invoices = lazy(() => import("./pages/Invoices").then(m => ({ default: m.Invoices })));
+const Payroll = lazy(() => import("./pages/Payroll").then(m => ({ default: m.Payroll })));
+const Maintenance = lazy(() => import("./pages/Maintenance").then(m => ({ default: m.Maintenance })));
+const PnL = lazy(() => import("./pages/PnL").then(m => ({ default: m.PnL })));
+const Settings = lazy(() => import("./pages/Settings").then(m => ({ default: m.Settings })));
+const Staff = lazy(() => import("./pages/Staff").then(m => ({ default: m.Staff })));
+const Documents = lazy(() => import("./pages/Documents").then(m => ({ default: m.Documents })));
+const VehicleProfile = lazy(() => import("./pages/VehicleProfile").then(m => ({ default: m.VehicleProfile })));
+const DriverProfile = lazy(() => import("./pages/DriverProfile").then(m => ({ default: m.DriverProfile })));
+const JourneyProfile = lazy(() => import("./pages/JourneyProfile").then(m => ({ default: m.JourneyProfile })));
+const Customers = lazy(() => import("./pages/Customers").then(m => ({ default: m.Customers })));
+const CustomerProfile = lazy(() => import("./pages/CustomerProfile").then(m => ({ default: m.CustomerProfile })));
+const StaffProfile = lazy(() => import("./pages/StaffProfile").then(m => ({ default: m.StaffProfile })));
+const Incidents = lazy(() => import("./pages/Incidents").then(m => ({ default: m.Incidents })));
+const ImportReview = lazy(() => import("./pages/ImportReview").then(m => ({ default: m.ImportReview })));
+const TyreMonitor = lazy(() => import("./pages/TyreMonitor").then(m => ({ default: m.TyreMonitor })));
+const Login = lazy(() => import("./pages/Login").then(m => ({ default: m.Login })));
+const MpesaTransactions = lazy(() => import("./pages/MpesaTransactions").then(m => ({ default: m.MpesaTransactions })));
 
 
 export default function App() {
@@ -239,31 +239,33 @@ export default function App() {
                         <Route path="/login" element={<Login showToast={state.showToast} />} />
                         <Route path="*" element={
                             authed ? (
-                                <Routes>
-                                    <Route path="/" element={<ErrorBoundary><Dashboard {...p} /></ErrorBoundary>} />
-                                    <Route path="/fleet" element={<ErrorBoundary><Fleet {...p} /></ErrorBoundary>} />
-                                    <Route path="/fleet/:id" element={<ErrorBoundary><VehicleProfile {...p} /></ErrorBoundary>} />
-                                    <Route path="/drivers" element={<ErrorBoundary><Drivers {...p} /></ErrorBoundary>} />
-                                    <Route path="/drivers/:id" element={<ErrorBoundary><DriverProfile {...p} /></ErrorBoundary>} />
-                                    <Route path="/customers" element={<ErrorBoundary><Customers {...p} /></ErrorBoundary>} />
-                                    <Route path="/customers/:id" element={<ErrorBoundary><CustomerProfile {...p} /></ErrorBoundary>} />
-                                    <Route path="/journeys" element={<ErrorBoundary><Journeys {...p} /></ErrorBoundary>} />
-                                    <Route path="/journeys/:id" element={<ErrorBoundary><JourneyProfile {...p} /></ErrorBoundary>} />
-                                    <Route path="/fuel" element={<ErrorBoundary><FuelLog {...p} /></ErrorBoundary>} />
-                                    <Route path="/expenses" element={<ErrorBoundary><Expenses {...p} /></ErrorBoundary>} />
-                                    <Route path="/incidents" element={<ErrorBoundary><Incidents {...p} /></ErrorBoundary>} />
-                                    <Route path="/mpesa-logs" element={<ErrorBoundary><MpesaTransactions {...p} /></ErrorBoundary>} />
-                                    <Route path="/invoices" element={<ErrorBoundary><Invoices {...p} /></ErrorBoundary>} />
-                                    <Route path="/payroll" element={<ErrorBoundary><Payroll {...p} /></ErrorBoundary>} />
-                                    <Route path="/maintenance" element={<ErrorBoundary><Maintenance {...p} /></ErrorBoundary>} />
-                                    <Route path="/tyres" element={<ErrorBoundary><TyreMonitor {...p} /></ErrorBoundary>} />
-                                    <Route path="/staff" element={<ErrorBoundary><Staff {...p} /></ErrorBoundary>} />
-                                    <Route path="/staff/:id" element={<ErrorBoundary><StaffProfile {...p} /></ErrorBoundary>} />
-                                    <Route path="/pnl" element={<ErrorBoundary><PnL {...p} /></ErrorBoundary>} />
-                                    <Route path="/documents" element={<ErrorBoundary><Documents {...p} /></ErrorBoundary>} />
-                                    <Route path="/settings" element={<ErrorBoundary><Settings {...p} /></ErrorBoundary>} />
-                                    <Route path="/import" element={<ErrorBoundary><ImportReview {...p} /></ErrorBoundary>} />
-                                </Routes>
+                                <Suspense fallback={<div className="page-shell" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', width: '100%', color: 'var(--text-dim)' }}>Loading...</div>}>
+                                    <Routes>
+                                        <Route path="/" element={<ErrorBoundary><Dashboard {...p} /></ErrorBoundary>} />
+                                        <Route path="/fleet" element={<ErrorBoundary><Fleet {...p} /></ErrorBoundary>} />
+                                        <Route path="/fleet/:id" element={<ErrorBoundary><VehicleProfile {...p} /></ErrorBoundary>} />
+                                        <Route path="/drivers" element={<ErrorBoundary><Drivers {...p} /></ErrorBoundary>} />
+                                        <Route path="/drivers/:id" element={<ErrorBoundary><DriverProfile {...p} /></ErrorBoundary>} />
+                                        <Route path="/customers" element={<ErrorBoundary><Customers {...p} /></ErrorBoundary>} />
+                                        <Route path="/customers/:id" element={<ErrorBoundary><CustomerProfile {...p} /></ErrorBoundary>} />
+                                        <Route path="/journeys" element={<ErrorBoundary><Journeys {...p} /></ErrorBoundary>} />
+                                        <Route path="/journeys/:id" element={<ErrorBoundary><JourneyProfile {...p} /></ErrorBoundary>} />
+                                        <Route path="/fuel" element={<ErrorBoundary><FuelLog {...p} /></ErrorBoundary>} />
+                                        <Route path="/expenses" element={<ErrorBoundary><Expenses {...p} /></ErrorBoundary>} />
+                                        <Route path="/incidents" element={<ErrorBoundary><Incidents {...p} /></ErrorBoundary>} />
+                                        <Route path="/mpesa-logs" element={<ErrorBoundary><MpesaTransactions {...p} /></ErrorBoundary>} />
+                                        <Route path="/invoices" element={<ErrorBoundary><Invoices {...p} /></ErrorBoundary>} />
+                                        <Route path="/payroll" element={<ErrorBoundary><Payroll {...p} /></ErrorBoundary>} />
+                                        <Route path="/maintenance" element={<ErrorBoundary><Maintenance {...p} /></ErrorBoundary>} />
+                                        <Route path="/tyres" element={<ErrorBoundary><TyreMonitor {...p} /></ErrorBoundary>} />
+                                        <Route path="/staff" element={<ErrorBoundary><Staff {...p} /></ErrorBoundary>} />
+                                        <Route path="/staff/:id" element={<ErrorBoundary><StaffProfile {...p} /></ErrorBoundary>} />
+                                        <Route path="/pnl" element={<ErrorBoundary><PnL {...p} /></ErrorBoundary>} />
+                                        <Route path="/documents" element={<ErrorBoundary><Documents {...p} /></ErrorBoundary>} />
+                                        <Route path="/settings" element={<ErrorBoundary><Settings {...p} /></ErrorBoundary>} />
+                                        <Route path="/import" element={<ErrorBoundary><ImportReview {...p} /></ErrorBoundary>} />
+                                    </Routes>
+                                </Suspense>
                             ) : (
                                 <ErrorBoundary>
                                     <Login showToast={state.showToast} />
