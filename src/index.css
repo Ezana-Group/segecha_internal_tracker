@@ -90,7 +90,7 @@
 /* 13" - 15" Laptop Density Refinements (1024px to 1440px) */
 @media screen and (max-width: 1440px) and (min-width: 1024px) {
   :root {
-    --sidebar-width: 210px;
+    --sidebar-width: 72px;
     --topbar-height: 48px;
   }
 
@@ -98,12 +98,52 @@
     font-size: 13px;
   }
 
-  .hide-laptop {
+  /* Mini Sidebar Overrides */
+  .sidebar-shell {
+    padding: 8px !important;
+  }
+
+  .sidebar-brand-name, 
+  .sidebar-brand-tag,
+  .sidebar-section-label,
+  .sidebar-nav-link span,
+  .sidebar-nav-badge,
+  .sidebar-nav-external-icon,
+  .sidebar-footer {
     display: none !important;
   }
 
+  .sidebar-nav-link {
+    justify-content: center !important;
+    padding: 10px !important;
+    border-radius: 8px !important;
+  }
+
+  .sidebar-nav-link svg {
+    margin: 0 !important;
+  }
+
+  .sidebar-brand {
+    justify-content: center !important;
+    padding: 8px 0 !important;
+    margin-bottom: 20px !important;
+  }
+
+  .sidebar-brand-mark {
+    margin: 0 !important;
+  }
+
+  /* Reduce Main Padding */
+  main {
+    padding: 16px !important;
+  }
+
   .page-shell {
-    padding: 0 16px 32px;
+    padding: 0 0 32px !important;
+  }
+
+  .hide-laptop {
+    display: none !important;
   }
 
   .page-header {

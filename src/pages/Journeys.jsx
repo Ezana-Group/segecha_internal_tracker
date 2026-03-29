@@ -233,7 +233,6 @@ export function Journeys({ data, isMobile, modal, form, setForm, openModal, clos
                                 { key: "isReturn", label: "Type", sortable: !isDriverPreview || jpv("colType") },
                                 { key: "date", label: "Date", sortable: !isDriverPreview || jpv("colDate") },
                                 { key: "origin", label: "Route", sortable: !isDriverPreview || jpv("colRoute") },
-                                { key: "dest", label: "Dest", sortable: !isDriverPreview || jpv("colRoute") },
                                 { key: "_customer", label: "Client", sortable: !isDriverPreview || jpv("colClient") },
                                 { key: "_vehicle", label: "Vehicle", sortable: !isDriverPreview || jpv("colVehicle") },
                                 { key: "driver", label: "Crew", sortable: !isDriverPreview || jpv("colCrew") },
@@ -299,13 +298,12 @@ export function Journeys({ data, isMobile, modal, form, setForm, openModal, clos
                                         </td>
                                     )}
                                     {(!isDriverPreview || jpv("colRoute")) && (
-                                        <td title={j.origin}>
-                                            <div style={{ fontWeight: 800, color: "var(--text-primary)", fontSize: 12 }}>{j.origin}</div>
-                                        </td>
-                                    )}
-                                    {(!isDriverPreview || jpv("colRoute")) && (
-                                        <td title={j.dest}>
-                                            <div style={{ fontWeight: 800, color: "var(--text-primary)", fontSize: 12 }}>{j.dest}</div>
+                                        <td title={`${j.origin} → ${j.dest}`}>
+                                            <div style={{ fontWeight: 800, color: "var(--text-primary)", fontSize: 12, display: "flex", alignItems: "center", gap: 6 }}>
+                                                <span>{j.origin}</span>
+                                                <span style={{ opacity: 0.4, fontSize: 10 }}>→</span>
+                                                <span>{j.dest}</span>
+                                            </div>
                                         </td>
                                     )}
                                     {(!isDriverPreview || jpv("colClient")) && (
