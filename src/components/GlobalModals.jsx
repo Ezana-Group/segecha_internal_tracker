@@ -755,9 +755,9 @@ export function GlobalModals(props) {
         const vehicleLocked = !!selectedDriver?.lockVehicleAssignment;
         
         const selectedTruckObj = data.trucks.find(t => t.id === form.truck);
-        if (form.truck && selectedTruckObj && selectedTruckObj.status === 'Active') {
-            if (!selectedTruckObj.kraPin || selectedTruckObj.kraPin === 'Unset' || !selectedTruckObj.insuranceId || selectedTruckObj.insuranceId === 'Unset') {
-                errors.truck = "Vehicle missing KRA PIN or Insurance ID compliance fields";
+        if (form.truck && selectedTruckObj && selectedTruckObj.status === 'Active' && form.isInternational) {
+            if (!selectedTruckObj.kra_pin || selectedTruckObj.kra_pin === 'Unset' || !selectedTruckObj.insurance_id || selectedTruckObj.insurance_id === 'Unset') {
+                errors.truck = "Vehicle missing KRA PIN or Insurance ID compliance fields for international trip";
             }
         }
 
@@ -1499,9 +1499,16 @@ export function GlobalModals(props) {
                         <Field label="Registration No." k="reg" form={form} setForm={setForm} S={S} T={T} error={errors.reg} />
                         <Field label="Manufacturer / Model" k="make" form={form} setForm={setForm} S={S} T={T} />
                         <Field label="Vehicle Type" k="type" options={getTruckTypes()} form={form} setForm={setForm} S={S} T={T} />
-                        <Field label="Year" k="year" type="number" form={form} setForm={setForm} S={S} T={T} />
                         <Field label="Capacity (kg)" k="capacity" type="number" form={form} setForm={setForm} S={S} T={T} error={errors.capacity} />
+                        <Field label="Year" k="year" type="number" form={form} setForm={setForm} S={S} T={T} />
                         <Field label="Status" k="status" options={STATUSES_TRUCK} form={form} setForm={setForm} S={S} T={T} />
+                    </div>
+
+                    {/* ── Compliance & Documentation ── */}
+                    <SectionHeader title="Compliance & Documentation" icon="📜" T={T} />
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px 24px" }}>
+                        <Field label="KRA PIN Number" k="kra_pin" placeholder="A00XXXXXXXX" form={form} setForm={setForm} S={S} T={T} />
+                        <Field label="Insurance Certificate / ID" k="insurance_id" placeholder="Certificate No..." form={form} setForm={setForm} S={S} T={T} />
                     </div>
 
                     {/* ── Assignment & Tracking ── */}
