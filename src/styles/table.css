@@ -19,10 +19,11 @@
 /* 2. Responsive Breakpoints */
 
 .table-container {
-  overflow-x: hidden; /* Prevent horizontal scroll on desktop by default */
+  overflow-x: auto; /* Enable horizontal scroll on all devices */
   width: 100%;
-  margin: 0 -8px;    /* Standardized negative offset for card containment */
-  padding: 0 8px;     /* Match padding to negative margin */
+  margin: 0 -8px;
+  padding: 0 8px;
+  -webkit-overflow-scrolling: touch; /* Smooth scrolling for iOS */
 }
 
 /* 1024px to 1440px — small desktop / laptop */
@@ -50,8 +51,6 @@
 /* Below 1024px — Activate Horizontal Scroll */
 @media screen and (max-width: 1023px) {
   .table-container {
-    overflow-x: auto !important;
-    -webkit-overflow-scrolling: touch;
     width: 100%;
   }
 
@@ -168,7 +167,7 @@
 }
 
 .table-container::-webkit-scrollbar-thumb {
-  background: #CBD5E1;
+  background: var(--border-subtle, #CBD5E1);
   border-radius: 10px;
 }
 
@@ -179,5 +178,5 @@
 /* Firefox */
 .table-container {
   scrollbar-width: thin;
-  scrollbar-color: #CBD5E1 transparent;
+  scrollbar-color: var(--border-subtle, #CBD5E1) transparent;
 }
