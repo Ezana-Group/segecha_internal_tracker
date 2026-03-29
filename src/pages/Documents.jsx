@@ -212,7 +212,7 @@ export function Documents({ data, setData, dark, isMobile }) {
             {/* KPI Section */}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 24, marginBottom: 32 }}>
                 <Card 
-                    style={{ padding: 24, cursor: "pointer", border: statusFilter === 'all' ? "2px solid var(--brand-primary)" : "1px solid var(--border-subtle)" }}
+                    style={{ padding: 16, cursor: "pointer", border: statusFilter === 'all' ? "2px solid var(--brand-primary)" : "1px solid var(--border-subtle)" }}
                     onClick={() => setStatusFilter('all')}
                 >
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
@@ -226,7 +226,7 @@ export function Documents({ data, setData, dark, isMobile }) {
                 </Card>
 
                 <Card 
-                    style={{ padding: 24, cursor: "pointer", border: statusFilter === 'expired' ? "2px solid #ef4444" : "1px solid var(--border-subtle)" }}
+                    style={{ padding: 16, cursor: "pointer", border: statusFilter === 'expired' ? "2px solid #ef4444" : "1px solid var(--border-subtle)" }}
                     onClick={() => setStatusFilter('expired')}
                 >
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
@@ -240,7 +240,7 @@ export function Documents({ data, setData, dark, isMobile }) {
                 </Card>
 
                 <Card 
-                    style={{ padding: 24, cursor: "pointer", border: statusFilter === 'expiring' ? "2px solid #f97316" : "1px solid var(--border-subtle)" }}
+                    style={{ padding: 16, cursor: "pointer", border: statusFilter === 'expiring' ? "2px solid #f97316" : "1px solid var(--border-subtle)" }}
                     onClick={() => setStatusFilter('expiring')}
                 >
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
@@ -362,8 +362,8 @@ export function Documents({ data, setData, dark, isMobile }) {
             )}
 
             {/* Filter Hub */}
-            <Card style={{ padding: "0 24px", marginBottom: 24 }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", height: 72, gap: 20, overflowX: "auto" }}>
+            <Card style={{ padding: "0 16px", marginBottom: 24 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", height: 56, gap: 20, overflowX: "auto" }}>
                     <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
                         {[
                             { id: 'all', label: 'All Library' },
@@ -423,9 +423,9 @@ export function Documents({ data, setData, dark, isMobile }) {
             {/* Asset Ledger */}
             <Card style={{ padding: 0, overflow: "hidden" }}>
                 {docsLoading ? (
-                    <div style={{ padding: 80, textAlign: "center", color: "var(--text-dim)" }}>
-                        <div className="spinner" style={{ marginBottom: 16 }} />
-                        <div style={{ fontWeight: 700 }}>Synchronizing Vault...</div>
+                    <div style={{ padding: 40, textAlign: "center", color: "var(--text-dim)" }}>
+                        <div className="spinner" style={{ marginBottom: 12 }} />
+                        <div style={{ fontWeight: 700, fontSize: 13 }}>Synchronizing Vault...</div>
                     </div>
                 ) : (
                     <div style={{ overflowX: "auto" }}>
@@ -443,8 +443,8 @@ export function Documents({ data, setData, dark, isMobile }) {
                             <tbody>
                                 {visible.length === 0 ? (
                                     <tr>
-                                        <td colSpan={6} style={{ padding: 100, textAlign: "center" }}>
-                                            <div style={{ color: "var(--text-dim)", fontWeight: 600 }}>No documents found matching the current perspective.</div>
+                                        <td colSpan={6} style={{ padding: 48, textAlign: "center" }}>
+                                            <div style={{ color: "var(--text-dim)", fontWeight: 600, fontSize: 13 }}>No documents found matching the current perspective.</div>
                                         </td>
                                     </tr>
                                 ) : visible.map(doc => {

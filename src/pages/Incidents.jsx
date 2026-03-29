@@ -74,7 +74,7 @@ export function Incidents({ data, dark, isMobile, driverName, truckReg, setVerif
                 </div>
             </div>
 
-            <Card style={{ marginBottom: 32, padding: 20 }}>
+            <Card style={{ marginBottom: 32, padding: 16 }}>
                 <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
                     <div style={{ position: "relative", flex: 1 }}>
                         <Search size={18} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "var(--text-dim)" }} />
@@ -91,12 +91,12 @@ export function Incidents({ data, dark, isMobile, driverName, truckReg, setVerif
             </Card>
 
             {filtered.length === 0 ? (
-                <div style={{ textAlign: "center", padding: 80, background: "var(--bg-surface)", borderRadius: 24, border: "1px dashed var(--border-subtle)" }}>
-                    <div style={{ width: 64, height: 64, borderRadius: 20, background: "var(--bg-card)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-dim)", margin: "0 auto 20px" }}>
-                        <Shield size={32} />
+                <div style={{ textAlign: "center", padding: 40, background: "var(--bg-surface)", borderRadius: 24, border: "1px dashed var(--border-subtle)" }}>
+                    <div style={{ width: 52, height: 52, borderRadius: 16, background: "var(--bg-card)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-dim)", margin: "0 auto 16px" }}>
+                        <Shield size={24} />
                     </div>
-                    <h3 style={{ fontSize: 18, fontWeight: 800, color: "var(--text-primary)" }}>No incidents found</h3>
-                    <p style={{ color: "var(--text-muted)", maxWidth: 300, margin: "8px auto 0" }}>
+                    <h3 style={{ fontSize: 16, fontWeight: 800, color: "var(--text-primary)" }}>No incidents found</h3>
+                    <p style={{ fontSize: 13, color: "var(--text-muted)", maxWidth: 300, margin: "6px auto 0" }}>
                         {search ? "Adjust your search parameters to find matching reports." : (tab === 'pending' ? "All clear! No safety incidents currently awaiting review." : "No resolved incidents recorded yet.")}
                     </p>
                 </div>
