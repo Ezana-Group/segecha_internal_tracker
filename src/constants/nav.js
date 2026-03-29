@@ -19,7 +19,6 @@ export const NAV = [
     { id: "fuel", path: "/fuel", label: "Fuel log" },
     { id: "expenses", path: "/expenses", label: "Expenses" },
     { id: "invoices", path: "/invoices", label: "Invoices" },
-    { id: "mpesa-logs", path: "/mpesa-logs", label: "M-Pesa logs" },
     { id: "payroll", path: "/payroll", label: "Payroll" },
     { id: "maintenance", path: "/maintenance", label: "Maintenance" },
     { id: "tyres", path: "/tyres", label: "Tyre health" },
