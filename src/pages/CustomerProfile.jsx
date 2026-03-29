@@ -49,7 +49,7 @@ export function CustomerProfile({ data, isMobile, truckReg, customerName }) {
             </button>
 
             {/* Profile Header */}
-            <Card style={{ marginBottom: 20, padding: "16px 20px", height: "auto" }}>
+            <Card style={{ marginBottom: 16, padding: "12px 16px", height: "auto" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 20, flexWrap: "wrap" }}>
                     <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
                         <div style={{ width: 48, height: 48, borderRadius: 12, background: "var(--brand-primary)", display: "flex", alignItems: "center", justifyContent: "center", color: "white", boxShadow: "0 4px 12px rgba(59, 130, 246, 0.15)" }}>
@@ -57,7 +57,7 @@ export function CustomerProfile({ data, isMobile, truckReg, customerName }) {
                         </div>
                         <div>
                             <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 0 }}>
-                                <h1 style={{ fontSize: 20, fontWeight: 900, color: "var(--text-primary)", margin: 0 }}>{customer.name}</h1>
+                                <h1 style={{ fontSize: 18, fontWeight: 900, color: "var(--text-primary)", margin: 0 }}>{customer.name}</h1>
                                 <Badge status={customer.type === "Company" ? "Pending" : "Paid"} text={customer.type} />
                             </div>
                             <div style={{ fontSize: 11, color: "var(--text-dim)", fontWeight: 600, fontFamily: "var(--font-mono)", opacity: 0.8 }}>
@@ -81,43 +81,42 @@ export function CustomerProfile({ data, isMobile, truckReg, customerName }) {
                 </div>
 
                 {customer.type === "Company" && customer.contactPerson && (
-                    <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", gap: 12 }}>
+                    <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", gap: 12 }}>
                         <div style={{ fontSize: 11, fontWeight: 800, color: "var(--brand-primary)", textTransform: "uppercase" }}>Primary Contact:</div>
                         <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>{customer.contactPerson}</div>
                     </div>
                 )}
             </Card>
 
-            {/* Stats Bar */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 20, marginBottom: 24 }}>
-                <div style={{ background: "var(--card-bg)", padding: 24, borderRadius: 20, border: "1px solid var(--border-subtle)" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16, marginBottom: 20 }}>
+                <div style={{ background: "var(--bg-card)", padding: 16, borderRadius: 16, border: "1px solid var(--border-subtle)" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
                         <div style={{ fontSize: 11, fontWeight: 800, color: "var(--text-dim)", letterSpacing: "0.05em" }}>LIFETIME BOOKINGS</div>
                         <TrendingUp size={16} color="var(--brand-primary)" />
                     </div>
-                    <div style={{ fontSize: 28, fontWeight: 900, color: "var(--brand-primary)" }}>{journeys.length}</div>
-                    <div style={{ fontSize: 12, color: "var(--text-dim)", marginTop: 4 }}>Completed missions</div>
+                    <div style={{ fontSize: 22, fontWeight: 900, color: "var(--brand-primary)" }}>{journeys.length}</div>
+                    <div style={{ fontSize: 12, color: "var(--text-dim)", marginTop: 2 }}>Completed missions</div>
                 </div>
-                <div style={{ background: "var(--card-bg)", padding: 24, borderRadius: 20, border: "1px solid var(--border-subtle)" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
+                <div style={{ background: "var(--bg-card)", padding: 16, borderRadius: 16, border: "1px solid var(--border-subtle)" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
                         <div style={{ fontSize: 11, fontWeight: 800, color: "var(--text-dim)", letterSpacing: "0.05em" }}>TOTAL INVOICED</div>
                         <FileText size={16} color="#3b82f6" />
                     </div>
-                    <div style={{ fontSize: 28, fontWeight: 900, color: "var(--text-primary)" }}>{fmt(totalInvoiced)}</div>
+                    <div style={{ fontSize: 22, fontWeight: 900, color: "var(--text-primary)" }}>{fmt(totalInvoiced)}</div>
                 </div>
-                <div style={{ background: "var(--card-bg)", padding: 24, borderRadius: 20, border: "1px solid var(--border-subtle)" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
+                <div style={{ background: "var(--bg-card)", padding: 16, borderRadius: 16, border: "1px solid var(--border-subtle)" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
                         <div style={{ fontSize: 11, fontWeight: 800, color: "var(--text-dim)", letterSpacing: "0.05em" }}>PAYMENTS RECEIVED</div>
                         <CheckCircle2 size={16} color="#10b981" />
                     </div>
-                    <div style={{ fontSize: 28, fontWeight: 900, color: "#10b981" }}>{fmt(totalPaid)}</div>
+                    <div style={{ fontSize: 22, fontWeight: 900, color: "#10b981" }}>{fmt(totalPaid)}</div>
                 </div>
-                <div style={{ background: "var(--card-bg)", padding: 24, borderRadius: 20, border: "1px solid var(--border-subtle)" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
+                <div style={{ background: "var(--bg-card)", padding: 16, borderRadius: 16, border: "1px solid var(--border-subtle)" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
                         <div style={{ fontSize: 11, fontWeight: 800, color: "var(--text-dim)", letterSpacing: "0.05em" }}>BALANCE OVERDUE</div>
                         <AlertCircle size={16} color="#ef4444" />
                     </div>
-                    <div style={{ fontSize: 28, fontWeight: 900, color: totalOverdue > 0 ? "#ef4444" : "var(--text-primary)" }}>{fmt(totalOverdue)}</div>
+                    <div style={{ fontSize: 22, fontWeight: 900, color: totalOverdue > 0 ? "#ef4444" : "var(--text-primary)" }}>{fmt(totalOverdue)}</div>
                 </div>
             </div>
 
@@ -208,15 +207,15 @@ export function CustomerProfile({ data, isMobile, truckReg, customerName }) {
                             {invoices.length === 0 ? (
                                 <div style={{ padding: 40, background: "var(--surface-subtle)", borderRadius: 20, textAlign: "center", color: "var(--text-dim)" }}>No invoices found.</div>
                             ) : invoices.sort((a,b) => b.issued.localeCompare(a.issued)).slice(0, 5).map(inv => (
-                                <div key={inv.id} style={{ background: "var(--card-bg)", padding: 20, borderRadius: 20, border: "1px solid var(--border-subtle)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                <div key={inv.id} style={{ background: "var(--card-bg)", padding: 12, borderRadius: 16, border: "1px solid var(--border-subtle)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                                     <div>
-                                        <div style={{ fontSize: 14, fontWeight: 800, color: "var(--text-primary)", marginBottom: 4 }}>{inv.id}</div>
+                                        <div style={{ fontSize: 14, fontWeight: 800, color: "var(--text-primary)", marginBottom: 2 }}>{inv.id}</div>
                                         <div style={{ fontSize: 11, color: "var(--text-dim)", display: "flex", alignItems: "center", gap: 6 }}>
                                             <Calendar size={12} /> Issued {fmtDate(inv.issued)}
                                         </div>
                                     </div>
                                     <div style={{ textAlign: "right" }}>
-                                        <div style={{ fontSize: 16, fontWeight: 900, color: "var(--brand-primary)", marginBottom: 4 }}>{fmt(inv.amount)}</div>
+                                        <div style={{ fontSize: 14, fontWeight: 900, color: "var(--brand-primary)", marginBottom: 2 }}>{fmt(inv.amount)}</div>
                                         <Badge 
                                             status={inv.status === "Paid" ? "Paid" : inv.status === "Overdue" ? "Overdue" : "Pending"} 
                                             text={inv.status} 
@@ -284,15 +283,15 @@ export function CustomerProfile({ data, isMobile, truckReg, customerName }) {
                         {invoices.length === 0 ? (
                             <div style={{ padding: 40, background: "var(--surface-subtle)", borderRadius: 20, textAlign: "center", color: "var(--text-dim)", gridColumn: "1/-1" }}>No invoices found.</div>
                         ) : invoices.sort((a,b) => b.issued.localeCompare(a.issued)).map(inv => (
-                            <div key={inv.id} style={{ background: "var(--card-bg)", padding: 20, borderRadius: 20, border: "1px solid var(--border-subtle)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <div key={inv.id} style={{ background: "var(--bg-card)", padding: 12, borderRadius: 16, border: "1px solid var(--border-subtle)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                                 <div>
-                                    <div style={{ fontSize: 14, fontWeight: 800, color: "var(--text-primary)", marginBottom: 4 }}>{inv.id}</div>
+                                    <div style={{ fontSize: 14, fontWeight: 800, color: "var(--text-primary)", marginBottom: 2 }}>{inv.id}</div>
                                     <div style={{ fontSize: 11, color: "var(--text-dim)", display: "flex", alignItems: "center", gap: 6 }}>
                                         <Calendar size={12} /> Issued {fmtDate(inv.issued)}
                                     </div>
                                 </div>
                                 <div style={{ textAlign: "right" }}>
-                                    <div style={{ fontSize: 16, fontWeight: 900, color: "var(--brand-primary)", marginBottom: 4 }}>{fmt(inv.amount)}</div>
+                                    <div style={{ fontSize: 14, fontWeight: 900, color: "var(--brand-primary)", marginBottom: 2 }}>{fmt(inv.amount)}</div>
                                     <Badge 
                                         status={inv.status === "Paid" ? "Paid" : inv.status === "Overdue" ? "Overdue" : "Pending"} 
                                         text={inv.status} 
@@ -305,12 +304,12 @@ export function CustomerProfile({ data, isMobile, truckReg, customerName }) {
             )}
 
             {activeTab === "Documents & SLA" && (
-                <div style={{ background: "var(--card-bg)", borderRadius: 24, padding: "60px 20px", textAlign: "center", border: "1px dashed var(--border-subtle)" }}>
-                    <div style={{ width: 64, height: 64, background: "var(--surface-subtle)", borderRadius: 20, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px" }}>
-                        <FileText size={32} color="var(--text-muted)" />
+                <div style={{ background: "var(--card-bg)", borderRadius: 24, padding: "32px 20px", textAlign: "center", border: "1px dashed var(--border-subtle)" }}>
+                    <div style={{ width: 52, height: 52, background: "var(--surface-subtle)", borderRadius: 16, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+                        <FileText size={24} color="var(--text-muted)" />
                     </div>
-                    <div style={{ fontWeight: 800, fontSize: 18, color: "var(--text-primary)", marginBottom: 8 }}>No Service Level Agreements found</div>
-                    <div style={{ color: "var(--text-dim)", fontSize: 14, maxWidth: 400, margin: "0 auto 24px", lineHeight: 1.5 }}>
+                    <div style={{ fontWeight: 800, fontSize: 17, color: "var(--text-primary)", marginBottom: 4 }}>No Service Level Agreements found</div>
+                    <div style={{ color: "var(--text-dim)", fontSize: 13, maxWidth: 400, margin: "0 auto 16px", lineHeight: 1.5 }}>
                         Upload contracts, SLAs, or compliance documents for {customer.name} to quickly access them when reviewing journeys.
                     </div>
                     <Button variant="premium" icon={Plus}>Upload Document</Button>

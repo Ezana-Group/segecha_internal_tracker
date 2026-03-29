@@ -4,6 +4,7 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import { getLicenceClasses as readLicenceClasses, getCommonRoutes as readCommonRoutes } from "../utils/settingsStore.js";
+import { TYRE_WARNING_KM } from "../utils/env.js";
 
 const _S = (() => { try { return JSON.parse(localStorage.getItem('segecha_settings') || '{}'); } catch { return {}; } })();
 

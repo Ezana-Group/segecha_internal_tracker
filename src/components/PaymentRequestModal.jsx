@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { 
     Send, 
     MessageSquare, 
@@ -14,20 +14,39 @@ import { fmt } from "../utils/formatters";
 import { Button } from "./Button";
 import { Card } from "./Card";
 
-export function PaymentRequestModal({ inv, onClose, payReqStatus, setPayReqStatus, S, T, dark, PAYMENT_API, PORTAL_URL }) {
+export function PaymentRequestModal({ inv, onClose, payReqStatus, setPayReqStatus, S, T, data, templates, fillTemplate, dark, PAYMENT_API, PORTAL_URL }) {
     const getSettings = () => {
         try { return JSON.parse(localStorage.getItem('segecha_settings') || '{}'); }
         catch { return {}; }
     };
     
     const s = getSettings();
-    const portalUrl = `${PORTAL_URL}?inv=${encodeURIComponent(inv.id)}&amount=${inv.amount}&client=${encodeURIComponent(inv.client)}`;
+    const portalUrl = `${PORTAL_URL}?inv=${encodeURIComponent(inv.id)}&amount=${inv.amount}&client=${encodeURIComponent(inv._client || inv.client)}`;
     
     const buildWhatsAppUrl = (invCopy) => {
+        // Find the WhatsApp template (t5 by default in seed)
+        const waTpl = (templates || []).find(t => t.id === 't5' || (t.type === 'WhatsApp' && t.category === 'Finance'));
+        
+        if (waTpl && fillTemplate) {
+            const ctx = {
+                invoiceId: invCopy.id,
+                amount: Number(invCopy.amount).toLocaleString('en-KE'),
+                dueDate: invCopy.due,
+                customerName: invCopy._client || invCopy.client,
+                invoiceUrl: portalUrl,
+                paymentUrl: portalUrl,
+                businessName: s.companyName || "Segecha Group",
+            };
+            const body = fillTemplate(waTpl.body, ctx);
+            const cleanPhone = (invCopy._phone || invCopy.phone || '').replace(/\s/g, '').replace(/^0/, '254').replace(/^\+/, '');
+            return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(body)}`;
+        }
+
+        // Fallback to legacy hardcoded template
         const lines = [
-            `Hi ${invCopy.client},`,
+            `Hi ${invCopy._client || invCopy.client},`,
             ``,
-            `Payment request from *${s.companyName}*.`,
+            `Payment request from *${s.companyName || "Segecha Group"}*.`,
             ``,
             `📋 *Invoice:* ${invCopy.id}`,
             `💰 *Amount Due:* KES ${Number(invCopy.amount).toLocaleString('en-KE')}`,
@@ -37,8 +56,8 @@ export function PaymentRequestModal({ inv, onClose, payReqStatus, setPayReqStatu
             ``,
             `_M-Pesa, Card, Bank Transfer & Pesalink accepted._`,
         ];
-        const cleanPhone = (invCopy.phone || '').replace(/\s/g, '').replace(/^0/, '254').replace(/^\+/, '');
-        return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(lines.join('\n'))}`;
+        const cleanPhoneFallback = (invCopy._phone || invCopy.phone || '').replace(/\s/g, '').replace(/^0/, '254').replace(/^\+/, '');
+        return `https://wa.me/${cleanPhoneFallback}?text=${encodeURIComponent(lines.join('\n'))}`;
     };
 
     const sendEmailRequest = async (invCopy, emailAddress) => {
@@ -63,7 +82,7 @@ export function PaymentRequestModal({ inv, onClose, payReqStatus, setPayReqStatu
             const res = await fetch(`${PAYMENT_API}/api/send/sms`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ phone: invCopy.phone, clientName: invCopy.client, invoiceId: invCopy.id, amount: invCopy.amount }),
+                body: JSON.stringify({ phone: invCopy._phone || invCopy.phone, clientName: invCopy._client || invCopy.client, invoiceId: invCopy.id, amount: invCopy.amount }),
             });
             const data = await res.json();
             if (data.success) setPayReqStatus(st => ({ ...st, sms: { success: true } }));
@@ -79,7 +98,7 @@ export function PaymentRequestModal({ inv, onClose, payReqStatus, setPayReqStatu
             const res = await fetch(`${PAYMENT_API}/api/mpesa/stk-push`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ phone: clientPhone, amount: invCopy.amount, invoiceId: invCopy.id, clientName: invCopy.client }),
+                body: JSON.stringify({ phone: clientPhone, amount: invCopy.amount, invoiceId: invCopy.id, clientName: invCopy._client || invCopy.client }),
             });
             const data = await res.json();
             if (data.success) setPayReqStatus(st => ({ ...st, stk: { success: true } }));
@@ -89,10 +108,18 @@ export function PaymentRequestModal({ inv, onClose, payReqStatus, setPayReqStatu
         }
     };
 
-    const [clientEmail, setClientEmail] = useState(inv.email || '');
-    const [stkPhone, setStkPhone] = useState(inv.phone || '');
-    const [smsPhone, setSmsPhone] = useState(inv.phone || "");
+    const [clientEmail, setClientEmail] = useState(inv._email || inv.email || '');
+    const [stkPhone, setStkPhone] = useState(inv._phone || inv.phone || '');
+    const [smsPhone, setSmsPhone] = useState(inv._phone || inv.phone || "");
     const [copied, setCopied] = useState(false);
+
+    // Synchronize local state if invoice data changes (e.g. from global state update)
+    useEffect(() => {
+        setClientEmail(inv._email || inv.email || '');
+        setStkPhone(inv._phone || inv.phone || '');
+        setSmsPhone(inv._phone || inv.phone || "");
+    }, [inv]);
+
 
     const copyLink = () => {
         navigator.clipboard.writeText(portalUrl).then(() => { 
@@ -148,7 +175,7 @@ export function PaymentRequestModal({ inv, onClose, payReqStatus, setPayReqStatu
 
                 {/* Summary */}
                 <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 16, padding: 20, border: "1px solid var(--border-subtle)", marginBottom: 24 }}>
-                    <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 12 }}>RECIPIENT: <b>{inv.client}</b></div>
+                    <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 12 }}>RECIPIENT: <b>{inv._client || inv.client}</b></div>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
                         <div>
                             <div style={{ fontSize: 11, fontWeight: 800, color: "var(--text-muted)", marginBottom: 4 }}>TOTAL DUE</div>

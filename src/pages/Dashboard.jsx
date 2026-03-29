@@ -73,7 +73,7 @@ export function Dashboard({ data, dark, truckStats, tyreStatus, truckReg, driver
 
     useEffect(() => {
         const token = adminAuth.getToken();
-        fetch(`${PAYMENT_API}/api/documents/expiring?days=30&adminKey=${import.meta.env.VITE_ADMIN_KEY}`, {
+        fetch(`${PAYMENT_API}/api/documents/expiring?days=30&adminKey=${ADMIN_KEY}`, {
             headers: token ? { 'Authorization': `Bearer ${token}` } : {}
         })
             .then(res => res.json())
@@ -186,7 +186,7 @@ export function Dashboard({ data, dark, truckStats, tyreStatus, truckReg, driver
             />
 
             {/* Top Stats Grid */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16, marginBottom: 24 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 12, marginBottom: 16 }}>
                 <Card 
                     title="Net Profit" 
                     subtitle={`${margin}% profit margin`}
@@ -232,7 +232,7 @@ export function Dashboard({ data, dark, truckStats, tyreStatus, truckReg, driver
                 </Card>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 320px), 1fr))", gap: 24, marginBottom: 24 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 320px), 1fr))", gap: 16, marginBottom: 16 }}>
                 <Card title="Monthly Performance Comparison" subtitle="Revenue vs Expenses (KES)">
                     <BarChart data={last3Months} />
                     <div style={{ display: 'flex', gap: 16, marginTop: 12, justifyContent: 'center' }}>
@@ -265,9 +265,9 @@ export function Dashboard({ data, dark, truckStats, tyreStatus, truckReg, driver
                 </Card>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "3fr 2fr", gap: 32 }}>
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "3fr 2fr", gap: 16 }}>
                 {/* Fleet performance table */}
-                <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                     <Card title="Vehicle Performance Summary">
                         <div className="table-container">
                             <table className="table-modern">
@@ -334,7 +334,7 @@ export function Dashboard({ data, dark, truckStats, tyreStatus, truckReg, driver
                 </div>
 
                 {/* Secondary section: Alerts & Small lists */}
-                <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                     <Card title="Recent Alerts" icon={AlertTriangle}>
                         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                             {staleJourneys.slice(0, 3).map(j => (

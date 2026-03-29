@@ -83,14 +83,14 @@ export function VehicleProfile({ data, setData, dark, isMobile, openModal, maint
     return (
         <div className="page-shell">
             {/* Header / Banner */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 20, marginBottom: 32, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20, flexWrap: 'wrap' }}>
                 <Button variant="secondary" icon={ArrowLeft} onClick={() => navigate('/fleet')}>Back</Button>
-                <div style={{ width: 56, height: 56, borderRadius: 16, background: "var(--brand-primary)15", display: 'flex', alignItems: 'center', justifyContent: 'center', color: "var(--brand-primary)" }}>
-                    <Truck size={32} />
+                <div style={{ width: 48, height: 48, borderRadius: 12, background: "var(--brand-primary)15", display: 'flex', alignItems: 'center', justifyContent: 'center', color: "var(--brand-primary)" }}>
+                    <Truck size={24} />
                 </div>
                 <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 32, fontWeight: 900, color: "var(--text-primary)", lineHeight: 1.1, letterSpacing: "-0.04em" }}>{truck.reg}</div>
-                    <div style={{ fontSize: 14, color: "var(--text-muted)", marginTop: 4, display: "flex", alignItems: "center", gap: 10, fontWeight: 500 }}>
+                    <div style={{ fontSize: 26, fontWeight: 900, color: "var(--text-primary)", lineHeight: 1.1, letterSpacing: "-0.04em" }}>{truck.reg}</div>
+                    <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 2, display: "flex", alignItems: "center", gap: 10, fontWeight: 500 }}>
                         {truck.make} · {truck.type} · {truck.year} · <Badge status={truck.status} />
                     </div>
                 </div>
@@ -98,7 +98,7 @@ export function VehicleProfile({ data, setData, dark, isMobile, openModal, maint
             </div>
 
             {/* Navigation Tabs */}
-            <div style={{ display: 'flex', background: "var(--bg-card)", border: "1px solid var(--border-subtle)", borderRadius: 16, padding: 6, gap: 4, marginBottom: 32, overflowX: "auto" }} className="hide-scrollbar">
+            <div style={{ display: 'flex', background: "var(--bg-card)", border: "1px solid var(--border-subtle)", borderRadius: 12, padding: 4, gap: 4, marginBottom: 20, overflowX: "auto" }} className="hide-scrollbar">
                 {tabs.map(t => (
                     <button
                         key={t.id}
@@ -118,7 +118,7 @@ export function VehicleProfile({ data, setData, dark, isMobile, openModal, maint
             <Card style={{ padding: 0, overflow: "hidden" }} className="animate-fade-in">
                 {/* OVERVIEW */}
                 {tab === 'overview' && (
-                    <div style={{ padding: 32 }}>
+                    <div style={{ padding: 20 }}>
                         {missingOdomJourneys.length > 0 && (
                             <div style={{ padding: "12px 16px", background: "#ef444415", color: "#ef4444", borderRadius: 12, marginBottom: 20, display: "flex", alignItems: "center", gap: 10, fontWeight: 600, fontSize: 13, border: "1px solid #ef444430" }}>
                                 <AlertCircle size={18} />
@@ -136,12 +136,12 @@ export function VehicleProfile({ data, setData, dark, isMobile, openModal, maint
                                 { l: 'Efficiency',     v: `${avgKmPerL} km/L`, c: '#a78bfa', i: ArrowUpRight },
                                 { l: 'Max Payload',    v: `${truck.capacity} kg`, c: "var(--text-primary)", i: Truck },
                             ].map(k => (
-                                <div key={k.l} style={{ background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: 16, padding: 20 }}>
-                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                                        <div style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>{k.l}</div>
-                                        <k.i size={16} color="var(--text-dim)" />
+                                <div key={k.l} style={{ background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: 12, padding: 12 }}>
+                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                                        <div style={{ fontSize: 10, color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>{k.l}</div>
+                                        <k.i size={14} color="var(--text-dim)" />
                                     </div>
-                                    <div style={{ fontSize: 22, fontWeight: 900, color: k.c }}>{k.v}</div>
+                                    <div style={{ fontSize: 18, fontWeight: 900, color: k.c }}>{k.v}</div>
                                 </div>
                             ))}
                         </div>
@@ -152,7 +152,7 @@ export function VehicleProfile({ data, setData, dark, isMobile, openModal, maint
                                     <Shield size={20} color="var(--brand-primary)" />
                                     Technical Information
                                 </h3>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, background: "var(--bg-surface)", padding: 24, borderRadius: 20, border: "1px solid var(--border-subtle)" }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, background: "var(--bg-surface)", padding: 16, borderRadius: 16, border: "1px solid var(--border-subtle)" }}>
                                     {[
                                         ['Make / Model', truck.make],
                                         ['Year of Manufacture', truck.year],
@@ -211,11 +211,11 @@ export function VehicleProfile({ data, setData, dark, isMobile, openModal, maint
                 {/* FUEL LOG */}
                 {tab === 'fuel' && (
                     <div>
-                        <div style={{ padding: "24px 32px", borderBottom: "1px solid var(--border-subtle)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border-subtle)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                             <h3 style={{ fontSize: 18, fontWeight: 800, color: "var(--text-primary)" }}>Fuel Consumption Logs</h3>
                             <Button size="sm" icon={Plus} onClick={() => openModal('fuel', { truck: truck.id, date: today() })}>Add Entry</Button>
                         </div>
-                        <div style={{ padding: 32 }}>
+                        <div style={{ padding: 16 }}>
                                 <div className="table-container">
                                 <table className="table-modern">
                                     <thead>
@@ -273,11 +273,11 @@ export function VehicleProfile({ data, setData, dark, isMobile, openModal, maint
                 {/* JOURNEYS */}
                 {tab === 'journeys' && (
                     <div>
-                        <div style={{ padding: "24px 32px", borderBottom: "1px solid var(--border-subtle)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border-subtle)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                             <h3 style={{ fontSize: 18, fontWeight: 800, color: "var(--text-primary)" }}>Historical Missions</h3>
                             <Button size="sm" icon={Plus} onClick={() => openModal('journey', { truck: truck.id, date: today(), status: 'Loading' })}>Log Journey</Button>
                         </div>
-                        <div style={{ padding: 32 }}>
+                        <div style={{ padding: 16 }}>
                                 <div className="table-container">
                                 <table className="table-modern">
                                     <thead>
@@ -323,11 +323,11 @@ export function VehicleProfile({ data, setData, dark, isMobile, openModal, maint
                 {/* MAINTENANCE */}
                 {tab === 'maintenance' && (
                     <div>
-                        <div style={{ padding: "24px 32px", borderBottom: "1px solid var(--border-subtle)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                        <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border-subtle)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                             <h3 style={{ fontSize: 18, fontWeight: 800, color: "var(--text-primary)" }}>Preventive Maintenance Schedule</h3>
                             <Button size="sm" icon={Wrench} onClick={() => openModal('maintenance', { truck: truck.id, task: 'Oil Change', date: today(), odom: truck.odom })}>Log Service</Button>
                         </div>
-                        <div style={{ padding: 32 }}>
+                        <div style={{ padding: 16 }}>
                             <div className="table-container">
                             <table className="table-modern">
                                 <thead>
@@ -388,7 +388,7 @@ export function VehicleProfile({ data, setData, dark, isMobile, openModal, maint
 
                 {/* DOCUMENTS */}
                 {tab === 'documents' && (
-                    <div style={{ padding: 32 }}>
+                    <div style={{ padding: 20 }}>
                         <DocumentPanel 
                             entityType="truck" 
                             entityId={truck.id} 
@@ -403,7 +403,7 @@ export function VehicleProfile({ data, setData, dark, isMobile, openModal, maint
 
                 {/* P&L */}
                 {tab === 'pnl' && (
-                    <div style={{ padding: 32 }}>
+                    <div style={{ padding: 20 }}>
                         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: 24, marginBottom: 40 }}>
                             {[
                                 ['Operational Revenue', truckRevenue, '#10b981'], 

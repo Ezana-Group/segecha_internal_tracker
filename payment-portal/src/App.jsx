@@ -27,10 +27,22 @@ export default function PaymentPortal() {
     const [settings, setSettings] = useState({ companyName: 'Segecha Group Ltd' });
 
     useEffect(() => {
+        if (!API) {
+            console.error("[PAYMENT_PORTAL] VITE_API_URL is not defined in environment.");
+            return;
+        }
         fetch(`${API}/api/public-settings`)
-            .then(r => r.json())
-            .then(setSettings)
-            .catch(() => {});
+            .then(r => {
+                if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                return r.json();
+            })
+            .then(data => {
+                console.log("[PAYMENT_PORTAL] Public settings loaded:", data);
+                setSettings(data);
+            })
+            .catch(err => {
+                console.error("[PAYMENT_PORTAL] Failed to fetch settings:", err.message);
+            });
     }, []);
 
     const { 

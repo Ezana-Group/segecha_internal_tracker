@@ -210,9 +210,9 @@ export function Documents({ data, setData, dark, isMobile }) {
             />
 
             {/* KPI Section */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 24, marginBottom: 32 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 12, marginBottom: 16 }}>
                 <Card 
-                    style={{ padding: 16, cursor: "pointer", border: statusFilter === 'all' ? "2px solid var(--brand-primary)" : "1px solid var(--border-subtle)" }}
+                    style={{ padding: 12, cursor: "pointer", border: statusFilter === 'all' ? "2px solid var(--brand-primary)" : "1px solid var(--border-subtle)" }}
                     onClick={() => setStatusFilter('all')}
                 >
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
@@ -226,7 +226,7 @@ export function Documents({ data, setData, dark, isMobile }) {
                 </Card>
 
                 <Card 
-                    style={{ padding: 16, cursor: "pointer", border: statusFilter === 'expired' ? "2px solid #ef4444" : "1px solid var(--border-subtle)" }}
+                    style={{ padding: 12, cursor: "pointer", border: statusFilter === 'expired' ? "2px solid #ef4444" : "1px solid var(--border-subtle)" }}
                     onClick={() => setStatusFilter('expired')}
                 >
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
@@ -240,7 +240,7 @@ export function Documents({ data, setData, dark, isMobile }) {
                 </Card>
 
                 <Card 
-                    style={{ padding: 16, cursor: "pointer", border: statusFilter === 'expiring' ? "2px solid #f97316" : "1px solid var(--border-subtle)" }}
+                    style={{ padding: 12, cursor: "pointer", border: statusFilter === 'expiring' ? "2px solid #f97316" : "1px solid var(--border-subtle)" }}
                     onClick={() => setStatusFilter('expiring')}
                 >
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
@@ -258,7 +258,7 @@ export function Documents({ data, setData, dark, isMobile }) {
             {showUpload && (
                 <Card 
                     style={{ 
-                        padding: 32, marginBottom: 32, background: "var(--bg-card)", 
+                        padding: 20, marginBottom: 16, background: "var(--bg-card)", 
                         border: dragging ? "2px dashed var(--brand-primary)" : "2px dashed var(--border-subtle)",
                         transition: "all 0.2s ease"
                     }}
@@ -266,7 +266,7 @@ export function Documents({ data, setData, dark, isMobile }) {
                     onDragLeave={() => setDragging(false)}
                     onDrop={onDrop}
                 >
-                    <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr 1fr", gap: 24, marginBottom: 24 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr 1fr", gap: 16, marginBottom: 16 }}>
                         <div>
                             <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "var(--text-dim)", textTransform: "uppercase", marginBottom: 8 }}>Target Entity Type</label>
                             <select 
@@ -362,8 +362,11 @@ export function Documents({ data, setData, dark, isMobile }) {
             )}
 
             {/* Filter Hub */}
-            <Card style={{ padding: "0 16px", marginBottom: 24 }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", height: 56, gap: 20, overflowX: "auto" }}>
+            <Card style={{ 
+                padding: "0 14px", 
+                marginBottom: 16
+            }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", height: 48, gap: 16, overflowX: "auto" }}>
                     <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
                         {[
                             { id: 'all', label: 'All Library' },
@@ -443,7 +446,7 @@ export function Documents({ data, setData, dark, isMobile }) {
                             <tbody>
                                 {visible.length === 0 ? (
                                     <tr>
-                                        <td colSpan={6} style={{ padding: 48, textAlign: "center" }}>
+                                        <td colSpan={6} style={{ padding: 32, textAlign: "center" }}>
                                             <div style={{ color: "var(--text-dim)", fontWeight: 600, fontSize: 13 }}>No documents found matching the current perspective.</div>
                                         </td>
                                     </tr>

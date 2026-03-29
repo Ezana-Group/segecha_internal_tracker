@@ -35,12 +35,14 @@ export function InvoiceView({ inv, data, dark, fillTemplate }) {
         const balanceAmount = (inv.amount || 0) - totalPaid;
 
         const context = {
-            invoiceId: inv.id,
-            customerName: inv.client || "Valued Customer",
-            amount: Number(inv.amount).toLocaleString("en-KE", { maximumFractionDigits: 0 }),
-            dueDate: inv.due,
-            mpesaRef: inv.mpesaRef || "",
-            customerPhone: inv.phone || "",
+            id: inv.id,
+            date: inv.date,
+            due: inv.dueDate,
+            customerName: inv._client || inv.client || "Valued Customer",
+            amount: Number(inv.amount),
+            status: inv.status,
+            customerEmail: inv._email || inv.email || "",
+            customerPhone: inv._phone || inv.phone || "",
             businessName: s.companyName || "Segecha Group",
             businessAddress: s.address || s.companyAddress || "",
             businessPhone: s.phone || s.companyPhone || "",
@@ -137,9 +139,9 @@ export function InvoiceView({ inv, data, dark, fillTemplate }) {
             }}>
                 <div>
                     <div style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase", fontWeight: 800, letterSpacing: "0.1em", marginBottom: 12 }}>Billed To</div>
-                    <div style={{ fontWeight: 800, fontSize: 18, color: "var(--text-primary)" }}>{inv.client}</div>
+                    <div style={{ fontWeight: 800, fontSize: 18, color: "var(--text-primary)" }}>{inv._client || inv.client}</div>
                     <div style={{ fontSize: 14, color: "var(--text-secondary)", marginTop: 4, display: "flex", alignItems: "center", gap: 6 }}>
-                        <CreditCard size={14} /> {inv.phone}
+                        <CreditCard size={14} /> {inv._phone || inv.phone}
                     </div>
                 </div>
                 <div style={{ textAlign: "right" }}>

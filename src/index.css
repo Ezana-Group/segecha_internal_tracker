@@ -138,7 +138,7 @@ h1, h2, h3, h4, h5, h6 {
 
 .page-shell-wide {
   max-width: 1500px;
-  padding: 0 24px 32px;
+  padding: 0 24px 24px;
 }
 
 /* Responsive Page Shell */
@@ -529,7 +529,7 @@ h1, h2, h3, h4, h5, h6 {
   padding: 14px;
   box-shadow: var(--shadow-sm);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
-  height: 100%;
+  height: auto !important;
   position: relative;
   overflow: hidden;
 }
@@ -1007,7 +1007,7 @@ button.journeys-table-link:hover {
 
 /* ─── Page headers ─────────────────────────────────────────── */
 .page-header-title {
-  font-size: clamp(1.25rem, 2vw, 1.5rem);
+  font-size: clamp(1.15rem, 1.8vw, 1.35rem);
   font-weight: 600;
   color: var(--text-primary);
   letter-spacing: -0.03em;
@@ -1016,7 +1016,7 @@ button.journeys-table-link:hover {
 }
 
 .page-header--compact .page-header-title {
-  font-size: 1.125rem;
+  font-size: 1.1rem;
 }
 
 .page-header-desc {
@@ -1024,7 +1024,7 @@ button.journeys-table-link:hover {
   font-size: 13px;
   font-weight: 400;
   line-height: 1.5;
-  margin-top: 4px;
+  margin-top: 2px;
 }
 
 .page-header-icon {

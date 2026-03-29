@@ -120,8 +120,8 @@ export function Fleet({ data, setData, dark, isMobile, modal, form, setForm, ope
                     )
                 }
                 belowTitle={
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", flexWrap: "wrap", gap: 16 }}>
-                        <div style={{ display: "flex", gap: 24 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", flexWrap: "wrap", gap: 12 }}>
+                        <div style={{ display: "flex", gap: 16 }}>
                             {tabBtn(fleetTab === "trucks", () => setFleetTab("trucks"), `Trucks (${data.trucks.length})`)}
                             {tabBtn(fleetTab === "trailers", () => setFleetTab("trailers"), `Trailers (${(data.trailers || []).length})`)}
                         </div>

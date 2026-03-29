@@ -38,17 +38,17 @@ export function Incidents({ data, dark, isMobile, driverName, truckReg, setVerif
 
     return (
         <div className="page-shell">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 20, marginBottom: 32, flexWrap: 'wrap' }}>
-                <div style={{ width: 56, height: 56, borderRadius: 16, background: "rgba(239, 68, 68, 0.1)", display: 'flex', alignItems: 'center', justifyContent: 'center', color: "#ef4444" }}>
-                    <AlertTriangle size={32} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
+                <div style={{ width: 48, height: 48, borderRadius: 12, background: "rgba(239, 68, 68, 0.1)", display: 'flex', alignItems: 'center', justifyContent: 'center', color: "#ef4444" }}>
+                    <AlertTriangle size={24} />
                 </div>
                 <div style={{ flex: 1 }}>
-                    <h1 style={{ fontSize: 32, fontWeight: 900, color: "var(--text-primary)", lineHeight: 1.1, letterSpacing: "-0.04em" }}>Incident Reports</h1>
-                    <p style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 4 }}>
+                    <h1 style={{ fontSize: 26, fontWeight: 900, color: "var(--text-primary)", lineHeight: 1.1, letterSpacing: "-0.04em" }}>Incident Reports</h1>
+                    <p style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 2 }}>
                         Monitor and resolve safety incidents reported by the fleet.
                     </p>
                 </div>
-                <div style={{ display: "flex", gap: 12, background: "var(--bg-card)", padding: 6, borderRadius: 16, border: "1px solid var(--border-subtle)" }}>
+                <div style={{ display: "flex", gap: 8, background: "var(--bg-card)", padding: 6, borderRadius: 16, border: "1px solid var(--border-subtle)" }}>
                     <button 
                         onClick={() => setTab('pending')}
                         style={{
@@ -74,8 +74,11 @@ export function Incidents({ data, dark, isMobile, driverName, truckReg, setVerif
                 </div>
             </div>
 
-            <Card style={{ marginBottom: 32, padding: 16 }}>
-                <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+            <Card style={{ 
+                marginBottom: 16, 
+                padding: "14px"
+            }}>
+                <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
                     <div style={{ position: "relative", flex: 1 }}>
                         <Search size={18} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "var(--text-dim)" }} />
                         <input 
@@ -91,12 +94,12 @@ export function Incidents({ data, dark, isMobile, driverName, truckReg, setVerif
             </Card>
 
             {filtered.length === 0 ? (
-                <div style={{ textAlign: "center", padding: 40, background: "var(--bg-surface)", borderRadius: 24, border: "1px dashed var(--border-subtle)" }}>
-                    <div style={{ width: 52, height: 52, borderRadius: 16, background: "var(--bg-card)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-dim)", margin: "0 auto 16px" }}>
-                        <Shield size={24} />
+                <div style={{ textAlign: "center", padding: 32, background: "var(--bg-surface)", borderRadius: 24, border: "1px dashed var(--border-subtle)" }}>
+                    <div style={{ width: 44, height: 44, borderRadius: 12, background: "var(--bg-card)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-dim)", margin: "0 auto 12px" }}>
+                        <Shield size={20} />
                     </div>
-                    <h3 style={{ fontSize: 16, fontWeight: 800, color: "var(--text-primary)" }}>No incidents found</h3>
-                    <p style={{ fontSize: 13, color: "var(--text-muted)", maxWidth: 300, margin: "6px auto 0" }}>
+                    <h3 style={{ fontSize: 15, fontWeight: 800, color: "var(--text-primary)" }}>No incidents found</h3>
+                    <p style={{ fontSize: 13, color: "var(--text-muted)", maxWidth: 300, margin: "4px auto 0" }}>
                         {search ? "Adjust your search parameters to find matching reports." : (tab === 'pending' ? "All clear! No safety incidents currently awaiting review." : "No resolved incidents recorded yet.")}
                     </p>
                 </div>

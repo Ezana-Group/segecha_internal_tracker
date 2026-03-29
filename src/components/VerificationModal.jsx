@@ -6,11 +6,12 @@ import { Badge } from "./Badge";
 
 export function VerificationModal({ 
     journey, setVerifyModal, verifyJourney, verifySubmission, rejectReason, setRejectReason, 
-    verifyLoading, verifyMsg, dark, driverName, truckReg, driverPhone, customerName
+    verifyLoading, verifyMsg, data, fillTemplate, dark, driverName, truckReg, driverPhone, customerName
 }) {
     if (!journey) return null;
 
     const type = journey._itemType || 'journey';
+    const templates = data?.templates || [];
 
     const normalizePhoneToWa = (raw) => {
         const digits = String(raw || '').replace(/\D/g, '');
@@ -22,6 +23,26 @@ export function VerificationModal({
         const rawPhone = item._driverPhone || (driverPhone ? driverPhone(item.driver || item._submittedBy) : '');
         const phone = normalizePhoneToWa(rawPhone) || '254700000000';
         
+        // Find Reject Template (t2=Fuel Reject, t4=Trip Reject)
+        const tplKey = type === 'fuel' ? 't2' : 't4';
+        const tpl = templates.find(t => t.id === tplKey);
+
+        if (tpl && fillTemplate) {
+            const ctx = {
+                vehicle: truckReg(item.truck),
+                date: item.date || item.createdAt || "",
+                litres: item.litres || 0,
+                amount: item.amount || 0,
+                reason: reason || "Data discrepancy",
+                origin: item.origin || "",
+                destination: item.dest || "",
+                driverName: driverName(item.driver || item._submittedBy) || "Driver",
+            };
+            const body = fillTemplate(tpl.body, ctx);
+            return `https://wa.me/${phone}?text=${encodeURIComponent(body)}`;
+        }
+
+        // Fallback
         let text = "";
         if (type === 'fuel') {
             text = `*Fuel log rejected*\n\nTruck: ${truckReg(item.truck)}\nDate: ${item.date}\nLitres: ${item.litres}L\n\n*Reason:* ${reason}\n\nPlease correct and re-submit.`;
@@ -42,6 +63,25 @@ export function VerificationModal({
         const rawPhone = item._driverPhone || (driverPhone ? driverPhone(item.driver || item._submittedBy) : '');
         const phone = normalizePhoneToWa(rawPhone) || '254700000000';
         
+        // Find Approve Template (t1=Fuel OK, t3=Trip OK)
+        const tplKey = type === 'fuel' ? 't1' : 't3';
+        const tpl = templates.find(t => t.id === tplKey);
+
+        if (tpl && fillTemplate) {
+            const ctx = {
+                vehicle: truckReg(item.truck),
+                date: item.date || item.createdAt || "",
+                litres: item.litres || 0,
+                amount: item.amount || 0,
+                origin: item.origin || "",
+                destination: item.dest || "",
+                driverName: driverName(item.driver || item._submittedBy) || "Driver",
+            };
+            const body = fillTemplate(tpl.body, ctx);
+            return `https://wa.me/${phone}?text=${encodeURIComponent(body)}`;
+        }
+
+        // Fallback
         let text = "";
         if (type === 'fuel') {
             text = `*Fuel log approved*\n\nTruck: ${truckReg(item.truck)}\nDate: ${item.date}\nLitres: ${item.litres}L\n\nThank you.`;
@@ -57,6 +97,7 @@ export function VerificationModal({
         }
         return `https://wa.me/${phone}?text=${encodeURIComponent(text)}`;
     };
+
 
     const overlayStyle = {
         position: "fixed", inset: 0, background: "rgba(2, 6, 23, 0.85)", backdropFilter: "blur(8px)", zIndex: 1000,

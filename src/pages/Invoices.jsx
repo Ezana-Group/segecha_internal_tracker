@@ -99,14 +99,19 @@ export function Invoices({ data, setData, dark, isMobile, modal, form, setForm, 
         closeModal();
     };
 
-    // Refine data for sorting and filtering
-    const refinedInvoices = data.invoices.map(i => ({
-        ...i,
-        _client: i.client || customerName(i.customerId),
-        _amount: Number(i.amount || 0),
-        _balance: Number(i.amount || 0) - Number(i.paidAmount || 0),
-        _contact: `${i.phone || ""} ${i.email || ""}`
-    }));
+    // Refine data for sorting and filtering with live client data lookup
+    const refinedInvoices = data.invoices.map(i => {
+        const client = (data.customers || []).find(c => c.id === i.customerId);
+        return {
+            ...i,
+            _client: client?.name || i.client || "Unknown",
+            _phone: client?.phone || i.phone || "",
+            _email: client?.email || i.email || "",
+            _amount: Number(i.amount || 0),
+            _balance: Number(i.amount || 0) - Number(i.paidAmount || 0),
+            _contact: `${client?.phone || i.phone || ""} ${client?.email || i.email || ""}`
+        };
+    });
 
     const {
         filteredRows: sortedInvoices,
@@ -145,21 +150,20 @@ export function Invoices({ data, setData, dark, isMobile, modal, form, setForm, 
                 }
             />
 
-            {/* Financial Status Bar */}
-            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: 16, marginBottom: 20 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: 12, marginBottom: 16 }}>
                 {[
                     { label: "Filtered Revenue", value: fmt(totalInvoicedFiltered), icon: TrendingUp, color: "var(--brand-primary)" },
                     { label: "Filtered Settlements", value: fmt(totalPaidFiltered), icon: CheckCircle2, color: "#10b981" },
                     { label: "Filtered Receivables", value: fmt(totalPendingFiltered), icon: Clock, color: "#f59e0b" }
                 ].map((kpi, idx) => (
-                    <Card key={idx} style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)", borderRadius: 16 }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
-                            <div style={{ width: 40, height: 40, borderRadius: 10, background: `${kpi.color}10`, display: "flex", alignItems: "center", justifyContent: "center", color: kpi.color }}>
-                                <kpi.icon size={20} />
+                    <Card key={idx} style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)", borderRadius: 12, padding: "12px 16px" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                            <div style={{ fontSize: 10, color: "var(--text-dim)", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em" }}>{kpi.label}</div>
+                            <div style={{ width: 28, height: 28, borderRadius: 8, background: `${kpi.color}12`, display: "flex", alignItems: "center", justifyContent: "center", color: kpi.color }}>
+                                <kpi.icon size={14} />
                             </div>
                         </div>
-                        <div style={{ fontSize: 11, color: "var(--text-dim)", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 2 }}>{kpi.label}</div>
-                        <div style={{ fontSize: 18, fontWeight: 900, color: "var(--text-primary)" }}>{kpi.value}</div>
+                        <div style={{ fontSize: 16, fontWeight: 900, color: "var(--text-primary)" }}>{kpi.value}</div>
                     </Card>
                 ))}
             </div>
@@ -300,6 +304,9 @@ export function Invoices({ data, setData, dark, isMobile, modal, form, setForm, 
                 <PaymentRequestModal 
                     inv={paymentModal} 
                     onClose={() => setPaymentModal(null)}
+                    data={data}
+                    templates={data.templates}
+                    fillTemplate={props.fillTemplate}
                     payReqStatus={payReqStatus}
                     setPayReqStatus={setPayReqStatus}
                     PAYMENT_API={PAYMENT_API}
@@ -322,9 +329,9 @@ export function Invoices({ data, setData, dark, isMobile, modal, form, setForm, 
                                     return (
                                         <>
                                             <CommunicationChannelMenu
-                                                phone={inv.phone}
+                                                phone={inv._phone || inv.phone}
                                                 email={custEmail}
-                                                emailSubject={`Invoice ${inv.id} — ${inv.client || customerName(inv.customerId)}`}
+                                                emailSubject={`Invoice ${inv.id} — ${inv._client || inv.client}`}
                                                 emailBody={plain}
                                                 smsBody={plain}
                                                 whatsappBody={plain}
@@ -345,13 +352,13 @@ export function Invoices({ data, setData, dark, isMobile, modal, form, setForm, 
                                                         type: "invoice",
                                                         entityData: {
                                                             invoiceId: inv.id,
-                                                            customerName: inv.client || customerName(inv.customerId),
+                                                            customerName: inv._client || inv.client,
                                                             amount: fmt(inv.amount),
                                                             dueDate: inv.due,
                                                             mpesaRef: inv.mpesaRef || "",
-                                                            customerPhone: inv.phone || "",
-                                                            customerEmail: (cust?.email || "").trim(),
-                                                            firstName: (cust?.contactPerson || inv.client || customerName(inv.customerId) || "")
+                                                            customerPhone: inv._phone || inv.phone || "",
+                                                            customerEmail: (cust?.email || inv._email || inv.email || "").trim(),
+                                                            firstName: (cust?.contactPerson || inv._client || inv.client || "")
                                                                 .trim()
                                                                 .split(/\s+/)[0] || "",
                                                             journeyId: journey?.id || jid || "",

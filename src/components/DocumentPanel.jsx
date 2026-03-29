@@ -57,8 +57,9 @@ export const deleteDocumentById = async (docId, setDocuments) => {
         const res = await fetch(`${PAYMENT_API}/api/documents/${docId}`, {
             method: 'DELETE',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ adminKey: import.meta.env.VITE_ADMIN_KEY }),
+            body: JSON.stringify({ adminKey: ADMIN_KEY }),
         });
+
         const result = await res.json();
         if (result.success) setDocuments(d => d.filter(doc => doc.id !== docId));
         else alert('Failed to delete document: ' + result.error);
