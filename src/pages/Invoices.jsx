@@ -167,7 +167,7 @@ export function Invoices({ data, setData, dark, isMobile, modal, form, setForm, 
             {/* Main Ledger Table */}
             <Card style={{ padding: 0, overflow: "hidden", borderRadius: 24 }}>
                 <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", gap: 12 }}>
-                    <SearchIcon size={18} color="var(--text-dim)" />
+                    <Search size={18} color="var(--text-dim)" />
                     <input
                         type="search"
                         placeholder="Search invoices..."
