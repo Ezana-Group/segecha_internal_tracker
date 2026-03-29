@@ -23,7 +23,7 @@ export const NAV = [
     { id: "tyres", path: "/tyres", label: "Tyre health" },
     { id: "pnl", path: "/pnl", label: "P&L report" },
     { id: "incidents", path: "/incidents", label: "Incidents" },
-    { id: "mpesa-logs", path: "/mpesa-logs", label: "M-Pesa Logs" },
+    { id: "mpesa-logs", path: "/mpesa-logs", label: "Transactions" },
     { id: "documents", path: "/documents", label: "Documents" },
     { id: "import", path: "/import", label: "Import" },
     { id: "settings", path: "/settings", label: "Settings" },

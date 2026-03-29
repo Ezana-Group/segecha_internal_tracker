@@ -1702,6 +1702,49 @@ app.get('/api/admin/mpesa-transactions', adminAuth, async (req, res) => {
     }
 });
 
+// Create manual transaction (ATM, Bank Transfer, etc)
+app.post('/api/admin/transactions/manual', adminAuth, async (req, res) => {
+    const { type, amount, phone, receipt_number, source, invoiceId, truckId, category, description } = req.body;
+    try {
+        const id = 'tx-' + Date.now();
+        const result = await db.query(
+            `INSERT INTO mpesa_transactions (id, type, amount, phone, receipt_number, source, status, invoice_id, category)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+             RETURNING *`,
+            [id, type || 'manual', amount, phone || null, receipt_number || null, source || 'manual', 'Completed', invoiceId || null, category || null]
+        );
+
+        const tx = result.rows[0];
+
+        // If linked to invoice, create payment
+        if (invoiceId) {
+            const paymentId = 'pay-' + Date.now();
+            await db.query(
+                `INSERT INTO payments (id, invoice_id, amount, date, method, ref, notes)
+                 VALUES ($1, $2, $3, CURRENT_DATE, $4, $5, $6)`,
+                [paymentId, invoiceId, amount, source === 'bank' ? 'Bank' : 'Manual', receipt_number || id, description || 'Manual entry']
+            );
+            await db.query("UPDATE invoices SET status = 'Paid' WHERE id = $1", [invoiceId]);
+        }
+
+        // If linked to truck/category, create expense
+        if (truckId && category) {
+            const expenseId = 'exp-' + Date.now();
+            await db.query(
+                `INSERT INTO expenses (id, category, amount, date, description, truck_id, metadata)
+                 VALUES ($1, $2, $3, CURRENT_DATE, $4, $5, $6)`,
+                [expenseId, category, amount, description || `Manual ${type}: ${receipt_number || id}`, truckId, JSON.stringify({ tx_id: id, source })]
+            );
+            await db.query("UPDATE mpesa_transactions SET expense_id = $1 WHERE id = $2", [expenseId, id]);
+        }
+
+        res.json({ success: true, transaction: tx });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+
 app.post('/api/admin/mpesa-transactions/link', adminAuth, async (req, res) => {
     const { transactionId, invoiceId } = req.body;
     try {
@@ -1740,7 +1783,7 @@ app.post('/api/admin/mpesa-transactions/assign-expense', adminAuth, async (req, 
             [expenseId, category, tx.amount, description || ('M-Pesa ' + tx.type), truckId, JSON.stringify({ mpesa_tx_id: tx.id, receipt: tx.receipt_number })]
         );
         
-        await db.query("UPDATE mpesa_transactions SET metadata = metadata || $1 WHERE id = $2", [JSON.stringify({ linked_expense_id: expenseId }), transactionId]);
+        await db.query("UPDATE mpesa_transactions SET expense_id = $1 WHERE id = $2", [expenseId, transactionId]);
         
         res.json({ success: true });
     } catch (e) {
