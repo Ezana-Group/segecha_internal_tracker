@@ -189,12 +189,6 @@ export default function App() {
     return (
         <div id="app-shell" style={layoutStyle}>
             <div id="waybill-print-root" style={{ display: "none" }} aria-hidden="true" />
-            {isMobile && state.sideOpen && (
-                <div 
-                    style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", backdropFilter: "blur(4px)", zIndex: 89 }} 
-                    onClick={() => state.setSideOpen(false)} 
-                />
-            )}
             
             {/* {authed && <Topbar {...p} />} */}
             <PreviewModeBanner
