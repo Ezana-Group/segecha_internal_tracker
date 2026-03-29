@@ -1067,6 +1067,15 @@ export function Settings({
                                 <SettingsShellField label="Corporate WhatsApp No.">
                                     <SettingsShellInput value={localS.whatsappNumber || ''} onChange={e => saveSettings({ whatsappNumber: e.target.value })} placeholder="2547XXXXXXXX" />
                                 </SettingsShellField>
+                                <SettingsShellField label="Company Registration Number">
+                                    <SettingsShellInput value={localS.companyRegNumber || ''} onChange={e => saveSettings({ companyRegNumber: e.target.value })} placeholder="PVT-XXXXXX" />
+                                </SettingsShellField>
+                                <SettingsShellField label="Date of Registration">
+                                    <SettingsShellInput type="date" value={localS.dateOfRegistration || ''} onChange={e => saveSettings({ dateOfRegistration: e.target.value })} />
+                                </SettingsShellField>
+                                <SettingsShellField label="Insurance ID / Certificate No.">
+                                    <SettingsShellInput value={localS.insuranceId || ''} onChange={e => saveSettings({ insuranceId: e.target.value })} placeholder="INS-XXXXXX" />
+                                </SettingsShellField>
 
                                 <div style={{ gridColumn: "1/-1", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, background: "var(--brand-primary)05", padding: 20, borderRadius: 16, border: "1px dashed var(--brand-primary)30" }}>
                                     <SettingsShellField label="Organization Logo" sub="Shows in sidebar & documents">
@@ -2166,6 +2175,9 @@ export function Settings({
                                 </SettingsShellField>
                                 <SettingsShellField label="KRA PIN (carrier)" sub="Shown on all waybills">
                                     <SettingsShellInput value={localS.wbCarrierKraPin || ''} onChange={e => saveSettings({ wbCarrierKraPin: e.target.value })} placeholder="P000000000A" />
+                                </SettingsShellField>
+                                <SettingsShellField label="Carrier Insurance ID">
+                                    <SettingsShellInput value={localS.wbCarrierInsuranceId || ''} onChange={e => saveSettings({ wbCarrierInsuranceId: e.target.value })} placeholder="INS-XXXXXX" />
                                 </SettingsShellField>
                                 <SettingsShellField label="NTSA transport licence no.">
                                     <SettingsShellInput value={localS.wbCarrierNtsa || ''} onChange={e => saveSettings({ wbCarrierNtsa: e.target.value })} placeholder="NTSA/TL/XXXX" />

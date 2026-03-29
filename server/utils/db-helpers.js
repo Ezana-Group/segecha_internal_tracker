@@ -207,26 +207,7 @@ async function upsertEntity(table, item) {
     }
 
     if (table === 'journeys') {
-        if (finalData.truck_id && finalData.is_international && finalData.status !== 'Completed') {
-            const truckRes = await db.query(`
-                SELECT 
-                    metadata->>'kra_pin' as kra_pin_v1, 
-                    metadata->>'kraPin' as kra_pin_v2,
-                    metadata->>'insurance_id' as ins_v1, 
-                    metadata->>'insuranceId' as ins_v2 
-                FROM "trucks" WHERE id = $1
-            `, [finalData.truck_id]);
-            
-            if (truckRes.rows.length > 0) {
-                const t = truckRes.rows[0];
-                const kra_pin = t.kra_pin_v1 || t.kra_pin_v2;
-                const insurance_id = t.ins_v1 || t.ins_v2;
-                
-                if (!kra_pin || kra_pin === 'Unset' || !insurance_id || insurance_id === 'Unset') {
-                    throw new Error("Cannot dispatch a vehicle with missing KRA PIN or Insurance ID");
-                }
-            }
-        }
+
         if (finalData.status === 'Completed') {
             const finalOdom = finalData.metadata?.finalOdom || finalData.final_odom;
             if (finalOdom == null || finalOdom === '') {
@@ -440,26 +421,7 @@ async function upsertEntityInTransaction(client, table, item) {
     }
 
     if (table === 'journeys') {
-        if (finalData.truck_id && finalData.is_international && finalData.status !== 'Completed') {
-            const truckRes = await client.query(`
-                SELECT 
-                    metadata->>'kra_pin' as kra_pin_v1, 
-                    metadata->>'kraPin' as kra_pin_v2,
-                    metadata->>'insurance_id' as ins_v1, 
-                    metadata->>'insuranceId' as ins_v2 
-                FROM "trucks" WHERE id = $1
-            `, [finalData.truck_id]);
-            
-            if (truckRes.rows.length > 0) {
-                const t = truckRes.rows[0];
-                const kra_pin = t.kra_pin_v1 || t.kra_pin_v2;
-                const insurance_id = t.ins_v1 || t.ins_v2;
-                
-                if (!kra_pin || kra_pin === 'Unset' || !insurance_id || insurance_id === 'Unset') {
-                    throw new Error("Cannot dispatch a vehicle with missing KRA PIN or Insurance ID");
-                }
-            }
-        }
+
         if (finalData.status === 'Completed') {
             const finalOdom = finalData.metadata?.finalOdom || finalData.final_odom;
             if (finalOdom == null || finalOdom === '') {

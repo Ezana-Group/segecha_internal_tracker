@@ -390,6 +390,10 @@ export function WaybillModal({ waybillModalJourney, waybillForm, setWaybillForm,
                         {fieldCell("NTSA transport licence no.", f.carrierNtsa, (v) => set("carrierNtsa", v), {
                             mono: true,
                         })}
+                        {fieldCell("Insurance ID / Cert", f.carrierInsuranceId, (v) => set("carrierInsuranceId", v), {
+                            mono: true,
+                            placeholder: "INS-XXXXXX",
+                        })}
                     </div>
                     <div
                         style={{

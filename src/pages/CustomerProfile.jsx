@@ -49,32 +49,32 @@ export function CustomerProfile({ data, isMobile, truckReg, customerName }) {
             </button>
 
             {/* Profile Header */}
-            <Card style={{ marginBottom: 20, padding: "20px 24px" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 20, flexWrap: "wrap" }}>
-                    <div style={{ display: "flex", gap: 20, alignItems: "center" }}>
-                        <div style={{ width: 60, height: 60, borderRadius: 16, background: "var(--brand-primary)", display: "flex", alignItems: "center", justifyContent: "center", color: "white", boxShadow: "0 8px 16px rgba(59, 130, 246, 0.15)" }}>
-                            {customer.type === "Company" ? <Building2 size={32} /> : <User size={32} />}
+            <Card style={{ marginBottom: 20, padding: "16px 20px", height: "auto" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 20, flexWrap: "wrap" }}>
+                    <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+                        <div style={{ width: 48, height: 48, borderRadius: 12, background: "var(--brand-primary)", display: "flex", alignItems: "center", justifyContent: "center", color: "white", boxShadow: "0 4px 12px rgba(59, 130, 246, 0.15)" }}>
+                            {customer.type === "Company" ? <Building2 size={24} /> : <User size={24} />}
                         </div>
                         <div>
-                            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 2 }}>
-                                <h1 style={{ fontSize: 24, fontWeight: 900, color: "var(--text-primary)", margin: 0 }}>{customer.name}</h1>
+                            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 0 }}>
+                                <h1 style={{ fontSize: 20, fontWeight: 900, color: "var(--text-primary)", margin: 0 }}>{customer.name}</h1>
                                 <Badge status={customer.type === "Company" ? "Pending" : "Paid"} text={customer.type} />
                             </div>
-                            <div style={{ fontSize: 12, color: "var(--text-dim)", fontWeight: 600, fontFamily: "var(--font-mono)" }}>
+                            <div style={{ fontSize: 11, color: "var(--text-dim)", fontWeight: 600, fontFamily: "var(--font-mono)", opacity: 0.8 }}>
                                 System ID: {customer.uId}
                             </div>
                         </div>
                     </div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--text-secondary)", fontSize: 13 }}>
-                            <Mail size={14} color="var(--brand-primary)" /> {customer.email || "No email provided"}
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--text-secondary)", fontSize: 12 }}>
+                            <Mail size={13} color="var(--brand-primary)" /> {customer.email || "No email provided"}
                         </div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--text-secondary)", fontSize: 13 }}>
-                            <Phone size={14} color="var(--brand-primary)" /> {customer.phone}
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--text-secondary)", fontSize: 12 }}>
+                            <Phone size={13} color="var(--brand-primary)" /> {customer.phone}
                         </div>
                         {customer.address && (
-                            <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--text-secondary)", fontSize: 13 }}>
-                                <MapPin size={14} color="var(--brand-primary)" /> {customer.address}
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--text-secondary)", fontSize: 12 }}>
+                                <MapPin size={13} color="var(--brand-primary)" /> {customer.address}
                             </div>
                         )}
                     </div>

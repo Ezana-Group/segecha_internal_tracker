@@ -211,13 +211,15 @@ table.cargo tr.totrow td { border-top: 1px solid #000;
 
   <div class="sec">
     <div class="sec-title">1 · Carrier (transporter)</div>
-    <div class="fields" style="grid-template-columns:2fr 1fr 1fr">
+    <div class="fields" style="grid-template-columns:2fr 1fr 1fr 1fr">
       <div class="field"><div class="fl">Company name</div>
         <div class="fv lg">${fmtLine(f.carrierName)}</div></div>
       <div class="field"><div class="fl">KRA PIN</div>
         <div class="fv mono">${fmtLine(f.carrierKraPin)}</div></div>
       <div class="field"><div class="fl">NTSA licence</div>
         <div class="fv mono">${fmtLine(f.carrierNtsa)}</div></div>
+      <div class="field"><div class="fl">Insurance ID</div>
+        <div class="fv mono">${fmtLine(f.carrierInsuranceId)}</div></div>
       <div class="field"><div class="fl">Address</div>
         <div class="fv">${fmtLine(f.carrierAddress)}</div></div>
       <div class="field"><div class="fl">Phone</div>

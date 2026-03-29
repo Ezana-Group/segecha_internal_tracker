@@ -251,6 +251,7 @@ export function useAppState() {
 
             carrierName: s.wbCarrierName || s.companyName || "Segecha Group Ltd",
             carrierKraPin: s.wbCarrierKraPin || s.pinNumber || "",
+            carrierInsuranceId: s.wbCarrierInsuranceId || s.insuranceId || "",
             carrierNtsa: s.wbCarrierNtsa || "",
             carrierAddress: s.wbCarrierAddress || s.address || "",
             carrierPhone: s.wbCarrierPhone || s.phone || s.companyPhone || "",
