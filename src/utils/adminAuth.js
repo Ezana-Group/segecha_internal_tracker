@@ -21,3 +21,6 @@ export const adminAuth = {
   
   isAuthenticated: () => !!localStorage.getItem(TOKEN_KEY)
 };
+
+window.adminAuth = adminAuth;
+
