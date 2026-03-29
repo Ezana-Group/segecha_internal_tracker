@@ -34,7 +34,7 @@ import { TyreMonitor } from "./pages/TyreMonitor";
 import { GlobalModals } from "./components/GlobalModals";
 import { WaybillModal } from "./components/WaybillModal";
 import { VerificationModal } from "./components/VerificationModal";
-import { MpesaTransactions } from "./pages/MpesaTransactions";
+// import { MpesaTransactions } from "./pages/MpesaTransactions";
 import { getTheme, getStyles } from "./constants/theme";
 import { adminAuth } from "./utils/adminAuth";
 import { Login } from "./pages/Login";
@@ -260,7 +260,7 @@ export default function App() {
                                     <Route path="/expenses" element={<ErrorBoundary><Expenses {...p} /></ErrorBoundary>} />
                                     <Route path="/incidents" element={<ErrorBoundary><Incidents {...p} /></ErrorBoundary>} />
                                     <Route path="/invoices" element={<ErrorBoundary><Invoices {...p} /></ErrorBoundary>} />
-                                    <Route path="/mpesa-logs" element={<ErrorBoundary><MpesaTransactions {...p} /></ErrorBoundary>} />
+                                    {/* <Route path="/mpesa-logs" element={<ErrorBoundary><MpesaTransactions {...p} /></ErrorBoundary>} /> */}
                                     <Route path="/payroll" element={<ErrorBoundary><Payroll {...p} /></ErrorBoundary>} />
                                     <Route path="/maintenance" element={<ErrorBoundary><Maintenance {...p} /></ErrorBoundary>} />
                                     <Route path="/tyres" element={<ErrorBoundary><TyreMonitor {...p} /></ErrorBoundary>} />
