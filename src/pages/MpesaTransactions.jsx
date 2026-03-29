@@ -144,6 +144,26 @@ export function MpesaTransactions({ data, setData, isMobile, showToast }) {
         }
     };
 
+    const handleReverse = async (id) => {
+        if (!window.confirm('Mark this transaction as reversed? This is an audit action.')) return;
+        try {
+            const token = adminAuth.getToken();
+            const res = await fetch(`${PAYMENT_API}/api/admin/mpesa-transactions/reverse`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                },
+                body: JSON.stringify({ id })
+            });
+            if (!res.ok) throw new Error('Action failed');
+            showToast?.('Transaction reversed', 'success');
+            fetchTransactions();
+        } catch (err) {
+            showToast?.(err.message, 'error');
+        }
+    };
+
     const statusBadge = (tx) => {
         const s = tx.status;
         switch(s) {
@@ -307,9 +327,10 @@ export function MpesaTransactions({ data, setData, isMobile, showToast }) {
                                     <td style={{ textAlign: 'right' }}>
                                         <TableRowActions 
                                             items={[
-                                                { id: 'link-inv', label: 'Link to Invoice', icon: Link, disabled: !!tx.invoice_id, onClick: () => setAssigningTo({ tx, type: 'invoice' }) },
-                                                { id: 'link-exp', label: 'Link to Expense', icon: Plus, disabled: !!tx.expense_id, onClick: () => setAssigningTo({ tx, type: 'expense' }) },
+                                                { id: 'link-inv', label: 'Link to Invoice', icon: Link, disabled: !!tx.invoice_id || tx.status === 'Reversed', onClick: () => setAssigningTo({ tx, type: 'invoice' }) },
+                                                { id: 'link-exp', label: 'Link to Expense', icon: Plus, disabled: !!tx.expense_id || tx.status === 'Reversed', onClick: () => setAssigningTo({ tx, type: 'expense' }) },
                                                 { id: 'copy', label: 'Copy Ref', icon: Copy, onClick: () => { navigator.clipboard.writeText(tx.receipt_number || tx.id); showToast?.('Copied', 'info'); } },
+                                                { id: 'reverse', label: 'Mark Reversed', icon: AlertCircle, disabled: tx.status === 'Reversed', onClick: () => handleReverse(tx.id) },
                                             ]}
                                         />
                                     </td>

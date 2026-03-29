@@ -1772,6 +1772,16 @@ app.post('/api/admin/mpesa-transactions/link', adminAuth, async (req, res) => {
     }
 });
 
+app.post('/api/admin/mpesa-transactions/reverse', adminAuth, async (req, res) => {
+    const { id } = req.body;
+    try {
+        await db.query("UPDATE mpesa_transactions SET status = 'Reversed', updated_at = CURRENT_TIMESTAMP WHERE id = $1", [id]);
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 app.post('/api/admin/mpesa-transactions/assign-expense', adminAuth, async (req, res) => {
     const { transactionId, truckId, category, description } = req.body;
     try {
