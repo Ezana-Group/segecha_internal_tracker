@@ -58,7 +58,7 @@ export function useAppState() {
         setLoading(true);
         try {
             const token = adminAuth.getToken();
-            const res = await fetch(`${PAYMENT_API}/api/tracker/data-full`, {
+            const res = await fetch(`${PAYMENT_API}/api/tracker/data`, {
                 headers: {
                     'x-admin-key': ADMIN_KEY,
                     ...(token ? { 'Authorization': `Bearer ${token}` } : {})
