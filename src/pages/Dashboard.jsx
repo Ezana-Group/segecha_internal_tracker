@@ -16,7 +16,6 @@ import {
     CreditCard,
     Mail, Briefcase, Users, CheckCircle2, CheckCircle
 } from "lucide-react";
-import { adminAuth } from '../utils/adminAuth';
 import { fmt, fmtN, monthLabel } from "../utils/formatters";
 import { STALE_TRANSIT_DAYS, FLEET_ACTIVE_WARN_PCT } from "../constants/nav";
 import { PAYMENT_API } from "../utils/env";
@@ -61,7 +60,7 @@ const BarChart = ({ data, dark }) => {
     );
 };
 
-export function Dashboard({ data, dark, truckStats, tyreStatus, truckReg, driverName, setVerifyModal, pendingVerifications, isMobile }) {
+export function Dashboard({ data, dark, truckStats, tyreStatus, truckReg, driverName, setVerifyModal, pendingVerifications, isMobile, adminAuth, S, T }) {
     const navigate = useNavigate();
     const [expiringDocs, setExpiringDocs] = useState([]);
     

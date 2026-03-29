@@ -17,7 +17,9 @@ export function Topbar({
     pendingVerifications,
     setVerifyModal,
     truckReg,
+    adminAuth,
     S,
+    T
 }) {
     const activeTrucks = data.trucks.filter((t) => t.status === "Active").length;
     const totalTrucks = data.trucks.length;

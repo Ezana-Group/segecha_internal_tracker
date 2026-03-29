@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { adminAuth } from '../utils/adminAuth';
 import { PAYMENT_API } from '../utils/env';
 import { Mail, Lock, AlertCircle, Loader2, Eye, EyeOff } from 'lucide-react';
 
-export function Login({ showToast }) {
+export function Login({ adminAuth, showToast }) {
   const [loginMethod, setLoginMethod] = useState('email'); // email | phone
   const [view, setView] = useState('login'); // login | forgot | reset
   const [resetToken, setResetToken] = useState('');

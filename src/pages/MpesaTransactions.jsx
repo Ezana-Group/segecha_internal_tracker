@@ -28,12 +28,11 @@ import { Button } from '../components/Button';
 import { Badge } from '../components/Badge';
 import { PageHeader } from '../components/PageHeader';
 import { TableRowActions } from '../components/TableRowActions';
-import { adminAuth } from '../utils/adminAuth';
 import { PAYMENT_API, ADMIN_KEY } from '../utils/env';
 import { fmt, fmtDate, uid, today } from '../utils/formatters';
 import { CATS, TRUCK_TYPES } from '../constants/nav';
 
-export function MpesaTransactions({ data, setData, isMobile, showToast }) {
+export function MpesaTransactions({ data, setData, isMobile, showToast, adminAuth }) {
     const [transactions, setTransactions] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');

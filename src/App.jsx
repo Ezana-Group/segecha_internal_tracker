@@ -57,7 +57,15 @@ export default function App() {
     const isTablet = winW >= 640 && winW < 1024;
 
     const isLogin = location.pathname === "/login";
-    const authed = adminAuth.isAuthenticated();
+    
+    // Defensive auth check to avoid TDZ (Temporal Dead Zone) in minified builds
+    const [authed, setAuthed] = useState(() => !!localStorage.getItem('segecha_admin_token'));
+    
+    useEffect(() => {
+        // Sync auth state if needed, though direct storage check is usually enough
+        const check = !!localStorage.getItem('segecha_admin_token');
+        if (check !== authed) setAuthed(check);
+    }, [location.pathname]);
 
     const previewLabel = useMemo(() => {
         const pm = state.previewMode;
@@ -163,6 +171,7 @@ export default function App() {
         isTablet,
         tyreAlertCount,
         verifyAlertCount,
+        adminAuth,
         S,
         T
     };

@@ -31,7 +31,7 @@ import { TableRowActions } from "../components/TableRowActions";
 import { SortableTableHead } from "../components/SortableTableHead";
 import { useTableFilter } from "../hooks/useTableFilter";
 
-export function PnL({ data, dark, isMobile, truckStats, truckReg, customerName, driverName, showToast }) {
+export function PnL({ data, dark, isMobile, truckStats, truckReg, customerName, driverName, showToast, adminAuth, S, T }) {
     const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState('analytics'); // 'analytics' | 'statement'
 
