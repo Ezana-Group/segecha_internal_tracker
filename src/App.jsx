@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, lazy, Suspense } from "react";
+import React from "react";
 import { Routes, Route, useLocation, useNavigate } from "react-router-dom";
 import { isPathAllowedInPreview, defaultPreviewPath } from "./constants/previewNav.js";
 import { PreviewModeBanner } from "./components/PreviewModeBanner.jsx";
@@ -35,8 +36,10 @@ import { GlobalModals } from "./components/GlobalModals";
 import { WaybillModal } from "./components/WaybillModal";
 import { VerificationModal } from "./components/VerificationModal";
 import { getTheme, getStyles } from "./constants/theme";
-import { adminAuth } from "./utils/adminAuth";
 import { Login } from "./pages/Login";
+
+const MpesaTransactions = lazy(() => import("./pages/MpesaTransactions").then(m => ({ default: m.MpesaTransactions })));
+
 
 export default function App() {
     const state = useAppState();
@@ -233,6 +236,13 @@ export default function App() {
                                     <Route path="/fuel" element={<ErrorBoundary><FuelLog {...p} /></ErrorBoundary>} />
                                     <Route path="/expenses" element={<ErrorBoundary><Expenses {...p} /></ErrorBoundary>} />
                                     <Route path="/incidents" element={<ErrorBoundary><Incidents {...p} /></ErrorBoundary>} />
+                                    <Route path="/mpesa-logs" element={
+                                        <ErrorBoundary>
+                                            <Suspense fallback={<div className="page-shell">Loading...</div>}>
+                                                <MpesaTransactions {...p} />
+                                            </Suspense>
+                                        </ErrorBoundary>
+                                    } />
                                     <Route path="/invoices" element={<ErrorBoundary><Invoices {...p} /></ErrorBoundary>} />
                                     <Route path="/payroll" element={<ErrorBoundary><Payroll {...p} /></ErrorBoundary>} />
                                     <Route path="/maintenance" element={<ErrorBoundary><Maintenance {...p} /></ErrorBoundary>} />

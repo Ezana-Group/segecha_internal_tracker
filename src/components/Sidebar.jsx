@@ -1,6 +1,7 @@
 import { NavLink } from "react-router-dom";
 import {
     LayoutDashboard,
+    Activity,
     Truck,
     Route as RouteIcon,
     Droplet,
@@ -38,6 +39,7 @@ const ICON_MAP = {
     tyres: CircleDot,
     pnl: BarChart3,
     incidents: AlertTriangle,
+    "mpesa-logs": Activity,
     documents: Files,
     import: Download,
     settings: Settings,
