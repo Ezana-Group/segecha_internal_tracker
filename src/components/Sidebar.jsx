@@ -18,6 +18,7 @@ import {
     Download,
     ExternalLink,
     AlertTriangle,
+    Activity,
 } from "lucide-react";
 import { NAV } from "../constants/nav";
 import { getPreviewNavItems } from "../constants/previewNav.js";
@@ -41,6 +42,7 @@ const ICON_MAP = {
     documents: Files,
     import: Download,
     settings: Settings,
+    "mpesa-logs": Activity,
     "driver-overview": LayoutDashboard,
     "driver-trips": RouteIcon,
     "driver-portal-app": ExternalLink,

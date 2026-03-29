@@ -395,6 +395,16 @@ app.post('/api/mpesa/stk-push', async (req, res) => {
             description: `Payment for ${clientName || invoiceId || 'Invoice'}`,
             config: settings
         });
+
+        // Log the transaction attempt
+        if (result.ResponseCode === '0') {
+            await db.query(
+                `INSERT INTO mpesa_transactions (id, merchant_request_id, checkout_request_id, type, phone, amount, invoice_id, status)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+                [Date.now().toString(), result.MerchantRequestID, result.CheckoutRequestID, 'STK_PUSH', phone, amount, invoiceId || null, 'Pending']
+            );
+        }
+
         res.json({ success: true, ...result });
     } catch (e) {
         console.error('STK_PUSH_ERROR:', e.response?.data || e.message);
@@ -418,7 +428,44 @@ app.post('/api/webhooks/mpesa', async (req, res) => {
             }
         }
         
-        console.log('[WEBHOOK] M-Pesa payload received:', req.body);
+        const body = req.body;
+        console.log('[WEBHOOK] M-Pesa payload received:', body);
+
+        // STK Push Callback Handling
+        if (body.Body && body.Body.stkCallback) {
+            const { MerchantRequestID, CheckoutRequestID, ResultCode, ResultDesc, CallbackMetadata } = body.Body.stkCallback;
+            let receipt = null;
+            if (CallbackMetadata && CallbackMetadata.Item) {
+                const item = CallbackMetadata.Item.find(i => i.Name === 'MpesaReceiptNumber');
+                if (item) receipt = item.Value;
+            }
+
+            const status = ResultCode === 0 ? 'Success' : 'Failed';
+            
+            await db.query(
+                `UPDATE mpesa_transactions 
+                 SET status = $1, receipt_number = $2, metadata = $3, result_code = $4, result_desc = $5, updated_at = CURRENT_TIMESTAMP
+                 WHERE checkout_request_id = $6`,
+                [status, receipt, JSON.stringify(body), ResultCode, ResultDesc, CheckoutRequestID]
+            );
+
+            // AUTO-LINK: If ResultCode is 0 and we have an invoice_id, create a payment record
+            if (ResultCode === 0) {
+                const txRes = await db.query("SELECT invoice_id, amount FROM mpesa_transactions WHERE checkout_request_id = $1", [CheckoutRequestID]);
+                if (txRes.rows.length > 0 && txRes.rows[0].invoice_id) {
+                    const { invoice_id, amount } = txRes.rows[0];
+                    const paymentId = 'pay-' + Date.now();
+                    await db.query(
+                        `INSERT INTO payments (id, invoice_id, amount, date, method, ref, notes)
+                         VALUES ($1, $2, $3, CURRENT_DATE, 'M-Pesa STK', $4, $5)
+                         ON CONFLICT (ref) DO NOTHING`,
+                        [paymentId, invoice_id, amount, receipt, 'Auto-linked from STK push']
+                    );
+                    await db.query("UPDATE invoices SET status = 'Paid' WHERE id = $1", [invoice_id]);
+                }
+            }
+        }
+        
         res.status(200).send('OK');
     } catch (e) {
         console.error('[WEBHOOK ERROR]', e);
@@ -1593,6 +1640,13 @@ app.post('/api/admin/payroll/:id/pay', async (req, res) => {
             });
             
             if (result.ResponseCode === '0') {
+                // Log to mpesa_transactions
+                await db.query(
+                    `INSERT INTO mpesa_transactions (id, merchant_request_id, type, phone, amount, status, metadata)
+                     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+                    [Date.now().toString(), result.ConversationID, 'B2C', phone, amount, 'Pending', JSON.stringify(result)]
+                );
+
                 await db.query("UPDATE payroll SET status = 'Paid', metadata = metadata || $1 WHERE id = $2", [JSON.stringify({ disbursement_ref: result.ConversationID, method: 'mpesa' }), id]);
                 return res.json({ success: true, message: 'M-Pesa disbursement initiated', data: result });
             } else {
@@ -1628,6 +1682,13 @@ app.post('/api/admin/refund', async (req, res) => {
             });
             
             if (result.ResponseCode === '0') {
+                // Log to mpesa_transactions
+                await db.query(
+                    `INSERT INTO mpesa_transactions (id, merchant_request_id, type, phone, amount, status, metadata)
+                     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+                    [Date.now().toString(), result.ConversationID, 'B2B', receiverShortcode, amount, 'Pending', JSON.stringify(result)]
+                );
+
                 return res.json({ success: true, message: 'B2B Refund initiated', data: result });
             } else {
                 return res.status(400).json({ success: false, error: result.ResponseDescription || 'B2B failed' });
@@ -1638,6 +1699,63 @@ app.post('/api/admin/refund', async (req, res) => {
     } catch (e) {
         console.error('REFUND_ERROR:', e.response?.data || e.message);
         res.status(500).json({ success: false, error: e.response?.data?.errorMessage || e.message });
+    }
+});
+
+// --- MPESA TRANSACTION MANAGEMENT ---
+
+app.get('/api/admin/mpesa-transactions', adminAuth, async (req, res) => {
+    try {
+        const result = await db.query('SELECT * FROM mpesa_transactions ORDER BY created_at DESC LIMIT 200');
+        res.json(result.rows);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.post('/api/admin/mpesa-transactions/link', adminAuth, async (req, res) => {
+    const { transactionId, invoiceId } = req.body;
+    try {
+        const txRes = await db.query("SELECT * FROM mpesa_transactions WHERE id = $1", [transactionId]);
+        if (txRes.rows.length === 0) return res.status(404).json({ error: 'Transaction not found' });
+        const tx = txRes.rows[0];
+
+        const paymentId = 'pay-' + Date.now();
+        await db.query(
+            `INSERT INTO payments (id, invoice_id, amount, date, method, ref, notes)
+             VALUES ($1, $2, $3, CURRENT_DATE, $4, $5, $6)
+             ON CONFLICT (ref) DO NOTHING`,
+            [paymentId, invoiceId, tx.amount, 'M-Pesa ' + tx.type, tx.receipt_number || tx.checkout_request_id, 'Manually linked from M-Pesa Logs']
+        );
+        
+        await db.query("UPDATE mpesa_transactions SET invoice_id = $1 WHERE id = $2", [invoiceId, transactionId]);
+        await db.query("UPDATE invoices SET status = 'Paid' WHERE id = $1", [invoiceId]);
+        
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.post('/api/admin/mpesa-transactions/assign-expense', adminAuth, async (req, res) => {
+    const { transactionId, truckId, category, description } = req.body;
+    try {
+        const txRes = await db.query("SELECT * FROM mpesa_transactions WHERE id = $1", [transactionId]);
+        if (txRes.rows.length === 0) return res.status(404).json({ error: 'Transaction not found' });
+        const tx = txRes.rows[0];
+
+        const expenseId = 'exp-' + Date.now();
+        await db.query(
+            `INSERT INTO expenses (id, category, amount, date, description, truck_id, metadata)
+             VALUES ($1, $2, $3, CURRENT_DATE, $4, $5, $6)`,
+            [expenseId, category, tx.amount, description || ('M-Pesa ' + tx.type), truckId, JSON.stringify({ mpesa_tx_id: tx.id, receipt: tx.receipt_number })]
+        );
+        
+        await db.query("UPDATE mpesa_transactions SET metadata = metadata || $1 WHERE id = $2", [JSON.stringify({ linked_expense_id: expenseId }), transactionId]);
+        
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
     }
 });
 
