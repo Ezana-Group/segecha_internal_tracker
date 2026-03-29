@@ -9,12 +9,21 @@ const ALLOWED_METADATA = {
     journeys: [
         'pickupAddress', 'deliveryAddress', 'weight', 'distance', 'revenue', 
         'driverMileage', 'turnboyMileage', 'roadUserAllowance', 'mileageRateUsed', 'mileageRouteOverride', 'isFlatRate', 
-        'startOdom', 'finalOdom', 'startOdomPic', 'finalOdomPic', 'otherCargo',
+        'startOdom', 'finalOdom', 'adminStartOdomPhotoUrl', 'adminEndOdomPhotoUrl', 'otherCargo',
+        'turnboyType', 'turnboyId', 'turnboyName', 'trailer',
         '_isRejected', '_rejectionReason', '_rejectedFields', '_pendingApproval'
     ],
-    fuel_logs: ['paymentRef', 'isPetrolCard', '_pendingApproval', '_isRejected', '_rejectionReason', 'station_coords'],
-    expenses: ['fuel_log_id', 'paymentRef', 'isPetrolCard', '_pendingApproval', '_isRejected', '_rejectionReason'],
-    payroll: ['baseSalary', 'allowance', 'deductions', 'mpesaRef', 'paidAt', 'workingDays']
+    fuel_logs: [
+        'paymentRef', 'isPetrolCard', '_pendingApproval', '_isRejected', '_rejectionReason', 'station_coords',
+        'photoPump', 'photoReceipt', 'photoOdom', 'fuelType'
+    ],
+    expenses: [
+        'fuel_log_id', 'paymentRef', 'isPetrolCard', '_pendingApproval', '_isRejected', '_rejectionReason',
+        'subCat', 'receiptUrl'
+    ],
+    payroll: [
+        'baseSalary', 'allowance', 'deductions', 'mpesaRef', 'paidAt', 'paidDate', 'workingDays'
+    ]
 };
 
 const RESTRICTED_METADATA_TABLES = ['journeys', 'fuel_logs', 'expenses', 'payroll'];
@@ -100,6 +109,7 @@ async function upsertEntity(table, item) {
         else if (k === 'journey') dbKey = 'journey_id';
         else if (k === 'customer') dbKey = 'customer_id';
         else if (k === 'turnboy') dbKey = 'turnboy_id';
+        else if (k === 'turnboyId') dbKey = 'turnboy_id';
         else if (k === 'driver') dbKey = table === 'payroll' ? 'entity_id' : 'driver_id';
         else if (k === 'date') dbKey = table === 'journeys' ? 'start_date' : 'date';
         else if (k === 'odom') dbKey = table === 'trucks' ? 'current_mileage' : 'odom';
@@ -364,6 +374,7 @@ async function upsertEntityInTransaction(client, table, item) {
         else if (k === 'journey') dbKey = 'journey_id';
         else if (k === 'customer') dbKey = 'customer_id';
         else if (k === 'turnboy') dbKey = 'turnboy_id';
+        else if (k === 'turnboyId') dbKey = 'turnboy_id';
         else if (k === 'driver') dbKey = table === 'payroll' ? 'entity_id' : 'driver_id';
         else if (k === 'date') dbKey = table === 'journeys' ? 'start_date' : 'date';
         else if (k === 'odom') dbKey = table === 'trucks' ? 'current_mileage' : 'odom';
