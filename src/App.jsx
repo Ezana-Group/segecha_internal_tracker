@@ -46,6 +46,7 @@ export default function App() {
     const state = useAppState();
     
     // Version Handshake
+    /*
     useEffect(() => {
         if (!PAYMENT_API) return;
         const checkVersion = async () => {
@@ -63,6 +64,7 @@ export default function App() {
         };
         checkVersion();
     }, [state.showToast]);
+    */
     const location = useLocation();
     const navigate = useNavigate();
     const winW = useWindowWidth();
