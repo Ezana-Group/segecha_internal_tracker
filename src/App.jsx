@@ -185,16 +185,19 @@ export default function App() {
         background: "var(--bg-main)",
         color: "var(--text-secondary)",
         transition: "background-color 0.3s ease",
+        overflowX: "hidden", // Prevent entire viewport from scrolling horizontally
     };
 
     const mainStyle = {
         flex: 1,
         padding: !authed ? "0" : (isMobile ? "16px" : "32px"),
+        marginLeft: authed && !isMobile && !state.previewMode ? "var(--sidebar-width)" : "0",
         marginTop: !authed ? "0" : (state.previewMode ? "calc(var(--topbar-height) + 40px)" : "var(--topbar-height)"),
         minWidth: "400px",
         width: "100%",
         display: "flex",
         flexDirection: "column",
+        overflowX: "auto", // Allow horizontal scrolling only within the main content area
     };
 
 

@@ -893,6 +893,11 @@ export function useAppState() {
     const syncToServer = useCallback(async () => {
         try {
             const token = adminAuth.getToken();
+            
+            // 1. Ensure settings are also synced to server
+            await syncSettingsToServer(token);
+
+            // 2. Sync main tracker data (PostgreSQL)
             const res = await fetch(`${PAYMENT_API}/api/tracker/data`, {
                 method: "POST",
                 headers: {
@@ -905,14 +910,14 @@ export function useAppState() {
             const j = await res.json().catch(() => ({}));
             if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
             localStorage.setItem(LAST_SYNC_KEY, new Date().toISOString());
-            showToast("Server snapshot updated via PostgreSQL sync.", "success");
+            showToast("Server snapshot updated successfully.", "success");
             fetchBackups();
             return true;
         } catch (e) {
             showToast("Sync failed: " + e.message, "error");
             return false;
         }
-    }, [data, showToast]);
+    }, [data, showToast, fetchBackups]);
 
     const fetchBackups = useCallback(async () => {
         setBackupsLoading(true);

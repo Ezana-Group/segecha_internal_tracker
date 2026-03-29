@@ -374,8 +374,114 @@ app.get('/api/public-settings', async (req, res) => {
     }
 });
 
+// --- PUBLIC API ROUTES ---
+// These routes must be defined BEFORE the global adminAuth middleware
+
+app.post('/api/mpesa/stk-push', async (req, res) => {
+    const { phone, amount, invoiceId, clientName } = req.body;
+    try {
+        if (!phone || !amount) {
+            return res.status(400).json({ success: false, error: 'Phone and amount are required' });
+        }
+
+        // Fetch current settings for credentials
+        const settingsRes = await db.query("SELECT value FROM system_settings WHERE key = 'segecha_settings'");
+        const settings = settingsRes.rows.length > 0 ? (typeof settingsRes.rows[0].value === 'string' ? JSON.parse(settingsRes.rows[0].value) : settingsRes.rows[0].value) : {};
+
+        const result = await stkPush({
+            phone,
+            amount,
+            accountRef: invoiceId || 'Payment',
+            description: `Payment for ${clientName || invoiceId || 'Invoice'}`,
+            config: settings
+        });
+        res.json({ success: true, ...result });
+    } catch (e) {
+        console.error('STK_PUSH_ERROR:', e.response?.data || e.message);
+        res.status(500).json({ success: false, error: e.response?.data?.errorMessage || e.message });
+    }
+});
+
+app.post('/api/webhooks/mpesa', async (req, res) => {
+    try {
+        const secret = process.env.MPESA_WEBHOOK_SECRET;
+        if (secret) {
+            const signature = req.headers['x-mpesa-signature'] || req.headers['x-signature'];
+            if (!signature) {
+                console.warn('[WEBHOOK] Rejected M-Pesa webhook: Missing signature');
+                return res.status(401).send('Missing signature');
+            }
+            const hash = crypto.createHmac('sha256', secret).update(JSON.stringify(req.body)).digest('hex');
+            if (hash !== signature && crypto.createHmac('sha256', secret).update(JSON.stringify(req.body)).digest('base64') !== signature) {
+                console.warn('[WEBHOOK] Rejected M-Pesa webhook: Invalid signature');
+                return res.status(401).send('Invalid signature');
+            }
+        }
+        
+        console.log('[WEBHOOK] M-Pesa payload received:', req.body);
+        res.status(200).send('OK');
+    } catch (e) {
+        console.error('[WEBHOOK ERROR]', e);
+        res.status(500).send('Internal Server Error');
+    }
+});
+
+app.post('/api/webhooks/pesapal', async (req, res) => {
+    try {
+        console.log('[WEBHOOK] PesaPal IPN received:', req.body);
+        res.status(200).json({ success: true, message: 'OK' });
+    } catch (e) {
+        console.error('[WEBHOOK ERROR] PesaPal:', e);
+        res.status(500).send('Internal Server Error');
+    }
+});
+
+// --- DRIVER LOGIN & AUTH ---
+app.post('/api/driver/login', async (req, res) => {
+    const { identifier, password, method } = req.body;
+    const result = await driverAuth.loginDriver(identifier, password, method);
+    if (!result.success) return res.status(200).json(result);
+    res.json(result);
+});
+
+app.post('/api/driver/forgot-password', async (req, res) => {
+    const { identifier } = req.body;
+    try {
+        const result = await driverAuth.requestPasswordReset(identifier);
+        res.json(result);
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/driver/set-password', async (req, res) => {
+    const { token, password } = req.body;
+    try {
+        const result = await driverAuth.resetPasswordWithToken(token, password);
+        res.json(result);
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// --- STAFF LOGIN & AUTH ---
+app.post('/api/staff/login', async (req, res) => {
+    const { identifier, password, method } = req.body;
+    const result = await staffAuth.loginStaff(identifier, password, method);
+    if (!result.success) return res.status(200).json(result);
+    res.json(result);
+});
+
+app.post('/api/staff/forgot-password', async (req, res) => {
+    const { identifier } = req.body;
+    const result = await staffAuth.requestStaffPasswordReset(identifier);
+    res.json(result);
+});
+
+app.post('/api/staff/set-password', async (req, res) => {
+    const { token, password } = req.body;
+    const result = await staffAuth.resetStaffPasswordWithToken(token, password);
+    res.json(result);
+});
+
 // --- AUTHENTICATED API ROUTES ---
-// Apply AUTH to all /api routes except public ones
+// Apply AUTH to all /api routes except the public ones defined above
 app.use('/api', adminAuth);
 
 
@@ -1535,79 +1641,6 @@ app.post('/api/admin/refund', async (req, res) => {
     }
 });
 
-app.post('/api/mpesa/stk-push', async (req, res) => {
-    const { phone, amount, invoiceId, clientName } = req.body;
-    try {
-        if (!phone || !amount) {
-            return res.status(400).json({ success: false, error: 'Phone and amount are required' });
-        }
-
-        // Fetch current settings for credentials
-        const settingsRes = await db.query("SELECT value FROM system_settings WHERE key = 'segecha_settings'");
-        const settings = settingsRes.rows.length > 0 ? (typeof settingsRes.rows[0].value === 'string' ? JSON.parse(settingsRes.rows[0].value) : settingsRes.rows[0].value) : {};
-
-        const result = await stkPush({
-            phone,
-            amount,
-            accountRef: invoiceId || 'Payment',
-            description: `Payment for ${clientName || invoiceId || 'Invoice'}`,
-            config: settings
-        });
-        res.json({ success: true, ...result });
-    } catch (e) {
-        console.error('STK_PUSH_ERROR:', e.response?.data || e.message);
-        res.status(500).json({ success: false, error: e.response?.data?.errorMessage || e.message });
-    }
-});
-
-
-app.post('/api/webhooks/mpesa', async (req, res) => {
-    try {
-        // Assume Safaricom sends signature in headers if configured, or validate payload 
-        // using shared secret (based on Safaricom's specific HMAC setup, often just ip whitelisting, 
-        // but here we implement standard HMAC if a secret is provided).
-        // Since standard STK push callbacks don't use HMAC but rather strict IP whitelisting + body validation,
-        // we'll implement a basic validation here. If a secret is provided, we check HMAC.
-        const secret = process.env.MPESA_WEBHOOK_SECRET;
-        if (secret) {
-            const signature = req.headers['x-mpesa-signature'] || req.headers['x-signature'];
-            if (!signature) {
-                console.warn('[WEBHOOK] Rejected M-Pesa webhook: Missing signature');
-                return res.status(401).send('Missing signature');
-            }
-            const hash = crypto.createHmac('sha256', secret).update(JSON.stringify(req.body)).digest('hex');
-            // Allow matching direct hex or base64 equivalent
-            if (hash !== signature && crypto.createHmac('sha256', secret).update(JSON.stringify(req.body)).digest('base64') !== signature) {
-                console.warn('[WEBHOOK] Rejected M-Pesa webhook: Invalid signature');
-                return res.status(401).send('Invalid signature');
-            }
-        }
-        
-        console.log('[WEBHOOK] M-Pesa payload received:', req.body);
-        // Process M-Pesa payment here (e.g. marking invoice paid)
-        res.status(200).send('OK');
-    } catch (e) {
-        console.error('[WEBHOOK ERROR]', e);
-        res.status(500).send('Internal Server Error');
-    }
-});
-
-app.post('/api/webhooks/pesapal', async (req, res) => {
-    try {
-        // PesaPal typically sends an IPN (Instant Payment Notification)
-        // with an OrderTrackingId and MerchantReference.
-        console.log('[WEBHOOK] PesaPal IPN received:', req.body);
-        
-        // 1. Verify IPN (In a real implementation, you'd call PesaPal API to confirm status)
-        // 2. Map MerchantReference to Invoice ID
-        // 3. Mark Invoice as Paid if status is COMPLETED
-        
-        res.status(200).json({ success: true, message: 'OK' });
-    } catch (e) {
-        console.error('[WEBHOOK ERROR] PesaPal:', e);
-        res.status(500).send('Internal Server Error');
-    }
-});
 
 
 // --- AUTOMATED BACKUP SCHEDULER ---
@@ -2031,49 +2064,6 @@ app.post('/api/documents/driver-upload', driverAuth.authMiddleware, upload.singl
     }
 });
 
-// --- DRIVER LOGIN & AUTH ---
-app.post('/api/driver/login', async (req, res) => {
-    const { identifier, password, method } = req.body;
-    const result = await driverAuth.loginDriver(identifier, password, method);
-    if (!result.success) return res.status(200).json(result);
-    res.json(result);
-});
-
-app.post('/api/driver/forgot-password', async (req, res) => {
-    const { identifier } = req.body;
-    try {
-        const result = await driverAuth.requestPasswordReset(identifier);
-        res.json(result);
-    } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-app.post('/api/driver/set-password', async (req, res) => {
-    const { token, password } = req.body;
-    try {
-        const result = await driverAuth.resetPasswordWithToken(token, password);
-        res.json(result);
-    } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-// --- STAFF LOGIN & AUTH ---
-app.post('/api/staff/login', async (req, res) => {
-    const { identifier, password, method } = req.body;
-    const result = await staffAuth.loginStaff(identifier, password, method);
-    if (!result.success) return res.status(200).json(result);
-    res.json(result);
-});
-
-app.post('/api/staff/forgot-password', async (req, res) => {
-    const { identifier } = req.body;
-    const result = await staffAuth.requestStaffPasswordReset(identifier);
-    res.json(result);
-});
-
-app.post('/api/staff/set-password', async (req, res) => {
-    const { token, password } = req.body;
-    const result = await staffAuth.resetStaffPasswordWithToken(token, password);
-    res.json(result);
-});
 
 
 // Global Error Handler
