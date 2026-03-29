@@ -6,7 +6,12 @@ const db = require('../db');
  */
 
 const ALLOWED_METADATA = {
-    journeys: ['finalOdom', '_isRejected', '_rejectionReason', '_rejectedFields', '_pendingApproval', 'tr_form_url', 't1_form_url', 'booking_no'],
+    journeys: [
+        'pickupAddress', 'deliveryAddress', 'weight', 'distance', 'revenue', 
+        'driverMileage', 'turnboyMileage', 'roadUserAllowance', 'mileageRateUsed', 'mileageRouteOverride', 'isFlatRate', 
+        'startOdom', 'finalOdom', 'startOdomPic', 'finalOdomPic', 'otherCargo',
+        '_isRejected', '_rejectionReason', '_rejectedFields', '_pendingApproval'
+    ],
     fuel_logs: ['paymentRef', 'isPetrolCard', '_pendingApproval', '_isRejected', '_rejectionReason', 'station_coords'],
     expenses: ['fuel_log_id', 'paymentRef', 'isPetrolCard', '_pendingApproval', '_isRejected', '_rejectionReason'],
     payroll: ['baseSalary', 'allowance', 'deductions', 'mpesaRef', 'paidAt', 'workingDays']
@@ -80,6 +85,7 @@ async function upsertEntity(table, item) {
         else if (k === 'staffId') dbKey = 'staff_id';
         else if (k === 'fuelType') dbKey = 'fuel_type';
         else if (k === 'returningEmpty') dbKey = 'is_return';
+        else if (k === 'isInternational') dbKey = 'is_international';
         
         // Short-form frontend keys — TABLE-AWARE mappings
         else if (k === 'reg') dbKey = 'registration_number';
@@ -99,7 +105,8 @@ async function upsertEntity(table, item) {
         else if (k === 'odom') dbKey = table === 'trucks' ? 'current_mileage' : 'odom';
 
         if (validCols.includes(dbKey)) {
-            finalData[dbKey] = (v === "" && dbKey.endsWith('_id')) ? null : v;
+            const isDateField = dbKey.endsWith('_date') || dbKey === 'date' || dbKey === 'due_date' || dbKey === 'expiry_date' || dbKey === 'paid_at';
+            finalData[dbKey] = (v === "" && (dbKey.endsWith('_id') || isDateField)) ? null : v;
         } else {
             metadata[k] = v;
         }
@@ -344,6 +351,7 @@ async function upsertEntityInTransaction(client, table, item) {
         else if (k === 'staffId') dbKey = 'staff_id';
         else if (k === 'fuelType') dbKey = 'fuel_type';
         else if (k === 'returningEmpty') dbKey = 'is_return';
+        else if (k === 'isInternational') dbKey = 'is_international';
         else if (k === 'reg') dbKey = 'registration_number';
         else if (k === 'license') dbKey = 'license_number';
         else if (k === 'dest') dbKey = 'destination';
@@ -360,8 +368,10 @@ async function upsertEntityInTransaction(client, table, item) {
         else if (k === 'date') dbKey = table === 'journeys' ? 'start_date' : 'date';
         else if (k === 'odom') dbKey = table === 'trucks' ? 'current_mileage' : 'odom';
 
-        if (validCols.includes(dbKey)) finalData[dbKey] = (v === "" && dbKey.endsWith('_id')) ? null : v;
-        else metadata[k] = v;
+        if (validCols.includes(dbKey)) {
+            const isDateField = dbKey.endsWith('_date') || dbKey === 'date' || dbKey === 'due_date' || dbKey === 'expiry_date' || dbKey === 'paid_at';
+            finalData[dbKey] = (v === "" && (dbKey.endsWith('_id') || isDateField)) ? null : v;
+        } else metadata[k] = v;
     });
 
     // Special Post-Processing
