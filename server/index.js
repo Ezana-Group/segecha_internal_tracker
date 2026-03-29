@@ -336,6 +336,32 @@ app.get('/api/track/:ref', trackRateLimit, async (req, res) => {
     }
 });
 
+// --- PUBLIC SETTINGS FOR PAYMENT PORTAL ---
+app.get('/api/public-settings', async (req, res) => {
+    try {
+        const result = await db.query("SELECT value FROM system_settings WHERE key = 'segecha_settings'");
+        if (result.rows.length === 0) {
+            return res.json({ companyName: 'Segecha Group' });
+        }
+        const settings = (typeof result.rows[0].value === 'string') ? JSON.parse(result.rows[0].value) : result.rows[0].value;
+        
+        // Return only what the payment portal needs
+        res.json({
+            companyName: settings.companyName || 'Segecha Group',
+            paybillNumber: settings.paybillNumber || '',
+            bankName: settings.bankName || '',
+            bankAccount: settings.bankAccount || '',
+            bankBranch: settings.bankBranch || '',
+            pesalinkBank: settings.pesalinkBank || '',
+            pesalinkAccount: settings.pesalinkAccount || '',
+            currency: settings.currency || 'KES'
+        });
+    } catch (e) {
+        console.error('PUBLIC_SETTINGS_ERROR:', e);
+        res.status(500).json({ error: 'Failed' });
+    }
+});
+
 // --- AUTHENTICATED API ROUTES ---
 // Apply AUTH to all /api routes except public ones
 app.use('/api', adminAuth);
@@ -445,6 +471,31 @@ async function autoSeed() {
             ('defaultCurrency', '"KES"')
             ON CONFLICT (key) DO NOTHING
         `, [JSON.stringify(process.env.COMPANY_NAME), JSON.stringify(process.env.EMAIL_FROM)]);
+
+        // 5. Initialize segecha_settings if missing
+        const checkSettings = await db.query("SELECT 1 FROM system_settings WHERE key = 'segecha_settings'");
+        if (checkSettings.rows.length === 0) {
+            console.log(`[SEED] Initializing segecha_settings...`);
+            const defaultSettings = {
+                companyName: process.env.COMPANY_NAME || 'Segecha Group',
+                currency: 'KES',
+                paybillNumber: '',
+                bankName: '',
+                bankAccount: '',
+                bankBranch: '',
+                pesalinkBank: '',
+                pesalinkAccount: '',
+                pesapalConsumerKey: '',
+                pesapalConsumerSecret: '',
+                idPrefixes: {
+                    journey: 'JRN',
+                    invoice: 'INV',
+                    waybill: 'WBL',
+                    transaction: 'TXN'
+                }
+            };
+            await db.query("INSERT INTO system_settings (key, value) VALUES ('segecha_settings', $1)", [JSON.stringify(defaultSettings)]);
+        }
 
         console.log(`[SEED] SUCCESS: Superadmin created (${initialAdminEmail}). Password is set from INITIAL_ADMIN_PASSWORD.`);
     } catch (e) {
@@ -1454,19 +1505,19 @@ app.post('/api/webhooks/mpesa', async (req, res) => {
     }
 });
 
-app.post('/api/webhooks/flutterwave', async (req, res) => {
+app.post('/api/webhooks/pesapal', async (req, res) => {
     try {
-        const secretHash = process.env.FLW_SECRET_HASH;
-        const signature = req.headers['verif-hash'];
-        if (!signature || signature !== secretHash) {
-            console.warn('[WEBHOOK] Rejected Flutterwave webhook: Invalid signature');
-            return res.status(401).send('Invalid signature');
-        }
-        console.log('[WEBHOOK] Flutterwave payload received:', req.body);
-        // Process Flutterwave payment here (e.g. marking invoice paid)
-        res.status(200).send('OK');
+        // PesaPal typically sends an IPN (Instant Payment Notification)
+        // with an OrderTrackingId and MerchantReference.
+        console.log('[WEBHOOK] PesaPal IPN received:', req.body);
+        
+        // 1. Verify IPN (In a real implementation, you'd call PesaPal API to confirm status)
+        // 2. Map MerchantReference to Invoice ID
+        // 3. Mark Invoice as Paid if status is COMPLETED
+        
+        res.status(200).json({ success: true, message: 'OK' });
     } catch (e) {
-        console.error('[WEBHOOK ERROR]', e);
+        console.error('[WEBHOOK ERROR] PesaPal:', e);
         res.status(500).send('Internal Server Error');
     }
 });

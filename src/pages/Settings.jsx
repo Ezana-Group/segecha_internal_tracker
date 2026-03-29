@@ -1451,7 +1451,10 @@ export function Settings({
                             <legend className="settings-fieldset-sr-only">Finance settings</legend>
                             <SettingsShellSectionHeader title="Finance & M-Pesa" desc="Configure payment automation and invoice defaults." icon={Wallet} />
                             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
-                                <SettingsShellField label="M-Pesa Business Shortcode">
+                                <SettingsShellField label="M-Pesa Paybill Number" sub="For manual M-Pesa payments.">
+                                    <SettingsShellInput value={localS.paybillNumber || ''} onChange={e => saveSettings({ paybillNumber: e.target.value })} placeholder="400XXX" />
+                                </SettingsShellField>
+                                <SettingsShellField label="M-Pesa Business Shortcode" sub="For automated STK Push.">
                                     <SettingsShellInput value={localS.mpesaShortcode || ''} onChange={e => saveSettings({ mpesaShortcode: e.target.value })} placeholder="600XXX" />
                                 </SettingsShellField>
                                 <SettingsShellField label="Currency Symbol">
@@ -1466,14 +1469,17 @@ export function Settings({
                                 <SettingsShellField label="Invoice Prefix">
                                     <SettingsShellInput value={localS.invoicePrefix || 'INV'} onChange={e => saveSettings({ invoicePrefix: e.target.value })} />
                                 </SettingsShellField>
-                                <SettingsShellField label="Default PDF Template" sub="Choose the layout used for generating PDF invoices.">
-                                    <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                                <SettingsShellField label="Payment Terms (Days)">
+                                    <SettingsShellInput type="number" value={localS.paymentTermsDays || 14} onChange={e => saveSettings({ paymentTermsDays: +e.target.value })} />
+                                </SettingsShellField>
+                                <SettingsShellField label="PDF Template">
+                                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                                         <SettingsShellSelect 
-                                            style={{ flex: 1 }}
+                                            style={{ flex: 1, height: 38 }}
                                             value={localS.defaultInvoiceTemplate || ''} 
                                             onChange={e => saveSettings({ defaultInvoiceTemplate: e.target.value })}
                                         >
-                                            <option value="">Built-in layout (Premium)</option>
+                                            <option value="">Built-in</option>
                                             {(data.templates || []).filter((t) => canonicalTemplateType(t.type) === "PDF").map((t) => (
                                                 <option key={t.id} value={t.id}>{t.name}</option>
                                             ))}
@@ -1481,26 +1487,46 @@ export function Settings({
                                         <Button 
                                             variant="ghost" 
                                             size="sm" 
-                                            onClick={() => { setTemplateTypeFilter('PDF'); setActiveTab('templates'); }}
-                                            style={{ fontSize: 11, padding: "8px 12px" }}
+                                            onClick={() => { 
+                                                if (typeof setTemplateType === 'function') setTemplateType('PDF');
+                                                setActiveTab('templates'); 
+                                            }}
+                                            style={{ fontSize: 10, padding: "4px 8px", height: 38 }}
                                         >
-                                            <Sparkles size={14} style={{ marginRight: 6 }} /> Edit PDF Templates
+                                            Edit
                                         </Button>
                                     </div>
-                                    {(data.templates || []).filter((t) => canonicalTemplateType(t.type) === "PDF").length === 0 ? (
-                                        <p style={{ margin: "10px 0 0", fontSize: 12, color: "var(--text-muted)", lineHeight: 1.5 }}>
-                                            No PDF templates yet. Go to <b>Message templates</b>, click the <b>PDF</b> tab, and add one.
-                                        </p>
-                                    ) : (
-                                        <p style={{ margin: "10px 0 0", fontSize: 12, color: "var(--text-muted)", lineHeight: 1.5 }}>
-                                            Tip: You can customize the content of PDF templates in the <b>Message templates</b> section.
-                                        </p>
-                                    )}
                                 </SettingsShellField>
+                            </div>
 
-                                <SettingsShellField label="Invoice/Payment Terms (Days)" sub="Grace period before invoice is marked overdue.">
-                                    <SettingsShellInput type="number" value={localS.paymentTermsDays || 14} onChange={e => saveSettings({ paymentTermsDays: +e.target.value })} />
-                                </SettingsShellField>
+                            <div style={{ marginTop: 20, padding: 16, background: "var(--surface-subtle)", borderRadius: 12, border: "1px solid var(--border-subtle)" }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                                    <Wallet size={14} style={{ color: "var(--brand-primary)" }} />
+                                    <h4 style={{ fontSize: 13, fontWeight: 800, color: "var(--text-primary)", margin: 0 }}>Bank, Pesalink & PesaPal</h4>
+                                </div>
+                                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr", gap: 12 }}>
+                                    <SettingsShellField label="Bank Name">
+                                        <SettingsShellInput value={localS.bankName || ''} onChange={e => saveSettings({ bankName: e.target.value })} placeholder="Bank" />
+                                    </SettingsShellField>
+                                    <SettingsShellField label="Account">
+                                        <SettingsShellInput value={localS.bankAccount || ''} onChange={e => saveSettings({ bankAccount: e.target.value })} placeholder="No" />
+                                    </SettingsShellField>
+                                    <SettingsShellField label="Branch">
+                                        <SettingsShellInput value={localS.bankBranch || ''} onChange={e => saveSettings({ bankBranch: e.target.value })} placeholder="Branch" />
+                                    </SettingsShellField>
+                                    <SettingsShellField label="Pesalink Bank">
+                                        <SettingsShellInput value={localS.pesalinkBank || ''} onChange={e => saveSettings({ pesalinkBank: e.target.value })} placeholder="Bank" />
+                                    </SettingsShellField>
+                                    <SettingsShellField label="Pesalink Acc">
+                                        <SettingsShellInput value={localS.pesalinkAccount || ''} onChange={e => saveSettings({ pesalinkAccount: e.target.value })} placeholder="Acc/Phone" />
+                                    </SettingsShellField>
+                                    <SettingsShellField label="PesaPal Key">
+                                        <SettingsShellInput value={localS.pesapalConsumerKey || ''} onChange={e => saveSettings({ pesapalConsumerKey: e.target.value })} placeholder="Consumer Key" />
+                                    </SettingsShellField>
+                                    <SettingsShellField label="PesaPal Secret">
+                                        <SettingsShellInput type="password" value={localS.pesapalConsumerSecret || ''} onChange={e => saveSettings({ pesapalConsumerSecret: e.target.value })} placeholder="Consumer Secret" />
+                                    </SettingsShellField>
+                                </div>
                             </div>
 
                             <div style={{ marginTop: 32 }}>

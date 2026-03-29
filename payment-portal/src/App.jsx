@@ -7,7 +7,7 @@ const STEPS = {
     MPESA_STK: 'mpesa_stk',
     MPESA_MANUAL: 'mpesa_manual',
     BANK: 'bank',
-    CARD: 'card',
+    PESAPAL: 'pesapal',
     PESALINK: 'pesalink',
     CASH: 'cash',
     SUCCESS: 'success',
@@ -33,7 +33,7 @@ export default function PaymentPortal() {
             .catch(() => {});
     }, []);
 
-    const { companyName, paybillNumber, bankName, bankAccount, bankBranch } = settings;
+    const { companyName, paybillNumber, bankName, bankAccount, bankBranch, pesalinkBank, pesalinkAccount, currency = 'KES' } = settings;
 
     const triggerSTK = async () => {
         if (!/^(0|254|\+254)7\d{8}$/.test(phone.replace(/\s/g, ''))) {
@@ -94,7 +94,7 @@ export default function PaymentPortal() {
         { id: STEPS.MPESA_MANUAL, icon: '📱', label: 'M-Pesa Paybill', sub: 'Pay manually — enter Paybill number on your phone' },
         { id: STEPS.BANK, icon: '🏦', label: 'Bank Transfer / EFT', sub: 'Pay directly to our bank account' },
         { id: STEPS.PESALINK, icon: '🔗', label: 'Pesalink', sub: 'Instant interbank transfer via your banking app' },
-        { id: STEPS.CARD, icon: '💳', label: 'Credit / Debit Card', sub: 'Visa, Mastercard — secured by Flutterwave' },
+        { id: STEPS.PESAPAL, icon: '💳', label: 'PesaPal (Card/Mobile)', sub: 'Pay via PesaPal — Secured Online Payment' },
         { id: STEPS.CASH, icon: '💵', label: 'Cash Payment', sub: 'Pay in person — confirm your intention here' },
     ];
 
@@ -233,8 +233,8 @@ export default function PaymentPortal() {
                             {[
                                 'Open your bank\'s mobile app or internet banking',
                                 'Select Send Money or Pesalink',
-                                `Bank: ${bankName || '—'}`,
-                                `Account: ${bankAccount || '—'}`,
+                                `Bank: ${pesalinkBank || bankName || '—'}`,
+                                `Account/Phone: ${pesalinkAccount || '—'}`,
                                 `Reference: ${invoiceId}`,
                                 `Amount: ${fmt(amount)}`,
                             ].map((s, i) => (
@@ -248,46 +248,34 @@ export default function PaymentPortal() {
                     </>
                 )}
 
-                {/* ── CARD (FLUTTERWAVE) ── */}
-                {step === STEPS.CARD && (
+                {/* ── PESAPAL (REPLACES CARD) ── */}
+                {step === STEPS.PESAPAL && (
                     <>
                         <button style={S.back} onClick={goBack}>← Back</button>
-                        <div style={S.stepTitle}>💳 Card Payment</div>
+                        <div style={S.stepTitle}>💳 PesaPal Payment</div>
                         <p style={{ fontSize: 14, color: '#6b7280', lineHeight: 1.7, marginBottom: 20 }}>
-                            Pay securely by card. You'll be taken through Flutterwave's checkout — Visa and Mastercard accepted.
+                            Securely complete your payment via PesaPal. You can pay using your Visa, Mastercard, or Mobile Money (M-Pesa, Airtel Money).
                         </p>
                         <div style={{ ...S.infoBox('#f8fafc', '#e2e8f0'), marginBottom: 20 }}>
                             <div style={S.infoRow}>Invoice: <b>{invoiceId}</b></div>
                             <div style={S.infoRow}>Amount: <b style={{ color: '#E8501A' }}>{fmt(amount)}</b></div>
                         </div>
-                        <button style={S.btn()} onClick={() => {
-                            const flwKey = import.meta.env.VITE_FLW_PUBLIC_KEY;
-                            if (!flwKey) {
-                                alert('Card payments are not yet configured. Please use M-Pesa or bank transfer.');
-                                return;
-                            }
-                            window.FlutterwaveCheckout({
-                                public_key: flwKey,
-                                tx_ref: `${invoiceId}-${Date.now()}`,
-                                amount,
-                                currency: 'KES',
-                                customer: { email: '', name: client },
-                                customizations: {
-                                    title: companyName,
-                                    description: `Payment for invoice ${invoiceId}`,
-                                    logo: '',
-                                },
-                                callback: response => {
-                                    if (response.status === 'successful') setStep(STEPS.SUCCESS);
-                                },
-                                onclose: () => {},
-                            });
-                        }}>
-                            Pay {fmt(amount)} by Card →
-                        </button>
-                        <div style={{ fontSize: 11, color: '#9ca3af', textAlign: 'center', marginTop: 10 }}>
-                            Secured by Flutterwave · Visa and Mastercard
+                        <div style={S.infoBox('#f0fdf4', '#bbf7d0')}>
+                            <div style={{ fontWeight: 700, color: '#065f46', fontSize: 13, marginBottom: 10 }}>Instructions:</div>
+                            <div style={{ fontSize: 13, color: '#065f46', lineHeight: 1.6 }}>
+                                1. Click the button below to open the secure PesaPal checkout.<br/>
+                                2. Choose your preferred payment method on the PesaPal page.<br/>
+                                3. Once complete, you will be redirected back here.
+                            </div>
                         </div>
+                        <button style={S.btn()} onClick={() => {
+                            // In a real implementation, this would call a backend endpoint 
+                            // to get a PesaPal Order URL/Tracking ID.
+                            // For now, we guide the user to the intent.
+                            alert('PesaPal integration requires your PesaPal Merchant Key and Secret to be configured in the backend. Please contact support to enable live PesaPal billing.');
+                        }}>
+                            Open PesaPal Checkout — {fmt(amount)}
+                        </button>
                     </>
                 )}
 
