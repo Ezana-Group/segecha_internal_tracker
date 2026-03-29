@@ -27,6 +27,8 @@ import { TableRowActions } from '../components/TableRowActions';
 import { adminAuth } from '../utils/adminAuth';
 import { PAYMENT_API, ADMIN_KEY } from '../utils/env';
 import { fmt, fmtDate, uid } from '../utils/formatters';
+import { CATS, TRUCK_TYPES } from '../constants/nav';
+
 
 export function MpesaTransactions({ data, setData, isMobile, showToast }) {
     const [transactions, setTransactions] = useState([]);
@@ -72,32 +74,44 @@ export function MpesaTransactions({ data, setData, isMobile, showToast }) {
         }).sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
     }, [transactions, searchQuery, statusFilter, typeFilter]);
 
-    const handleAssign = async (tx, entityType, entityId) => {
+    const handleAssign = async (tx, entityType, entityId, additionalData = {}) => {
         try {
             const token = adminAuth.getToken();
-            const res = await fetch(`${PAYMENT_API}/api/admin/mpesa-transactions/assign`, {
+            const endpoint = entityType === 'invoice' 
+                ? `${PAYMENT_API}/api/admin/mpesa-transactions/link`
+                : `${PAYMENT_API}/api/admin/mpesa-transactions/assign-expense`;
+            
+            const body = entityType === 'invoice'
+                ? { transactionId: tx.id, invoiceId: entityId }
+                : { 
+                    transactionId: tx.id, 
+                    truckId: additionalData.truckId || '', 
+                    category: additionalData.category || 'Other',
+                    description: additionalData.description || `M-Pesa ${tx.type}: ${tx.mpesa_receipt}`
+                  };
+
+            const res = await fetch(endpoint, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     ...(token ? { 'Authorization': `Bearer ${token}` } : {})
                 },
-                body: JSON.stringify({
-                    transactionId: tx.id,
-                    entityType,
-                    entityId,
-                    adminKey: ADMIN_KEY
-                })
+                body: JSON.stringify(body)
             });
 
-            if (!res.ok) throw new Error('Assignment failed');
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.error || 'Assignment failed');
+            }
             
-            showToast?.(`Linked to ${entityType} ${entityId}`, 'success');
+            showToast?.(`Linked to ${entityType} ${entityId || ''}`, 'success');
             setAssigningTo(null);
             fetchTransactions(); // Refresh
         } catch (err) {
-            showToast?.('Failed to link transaction', 'error');
+            showToast?.(err.message || 'Failed to link transaction', 'error');
         }
     };
+
 
     const statusBadge = (status) => {
         switch(status) {
@@ -266,19 +280,49 @@ export function MpesaTransactions({ data, setData, isMobile, showToast }) {
                             <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>{assigningTo.tx.phone}</div>
                         </div>
 
-                        <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: 'var(--text-dim)', marginBottom: 8 }}>SEARCH {assigningTo.type.toUpperCase()}</label>
-                        <select className="input-premium" style={{ width: '100%', marginBottom: 24 }} onChange={e => handleAssign(assigningTo.tx, assigningTo.type, e.target.value)}>
-                            <option value="">Select {assigningTo.type}...</option>
-                            {(assigningTo.type === 'invoice' ? data.invoices : data.expenses).map(item => (
-                                <option key={item.id} value={item.id}>
-                                    {item.id} - {item.client || item.supplier || item.category} (KES {fmt(item.amount)})
-                                </option>
-                            ))}
-                        </select>
+                        {assigningTo.type === 'invoice' ? (
+                            <>
+                                <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: 'var(--text-dim)', marginBottom: 8 }}>SELECT INVOICE</label>
+                                <select className="input-premium" style={{ width: '100%', marginBottom: 24 }} onChange={e => handleAssign(assigningTo.tx, 'invoice', e.target.value)}>
+                                    <option value="">Select invoice...</option>
+                                    {(data.invoices || []).map(item => (
+                                        <option key={item.id} value={item.id}>
+                                            {item.id} - {item.client} (KES {fmt(item.amount)})
+                                        </option>
+                                    ))}
+                                </select>
+                            </>
+                        ) : (
+                            <form onSubmit={e => {
+                                e.preventDefault();
+                                const fd = new FormData(e.target);
+                                handleAssign(assigningTo.tx, 'expense', null, {
+                                    truckId: fd.get('truckId'),
+                                    category: fd.get('category'),
+                                    description: fd.get('description')
+                                });
+                            }}>
+                                <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: 'var(--text-dim)', marginBottom: 8 }}>TRUCK</label>
+                                <select name="truckId" className="input-premium" style={{ width: '100%', marginBottom: 16 }} required>
+                                    <option value="">Select truck...</option>
+                                    {(data.trucks || []).map(t => <option key={t.id} value={t.id}>{t.reg}</option>)}
+                                </select>
 
-                        <div style={{ display: 'flex', gap: 12 }}>
-                            <Button style={{ flex: 1 }} variant="ghost" onClick={() => setAssigningTo(null)}>Cancel</Button>
-                        </div>
+                                <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: 'var(--text-dim)', marginBottom: 8 }}>CATEGORY</label>
+                                <select name="category" className="input-premium" style={{ width: '100%', marginBottom: 16 }} required>
+                                    {CATS.map(c => <option key={c} value={c}>{c}</option>)}
+                                </select>
+
+                                <label style={{ display: 'block', fontSize: 11, fontWeight: 800, color: 'var(--text-dim)', marginBottom: 8 }}>DESCRIPTION</label>
+                                <input name="description" className="input-premium" style={{ width: '100%', marginBottom: 24 }} defaultValue={`M-Pesa ${assigningTo.tx.type}: ${assigningTo.tx.mpesa_receipt}`} />
+
+                                <div style={{ display: 'flex', gap: 12 }}>
+                                    <Button type="button" style={{ flex: 1 }} variant="ghost" onClick={() => setAssigningTo(null)}>Cancel</Button>
+                                    <Button type="submit" style={{ flex: 1 }} variant="primary">Create Expense</Button>
+                                </div>
+                            </form>
+                        )}
+
                     </Card>
                 </div>
             )}
