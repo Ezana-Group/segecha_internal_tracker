@@ -354,6 +354,8 @@ app.get('/api/public-settings', async (req, res) => {
             bankBranch: settings.bankBranch || '',
             pesalinkBank: settings.pesalinkBank || '',
             pesalinkAccount: settings.pesalinkAccount || '',
+            pesapalEnv: process.env.PESAPAL_ENV || settings.pesapalEnv || 'sandbox',
+            pesapalKey: process.env.PESAPAL_CONSUMER_KEY || settings.pesapalConsumerKey || '',
             currency: settings.currency || 'KES'
         });
     } catch (e) {
