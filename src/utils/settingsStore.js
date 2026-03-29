@@ -14,14 +14,11 @@
  * elsewhere should gradually migrate here.
  */
 
-import { PAYMENT_API, ADMIN_KEY } from "./env";
-
 export const SETTINGS_STORAGE_KEY = "segecha_settings";
 
 /** Default PSV / DL class labels when Settings has none configured */
 export const DEFAULT_LICENCE_CLASSES = ["Class G", "Class CE", "Class C", "Class B"];
 export const DEFAULT_TRUCK_TYPES = ["Prime Mover", "Tipper", "Tanker", "Flatbed", "Box Body", "Refrigerated", "Other"];
-export const DEFAULT_TRAILER_TYPES = ["Low Loader", "Flatbed Trailer", "Tanker Trailer", "Skeletal Trailer", "Box Trailer", "Refrigerated Trailer", "Other"];
 export const DEFAULT_CARGO_TYPES = ["Electronics", "FMCG Goods", "Spare Parts", "Machinery", "Cement", "Fertiliser", "Fuel", "Timber", "Other"];
 export const DEFAULT_EXPENSE_CATEGORIES = ["Fuel", "Maintenance", "Toll", "Permit", "Tyre", "Allowance", "Salary", "Insurance", "Other"];
 
@@ -154,49 +151,6 @@ export function subscribeSettings(callback) {
     return () => window.removeEventListener(CHANGE_EVENT, fn);
 }
 
-/** Fetch settings from PostgreSQL and update localStorage */
-export async function syncSettingsFromServer(token) {
-    if (!PAYMENT_API) return null;
-    try {
-        const res = await fetch(`${PAYMENT_API}/api/admin/settings`, {
-            headers: {
-                'x-admin-key': ADMIN_KEY,
-                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-            }
-        });
-        if (!res.ok) return null;
-        const j = await res.json();
-        if (j.success && j.settings && j.settings.segecha_settings) {
-            return writeSettings(j.settings.segecha_settings);
-        }
-    } catch (e) {
-        console.warn("Failed to sync settings from server:", e.message);
-    }
-    return null;
-}
-
-/** Save local settings to PostgreSQL */
-export async function syncSettingsToServer(token) {
-    if (!PAYMENT_API) return false;
-    try {
-        const settings = readSettings();
-        const res = await fetch(`${PAYMENT_API}/api/admin/settings`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'x-admin-key': ADMIN_KEY,
-                ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-            },
-            body: JSON.stringify({ settings })
-        });
-        const j = await res.json();
-        return j.success;
-    } catch (e) {
-        console.warn("Failed to sync settings to server:", e.message);
-        return false;
-    }
-}
-
 /**
  * Licence class options for driver forms — reads current localStorage.
  * If `licenceClasses` was never set, returns built-in defaults.
@@ -216,13 +170,6 @@ export function getTruckTypes() {
     const raw = s.truckTypes;
     if (Array.isArray(raw)) return raw.filter(Boolean);
     return [...DEFAULT_TRUCK_TYPES];
-}
-
-export function getTrailerTypes() {
-    const s = readSettings();
-    const raw = s.trailerTypes;
-    if (Array.isArray(raw)) return raw.filter(Boolean);
-    return [...DEFAULT_TRAILER_TYPES];
 }
 
 export function getCargoTypes() {

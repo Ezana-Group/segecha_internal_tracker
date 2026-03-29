@@ -4,7 +4,6 @@
 // ═══════════════════════════════════════════════════════════════════
 
 import { getLicenceClasses as readLicenceClasses, getCommonRoutes as readCommonRoutes } from "../utils/settingsStore.js";
-import { TYRE_WARNING_KM } from "../utils/env.js";
 
 const _S = (() => { try { return JSON.parse(localStorage.getItem('segecha_settings') || '{}'); } catch { return {}; } })();
 
@@ -32,19 +31,11 @@ export const NAV = [
 // ─── Customizable Dropdowns ──────────────────────────────────────
 export const CATS = _S.expenseCategories?.length ? _S.expenseCategories : ["Fuel", "Maintenance", "Toll", "Permit", "Tyre", "Allowance", "Salary", "Insurance", "Other"];
 export const TRUCK_TYPES = _S.truckTypes?.length ? _S.truckTypes : ["Prime Mover", "Tipper", "Tanker", "Flatbed", "Box Body", "Refrigerated", "Other"];
-export const TRAILER_TYPES = _S.trailerTypes?.length ? _S.trailerTypes : ["Low Loader", "Flatbed Trailer", "Tanker Trailer", "Skeletal Trailer", "Box Trailer", "Refrigerated Trailer", "Other"];
 /** Snapshot at module load; use `getLicenceClasses` from `settingsStore` when options must stay in sync */
-export const LICENCE_CLASSES = ["Class G", "Class CE", "Class C", "Class B"];
+export const LICENCE_CLASSES = readLicenceClasses();
 export const CARGO_TYPES = _S.cargoTypes?.length ? _S.cargoTypes : ["Electronics", "FMCG Goods", "Spare Parts", "Machinery", "Cement", "Fertiliser", "Fuel", "Timber", "Other"];
 /** Snapshot at module load; use `getCommonRoutes` from `settingsStore` when options must stay in sync */
-export const COMMON_ROUTES = [
-    { origin: "Nairobi", dest: "Mombasa", distance: 480 },
-    { origin: "Nairobi", dest: "Kampala", distance: 680 },
-    { origin: "Nairobi", dest: "Eldoret", distance: 315 },
-    { origin: "Nairobi", dest: "Kisumu", distance: 350 },
-    { origin: "Mombasa", dest: "Kampala", distance: 1100 },
-    { origin: "Nairobi", dest: "Dar es Salaam", distance: 840 },
-];
+export const COMMON_ROUTES = readCommonRoutes();
 
 // ─── Status Enums (not customizable) ─────────────────────────────
 export const STATUSES_JOURNEY = ["Accepted", "Loading", "In Transit", "Awaiting Verification", "Completed", "Cancelled"];

@@ -3,7 +3,7 @@ import { SEED } from "../constants/seed";
 import { today, uid } from "../utils/formatters";
 import { TYRE_WARN_KM } from "../constants/nav";
 import { PAYMENT_API, ADMIN_KEY, DRIVER_PORTAL_URL } from "../utils/env";
-import { readSettings, patchSettings, syncSettingsFromServer, syncSettingsToServer } from "../utils/settingsStore.js";
+import { readSettings, getCrossBorderRules } from "../utils/settingsStore.js";
 import { mergeProfilePermissions } from "../utils/profilePermissions.js";
 import { expandMessageTemplateContext } from "../utils/templateContext.js";
 import { readPreviewFromSession, writePreviewToSession } from "../constants/previewNav.js";
@@ -35,27 +35,16 @@ export function useAppState() {
             // or use SEED. For production alignment, we prefer empty if reset was called.
             if (saved) {
                 const parsed = JSON.parse(saved);
-                return {
-                    ...SEED,
+                return { 
+                    ...SEED, 
                     ...parsed,
-                    trucks: parsed.trucks ?? [],
-                    trailers: parsed.trailers ?? [],
-                    drivers: parsed.drivers ?? [],
-                    journeys: parsed.journeys ?? [],
-                    fuel: parsed.fuel ?? [],
-                    expenses: parsed.expenses ?? [],
-                    invoices: parsed.invoices ?? [],
-                    payroll: parsed.payroll ?? [],
-                    customers: parsed.customers ?? [],
-                    staff: parsed.staff ?? [],
-                    maintenance_logs: parsed.maintenance_logs ?? [],
                     templates: mergeTemplateList(SEED.templates, parsed.templates)
                 };
             }
             // If no saved data, check if we just did a reset
             const lastSync = localStorage.getItem(LAST_SYNC_KEY);
             if (lastSync === 'CLEAN_WIPE') return { ...SEED, trucks: [], drivers: [], journeys: [], fuel: [], expenses: [], incidents: [], customers: [], trailers: [], staff: [], payroll: [], invoices: [], documents: [] };
-
+            
             return SEED;
         } catch {
             return SEED;
@@ -69,12 +58,7 @@ export function useAppState() {
         setLoading(true);
         try {
             const token = adminAuth.getToken();
-            
-            // 1. Sync Settings from Server
-            await syncSettingsFromServer(token);
-
-            // 2. Sync Full Data
-            const res = await fetch(`${PAYMENT_API}/api/tracker/data`, {
+            const res = await fetch(`${PAYMENT_API}/api/tracker/data-full`, {
                 headers: {
                     'x-admin-key': ADMIN_KEY,
                     ...(token ? { 'Authorization': `Bearer ${token}` } : {})
@@ -88,8 +72,7 @@ export function useAppState() {
             if (res.ok) {
                 const result = await res.json();
                 if (result.success && result.data) {
-                    const serverData = result.data.tables || result.data;
-                    setData(d => ({ ...d, ...serverData }));
+                    setData(d => ({ ...d, ...result.data }));
                 }
             }
         } catch (e) {
@@ -97,7 +80,7 @@ export function useAppState() {
         } finally {
             setLoading(false);
         }
-    }, [setData]);
+    }, []);
 
     useEffect(() => {
         fetchTrackerData();
@@ -124,8 +107,8 @@ export function useAppState() {
                 const token = adminAuth.getToken();
                 await fetch(`${PAYMENT_API}/api/tracker/data`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
+                    headers: { 
+                        'Content-Type': 'application/json', 
                         'x-admin-key': ADMIN_KEY,
                         ...(token ? { 'Authorization': `Bearer ${token}` } : {})
                     },
@@ -150,6 +133,7 @@ export function useAppState() {
     const [form, setForm] = useState({});
     const [filterTruck, setFilterTruck] = useState("ALL");
     const [invoicePreview, setInvoicePreview] = useState(null);
+    const [sideOpen, setSideOpen] = useState(false);
     const [dark, setDark] = useState(() => {
         try {
             const s = readSettings();
@@ -250,7 +234,6 @@ export function useAppState() {
 
             carrierName: s.wbCarrierName || s.companyName || "Segecha Group Ltd",
             carrierKraPin: s.wbCarrierKraPin || s.pinNumber || "",
-            carrierInsuranceId: s.wbCarrierInsuranceId || s.insuranceId || "",
             carrierNtsa: s.wbCarrierNtsa || "",
             carrierAddress: s.wbCarrierAddress || s.address || "",
             carrierPhone: s.wbCarrierPhone || s.phone || s.companyPhone || "",
@@ -335,136 +318,51 @@ export function useAppState() {
         setWaybillModalJourney(journey);
     }, [data.trucks, data.drivers, data.trailers, data.invoices, data.customers]);
 
-    const saveItem = async (col, item, options = {}) => {
+    const saveItem = (col, item, options = {}) => {
         const skipClose = options?.skipClose === true;
         let isNew = false;
-        let finalItem = { ...item };
-
-        // 1. Prepare data (ID generation, mileage calculation, etc.)
-        if (col === 'journeys') {
-            if (finalItem.startOdom && finalItem.finalOdom) {
-                finalItem.distance = Number(finalItem.finalOdom) - Number(finalItem.startOdom);
-            }
-        }
-
-        const currentData = data[col] || [];
-        const i = currentData.findIndex(x => x.id === finalItem.id);
-
-        if (i < 0) {
-            isNew = true;
-            let uId = finalItem.uId;
-            if (!uId) {
-                try {
-                    const settings = readSettings();
-                    const prefixes = {
-                        trucks: settings.vehicleIdPrefix || 'TRK-',
-                        drivers: settings.driverIdPrefix || 'DRV-',
-                        turnboys: settings.turnboyIdPrefix || 'TBY-',
-                        staff: settings.staffIdPrefix || 'EMP-',
-                        payroll: settings.payrollIdPrefix || 'PAY-',
-                        customers: settings.customerIdPrefix || 'CLT-',
-                        trailers: settings.trailerIdPrefix || 'TRL-',
-                        journeys: settings.journeyIdPrefix || 'MSN-',
-                        fuel: settings.fuelIdPrefix || 'FL-',
-                        expenses: settings.expenseIdPrefix || 'EXP-',
-                    };
-
-                    if (prefixes[col]) {
-                        window._uIdCounters = window._uIdCounters || {};
-                        if (!window._uIdCounters[col]) {
-                            let maxNum = currentData.length;
-                            for (const item of currentData) {
-                                if (item.uId && typeof item.uId === 'string' && item.uId.startsWith(prefixes[col])) {
-                                    const numStr = item.uId.replace(prefixes[col], '');
-                                    const num = parseInt(numStr, 10);
-                                    if (!isNaN(num) && num > maxNum) maxNum = num;
-                                }
-                            }
-                            window._uIdCounters[col] = maxNum;
-                        }
-                        window._uIdCounters[col] += 1;
-                        uId = prefixes[col] + String(window._uIdCounters[col]).padStart(3, '0');
-                    }
-                } catch (e) {
-                    console.error("Error generating uId:", e);
-                }
-            }
-            finalItem = { ...finalItem, id: finalItem.id || uid(), uId };
-        }
-
-        // 2. Sync to server BEFORE updating local state to ensure FK integrity for sequential calls
-        // Or at least return the promise. For FK integrity, we MUST wait for the server success.
-        if (PAYMENT_API) {
-            try {
-                const token = adminAuth.getToken();
-                const res = await fetch(`${PAYMENT_API}/api/admin/${col}`, {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "x-admin-key": ADMIN_KEY,
-                        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-                    },
-                    body: JSON.stringify(finalItem),
-                });
-                
-                const result = await res.json().catch(() => ({}));
-                if (!res.ok) {
-                    const errorMsg = result.error || res.statusText || "Server error";
-                    console.error(`Sync failed for ${col}:`, errorMsg);
-                    throw new Error(errorMsg);
-                }
-                
-                // If backend returned an updated item (e.g. with server-side fields), use it
-                if (result.item) finalItem = { ...finalItem, ...result.item };
-            } catch (err) {
-                console.error(`Sync failed for ${col}:`, err.message);
-                showToast(`Could not save ${col} to server: ` + err.message, "error");
-                throw err; // Re-throw so caller can stop sequencing
-            }
-        }
-
-        // 3. Update local state
         setData(d => {
             const arr = [...(d[col] || [])];
-            const idx = arr.findIndex(x => x.id === finalItem.id);
-            if (idx >= 0) arr[idx] = finalItem;
-            else arr.push(finalItem);
-            
-            let nextData = { ...d, [col]: arr };
+            const i = arr.findIndex(x => x.id === item.id);
 
-            // 4. Automatic Sync: If journey revenue changed, update linked invoice amount
+            let finalItem = { ...item };
             if (col === 'journeys') {
-                const linkedInvoices = (d.invoices || []).filter(inv => (inv.journeyId === finalItem.id || inv.journey === finalItem.id));
-                if (linkedInvoices.length > 0) {
-                    const updatedInvoices = d.invoices.map(inv => {
-                        if (inv.journeyId === finalItem.id || inv.journey === finalItem.id) {
-                            return { ...inv, amount: Number(finalItem.revenue || 0) };
-                        }
-                        return inv;
-                    });
-                    nextData.invoices = updatedInvoices;
-
-                    // Trigger server sync for these invoices as well
-                    linkedInvoices.forEach(inv => {
-                        const updatedInv = { ...inv, amount: Number(finalItem.revenue || 0) };
-                        // We call the API directly here to avoid infinite recursion with saveItem/setData
-                        if (PAYMENT_API) {
-                            const token = adminAuth.getToken();
-                            fetch(`${PAYMENT_API}/api/admin/invoices`, {
-                                method: "POST",
-                                headers: {
-                                    "Content-Type": "application/json",
-                                    "x-admin-key": ADMIN_KEY,
-                                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-                                },
-                                body: JSON.stringify(updatedInv),
-                            }).catch(err => console.error("Linked invoice sync failed:", err));
-                        }
-                    });
+                if (finalItem.startOdom && finalItem.finalOdom) {
+                    finalItem.distance = Number(finalItem.finalOdom) - Number(finalItem.startOdom);
                 }
             }
 
-            return nextData;
+            if (i >= 0) {
+                arr[i] = finalItem;
+            } else {
+                isNew = true;
+                // Auto-generate Internal Unique ID (uId) for specific collections
+                let uId = finalItem.uId;
+                if (!uId) {
+                    try {
+                        const settings = readSettings();
+                        const prefixes = {
+                            trucks: settings.vehicleIdPrefix || 'TRK-',
+                            drivers: settings.driverIdPrefix || 'DRV-',
+                            turnboys: settings.turnboyIdPrefix || 'TBY-',
+                            staff: settings.staffIdPrefix || 'EMP-',
+                            payroll: settings.payrollIdPrefix || 'PAY-',
+                            customers: settings.customerIdPrefix || 'CST-',
+                            trailers: settings.trailerIdPrefix || 'TRL-',
+                        };
+
+                        if (prefixes[col]) {
+                            const count = (d[col] || []).length + 1;
+                            uId = prefixes[col] + String(count).padStart(3, '0');
+                        }
+                    } catch (e) {
+                        console.error("Error generating uId:", e);
+                    }
+                }
+
+                arr.push({ ...finalItem, id: finalItem.id || uid(), uId });
+            }
+            return { ...d, [col]: arr };
         });
 
         if (!options?.silent) {
@@ -516,6 +414,8 @@ export function useAppState() {
         const desc = label ? `"${label}"` : 'this record';
         if (!window.confirm(`Delete ${desc}? This cannot be undone.`)) return;
 
+        setData(d => ({ ...d, [col]: d[col].filter(x => x.id !== id) }));
+
         if (PAYMENT_API) {
             try {
                 const token = adminAuth.getToken();
@@ -527,235 +427,47 @@ export function useAppState() {
                     }
                 });
                 const j = await res.json().catch(() => ({}));
-                if (!res.ok) {
-                    throw new Error(j.error || res.statusText || "Delete failed");
+                if (res.ok && j.success) {
+                    console.log(`Backend sync: deleted ${id} from ${col}`);
+                } else {
+                    console.warn(`Backend delete failed: ${j.error || res.status}. Local delete persists.`);
                 }
-                
-                // Successfully deleted on server, now update local
-                setData(d => ({ ...d, [col]: (d[col] || []).filter(x => x.id !== id) }));
-                showToast(`${label || 'Record'} deleted`, "success");
             } catch (err) {
-                console.error(`Delete failed for ${col}:`, err.message);
-                showToast(`Could not delete from server: ` + err.message, "error");
+                console.warn(`Sync failed: ${err.message}. Local delete persists.`);
             }
-        } else {
-            // No API, just local (demo mode)
-            setData(d => ({ ...d, [col]: (d[col] || []).filter(x => x.id !== id) }));
-            showToast(`${label || 'Record'} removed locally`, "success");
         }
+
+        showToast(`${label || 'Record'} deleted`, "success");
     };
 
-    const disbursePayroll = async (id, params = {}) => {
-        const item = (data.payroll || []).find(p => p.id === id);
-        if (!item) {
-            showToast("Payroll record not found", "error");
-            return;
-        }
-
-        const { method = 'mpesa', phone, remarks } = params;
-        const amount = item._net || item.amount; // Use calculated net if available
-
-        try {
-            const token = adminAuth.getToken();
-            const res = await fetch(`${PAYMENT_API}/api/admin/payroll/${id}/pay`, {
-                method: "POST",
-                headers: { 
-                    "Content-Type": "application/json",
-                    "x-admin-key": ADMIN_KEY,
-                    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-                },
-                body: JSON.stringify({
-                    amount,
-                    phone: phone || item._mpesa || "",
-                    method,
-                    remarks: remarks || `Disbursement for ${item._name || id}`
-                })
-            });
-            
-            const result = await res.json().catch(() => ({}));
-            if (!res.ok) throw new Error(result.error || "Disbursement failed");
-            
-            setData(d => ({
-                ...d,
-                payroll: d.payroll.map(p => p.id === id ? { ...p, status: "Paid", metadata: { ...(p.metadata || {}), ...result.data } } : p)
-            }));
-            showToast(result.message || "Payroll marked as Paid", "success");
-            return { success: true, result };
-        } catch (err) {
-            showToast("Payroll Error: " + err.message, "error");
-            return { success: false, error: err.message };
-        }
-    };
-
-    const refundInvoice = async (invoiceId, params = {}) => {
-        const item = (data.invoices || []).find(i => i.id === invoiceId);
-        if (!item) {
-            showToast("Invoice not found", "error");
-            return;
-        }
-
-        const { method = 'mpesa_b2b', receiverShortcode, remarks } = params;
-        const amount = params.amount || item.paidAmount || 0;
-
-        try {
-            const token = adminAuth.getToken();
-            const res = await fetch(`${PAYMENT_API}/api/admin/refund`, {
-                method: "POST",
-                headers: { 
-                    "Content-Type": "application/json",
-                    "x-admin-key": ADMIN_KEY,
-                    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-                },
-                body: JSON.stringify({
-                    invoiceId,
-                    amount,
-                    method,
-                    remarks: remarks || `Refund for ${invoiceId}`,
-                    receiverShortcode
-                })
-            });
-            
-            const result = await res.json().catch(() => ({}));
-            if (!res.ok) throw new Error(result.error || "Refund failed");
-            
-            showToast(result.message || "Refund processed successfully", "success");
-            return { success: true, result };
-        } catch (err) {
-            showToast("Refund Error: " + err.message, "error");
-            return { success: false, error: err.message };
-        }
-    };
-
-    /** Update system settings and sync to server */
-    const updateSettings = async (patch) => {
-        const next = patchSettings(patch);
-        const token = adminAuth.getToken();
-        const success = await syncSettingsToServer(token);
-        if (!success) {
-            console.warn("Settings updated locally but failed to persist to server.");
-        }
-        return next;
-    };
-
-    /** Unified helper for staff/driver account credential resets */
-    const resetAccountCredentials = async (type, entity, forcePasswordReset = false) => {
-        if (!PAYMENT_API) return;
-        const res = await fetch(`${PAYMENT_API}/api/${type}/account/regenerate-credentials`, {
-            method: "POST",
-            headers: { 
-                "Content-Type": "application/json",
-                "x-admin-key": ADMIN_KEY 
-            },
-            body: JSON.stringify({
-                [`${type}Id`]: entity.id,
-                email: entity.email || entity.name,
-                phone: entity.phone || "",
-                name: entity.name,
-                role: entity.role,
-                forcePasswordReset,
-                adminKey: ADMIN_KEY,
-            }),
-        });
-        const j = await res.json();
-        if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
-        
-        setData(prev => ({
-            ...prev,
-            [type]: (prev[type] || []).map(x =>
-                x.id === entity.id ? { ...x, ...j, firstLogin: true } : x
-            )
+    const markPayrollPaid = (id) => {
+        setData(d => ({
+            ...d,
+            payroll: d.payroll.map(p => p.id === id ? { ...p, status: "Paid", paidDate: today(), mpesaRef: "MPESA" + uid().slice(0, 8) } : p)
         }));
-        return j;
+        showToast("Payroll marked as paid", "success");
     };
 
-    /** Unified helper for staff account deletion */
-    const deleteStaffAccount = async (staffId) => {
-        if (!PAYMENT_API) return;
-        const res = await fetch(`${PAYMENT_API}/api/staff/account/${staffId}?adminKey=${encodeURIComponent(ADMIN_KEY)}`, { method: "DELETE" });
-        const j = await res.json();
-        if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
-        
-        setData(prev => ({
-            ...prev,
-            staff: (prev.staff || []).filter(x => x.id !== staffId),
-            payroll: (prev.payroll || []).filter(p => p.driver !== staffId),
+    const markInvoicePaid = (id) => {
+        setData(d => ({
+            ...d,
+            invoices: d.invoices.map(i => i.id === id ? {
+                ...i,
+                status: "Paid",
+                paidAmount: +i.amount,
+                paidDate: today(),
+                mpesaRef: "QJK" + uid().slice(0, 7),
+                payments: [...(i.payments || []), {
+                    id: uid().slice(0, 8),
+                    date: today(),
+                    amount: +i.amount - (+i.paidAmount || 0),
+                    method: 'Quick Pay',
+                    ref: "QJK" + uid().slice(0, 7),
+                    notes: 'Marked as paid by admin'
+                }]
+            } : i)
         }));
-    };
-
-    /** Unified helper for driver account deletion */
-    const deleteDriverAccount = async (driverId) => {
-        if (!PAYMENT_API) return;
-        const res = await fetch(`${PAYMENT_API}/api/driver/account/${driverId}?adminKey=${encodeURIComponent(ADMIN_KEY)}`, { method: "DELETE" });
-        const j = await res.json();
-        if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
-        
-        setData(prev => ({
-            ...prev,
-            drivers: (prev.drivers || []).filter(x => x.id !== driverId),
-            journeys: (prev.journeys || []).filter(x => x.driver !== driverId),
-            fuel: (prev.fuel || []).filter(x => x.driver !== driverId && x._submittedBy !== driverId),
-            expenses: (prev.expenses || []).filter(x => x.driver !== driverId && x._submittedBy !== driverId),
-            payroll: (prev.payroll || []).filter(p => p.driver !== driverId),
-        }));
-    };
-
-
-    const markInvoicePaid = async (id) => {
-        const item = data.invoices.find(i => i.id === id);
-        if (!item) return;
-        const updated = {
-            ...item,
-            status: "Paid",
-            paidAmount: +item.amount,
-            paidDate: today(),
-            mpesaRef: "QJK" + uid().slice(0, 7),
-            payments: [...(item.payments || []), {
-                id: uid().slice(0, 8),
-                date: today(),
-                amount: +item.amount - (+item.paidAmount || 0),
-                method: 'Quick Pay',
-                ref: "QJK" + uid().slice(0, 7),
-                notes: 'Marked as paid by admin'
-            }]
-        };
-        try {
-            await saveItem("invoices", updated);
-            showToast("Invoice marked as paid and synced", "success");
-        } catch (e) {
-            // error already handled
-        }
-    };
-
-    const addInvoicePayment = async (payment) => {
-        const inv = data.invoices.find(i => i.id === payment.invoiceId);
-        if (!inv) throw new Error("Invoice not found");
-
-        const newPayments = [...(inv.payments || []), { 
-            ...payment, 
-            id: payment.id || uid().slice(0, 8),
-            journeyId: payment.journeyId || inv.journeyId || inv.journey
-        }];
-        const newPaidAmount = newPayments.reduce((s, p) => s + +p.amount, 0);
-        const newStatus = newPaidAmount >= +inv.amount ? "Paid" : "Partial";
-
-        const updatedInvoice = {
-            ...inv,
-            paidAmount: newPaidAmount,
-            status: newStatus,
-            payments: newPayments,
-            paidDate: newStatus === "Paid" ? today() : inv.paidDate
-        };
-
-        try {
-            // 1. Save the payment record for audit
-            await saveItem("payments", payment);
-            // 2. Sync invoice status to backend
-            await saveItem("invoices", updatedInvoice);
-            showToast("Payment logged and invoice updated", "success");
-        } catch (e) {
-            console.error("Payment logging failed:", e);
-            throw e;
-        }
+        showToast("Invoice marked as paid", "success");
     };
 
     const resetData = () => {
@@ -801,7 +513,7 @@ export function useAppState() {
             const token = adminAuth.getToken();
             const res = await fetch(`${PAYMENT_API}/api/admin/journey/${journeyId}/verify`, {
                 method: 'POST',
-                headers: {
+                headers: { 
                     'Content-Type': 'application/json',
                     'x-admin-key': ADMIN_KEY,
                     ...(token ? { 'Authorization': `Bearer ${token}` } : {})
@@ -854,7 +566,7 @@ export function useAppState() {
             const token = adminAuth.getToken();
             const res = await fetch(`${PAYMENT_API}/api/admin/submission/verify`, {
                 method: 'POST',
-                headers: {
+                headers: { 
                     'Content-Type': 'application/json',
                     'x-admin-key': ADMIN_KEY,
                     ...(token ? { 'Authorization': `Bearer ${token}` } : {})
@@ -891,36 +603,43 @@ export function useAppState() {
 
     const syncToServer = useCallback(async () => {
         try {
+            const s = readSettings();
             const token = adminAuth.getToken();
-            
-            // 1. Sync main tracker data (PostgreSQL)
             const res = await fetch(`${PAYMENT_API}/api/tracker/data`, {
                 method: "POST",
-                headers: {
+                headers: { 
                     "Content-Type": "application/json",
                     "x-admin-key": ADMIN_KEY,
                     ...(token ? { 'Authorization': `Bearer ${token}` } : {})
                 },
-                body: JSON.stringify({ data }),
+                body: JSON.stringify({
+                    data,
+                    adminKey: ADMIN_KEY,
+                    profilePermissions: mergeProfilePermissions(s.profilePermissions),
+                    // Persist email sender identities and other admin-tunable defaults for server-side emails.
+                    settings: s,
+                }),
             });
             const j = await res.json().catch(() => ({}));
             if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
             localStorage.setItem(LAST_SYNC_KEY, new Date().toISOString());
-            showToast("Server snapshot updated successfully.", "success");
+            showToast("Server snapshot updated. Driver portal and M-Pesa callbacks use tracker-data.json.", "success");
+
+            // Refresh backups list if sync was successful (a new backup might have been triggered)
             fetchBackups();
             return true;
         } catch (e) {
             showToast("Sync failed: " + e.message, "error");
             return false;
         }
-    }, [data, showToast, fetchBackups]);
+    }, [data, showToast]);
 
     const fetchBackups = useCallback(async () => {
         setBackupsLoading(true);
         try {
             const token = adminAuth.getToken();
             const res = await fetch(`${PAYMENT_API}/api/tracker/backups`, {
-                headers: {
+                headers: { 
                     'x-admin-key': ADMIN_KEY,
                     ...(token ? { 'Authorization': `Bearer ${token}` } : {})
                 }
@@ -941,7 +660,7 @@ export function useAppState() {
             const token = adminAuth.getToken();
             const res = await fetch(`${PAYMENT_API}/api/tracker/backup-now`, {
                 method: 'POST',
-                headers: {
+                headers: { 
                     'x-admin-key': ADMIN_KEY,
                     ...(token ? { 'Authorization': `Bearer ${token}` } : {})
                 }
@@ -965,7 +684,7 @@ export function useAppState() {
             const token = adminAuth.getToken();
             const res = await fetch(`${PAYMENT_API}/api/tracker/restore`, {
                 method: 'POST',
-                headers: {
+                headers: { 
                     'Content-Type': 'application/json',
                     'x-admin-key': ADMIN_KEY,
                     ...(token ? { 'Authorization': `Bearer ${token}` } : {})
@@ -989,7 +708,7 @@ export function useAppState() {
         try {
             const token = adminAuth.getToken();
             const res = await fetch(`${PAYMENT_API}/api/tracker/backups/download/${filename}`, {
-                headers: {
+                headers: { 
                     'x-admin-key': ADMIN_KEY,
                     ...(token ? { 'Authorization': `Bearer ${token}` } : {})
                 }
@@ -1015,7 +734,7 @@ export function useAppState() {
                 const token = adminAuth.getToken();
                 const res = await fetch(`${PAYMENT_API}/api/tracker/upload-backup`, {
                     method: 'POST',
-                    headers: {
+                    headers: { 
                         'Content-Type': 'application/json',
                         'x-admin-key': ADMIN_KEY,
                         ...(token ? { 'Authorization': `Bearer ${token}` } : {})
@@ -1271,130 +990,21 @@ export function useAppState() {
                     const session = {
                         fileName: file.name,
                         parsedAt: new Date().toISOString(),
-                        sheets: {},
+                        sheets: {
+                            trips: { valid: [], errors: [] },
+                            expenses: { valid: [], errors: [] },
+                            maintenance: { valid: [], errors: [] },
+                        },
                         committed: false,
-                        isUniversal: false
                     };
 
-                    const UNIVERSAL_SHEETS = {
-                        'Journeys': 'journeys',
-                        'Invoices': 'invoices',
-                        'Expenses': 'expenses',
-                        'Fuel Logs': 'fuel',
-                        'Payroll': 'payroll',
-                        'Trucks': 'trucks',
-                        'Trailers': 'trailers',
-                        'Maintenance': 'maintenance',
-                        'Customers': 'customers',
-                        'Employees': 'employees'
-                    };
-
-                    const UNIVERSAL_MAPS = {
-                        'journeys': {
-                            id: 'Mission ID', date: 'Date', origin: 'Origin', dest: 'Destination',
-                            customerId: 'Customer', deliveryCustomerId: 'Delivery To',
-                            truck: 'Vehicle', driver: 'Driver', turnboyId: 'Turnboy',
-                            distance: 'Distance (KM)', revenue: 'Revenue', status: 'Status',
-                            cargo: 'Cargo', waybillNo: 'Waybill'
-                        },
-                        'expenses': {
-                            id: 'Exp ID', date: 'Date', truck: 'Vehicle', cat: 'Category',
-                            subCat: 'Sub-Category', desc: 'Description', amount: 'Amount',
-                            status: 'Status'
-                        },
-                        'fuel': {
-                            id: 'Log ID', date: 'Date', truck: 'Vehicle', driver: 'Driver',
-                            litres: 'Litres', pricePerL: 'Price/L', amount: 'Amount (KES)',
-                            station: 'Station', status: 'Status'
-                        },
-                        'trucks': {
-                            id: 'ID', reg: 'Registration', make: 'Make/Model', year: 'Year',
-                            odom: 'Odometer (KM)', status: 'Status', driver: 'Driver',
-                            insuranceDue: 'Insurance Due', ntsaDue: 'NTSA Due'
-                        },
-                        'trailers': {
-                            id: 'ID', reg: 'Registration', type: 'Type', make: 'Make',
-                            status: 'Status', truck: 'Assigned Truck'
-                        },
-                        'maintenance': {
-                            date: 'Date', truck: 'Vehicle', type: 'Type', desc: 'Description',
-                            cost: 'Cost', odom: 'Odometer'
-                        },
-                        'invoices': {
-                            id: 'Invoice ID', customerId: 'Customer', date: 'Date',
-                            dueDate: 'Due Date', amount: 'Amount', paidAmount: 'Paid Amount',
-                            status: 'Status'
-                        },
-                        'customers': {
-                            id: 'ID', name: 'Name', contactPerson: 'Contact Person',
-                            phone: 'Phone', email: 'Email', address: 'Address'
-                        },
-                        'employees': {
-                            id: 'ID', name: 'Name', role: 'Role', phone: 'Phone',
-                            mpesa: 'M-Pesa', idNo: 'ID No'
-                        }
-                    };
-
-                    // 1. Check if it's a Universal Sync file (contains any of the universal sheet names)
-                    const foundUniversalSheets = wb.SheetNames.filter(name => UNIVERSAL_SHEETS[name]);
-                    if (foundUniversalSheets.length > 0) {
-                        session.isUniversal = true;
-                        foundUniversalSheets.forEach(sName => {
-                            const tableKey = UNIVERSAL_SHEETS[sName];
-                            const sheet = wb.Sheets[sName];
-                            const rows = window.XLSX.utils.sheet_to_json(sheet, { defval: null, raw: false });
-                            const map = UNIVERSAL_MAPS[tableKey];
-
-                            session.sheets[tableKey] = { valid: [], errors: [], label: sName };
-
-                            rows.forEach((row, idx) => {
-                                const mapped = {
-                                    _rowNum: idx + 2,
-                                    _sheetName: sName,
-                                    errors: [],
-                                    warnings: [],
-                                    accepted: true,
-                                    edited: false
-                                };
-
-                                // Apply generic mapping
-                                Object.entries(map).forEach(([dbField, excelHeader]) => {
-                                    mapped[dbField] = row[excelHeader] ?? '';
-                                });
-
-                                // ID consistency (Support both id and uId if present)
-                                mapped.uId = mapped.id; 
-
-                                // Basic validation (presence check for key fields)
-                                if (!mapped.id && tableKey !== 'maintenance') {
-                                    // Maintenance might not have IDs in the export yet
-                                }
-
-                                // Field resolution (Name -> ID)
-                                if (mapped.truck) {
-                                    const t = findTruckByReg(mapped.truck);
-                                    if (t) mapped.truckId = t.id;
-                                    else if (mapped.truck.includes('-')) { /* likely already an ID */ }
-                                }
-                                if (mapped.driver) {
-                                    const d = data.drivers?.find(x => x.name === mapped.driver || x.id === mapped.driver);
-                                    if (d) mapped.driverId = d.id;
-                                }
-
-                                session.sheets[tableKey].valid.push(mapped);
-                            });
-                        });
-                    }
-
-                    // 2. Fallback to Legacy/Hardcoded sheets if not handled as Universal or if specific sheets exist
                     const tripsSheet = wb.Sheets['Trips_2025'];
-                    if (tripsSheet && !session.sheets.journeys) {
-                        if (!session.sheets.trips) session.sheets.trips = { valid: [], errors: [], label: 'Trips' };
+                    if (tripsSheet) {
                         const rows = window.XLSX.utils.sheet_to_json(tripsSheet, {
                             header: 1, defval: null, raw: false, dateNF: 'yyyy-mm-dd'
                         });
 
-                        const headers = rows[1] || []; 
+                        const headers = rows[1] || []; // Headers are on row 2 (index 1)
                         const hMap = (rawHeaders, aliases) => {
                             const map = {};
                             rawHeaders.forEach((h, i) => {
@@ -1431,13 +1041,20 @@ export function useAppState() {
                             const get = (field) => row[col[field]] ?? null;
 
                             const rawRow = {
-                                vehicle: get('vehicle'), date: get('date'),
-                                origin: get('origin'), destination: get('destination'),
-                                startOdo: get('startOdo'), endOdo: get('endOdo'),
-                                standardDist: get('standardDist'), grossIncome: get('grossIncome'),
-                                fuelLitres: get('fuelLitres'), fuelPrice: get('fuelPrice'),
-                                driverMileage: get('driverMileage'), turnboy: get('turnboy'),
-                                roadUsers: get('roadUsers'), otherExp: get('otherExp'),
+                                vehicle: get('vehicle'),
+                                date: get('date'),
+                                origin: get('origin'),
+                                destination: get('destination'),
+                                startOdo: get('startOdo'),
+                                endOdo: get('endOdo'),
+                                standardDist: get('standardDist'),
+                                grossIncome: get('grossIncome'),
+                                fuelLitres: get('fuelLitres'),
+                                fuelPrice: get('fuelPrice'),
+                                driverMileage: get('driverMileage'),
+                                turnboy: get('turnboy'),
+                                roadUsers: get('roadUsers'),
+                                otherExp: get('otherExp'),
                                 progressTrack: get('progressTrack'),
                             };
 
@@ -1490,8 +1107,7 @@ export function useAppState() {
                     }
 
                     const fixedSheet = wb.Sheets['Fixed_Expenses'];
-                    if (fixedSheet && !session.sheets.expenses) {
-                        if (!session.sheets.expenses) session.sheets.expenses = { valid: [], errors: [], label: 'Expenses' };
+                    if (fixedSheet) {
                         const rows = window.XLSX.utils.sheet_to_json(fixedSheet, { header: 1, defval: null, raw: true });
                         const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
                         const monthDates = months.map((_, i) => `2025-${String(i + 1).padStart(2, '0')}-01`);
@@ -1520,8 +1136,7 @@ export function useAppState() {
                     }
 
                     const maintSheet = wb.Sheets['Maintenance'];
-                    if (maintSheet && !session.sheets.maintenance) {
-                        if (!session.sheets.maintenance) session.sheets.maintenance = { valid: [], errors: [], label: 'Maintenance' };
+                    if (maintSheet) {
                         const rows = window.XLSX.utils.sheet_to_json(maintSheet, {
                             header: 1, defval: null, raw: false, dateNF: 'yyyy-mm-dd'
                         });
@@ -1573,53 +1188,9 @@ export function useAppState() {
     };
 
     const commitImport = async (session) => {
-        if (session.isUniversal) {
-            const nextData = { ...data };
-            
-            Object.entries(session.sheets).forEach(([tableKey, sheet]) => {
-                const allRows = [...sheet.valid, ...sheet.errors].filter(r => r.accepted);
-                if (allRows.length === 0) return;
-
-                if (tableKey === 'employees') {
-                    // Split employees back into drivers, staff, turnboys
-                    allRows.forEach(row => {
-                        const targetTable = row.role === 'Driver' ? 'drivers' : 
-                                            row.role === 'Turnboy' ? 'turnboys' : 'staff';
-                        const list = [...(nextData[targetTable] || [])];
-                        const idx = list.findIndex(x => x.id === row.id || x.uId === row.id);
-                        const cleanRow = { ...row };
-                        delete cleanRow._rowNum; delete cleanRow._sheetName; delete cleanRow.errors; delete cleanRow.warnings; delete cleanRow.accepted; delete cleanRow.edited; delete cleanRow.role;
-
-                        if (idx >= 0) list[idx] = { ...list[idx], ...cleanRow };
-                        else list.push({ ...cleanRow, id: cleanRow.id || uid() });
-                        nextData[targetTable] = list;
-                    });
-                } else {
-                    const list = [...(nextData[tableKey] || [])];
-                    allRows.forEach(row => {
-                        const idx = list.findIndex(x => x.id === row.id || (row.uId && x.uId === row.uId));
-                        const cleanRow = { ...row };
-                        // Remove UI-only fields
-                        delete cleanRow._rowNum; delete cleanRow._sheetName; delete cleanRow.errors; delete cleanRow.warnings; delete cleanRow.accepted; delete cleanRow.edited;
-
-                        if (idx >= 0) {
-                            list[idx] = { ...list[idx], ...cleanRow };
-                        } else {
-                            list.push({ ...cleanRow, id: cleanRow.id || uid() });
-                        }
-                    });
-                    nextData[tableKey] = list;
-                }
-            });
-
-            setData(nextData);
-            session.committed = true;
-            return;
-        }
-
-        const allTrips = (session.sheets.trips?.valid || []).concat(session.sheets.trips?.errors || []).filter(r => r.accepted);
-        const allExpenses = (session.sheets.expenses?.valid || []).concat(session.sheets.expenses?.errors || []).filter(r => r.accepted);
-        const allMaint = (session.sheets.maintenance?.valid || []).concat(session.sheets.maintenance?.errors || []).filter(r => r.accepted);
+        const allTrips = [...session.sheets.trips.valid, ...session.sheets.trips.errors].filter(r => r.accepted);
+        const allExpenses = [...session.sheets.expenses.valid, ...session.sheets.expenses.errors].filter(r => r.accepted);
+        const allMaint = [...session.sheets.maintenance.valid, ...session.sheets.maintenance.errors].filter(r => r.accepted);
 
         const newJourneys = [];
         const newFuel = [];
@@ -1720,7 +1291,7 @@ export function useAppState() {
                 const token = adminAuth.getToken();
                 await fetch(`${PAYMENT_API}/api/admin/import-history`, {
                     method: 'POST',
-                    headers: {
+                    headers: { 
                         'Content-Type': 'application/json',
                         'x-admin-key': ADMIN_KEY,
                         ...(token ? { 'Authorization': `Bearer ${token}` } : {})
@@ -1735,11 +1306,11 @@ export function useAppState() {
     };
 
     // Derived helpers
-    const driverName = (id) => (data.drivers || []).find(d => d.id === id)?.name || "—";
-    const driverPhone = (id) => (data.drivers || []).find(d => d.id === id)?.phone || '';
-    const truckReg = (id) => (data.trucks || []).find(t => t.id === id)?.reg || "—";
+    const driverName = (id) => data.drivers.find(d => d.id === id)?.name || "—";
+    const driverPhone = (id) => data.drivers.find(d => d.id === id)?.phone || '';
+    const truckReg = (id) => data.trucks.find(t => t.id === id)?.reg || "—";
     const staffName = (id) => {
-        const s = (data.staff || []).find(x => x.id === id) || (data.drivers || []).find(x => x.id === id);
+        const s = data.staff.find(x => x.id === id) || data.drivers.find(x => x.id === id);
         return s?.name || "—";
     };
     const customerName = (id) => (data.customers || []).find(c => c.id === id)?.name || "—";
@@ -1752,7 +1323,7 @@ export function useAppState() {
         const totalLitres = fuelEntries.reduce((s, f) => s + f.litres, 0);
         const totalKm = jrns.filter(j => j.status === "Completed").reduce((s, j) => s + +j.distance, 0);
         const kmPerL = totalLitres > 0 ? totalKm / totalLitres : 0;
-        const otherExp = data.expenses.filter(e => e.truck === tid && e.cat !== 'Fuel').reduce((s, e) => s + +e.amount, 0);
+        const otherExp = data.expenses.filter(e => e.truck === tid).reduce((s, e) => s + +e.amount, 0);
         const exp = fuelCost + otherExp;
         return { rev, exp, profit: rev - exp, trips: jrns.length, totalKm, totalLitres, fuelCost, kmPerL };
     };
@@ -1789,19 +1360,16 @@ export function useAppState() {
         }
     }, [data.maintenanceSettings, data.maintenanceLogs]);
 
-    const logMaintenance = async (truckId, typeId, cost, desc, odom, date) => {
+    const logMaintenance = (truckId, typeId, cost, desc, odom, date) => {
         const log = { id: 'ml' + uid().slice(0, 6), truck: truckId, type: typeId, cost: +cost, desc, odom: +odom, date: date || today() };
-        const setting = data.maintenanceSettings.find(s => s.id === typeId);
-        const expense = { id: 'e' + uid().slice(0, 6), truck: truckId, cat: "Maintenance", amount: +cost, date: date || today(), desc: `${setting?.name || "Maintenance"}: ${desc}`, journey: "" };
+        const expense = { id: 'e' + uid().slice(0, 6), truck: truckId, cat: "Maintenance", amount: +cost, date: date || today(), desc: `${data.maintenanceSettings.find(s => s.id === typeId)?.name}: ${desc}`, journey: "" };
 
-        try {
-            // Sync both to backend
-            await saveItem("maintenance_logs", log);
-            await saveItem("expenses", expense);
-            showToast("Maintenance logged and expense added", "success");
-        } catch (e) {
-            // individual error toasts shown by saveItem
-        }
+        setData(d => ({
+            ...d,
+            maintenanceLogs: [log, ...d.maintenanceLogs],
+            expenses: [expense, ...d.expenses]
+        }));
+        showToast("Maintenance logged and expense added", "success");
     };
 
     const tyreStatus = (truck) => maintenanceStatus(truck, "m16"); // Default to tyre replacement setting
@@ -1831,15 +1399,15 @@ export function useAppState() {
         waybillModalJourney, waybillForm, setWaybillForm, openWaybillGenerator, closeWaybillModal,
         filterTruck, setFilterTruck,
         invoicePreview, setInvoicePreview,
+        sideOpen, setSideOpen,
         dark, setDark,
-        saveItem, delItem, disbursePayroll, markInvoicePaid, addInvoicePayment, resetData, hardResetSystem,
-        updateSettings, resetAccountCredentials, deleteStaffAccount, deleteDriverAccount, refundInvoice,
+        saveItem, delItem, markPayrollPaid, markInvoicePaid, resetData, hardResetSystem,
         verifyJourney, fetchPendingVerifications, syncToServer,
         verifySubmission,
         driverName, driverPhone, staffName, truckReg, customerName, truckStats, tyreStatus, maintenanceStatus, logMaintenance,
         toasts, showToast,
         verifyModal, setVerifyModal, pendingVerifications, rejectReason, setRejectReason, rejectedFields, setRejectedFields, verifyLoading, verifyMsg, setVerifyMsg,
-        importSession, setImportSession, importHistory, runExcelImport, commitImport,
+        importSession, setImportSession, importHistory, runExcelImport,
         fillTemplate,
         trailerReg: (id) => data.trailers?.find(t => t.id === id)?.reg || id,
         previewMode,
@@ -1848,7 +1416,6 @@ export function useAppState() {
 
         backups,
         backupsLoading,
-
         fetchBackups,
         createManualBackup,
         restoreFromBackup,

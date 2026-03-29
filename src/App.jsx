@@ -5,8 +5,8 @@ import { PreviewModeBanner } from "./components/PreviewModeBanner.jsx";
 import { useWindowWidth } from "./hooks/useWindowWidth";
 import { useAppState } from "./hooks/useAppState";
 import { DRIVER_PORTAL_URL } from "./utils/env.js";
-// import { Sidebar } from "./components/Sidebar";
-// import { Topbar } from "./components/Topbar";
+import { Sidebar } from "./components/Sidebar";
+import { Topbar } from "./components/Topbar";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { ToastContainer } from "./components/Toast";
 import { Dashboard } from "./pages/Dashboard";
@@ -34,37 +34,12 @@ import { TyreMonitor } from "./pages/TyreMonitor";
 import { GlobalModals } from "./components/GlobalModals";
 import { WaybillModal } from "./components/WaybillModal";
 import { VerificationModal } from "./components/VerificationModal";
-// import { MpesaTransactions } from "./pages/MpesaTransactions";
 import { getTheme, getStyles } from "./constants/theme";
 import { adminAuth } from "./utils/adminAuth";
 import { Login } from "./pages/Login";
-import { PAYMENT_API } from "./utils/env.js";
-
-const FE_VERSION = '2.1.0';
 
 export default function App() {
     const state = useAppState();
-    
-    // Version Handshake
-    /*
-    useEffect(() => {
-        if (!PAYMENT_API) return;
-        const checkVersion = async () => {
-            try {
-                const res = await fetch(`${PAYMENT_API}/api/version`);
-                if (!res.ok) return;
-                const { version: serverVersion } = await res.json();
-                if (serverVersion !== FE_VERSION) {
-                    console.warn(`[VERSION_MISMATCH] FE: ${FE_VERSION}, BE: ${serverVersion}`);
-                    state.showToast(`System Update: A newer version (${serverVersion}) is available. Please refresh your browser.`, "info");
-                }
-            } catch (e) {
-                console.warn("Version check skipped:", e);
-            }
-        };
-        checkVersion();
-    }, [state.showToast]);
-    */
     const location = useLocation();
     const navigate = useNavigate();
     const winW = useWindowWidth();
@@ -167,12 +142,38 @@ export default function App() {
 
     const tyreAlertCount = state.data.trucks.filter(t => state.tyreStatus(t).status !== "OK").length;
     const verifyAlertCount = (state.pendingVerifications || []).length;
-    
-    const p = { ...state, isMobile, isTablet, tyreAlertCount, verifyAlertCount };
 
-    const layoutStyle = { display: "flex", minHeight: "100vh", background: "var(--bg-main)" };
-    const mainStyle = { flex: 1, padding: !authed ? "0" : (isMobile ? "16px" : "32px"), marginTop: !authed ? "0" : "var(--topbar-height)" };
+    const T = getTheme(state.dark);
+    const S = getStyles(T);
 
+    // Simplified common props
+    const p = {
+        ...state,
+        isMobile,
+        isTablet,
+        tyreAlertCount,
+        verifyAlertCount,
+        S,
+        T
+    };
+
+    const layoutStyle = {
+        display: "flex",
+        minHeight: "100vh",
+        background: "var(--bg-main)",
+        color: "var(--text-secondary)",
+        transition: "background-color 0.3s ease",
+    };
+
+    const mainStyle = {
+        flex: 1,
+        padding: !authed ? "0" : (isMobile ? "16px" : "32px"),
+        marginTop: !authed ? "0" : (state.previewMode ? "calc(var(--topbar-height) + 40px)" : "var(--topbar-height)"),
+        minWidth: "400px",
+        width: "100%",
+        display: "flex",
+        flexDirection: "column",
+    };
 
 
     if (isLogin && !authed) {
@@ -191,8 +192,14 @@ export default function App() {
     return (
         <div id="app-shell" style={layoutStyle}>
             <div id="waybill-print-root" style={{ display: "none" }} aria-hidden="true" />
+            {isMobile && state.sideOpen && (
+                <div 
+                    style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", backdropFilter: "blur(4px)", zIndex: 89 }} 
+                    onClick={() => state.setSideOpen(false)} 
+                />
+            )}
             
-            {/* {authed && <Topbar {...p} />} */}
+            {authed && <Topbar {...p} />}
             <PreviewModeBanner
                 previewMode={state.previewMode}
                 label={previewLabel}
@@ -206,7 +213,7 @@ export default function App() {
             />
 
             <div style={{ display: "flex", flex: 1, position: "relative" }}>
-                {/* {authed && !state.previewMode && <Sidebar {...p} />} */}
+                {authed && !state.previewMode && <Sidebar {...p} />}
                 
                 <main style={mainStyle} className="animate-fade-in">
                     <Routes>
@@ -227,7 +234,6 @@ export default function App() {
                                     <Route path="/expenses" element={<ErrorBoundary><Expenses {...p} /></ErrorBoundary>} />
                                     <Route path="/incidents" element={<ErrorBoundary><Incidents {...p} /></ErrorBoundary>} />
                                     <Route path="/invoices" element={<ErrorBoundary><Invoices {...p} /></ErrorBoundary>} />
-                                    {/* <Route path="/mpesa-logs" element={<ErrorBoundary><MpesaTransactions {...p} /></ErrorBoundary>} /> */}
                                     <Route path="/payroll" element={<ErrorBoundary><Payroll {...p} /></ErrorBoundary>} />
                                     <Route path="/maintenance" element={<ErrorBoundary><Maintenance {...p} /></ErrorBoundary>} />
                                     <Route path="/tyres" element={<ErrorBoundary><TyreMonitor {...p} /></ErrorBoundary>} />
