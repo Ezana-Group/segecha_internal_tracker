@@ -1,64 +1,20 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { 
-    TrendingUp, 
-    Droplet, 
-    AlertTriangle, 
-    ShieldCheck, 
-    Clock, 
-    Truck, 
-    Wallet, 
-    ArrowUpRight, 
-    ChevronRight, 
-    LayoutDashboard, 
-    ClipboardList, 
-    FileText, 
-    CreditCard,
-    Mail, Briefcase, Users, CheckCircle2, CheckCircle
+    TrendingUp, Droplet, AlertTriangle, ShieldCheck, Clock, Truck, 
+    Wallet, ArrowUpRight, ChevronRight, LayoutDashboard, ClipboardList, 
+    FileText, CreditCard, Mail, Briefcase, Users, CheckCircle2, CheckCircle 
 } from "lucide-react";
 import { fmt, fmtN, monthLabel } from "../utils/formatters";
 import { STALE_TRANSIT_DAYS, FLEET_ACTIVE_WARN_PCT } from "../constants/nav";
-import { PAYMENT_API } from "../utils/env";
+import { PAYMENT_API, ADMIN_KEY } from "../utils/env";
 import { Card } from "../components/Card";
 import { Badge } from "../components/Badge";
 import { Button } from "../components/Button";
 import { PageHeader } from "../components/PageHeader";
 import { SortableTableHead } from "../components/SortableTableHead";
 import { useTableFilter } from "../hooks/useTableFilter";
-
-const Sparkline = ({ data, color, width = 60, height = 24 }) => {
-    if (!data || data.length < 2) return null;
-    const max = Math.max(...data);
-    const min = Math.min(...data);
-    const range = max - min || 1;
-    const pts = data.map((v, i) => ({
-        x: (i / (data.length - 1)) * width,
-        y: height - ((v - min) / range) * height
-    }));
-    const d = `M ${pts.map(p => `${p.x},${p.y}`).join(' L ')}`;
-    return (
-        <svg width={width} height={height} style={{ overflow: 'visible' }}>
-            <path d={d} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-    );
-};
-
-const BarChart = ({ data, dark }) => {
-    const max = Math.max(...data.map(d => Math.max(d.rev, d.exp))) || 1;
-    return (
-        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, height: 180, padding: '20px 0' }}>
-            {data.map((d, i) => (
-                <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
-                    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: '100%', width: '100%', justifyContent: 'center' }}>
-                        <div style={{ width: 8, height: `${(d.rev / max) * 100}%`, background: '#3b82f6', borderRadius: '4px 4px 0 0', minHeight: 4 }} title={`Rev: ${fmt(d.rev)}`} />
-                        <div style={{ width: 8, height: `${(d.exp / max) * 100}%`, background: '#ec4899', borderRadius: '4px 4px 0 0', minHeight: 4 }} title={`Exp: ${fmt(d.exp)}`} />
-                    </div>
-                    <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-dim)' }}>{d.label}</span>
-                </div>
-            ))}
-        </div>
-    );
-};
+import { Sparkline, BarChart } from "../components/DashboardCharts";
 
 export function Dashboard({ data, dark, truckStats, tyreStatus, truckReg, driverName, setVerifyModal, pendingVerifications, isMobile, adminAuth, S, T }) {
     const navigate = useNavigate();
@@ -80,11 +36,6 @@ export function Dashboard({ data, dark, truckStats, tyreStatus, truckReg, driver
             .catch(() => setExpiringDocs([]));
     }, []);
 
-    const totalRevenue = data.journeys.filter(j => j.status === "Completed" && j.date?.startsWith(latestMonth)).reduce((s, j) => s + +j.revenue, 0);
-    const totalFuelCost = data.fuel.filter(f => f.date?.startsWith(latestMonth)).reduce((s, f) => s + f.litres * f.pricePerL, 0);
-    const totalOtherExp = data.expenses.filter(e => e.date?.startsWith(latestMonth) && e.cat !== 'Fuel').reduce((s, e) => s + +e.amount, 0);
-    const totalExpenses = totalFuelCost + totalOtherExp;
-    const netProfit = invPaidTotal - totalExpenses;
     const invList = Array.isArray(data.invoices) ? data.invoices : [];
     const invOutstanding = (i) => Math.max(0, +i.amount - (+i.paidAmount || 0));
     const invPaidList = invList.filter((i) => i.status === "Paid" && i.date?.startsWith(latestMonth));
@@ -93,6 +44,12 @@ export function Dashboard({ data, dark, truckStats, tyreStatus, truckReg, driver
     const invPaidTotal = invPaidList.reduce((s, i) => s + (+i.amount || 0), 0);
     const invPendingTotal = invPendingList.reduce((s, i) => s + invOutstanding(i), 0);
     const invOverdueTotal = invOverdueList.reduce((s, i) => s + invOutstanding(i), 0);
+
+    const totalRevenue = data.journeys.filter(j => j.status === "Completed" && j.date?.startsWith(latestMonth)).reduce((s, j) => s + +j.revenue, 0);
+    const totalFuelCost = data.fuel.filter(f => f.date?.startsWith(latestMonth)).reduce((s, f) => s + f.litres * f.pricePerL, 0);
+    const totalOtherExp = data.expenses.filter(e => e.date?.startsWith(latestMonth) && e.cat !== 'Fuel').reduce((s, e) => s + +e.amount, 0);
+    const totalExpenses = totalFuelCost + totalOtherExp;
+    const netProfit = invPaidTotal - totalExpenses;
 
     const tyreAlerts = data.trucks.filter(t => { const ts = tyreStatus(t); return ts.status !== "OK"; });
     const margin = totalRevenue > 0 ? (netProfit / totalRevenue * 100).toFixed(1) : 0;
