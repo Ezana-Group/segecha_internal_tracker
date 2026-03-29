@@ -6,6 +6,7 @@ import { PreviewModeBanner } from "./components/PreviewModeBanner.jsx";
 import { useWindowWidth } from "./hooks/useWindowWidth";
 import { useAppState } from "./hooks/useAppState";
 import { DRIVER_PORTAL_URL } from "./utils/env.js";
+import { adminAuth } from "./utils/adminAuth";
 import { Sidebar } from "./components/Sidebar";
 import { Topbar } from "./components/Topbar";
 import { ErrorBoundary } from "./components/ErrorBoundary";
