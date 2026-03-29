@@ -1,10 +1,8 @@
-# Stage 1: Build Admin Portal (Root)
-FROM node:20-alpine AS build-admin
+# Stage 1: Build all frontends sequentially to save RAM
+FROM node:20-alpine AS builder
 WORKDIR /app
-COPY package*.json ./
-RUN npm install
-COPY . .
-# Declare build args
+
+# Declare build args for Admin Portal
 ARG VITE_API_URL
 ARG VITE_ADMIN_KEY
 ARG VITE_APP_NAME
@@ -12,6 +10,7 @@ ARG VITE_COMPANY_NAME
 ARG VITE_VAT_RATE
 ARG VITE_TYRE_WARNING_KM
 ARG VITE_INVOICE_OVERDUE_DAYS
+
 # Set as env vars so Vite can read them
 ENV VITE_API_URL=$VITE_API_URL
 ENV VITE_ADMIN_KEY=$VITE_ADMIN_KEY
@@ -20,42 +19,48 @@ ENV VITE_COMPANY_NAME=$VITE_COMPANY_NAME
 ENV VITE_VAT_RATE=$VITE_VAT_RATE
 ENV VITE_TYRE_WARNING_KM=$VITE_TYRE_WARNING_KM
 ENV VITE_INVOICE_OVERDUE_DAYS=$VITE_INVOICE_OVERDUE_DAYS
+
+# 1. Build Admin Portal (Root)
+COPY package*.json ./
+RUN npm ci
+COPY . .
 RUN npm run build
 
-# Stage 2: Build Driver Portal
-FROM node:20-alpine AS build-driver
-WORKDIR /app
+# 2. Build Driver Portal
+WORKDIR /app/driver-portal
 COPY driver-portal/package*.json ./
-RUN npm install
+RUN npm ci
 COPY driver-portal/ .
 RUN npm run build
 
-# Stage 3: Build Payment Portal
-FROM node:20-alpine AS build-payment
-WORKDIR /app
+# 3. Build Payment Portal
+WORKDIR /app/payment-portal
 COPY payment-portal/package*.json ./
-RUN npm install
+RUN npm ci
 COPY payment-portal/ .
 RUN npm run build
 
-# Stage 4: Build Track Portal
-FROM node:20-alpine AS build-track
-WORKDIR /app
+# 4. Build Track Portal
+WORKDIR /app/track-portal
 COPY track-portal/package*.json ./
-RUN npm install
+RUN npm ci
 COPY track-portal/ .
 RUN npm run build
 
-# Stage 5: Runtime
+# Stage 2: Runtime
 FROM node:20-alpine
 WORKDIR /app
-COPY --from=build-admin /app/dist ./dist
-COPY --from=build-driver /app/dist ./driver-portal/dist
-COPY --from=build-payment /app/dist ./payment-portal/dist
-COPY --from=build-track /app/dist ./track-portal/dist
+
+# Copy built assets from builder stage
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/driver-portal/dist ./driver-portal/dist
+COPY --from=builder /app/payment-portal/dist ./payment-portal/dist
+COPY --from=builder /app/track-portal/dist ./track-portal/dist
+
+# Setup Server
 COPY server/package*.json ./server/
-RUN cd server && npm install --production
+RUN cd server && npm ci --production
 COPY server/ ./server/
+
 EXPOSE 3001
-WORKDIR /app
 CMD ["node", "server/index.js"]
