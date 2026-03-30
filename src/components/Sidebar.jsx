@@ -22,7 +22,6 @@ import {
 } from "lucide-react";
 import { NAV } from "../constants/nav";
 import { getPreviewNavItems } from "../constants/previewNav.js";
-import { adminAuth } from "../utils/adminAuth";
 
 const ICON_MAP = {
     dashboard: LayoutDashboard,
@@ -50,17 +49,10 @@ const ICON_MAP = {
     "staff-overview": UserRoundCog,
 };
 
-export function Sidebar({ sideOpen, setSideOpen, isMobile, tyreAlertCount, verifyAlertCount, resetData, data, importSession, previewMode }) {
+export function Sidebar({ sideOpen, setSideOpen, isMobile, tyreAlertCount, verifyAlertCount, resetData, data, importSession, previewMode, sideCollapsed, setSideCollapsed }) {
     const activeCount = data?.trucks?.filter((t) => t.status === "Active").length || 0;
     const inTransitCount = data?.journeys?.filter((j) => ["In Transit", "Awaiting Start Verification"].includes(j.status)).length || 0;
-    const role = adminAuth.getUser()?.role || 'staff';
-    const navItems = (previewMode ? getPreviewNavItems(previewMode, data) : NAV).filter(n => {
-        if (role !== 'admin' && role !== 'superadmin') {
-            const restricted = ['staff', 'payroll', 'pnl', 'mpesa-logs', 'import', 'settings'];
-            return !restricted.includes(n.id);
-        }
-        return true;
-    });
+    const navItems = previewMode ? getPreviewNavItems(previewMode, data) : NAV;
 
     const s = (() => {
         try {
@@ -72,7 +64,7 @@ export function Sidebar({ sideOpen, setSideOpen, isMobile, tyreAlertCount, verif
 
     return (
         <aside
-            className={`sidebar-shell${isMobile ? " is-mobile-drawer" : ""}`}
+            className={`sidebar-shell${isMobile ? " is-mobile-drawer" : ""}${!isMobile && sideCollapsed ? " is-collapsed" : ""}`}
             style={
                 isMobile
                     ? {
@@ -81,23 +73,25 @@ export function Sidebar({ sideOpen, setSideOpen, isMobile, tyreAlertCount, verif
                     : undefined
             }
         >
-            <div className="sidebar-brand">
+            <div className="sidebar-brand" style={{ padding: sideCollapsed && !isMobile ? '20px 14px' : '24px 20px', borderBottom: '1px solid var(--border-subtle)', justifyContent: sideCollapsed && !isMobile ? 'center' : 'flex-start' }}>
                 <div className="sidebar-brand-mark" style={{ background: 'transparent', padding: 0, boxShadow: 'none' }}>
                     <img src={s.companyLogo || "/logo.png"} alt="Logo" style={{ height: 32, width: 'auto', objectFit: 'contain' }} />
                 </div>
-                <div style={{ marginLeft: 10 }}>
-                    <div className="sidebar-brand-name" style={{ fontSize: 14.5 }}>
-                        {s.companyName || "Segecha Group"}
+                {!sideCollapsed || isMobile ? (
+                    <div style={{ marginLeft: 12 }}>
+                        <div className="sidebar-brand-name" style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>
+                            {s.companyName || "Segecha Group"}
+                        </div>
+                        <div className="sidebar-brand-tag" style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                            {previewMode ? "Preview mode" : "Fleet Operations"}
+                        </div>
                     </div>
-                    <div className="sidebar-brand-tag" style={{ fontSize: 10.5 }}>
-                        {previewMode ? "Preview mode" : "Fleet Operations"}
-                    </div>
-                </div>
+                ) : null}
             </div>
 
             <nav className="sidebar-nav-wrap">
-                <div className="sidebar-section-label">Navigation</div>
-                {navItems.map((n, idx) => {
+                {(!sideCollapsed || isMobile) && <div className="sidebar-section-label">Navigation</div>}
+                {navItems.map((n) => {
                     const Icon = ICON_MAP[n.id] || LayoutDashboard;
                     const importErrorCount =
                         importSession && !importSession.committed
@@ -116,8 +110,6 @@ export function Sidebar({ sideOpen, setSideOpen, isMobile, tyreAlertCount, verif
                     else if (n.id === "tyres") badgeClass += " sidebar-nav-badge--danger";
                     else if (n.id === "journeys") badgeClass += " sidebar-nav-badge--purple";
 
-                    const delayClass = `delay-${Math.min(idx + 1, 8)}`;
-
                     if (n.external && n.href) {
                         return (
                             <a
@@ -125,7 +117,7 @@ export function Sidebar({ sideOpen, setSideOpen, isMobile, tyreAlertCount, verif
                                 href={n.href}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className={`sidebar-nav-link sidebar-nav-link--external animate-slide-up ${delayClass}`}
+                                className="sidebar-nav-link sidebar-nav-link--external"
                                 onClick={() => {
                                     if (isMobile) setSideOpen(false);
                                 }}
@@ -145,37 +137,40 @@ export function Sidebar({ sideOpen, setSideOpen, isMobile, tyreAlertCount, verif
                             onClick={() => {
                                 if (isMobile) setSideOpen(false);
                             }}
-                            className={`sidebar-nav-link animate-slide-up ${delayClass}`}
+                            className="sidebar-nav-link"
+                            title={sideCollapsed && !isMobile ? n.label : ""}
                         >
                             <Icon size={18} strokeWidth={2} />
-                            <span style={{ flex: 1 }}>{n.label}</span>
+                            {(!sideCollapsed || isMobile) && <span style={{ flex: 1 }}>{n.label}</span>}
                             {hasAlert && <span className={badgeClass}>{alertCount}</span>}
                         </NavLink>
                     );
                 })}
             </nav>
 
-            <div className="sidebar-footer">
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-                    <span className="sidebar-stat-label">Live</span>
-                    <span className="status-dot-pulse" aria-hidden />
-                </div>
-                <div className="sidebar-stat-grid">
-                    <div className="sidebar-stat-cell">
-                        <div className="sidebar-stat-label">Active units</div>
-                        <div className="sidebar-stat-value">{activeCount}</div>
+            {(!sideCollapsed || isMobile) && (
+                <div className="sidebar-footer">
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                        <span className="sidebar-stat-label">Live</span>
+                        <span className="status-dot-pulse" aria-hidden />
                     </div>
-                    <div className="sidebar-stat-cell">
-                        <div className="sidebar-stat-label">In transit</div>
-                        <div className="sidebar-stat-value">{inTransitCount}</div>
+                    <div className="sidebar-stat-grid">
+                        <div className="sidebar-stat-cell">
+                            <div className="sidebar-stat-label">Active units</div>
+                            <div className="sidebar-stat-value">{activeCount}</div>
+                        </div>
+                        <div className="sidebar-stat-cell">
+                            <div className="sidebar-stat-label">In transit</div>
+                            <div className="sidebar-stat-value">{inTransitCount}</div>
+                        </div>
                     </div>
+                    {!previewMode ? (
+                        <button type="button" className="sidebar-meta-btn" onClick={resetData}>
+                            Reset demo data
+                        </button>
+                    ) : null}
                 </div>
-                {!previewMode ? (
-                    <button type="button" className="sidebar-meta-btn" onClick={resetData}>
-                        Reset demo data
-                    </button>
-                ) : null}
-            </div>
+            )}
         </aside>
     );
 }

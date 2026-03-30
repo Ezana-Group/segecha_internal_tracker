@@ -208,48 +208,49 @@ export function Documents({ data, setData, dark, isMobile }) {
                     </Button>
                 }
             />
+
             {/* KPI Section */}
-            <div className="animate-fade-in" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 8, marginBottom: 12 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 12, marginBottom: 16 }}>
                 <Card 
-                    style={{ padding: 10, cursor: "pointer", border: statusFilter === 'all' ? "1px solid var(--brand-primary)" : "1px solid var(--border-subtle)" }}
+                    style={{ padding: 12, cursor: "pointer", border: statusFilter === 'all' ? "2px solid var(--brand-primary)" : "1px solid var(--border-subtle)" }}
                     onClick={() => setStatusFilter('all')}
                 >
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                        <div style={{ width: 26, height: 26, borderRadius: 6, background: "rgba(56, 189, 248, 0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "#38bdf8" }}>
-                            <FileText size={13} />
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                        <div style={{ width: 40, height: 40, borderRadius: 10, background: "rgba(56, 189, 248, 0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "#38bdf8" }}>
+                            <FileText size={20} />
                         </div>
-                        <div style={{ fontSize: 17, fontWeight: 900 }}>{enriched.length}</div>
+                        <div style={{ fontSize: 24, fontWeight: 900 }}>{enriched.length}</div>
                     </div>
-                    <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--text-primary)" }}>Total Assets</div>
-                    <div style={{ fontSize: 9, color: "var(--text-dim)", marginTop: 2 }}>Managed in Cloudflare R2</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>Total Assets</div>
+                    <div style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 4 }}>Managed in Cloudflare R2</div>
                 </Card>
 
                 <Card 
-                    style={{ padding: 10, cursor: "pointer", border: statusFilter === 'expired' ? "1px solid #ef4444" : "1px solid var(--border-subtle)" }}
+                    style={{ padding: 12, cursor: "pointer", border: statusFilter === 'expired' ? "2px solid #ef4444" : "1px solid var(--border-subtle)" }}
                     onClick={() => setStatusFilter('expired')}
                 >
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                        <div style={{ width: 26, height: 26, borderRadius: 6, background: "rgba(239, 68, 68, 0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "#ef4444" }}>
-                            <AlertCircle size={13} />
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                        <div style={{ width: 40, height: 40, borderRadius: 10, background: "rgba(239, 68, 68, 0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "#ef4444" }}>
+                            <AlertCircle size={20} />
                         </div>
-                        <div style={{ fontSize: 17, fontWeight: 900, color: "#ef4444" }}>{expiredCount}</div>
+                        <div style={{ fontSize: 24, fontWeight: 900, color: "#ef4444" }}>{expiredCount}</div>
                     </div>
-                    <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--text-primary)" }}>Expired Items</div>
-                    <div style={{ fontSize: 9, color: "var(--text-dim)", marginTop: 2 }}>Requires immediate attention</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>Expired Items</div>
+                    <div style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 4 }}>Requires immediate attention</div>
                 </Card>
 
                 <Card 
-                    style={{ padding: 10, cursor: "pointer", border: statusFilter === 'expiring' ? "1px solid #f97316" : "1px solid var(--border-subtle)" }}
+                    style={{ padding: 12, cursor: "pointer", border: statusFilter === 'expiring' ? "2px solid #f97316" : "1px solid var(--border-subtle)" }}
                     onClick={() => setStatusFilter('expiring')}
                 >
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                        <div style={{ width: 26, height: 26, borderRadius: 6, background: "rgba(249, 115, 22, 0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "#f97316" }}>
-                            <Clock size={13} />
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                        <div style={{ width: 40, height: 40, borderRadius: 10, background: "rgba(249, 115, 22, 0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "#f97316" }}>
+                            <Clock size={20} />
                         </div>
-                        <div style={{ fontSize: 17, fontWeight: 900, color: "#f97316" }}>{expiringCount}</div>
+                        <div style={{ fontSize: 24, fontWeight: 900, color: "#f97316" }}>{expiringCount}</div>
                     </div>
-                    <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--text-primary)" }}>Expiring ≤ 30d</div>
-                    <div style={{ fontSize: 9, color: "var(--text-dim)", marginTop: 2 }}>Preventive renewal recommended</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>Expiring ≤ 30d</div>
+                    <div style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 4 }}>Preventive renewal recommended</div>
                 </Card>
             </div>
 
@@ -257,20 +258,20 @@ export function Documents({ data, setData, dark, isMobile }) {
             {showUpload && (
                 <Card 
                     style={{ 
-                        padding: 16, marginBottom: 12, background: "var(--bg-card)", 
-                        border: dragging ? "2px dashed var(--brand-primary)" : "1px solid var(--border-subtle)",
+                        padding: 20, marginBottom: 16, background: "var(--bg-card)", 
+                        border: dragging ? "2px dashed var(--brand-primary)" : "2px dashed var(--border-subtle)",
                         transition: "all 0.2s ease"
                     }}
                     onDragOver={e => { e.preventDefault(); setDragging(true); }}
                     onDragLeave={() => setDragging(false)}
                     onDrop={onDrop}
                 >
-                    <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)", gap: 12, marginBottom: 12 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr 1fr", gap: 16, marginBottom: 16 }}>
                         <div>
-                            <label style={{ display: "block", fontSize: 10, fontWeight: 700, color: "var(--text-dim)", textTransform: "uppercase", marginBottom: 4 }}>Target Entity Type</label>
+                            <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "var(--text-dim)", textTransform: "uppercase", marginBottom: 8 }}>Target Entity Type</label>
                             <select 
                                 className="input-premium" 
-                                style={{ width: "100%", height: 34, background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: 8, padding: "0 10px", color: "var(--text-primary)", fontWeight: 600, fontSize: 12 }}
+                                style={{ width: "100%", height: 42, background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: 10, padding: "0 12px", color: "var(--text-primary)", fontWeight: 600 }}
                                 value={uploadForm.entityType}
                                 onChange={e => setUploadForm({ ...uploadForm, entityType: e.target.value, entityId: '', docType: '' })}
                             >
@@ -280,10 +281,10 @@ export function Documents({ data, setData, dark, isMobile }) {
                             </select>
                         </div>
                         <div>
-                            <label style={{ display: "block", fontSize: 10, fontWeight: 700, color: "var(--text-dim)", textTransform: "uppercase", marginBottom: 4 }}>Specific Asset</label>
+                            <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "var(--text-dim)", textTransform: "uppercase", marginBottom: 8 }}>Specific Asset</label>
                             <select 
                                 className="input-premium" 
-                                style={{ width: "100%", height: 34, background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: 8, padding: "0 10px", color: "var(--text-primary)", fontWeight: 600, fontSize: 12 }}
+                                style={{ width: "100%", height: 42, background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: 10, padding: "0 12px", color: "var(--text-primary)", fontWeight: 600 }}
                                 value={uploadForm.entityId}
                                 onChange={e => setUploadForm({ ...uploadForm, entityId: e.target.value })}
                                 disabled={!uploadForm.entityType}
@@ -295,10 +296,10 @@ export function Documents({ data, setData, dark, isMobile }) {
                             </select>
                         </div>
                         <div>
-                            <label style={{ display: "block", fontSize: 10, fontWeight: 700, color: "var(--text-dim)", textTransform: "uppercase", marginBottom: 4 }}>Document Schema</label>
+                            <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "var(--text-dim)", textTransform: "uppercase", marginBottom: 8 }}>Document Schema</label>
                             <select 
                                 className="input-premium" 
-                                style={{ width: "100%", height: 34, background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: 8, padding: "0 10px", color: "var(--text-primary)", fontWeight: 600, fontSize: 12 }}
+                                style={{ width: "100%", height: 42, background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: 10, padding: "0 12px", color: "var(--text-primary)", fontWeight: 600 }}
                                 value={uploadForm.docType}
                                 onChange={e => setUploadForm({ ...uploadForm, docType: e.target.value })}
                                 disabled={!uploadForm.entityId}
@@ -310,35 +311,35 @@ export function Documents({ data, setData, dark, isMobile }) {
                             </select>
                         </div>
                         <div>
-                            <label style={{ display: "block", fontSize: 10, fontWeight: 700, color: "var(--text-dim)", textTransform: "uppercase", marginBottom: 4 }}>Document Label</label>
+                            <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "var(--text-dim)", textTransform: "uppercase", marginBottom: 8 }}>Document Label</label>
                             <input 
                                 className="input-premium" 
-                                style={{ width: "100%", height: 34, background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: 8, padding: "0 10px", color: "var(--text-primary)", fontWeight: 600, fontSize: 12 }}
+                                style={{ width: "100%", height: 42, background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: 10, padding: "0 12px", color: "var(--text-primary)", fontWeight: 600 }}
                                 placeholder="e.g. Comprehensive Policy 2024"
                                 value={uploadForm.label}
                                 onChange={e => setUploadForm({ ...uploadForm, label: e.target.value })}
                             />
                         </div>
                         <div>
-                            <label style={{ display: "block", fontSize: 10, fontWeight: 700, color: "var(--text-dim)", textTransform: "uppercase", marginBottom: 4 }}>Regulatory Expiry</label>
+                            <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "var(--text-dim)", textTransform: "uppercase", marginBottom: 8 }}>Regulatory Expiry</label>
                             <input 
                                 type="date"
                                 className="input-premium" 
-                                style={{ width: "100%", height: 34, background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: 8, padding: "0 10px", color: "var(--text-primary)", fontWeight: 600, fontSize: 12 }}
+                                style={{ width: "100%", height: 42, background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: 10, padding: "0 12px", color: "var(--text-primary)", fontWeight: 600 }}
                                 value={uploadForm.expiryDate}
                                 onChange={e => setUploadForm({ ...uploadForm, expiryDate: e.target.value })}
                             />
                         </div>
                         <div>
-                            <label style={{ display: "block", fontSize: 10, fontWeight: 700, color: "var(--text-dim)", textTransform: "uppercase", marginBottom: 4 }}>Binary Asset</label>
+                            <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "var(--text-dim)", textTransform: "uppercase", marginBottom: 8 }}>Binary Asset</label>
                             <div style={{ position: "relative" }}>
                                 <input 
                                     type="file" 
                                     style={{ position: "absolute", inset: 0, opacity: 0, cursor: "pointer" }}
                                     onChange={e => setSelectedFile(e.target.files[0])}
                                 />
-                                <div style={{ width: "100%", height: 34, background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: 8, display: "flex", alignItems: "center", padding: "0 10px", color: selectedFile ? "var(--text-primary)" : "var(--text-dim)", fontWeight: 600, fontSize: 12, gap: 8 }}>
-                                    <Cloud size={14} color="var(--brand-primary)" />
+                                <div style={{ width: "100%", height: 42, background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: 10, display: "flex", alignItems: "center", padding: "0 12px", color: selectedFile ? "var(--text-primary)" : "var(--text-dim)", fontWeight: 600, fontSize: 13, gap: 8 }}>
+                                    <Cloud size={16} color="var(--brand-primary)" />
                                     {selectedFile ? selectedFile.name : "Select File..."}
                                 </div>
                             </div>
@@ -346,24 +347,27 @@ export function Documents({ data, setData, dark, isMobile }) {
                     </div>
 
                     {uploadMsg && (
-                        <div style={{ marginBottom: 12, padding: 8, borderRadius: 'var(--radius-md)', background: uploadMsg.includes('OK:') ? 'rgba(22, 163, 74, 0.08)' : 'rgba(220, 38, 38, 0.08)', color: uploadMsg.includes('OK:') ? '#4ade80' : '#f87171', fontWeight: 600, fontSize: 11 }}>
+                        <div style={{ marginBottom: 20, padding: 12, borderRadius: 'var(--radius-md)', background: uploadMsg.includes('OK:') ? 'rgba(22, 163, 74, 0.08)' : 'rgba(220, 38, 38, 0.08)', color: uploadMsg.includes('OK:') ? '#4ade80' : '#f87171', fontWeight: 600, fontSize: 13 }}>
                             {uploadMsg}
                         </div>
                     )}
 
-                    <div style={{ display: "flex", gap: 8 }}>
-                        <Button variant="premium" icon={Cloud} onClick={handleUpload} disabled={uploading} style={{ height: 34, fontSize: 11.5 }}>
+                    <div style={{ display: "flex", gap: 12 }}>
+                        <Button variant="premium" icon={Cloud} onClick={handleUpload} disabled={uploading}>
                             {uploading ? "Verifying..." : "Propagate to Registry"}
                         </Button>
-                        <Button variant="ghost" onClick={() => setShowUpload(false)} style={{ height: 34, fontSize: 11.5 }}>Cancel</Button>
+                        <Button variant="ghost" onClick={() => setShowUpload(false)}>Cancel</Button>
                     </div>
                 </Card>
             )}
 
             {/* Filter Hub */}
-            <Card style={{ padding: "8px 10px", marginBottom: 12 }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", height: 36, gap: 12, overflowX: "auto" }}>
-                    <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+            <Card style={{ 
+                padding: "0 14px", 
+                marginBottom: 16
+            }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", height: 48, gap: 16, overflowX: "auto" }}>
+                    <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
                         {[
                             { id: 'all', label: 'All Library' },
                             { id: 'vehicles', label: 'Vehicles' },
@@ -375,7 +379,7 @@ export function Documents({ data, setData, dark, isMobile }) {
                                 key={t.id}
                                 onClick={() => setDocTab(t.id)}
                                 style={{ 
-                                    padding: "4px 10px", borderRadius: 12, fontSize: 11.5, fontWeight: 700, border: "none", cursor: "pointer",
+                                    padding: "8px 16px", borderRadius: 20, fontSize: 13, fontWeight: 700, border: "none", cursor: "pointer",
                                     background: docTab === t.id ? "var(--brand-primary)15" : "transparent",
                                     color: docTab === t.id ? "var(--brand-primary)" : "var(--text-dim)",
                                     transition: "all 0.2s"
@@ -386,11 +390,11 @@ export function Documents({ data, setData, dark, isMobile }) {
                         ))}
                     </div>
 
-                    <div style={{ height: 20, width: 1, background: "var(--border-subtle)" }} />
+                    <div style={{ height: 24, width: 1, background: "var(--border-subtle)" }} />
 
-                    <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                    <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
                         {[
-                            { id: 'all', label: 'All Status', color: 'var(--text-dim)' },
+                            { id: 'all', label: 'Status: All', color: 'var(--text-dim)' },
                             { id: 'expired', label: 'Expired', color: '#ef4444' },
                             { id: 'expiring', label: 'Expiring', color: '#f97316' },
                             { id: 'valid', label: 'Healthy', color: '#10b981' }
@@ -399,7 +403,7 @@ export function Documents({ data, setData, dark, isMobile }) {
                                 key={s.id}
                                 onClick={() => setStatusFilter(s.id)}
                                 style={{ 
-                                    padding: "3px 10px", fontSize: 10.5, fontWeight: 700, borderRadius: 10, border: `1px solid ${statusFilter === s.id ? s.color : 'transparent'}`, background: statusFilter === s.id ? `${s.color}15` : 'transparent', color: statusFilter === s.id ? s.color : 'var(--text-dim)', cursor: "pointer"
+                                    padding: "4px 12px", fontSize: 11, fontWeight: 700, borderRadius: 12, border: `1px solid ${statusFilter === s.id ? s.color : 'transparent'}`, background: statusFilter === s.id ? `${s.color}15` : 'transparent', color: statusFilter === s.id ? s.color : 'var(--text-dim)', cursor: "pointer"
                                 }}
                             >
                                 {s.label}
@@ -408,12 +412,12 @@ export function Documents({ data, setData, dark, isMobile }) {
                     </div>
 
                     <div style={{ flex: 1, position: "relative", minWidth: 200 }}>
-                        <SearchIcon size={14} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--text-dim)" }} />
+                        <SearchIcon size={16} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "var(--text-dim)" }} />
                         <input 
                             value={searchQ}
                             onChange={e => setSearchQ(e.target.value)}
                             placeholder="Search indexed assets..."
-                            style={{ width: "100%", height: 34, background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: 8, padding: "0 10px 0 34px", fontSize: 12, color: "var(--text-primary)", fontWeight: 600 }}
+                            style={{ width: "100%", height: 42, background: "var(--surface-subtle)", border: "1px solid var(--border-subtle)", borderRadius: 12, padding: "0 12px 0 40px", fontSize: 13, color: "var(--text-primary)", fontWeight: 600 }}
                         />
                     </div>
                 </div>

@@ -53,8 +53,8 @@ export default function App() {
     const location = useLocation();
     const navigate = useNavigate();
     const winW = useWindowWidth();
-    const isMobile = winW < 640;
-    const isTablet = winW >= 640 && winW < 1024;
+    const isMobile = winW < 768; // Increased from 640
+    const isTablet = winW >= 768 && winW < 1200; // Increased from 1024
 
     const isLogin = location.pathname === "/login";
     
@@ -169,6 +169,8 @@ export default function App() {
         ...state,
         isMobile,
         isTablet,
+        sideCollapsed: state.sideCollapsed,
+        setSideCollapsed: state.setSideCollapsed,
         tyreAlertCount,
         verifyAlertCount,
         adminAuth,
@@ -188,42 +190,22 @@ export default function App() {
         flex: 1,
         padding: !authed ? "0" : (isMobile ? "16px" : "32px"),
         marginTop: !authed ? "0" : (state.previewMode ? "calc(var(--topbar-height) + 40px)" : "var(--topbar-height)"),
+        marginLeft: (!authed || isMobile || state.previewMode) ? 0 : (state.sideCollapsed ? "var(--sidebar-collapsed-width)" : "var(--sidebar-width)"),
         minWidth: 0,
         overflowX: "auto",
         width: "100%",
         display: "flex",
         flexDirection: "column",
+        transition: "margin-left 0.25s ease",
     };
 
-
-    const ProtectedRoute = ({ children, roles = ['admin', 'superadmin'] }) => {
-        const user = adminAuth.getUser();
-        if (!user || !roles.includes(user.role)) {
-            return (
-                <div style={{ padding: 40, textAlign: 'center', flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                    <div style={{ background: 'var(--surface-subtle)', padding: 32, borderRadius: 16, border: '1px solid var(--border-subtle)', maxWidth: 400 }}>
-                        <h2 style={{ color: 'var(--text-primary)', marginBottom: 12 }}>Access Denied</h2>
-                        <p style={{ color: 'var(--text-dim)', marginBottom: 24 }}>You do not have permission to view this page. This area is reserved for administrators.</p>
-                        <button 
-                            className="btn-premium" 
-                            onClick={() => navigate('/')}
-                            style={{ width: '100%' }}
-                        >
-                            Return to Dashboard
-                        </button>
-                    </div>
-                </div>
-            );
-        }
-        return children;
-    };
 
     if (isLogin && !authed) {
         return (
             <div id="app-shell" style={layoutStyle}>
                 <main style={{ ...mainStyle, padding: 0, marginTop: 0 }}>
                     <Routes>
-                        <Route path="/login" element={<Login adminAuth={adminAuth} showToast={state.showToast} />} />
+                        <Route path="/login" element={<Login showToast={state.showToast} />} />
                     </Routes>
                 </main>
                 <ToastContainer toasts={state.toasts} />
@@ -246,7 +228,7 @@ export default function App() {
                 previewMode={state.previewMode}
                 label={previewLabel}
                 driverPortalUrl={DRIVER_PORTAL_URL}
-                className={isMobile ? "" : "with-sidebar-offset"}
+                className={isMobile ? "" : (state.sideCollapsed ? "with-sidebar-offset-collapsed" : "with-sidebar-offset")}
                 onExit={() => {
                     state.clearPreviewMode();
                     navigate("/", { replace: true });
@@ -259,7 +241,7 @@ export default function App() {
                 
                 <main style={mainStyle} className="animate-fade-in">
                     <Routes>
-                        <Route path="/login" element={<Login adminAuth={adminAuth} showToast={state.showToast} />} />
+                        <Route path="/login" element={<Login showToast={state.showToast} />} />
                         <Route path="*" element={
                             authed ? (
                                 <Suspense fallback={<div className="page-shell" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', width: '100%', color: 'var(--text-dim)' }}>Loading...</div>}>
@@ -276,22 +258,22 @@ export default function App() {
                                         <Route path="/fuel" element={<ErrorBoundary><FuelLog {...p} /></ErrorBoundary>} />
                                         <Route path="/expenses" element={<ErrorBoundary><Expenses {...p} /></ErrorBoundary>} />
                                         <Route path="/incidents" element={<ErrorBoundary><Incidents {...p} /></ErrorBoundary>} />
-                                        <Route path="/mpesa-logs" element={<ProtectedRoute><ErrorBoundary><MpesaTransactions {...p} /></ErrorBoundary></ProtectedRoute>} />
+                                        <Route path="/mpesa-logs" element={<ErrorBoundary><MpesaTransactions {...p} /></ErrorBoundary>} />
                                         <Route path="/invoices" element={<ErrorBoundary><Invoices {...p} /></ErrorBoundary>} />
-                                        <Route path="/payroll" element={<ProtectedRoute><ErrorBoundary><Payroll {...p} /></ErrorBoundary></ProtectedRoute>} />
+                                        <Route path="/payroll" element={<ErrorBoundary><Payroll {...p} /></ErrorBoundary>} />
                                         <Route path="/maintenance" element={<ErrorBoundary><Maintenance {...p} /></ErrorBoundary>} />
                                         <Route path="/tyres" element={<ErrorBoundary><TyreMonitor {...p} /></ErrorBoundary>} />
-                                        <Route path="/staff" element={<ProtectedRoute><ErrorBoundary><Staff {...p} /></ErrorBoundary></ProtectedRoute>} />
-                                        <Route path="/staff/:id" element={<ProtectedRoute><ErrorBoundary><StaffProfile {...p} /></ErrorBoundary></ProtectedRoute>} />
-                                        <Route path="/pnl" element={<ProtectedRoute><ErrorBoundary><PnL {...p} /></ErrorBoundary></ProtectedRoute>} />
+                                        <Route path="/staff" element={<ErrorBoundary><Staff {...p} /></ErrorBoundary>} />
+                                        <Route path="/staff/:id" element={<ErrorBoundary><StaffProfile {...p} /></ErrorBoundary>} />
+                                        <Route path="/pnl" element={<ErrorBoundary><PnL {...p} /></ErrorBoundary>} />
                                         <Route path="/documents" element={<ErrorBoundary><Documents {...p} /></ErrorBoundary>} />
-                                        <Route path="/settings" element={<ProtectedRoute><ErrorBoundary><Settings {...p} /></ErrorBoundary></ProtectedRoute>} />
-                                        <Route path="/import" element={<ProtectedRoute><ErrorBoundary><ImportReview {...p} /></ErrorBoundary></ProtectedRoute>} />
+                                        <Route path="/settings" element={<ErrorBoundary><Settings {...p} /></ErrorBoundary>} />
+                                        <Route path="/import" element={<ErrorBoundary><ImportReview {...p} /></ErrorBoundary>} />
                                     </Routes>
                                 </Suspense>
                             ) : (
                                 <ErrorBoundary>
-                                    <Login adminAuth={adminAuth} showToast={state.showToast} />
+                                    <Login showToast={state.showToast} />
                                 </ErrorBoundary>
                             )
                         } />

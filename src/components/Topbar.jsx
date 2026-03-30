@@ -1,4 +1,4 @@
-import { Menu, MapPin, Bell, Truck, Sun, Moon } from "lucide-react";
+import { Menu, MapPin, Bell, Truck, Sun, Moon, ChevronLeft, ChevronRight } from "lucide-react";
 import { TopbarUserMenu } from "./TopbarUserMenu";
 import { NotificationCenter } from "./NotificationCenter";
 
@@ -19,16 +19,30 @@ export function Topbar({
     truckReg,
     adminAuth,
     S,
-    T
+    T,
+    sideCollapsed,
+    setSideCollapsed
 }) {
     const activeTrucks = data.trucks.filter((t) => t.status === "Active").length;
     const totalTrucks = data.trucks.length;
 
     return (
         <header
-            className={`topbar-shell${isMobile ? " full-bleed" : " with-sidebar"}`}
+            className={`topbar-shell${isMobile ? " full-bleed" : (sideCollapsed ? " is-collapsed" : " with-sidebar")}`}
         >
-            <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                {!isMobile && (
+                    <button
+                        type="button"
+                        className="topbar-icon-btn"
+                        onClick={() => setSideCollapsed(!sideCollapsed)}
+                        aria-label={sideCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+                        style={{ border: 'none', background: 'transparent', width: 28, height: 28 }}
+                    >
+                        {sideCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+                    </button>
+                )}
+
                 {isMobile && (
                     <button
                         type="button"
@@ -58,11 +72,11 @@ export function Topbar({
 
             <div className="topbar-actions">
                 {!previewMode && (
-                    <NotificationCenter
-                        pendingVerifications={pendingVerifications}
-                        setVerifyModal={setVerifyModal}
+                    <NotificationCenter 
+                        pendingVerifications={pendingVerifications} 
+                        setVerifyModal={setVerifyModal} 
                         truckReg={truckReg}
-                        dark={dark}
+                        dark={dark} 
                     />
                 )}
 
@@ -100,7 +114,7 @@ export function Topbar({
                 />
 
                 <button
-                    style={{ ...S.btn('ghost'), padding: '4px 10px', fontSize: 11, marginLeft: 6 }}
+                    style={{ ...S.btn('ghost'), padding: '5px 10px', fontSize: 11, marginLeft: 8 }}
                     onClick={() => {
                         if (window.confirm('Sign out of the admin panel?')) {
                             import("../utils/adminAuth").then(({ adminAuth }) => {

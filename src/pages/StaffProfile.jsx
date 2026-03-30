@@ -362,8 +362,8 @@ export function StaffProfile({ data, setData, dark, isMobile, openModal, showToa
                 </Button>
                 <div
                     style={{
-                        width: 52,
-                        height: 52,
+                        width: 64,
+                        height: 64,
                         borderRadius: "50%",
                         background: "var(--bg-surface)",
                         display: "flex",
@@ -374,11 +374,11 @@ export function StaffProfile({ data, setData, dark, isMobile, openModal, showToa
                         boxShadow: "var(--glass-shadow)",
                     }}
                 >
-                    <User size={26} />
+                    <User size={32} />
                 </div>
                 <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 26, fontWeight: 900, color: "var(--text-primary)", lineHeight: 1.1, letterSpacing: "-0.04em" }}>{staff.name}</div>
-                    <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 4, display: "flex", alignItems: "center", gap: 10, fontWeight: 500 }}>
+                    <div style={{ fontSize: 32, fontWeight: 900, color: "var(--text-primary)", lineHeight: 1.1, letterSpacing: "-0.04em" }}>{staff.name}</div>
+                    <div style={{ fontSize: 14, color: "var(--text-muted)", marginTop: 4, display: "flex", alignItems: "center", gap: 10, fontWeight: 500 }}>
                         <span style={{ color: getRoleColor(staff.role), fontWeight: 700 }}>{staff.role}</span> · {staff.uId} · Joined {fmtDate(staff.joined)} ·{" "}
                         <Badge status={staff.status} />
                     </div>
@@ -494,10 +494,10 @@ export function StaffProfile({ data, setData, dark, isMobile, openModal, showToa
                                                 style={{
                                                     display: "grid",
                                                     gridTemplateColumns: "1fr 1fr",
-                                                    gap: 16,
+                                                    gap: 24,
                                                     background: "var(--bg-surface)",
-                                                    padding: 16,
-                                                    borderRadius: 16,
+                                                    padding: 24,
+                                                    borderRadius: 20,
                                                     border: "1px solid var(--border-subtle)",
                                                 }}
                                             >
@@ -579,7 +579,7 @@ export function StaffProfile({ data, setData, dark, isMobile, openModal, showToa
                                     <SettingsIcon size={20} color="var(--brand-primary)" />
                                     Account Settings
                                 </h3>
-                                <div style={{ background: "var(--bg-surface)", padding: 16, borderRadius: 16, border: "1px solid var(--border-subtle)", maxWidth: 760 }}>
+                                <div style={{ background: "var(--bg-surface)", padding: 24, borderRadius: 20, border: "1px solid var(--border-subtle)", maxWidth: 760 }}>
                                     <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 14 }}>
                                         Generate one-time credentials, force password reset, export account data, or delete this account.
                                     </div>

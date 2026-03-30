@@ -3,7 +3,7 @@ import { SEED } from "../constants/seed";
 import { today, uid } from "../utils/formatters";
 import { TYRE_WARN_KM } from "../constants/nav";
 import { PAYMENT_API, ADMIN_KEY, DRIVER_PORTAL_URL } from "../utils/env";
-import { readSettings, writeSettings, getCrossBorderRules } from "../utils/settingsStore.js";
+import { readSettings, getCrossBorderRules } from "../utils/settingsStore.js";
 import { mergeProfilePermissions } from "../utils/profilePermissions.js";
 import { expandMessageTemplateContext } from "../utils/templateContext.js";
 import { readPreviewFromSession, writePreviewToSession } from "../constants/previewNav.js";
@@ -73,11 +73,6 @@ export function useAppState() {
                 const result = await res.json();
                 if (result.success && result.data) {
                     setData(d => ({ ...d, ...result.data }));
-                    
-                    // Also sync settings from server to local storage
-                    if (result.settings && typeof result.settings === 'object') {
-                        writeSettings(result.settings);
-                    }
                 }
             }
         } catch (e) {
@@ -139,6 +134,21 @@ export function useAppState() {
     const [filterTruck, setFilterTruck] = useState("ALL");
     const [invoicePreview, setInvoicePreview] = useState(null);
     const [sideOpen, setSideOpen] = useState(false);
+    const [sideCollapsed, setSideCollapsedState] = useState(() => {
+        try {
+            const saved = localStorage.getItem("segecha_side_collapsed");
+            return saved === "true";
+        } catch {
+            return false;
+        }
+    });
+
+    const setSideCollapsed = useCallback((val) => {
+        const next = typeof val === "function" ? val(sideCollapsed) : val;
+        setSideCollapsedState(next);
+        localStorage.setItem("segecha_side_collapsed", String(next));
+    }, [sideCollapsed]);
+
     const [dark, setDark] = useState(() => {
         try {
             const s = readSettings();
@@ -1398,78 +1408,6 @@ export function useAppState() {
         return result;
     }, []);
 
-    const resetAccountCredentials = async (type, entity, forcePasswordReset = true) => {
-        if (!PAYMENT_API) {
-            showToast("Credential management requires PAYMENT_API to be configured.", "error");
-            return { success: false, error: "Missing API configuration" };
-        }
-        const token = adminAuth.getToken();
-        const endpoint = type === 'driver' 
-            ? `${PAYMENT_API}/api/driver/account/regenerate-credentials`
-            : `${PAYMENT_API}/api/staff/account/regenerate-credentials`;
-        
-        const body = type === 'driver' 
-            ? { driverId: entity.id, email: entity.email, phone: entity.phone, driverName: entity.name, forcePasswordReset }
-            : { staffId: entity.id, email: entity.email, phone: entity.phone, name: entity.name, role: entity.role, forcePasswordReset };
-
-        try {
-            const res = await fetch(endpoint, {
-                method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json',
-                    'x-admin-key': ADMIN_KEY,
-                    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-                },
-                body: JSON.stringify(body)
-            });
-            const j = await res.json();
-            if (res.ok && j.success) {
-                showToast(`${type === 'driver' ? 'Driver' : 'Staff'} credentials regenerated.`, "success");
-                return j;
-            } else {
-                showToast(`Failed: ${j.error || res.status}`, "error");
-                return j;
-            }
-        } catch (err) {
-            showToast(`Network error: ${err.message}`, "error");
-            return { success: false, error: err.message };
-        }
-    };
-
-    const deleteDriverAccount = async (id) => {
-        if (!PAYMENT_API) return;
-        const token = adminAuth.getToken();
-        try {
-            const res = await fetch(`${PAYMENT_API}/api/driver/account/${id}`, {
-                method: 'DELETE',
-                headers: { 
-                    'x-admin-key': ADMIN_KEY,
-                    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-                }
-            });
-            return await res.json();
-        } catch (e) {
-            return { success: false, error: e.message };
-        }
-    };
-
-    const deleteStaffAccount = async (id) => {
-        if (!PAYMENT_API) return;
-        const token = adminAuth.getToken();
-        try {
-            const res = await fetch(`${PAYMENT_API}/api/staff/account/${id}`, {
-                method: 'DELETE',
-                headers: { 
-                    'x-admin-key': ADMIN_KEY,
-                    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-                }
-            });
-            return await res.json();
-        } catch (e) {
-            return { success: false, error: e.message };
-        }
-    };
-
     return {
         data, setData,
         modal, form, setForm, openModal, closeModal,
@@ -1490,9 +1428,6 @@ export function useAppState() {
         previewMode,
         setPreviewMode,
         clearPreviewMode,
-        resetAccountCredentials,
-        deleteDriverAccount,
-        deleteStaffAccount,
 
         backups,
         backupsLoading,

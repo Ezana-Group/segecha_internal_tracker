@@ -763,12 +763,10 @@ app.get('/api/tracker/data', adminAuth, restrictTo('admin', 'superadmin'), async
         const settings = await getSettings();
         const data = {};
         for (const table of DB_TABLES) {
-            // Skip non-entity tables for the data bundle
-            if (['system_settings', 'admins', 'superadmins'].includes(table)) continue;
             const resData = await db.query(`SELECT * FROM ${table}`);
             data[table] = resData.rows.map(r => normalizeRow(table, r, settings));
         }
-        res.json({ success: true, data, settings });
+        res.json({ success: true, data });
     } catch (e) {
         console.error('DATA_FULL_ERROR:', e);
         res.status(500).json({ error: 'Failed to fetch full data: ' + e.message });
@@ -1478,22 +1476,14 @@ app.post('/api/admin/settings', adminAuth, restrictTo('admin', 'superadmin'), as
 });
 
 app.post('/api/tracker/data', adminAuth, restrictTo('superadmin'), async (req, res) => {
-    // Handle both { data: {...}, settings: {...} } and {...} payloads
+    // Handle both { data: {...} } and {...} direct payloads
     const syncData = req.body.data || req.body;
-    const settings = req.body.settings;
-    
     try {
-        if (syncData && Object.keys(syncData).length > 0) {
-            await syncFullData(syncData);
+        if (!syncData || Object.keys(syncData).length === 0) {
+            return res.status(400).json({ error: 'No data provided' });
         }
-        
-        if (settings && typeof settings === 'object') {
-            for (const [key, value] of Object.entries(settings)) {
-                await saveSetting(key, value);
-            }
-        }
-        
-        res.json({ success: true, message: 'Live data and settings synchronized to PostgreSQL' });
+        await syncFullData(syncData);
+        res.json({ success: true, message: 'Live data synchronized to PostgreSQL' });
     } catch (e) {
         console.error('SYNC_ERROR_STACK:', e.stack || e);
         res.status(500).json({ error: 'Sync failed: ' + e.message });

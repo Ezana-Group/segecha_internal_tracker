@@ -133,51 +133,51 @@ export function Expenses({
             />
             
             {/* KPI Overview */}
-            <div className="animate-fade-in" style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)", gap: 12, marginBottom: 20 }}>
-                <Card style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)", borderRadius: 12, padding: 12 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
-                        <div style={{ width: 32, height: 32, borderRadius: 8, background: "rgba(139, 92, 246, 0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "#8b5cf6" }}>
-                            <TrendingUp size={16} />
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)", gap: 20, marginBottom: 32 }}>
+                <Card style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)", borderRadius: 16 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+                        <div style={{ width: 40, height: 40, borderRadius: 10, background: "rgba(139, 92, 246, 0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "#8b5cf6" }}>
+                            <TrendingUp size={20} />
                         </div>
                     </div>
-                    <div style={{ fontSize: 10, color: "var(--text-dim)", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 2 }}>Expenditure (Filtered)</div>
-                    <div style={{ fontSize: 20, fontWeight: 900, color: "var(--text-primary)" }}>{fmt(totalExpenseFiltered)}</div>
+                    <div style={{ fontSize: 11, color: "var(--text-dim)", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 2 }}>Expenditure (Filtered)</div>
+                    <div style={{ fontSize: 24, fontWeight: 900, color: "var(--text-primary)" }}>{fmt(totalExpenseFiltered)}</div>
                 </Card>
-                <Card style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)", borderRadius: 12, cursor: 'pointer', padding: 12 }} onClick={() => handleExpenseFilterChange("cat", new Set(["Maintenance"]))}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
-                        <div style={{ width: 32, height: 32, borderRadius: 8, background: "rgba(245, 158, 11, 0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "#f59e0b" }}>
-                            <Wrench size={16} />
+                <Card style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)", borderRadius: 16, cursor: 'pointer' }} onClick={() => handleExpenseFilterChange("cat", new Set(["Maintenance"]))}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+                        <div style={{ width: 40, height: 40, borderRadius: 10, background: "rgba(245, 158, 11, 0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "#f59e0b" }}>
+                            <Wrench size={20} />
                         </div>
                         {expenseFilters.cat?.has("Maintenance") && <Badge status="Active" text="Filtering" />}
                     </div>
-                    <div style={{ fontSize: 10, color: "var(--text-dim)", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 2 }}>Maintenance (Filtered)</div>
-                    <div style={{ fontSize: 20, fontWeight: 900, color: "var(--text-primary)" }}>{fmt(totalMaintenanceFiltered)}</div>
+                    <div style={{ fontSize: 11, color: "var(--text-dim)", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 2 }}>Maintenance (Filtered)</div>
+                    <div style={{ fontSize: 24, fontWeight: 900, color: "var(--text-primary)" }}>{fmt(totalMaintenanceFiltered)}</div>
                 </Card>
-                <Card style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)", borderRadius: 12, padding: 12 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
-                        <div style={{ width: 32, height: 32, borderRadius: 8, background: "rgba(14, 165, 233, 0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "#0ea5e9" }}>
-                            <FileText size={16} />
+                <Card style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)", borderRadius: 16 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+                        <div style={{ width: 40, height: 40, borderRadius: 10, background: "rgba(14, 165, 233, 0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "#0ea5e9" }}>
+                            <FileText size={20} />
                         </div>
                     </div>
-                    <div style={{ fontSize: 10, color: "var(--text-dim)", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 2 }}>Filtered Items</div>
-                    <div style={{ fontSize: 20, fontWeight: 900, color: "var(--text-primary)" }}>{sortedItems.length} <span style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 500 }}>Entries</span></div>
+                    <div style={{ fontSize: 11, color: "var(--text-dim)", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 2 }}>Filtered Items</div>
+                    <div style={{ fontSize: 24, fontWeight: 900, color: "var(--text-primary)" }}>{sortedItems.length} <span style={{ fontSize: 13, color: "var(--text-muted)", fontWeight: 500 }}>Entries</span></div>
                 </Card>
             </div>
 
-            <div style={{ display: 'flex', gap: 12, marginBottom: 16, borderBottom: '1px solid var(--border-subtle)' }}>
+            <div style={{ display: 'flex', gap: 16, marginBottom: 24, borderBottom: '1px solid var(--border-subtle)' }}>
                 <button
-                    style={{ padding: '8px 12px', border: 'none', borderBottom: activeTab === 'all' ? '2px solid var(--brand-primary)' : '2px solid transparent', color: activeTab === 'all' ? 'var(--brand-primary)' : 'var(--text-dim)', fontWeight: activeTab === 'all' ? 800 : 600, background: 'transparent', cursor: 'pointer', fontSize: 13, transition: 'all 0.2s' }}
+                    style={{ padding: '12px 16px', border: 'none', borderBottom: activeTab === 'all' ? '2px solid var(--brand-primary)' : '2px solid transparent', color: activeTab === 'all' ? 'var(--brand-primary)' : 'var(--text-dim)', fontWeight: activeTab === 'all' ? 800 : 600, background: 'transparent', cursor: 'pointer', fontSize: 14, transition: 'all 0.2s' }}
                     onClick={() => setActiveTab('all')}
                 >
                     All Expenses
                 </button>
                 <button
-                    style={{ padding: '8px 12px', border: 'none', borderBottom: activeTab === 'awaiting' ? '2px solid var(--brand-primary)' : '2px solid transparent', color: activeTab === 'awaiting' ? 'var(--brand-primary)' : 'var(--text-dim)', fontWeight: activeTab === 'awaiting' ? 800 : 600, background: 'transparent', cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, transition: 'all 0.2s' }}
+                    style={{ padding: '12px 16px', border: 'none', borderBottom: activeTab === 'awaiting' ? '2px solid var(--brand-primary)' : '2px solid transparent', color: activeTab === 'awaiting' ? 'var(--brand-primary)' : 'var(--text-dim)', fontWeight: activeTab === 'awaiting' ? 800 : 600, background: 'transparent', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', gap: 8, transition: 'all 0.2s' }}
                     onClick={() => setActiveTab('awaiting')}
                 >
                     Awaiting Approval
                     {pendingVerifications?.filter(v => v._itemType === 'expense').length > 0 && (
-                        <span style={{ background: '#ef4444', color: '#fff', padding: '1px 5px', borderRadius: 8, fontSize: 10, fontWeight: 800 }}>
+                        <span style={{ background: '#ef4444', color: '#fff', padding: '2px 6px', borderRadius: 10, fontSize: 10, fontWeight: 800 }}>
                             {pendingVerifications.filter(v => v._itemType === 'expense').length}
                         </span>
                     )}
@@ -185,15 +185,15 @@ export function Expenses({
             </div>
 
             {/* Expense Log Table */}
-            <Card style={{ padding: 0, overflow: "hidden", borderRadius: 12 }}>
-                <div style={{ padding: "10px 16px", borderBottom: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", gap: 10 }}>
-                    <SearchIcon size={16} color="var(--text-dim)" />
+            <Card style={{ padding: 0, overflow: "hidden", borderRadius: 24 }}>
+                <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", gap: 12 }}>
+                    <SearchIcon size={18} color="var(--text-dim)" />
                     <input
                         type="search"
                         placeholder="Search expenses..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        style={{ border: "none", background: "none", padding: 0, fontSize: 13, flex: 1, color: "var(--text-primary)", fontWeight: 500 }}
+                        style={{ border: "none", background: "none", padding: 0, fontSize: 14, flex: 1, color: "var(--text-primary)", fontWeight: 500 }}
                     />
                 </div>
                 <div className="table-container">
@@ -365,13 +365,13 @@ export function Expenses({
 
             {/* Truck Details Side Panel */}
             {panelTruckId && stats && (
-                <div style={{ position: "fixed", top: 0, right: 0, width: isMobile ? "100%" : 380, height: "100%", maxHeight: "100dvh", background: "var(--bg-main)", boxShadow: "-10px 0 30px rgba(0,0,0,0.2)", borderLeft: "1px solid var(--border-subtle)", padding: "max(20px, env(safe-area-inset-top)) 20px 20px 20px", overflowY: "auto", WebkitOverflowScrolling: "touch", transition: "transform 0.3s ease", zIndex: 1001, boxSizing: "border-box" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+                <div style={{ position: "fixed", top: 0, right: 0, width: isMobile ? "100%" : 450, height: "100%", maxHeight: "100dvh", background: "var(--bg-main)", boxShadow: "-10px 0 30px rgba(0,0,0,0.2)", borderLeft: "1px solid var(--border-subtle)", padding: "max(24px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(40px, env(safe-area-inset-left))", overflowY: "auto", WebkitOverflowScrolling: "touch", transition: "transform 0.3s ease", zIndex: 1001, boxSizing: "border-box" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 32 }}>
                         <div>
-                            <div style={{ fontSize: 10, fontWeight: 800, color: "var(--brand-primary)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 2 }}>Vehicle Snapshot</div>
-                            <h2 style={{ fontSize: 22, fontWeight: 900, color: "var(--text-primary)" }}>{stats.truck.reg}</h2>
+                            <div style={{ fontSize: 12, fontWeight: 800, color: "var(--brand-primary)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>Vehicle Snapshot</div>
+                            <h2 style={{ fontSize: 28, fontWeight: 900, color: "var(--text-primary)" }}>{stats.truck.reg}</h2>
                         </div>
-                        <Button variant="ghost" onClick={() => setPanelTruckId(null)} style={{ height: 32, fontSize: 12 }}>Close</Button>
+                        <Button variant="ghost" onClick={() => setPanelTruckId(null)}>Close</Button>
                     </div>
 
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 32 }}>
