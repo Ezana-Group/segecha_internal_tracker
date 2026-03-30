@@ -205,7 +205,7 @@ export default function App() {
             <div id="app-shell" style={layoutStyle}>
                 <main style={{ ...mainStyle, padding: 0, marginTop: 0 }}>
                     <Routes>
-                        <Route path="/login" element={<Login adminAuth={adminAuth} showToast={state.showToast} />} />
+                        <Route path="/login" element={<Login adminAuth={adminAuth} setAuthed={setAuthed} showToast={state.showToast} />} />
                     </Routes>
                 </main>
                 <ToastContainer toasts={state.toasts} />
@@ -241,7 +241,7 @@ export default function App() {
                 
                 <main style={mainStyle} className="animate-fade-in">
                     <Routes>
-                        <Route path="/login" element={<Login adminAuth={adminAuth} showToast={state.showToast} />} />
+                        <Route path="/login" element={<Login adminAuth={adminAuth} setAuthed={setAuthed} showToast={state.showToast} />} />
                         <Route path="*" element={
                             authed ? (
                                 <Suspense fallback={<div className="page-shell" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', width: '100%', color: 'var(--text-dim)' }}>Loading...</div>}>
@@ -273,7 +273,7 @@ export default function App() {
                                 </Suspense>
                             ) : (
                                 <ErrorBoundary>
-                                    <Login adminAuth={adminAuth} showToast={state.showToast} />
+                                    <Login adminAuth={adminAuth} setAuthed={setAuthed} showToast={state.showToast} />
                                 </ErrorBoundary>
                             )
                         } />

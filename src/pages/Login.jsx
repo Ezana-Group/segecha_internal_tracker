@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { PAYMENT_API } from '../utils/env';
 import { Mail, Lock, AlertCircle, Loader2, Eye, EyeOff } from 'lucide-react';
 
-export function Login({ adminAuth, showToast }) {
+export function Login({ adminAuth, showToast, setAuthed }) {
   const [loginMethod, setLoginMethod] = useState('email'); // email | phone
   const [view, setView] = useState('login'); // login | forgot | reset
   const [resetToken, setResetToken] = useState('');
@@ -37,6 +37,7 @@ export function Login({ adminAuth, showToast }) {
       
       if (adminResp.ok) {
         adminAuth.setSession(adminData.token, adminData.user);
+        setAuthed?.(true);
         showToast?.('Welcome back, ' + adminData.user.displayName, 'success');
         navigate('/');
         return;
@@ -57,6 +58,7 @@ export function Login({ adminAuth, showToast }) {
           return;
         }
         adminAuth.setSession(staffData.token, { id: staffData.staffId, role: 'staff', displayName: 'Staff User' });
+        setAuthed?.(true);
         navigate('/');
         return;
       }
@@ -99,6 +101,7 @@ export function Login({ adminAuth, showToast }) {
       if (data.success) {
         showToast?.('Password set! Logging you in...', 'success');
         adminAuth.setSession(data.token, { id: data.staffId, role: 'staff', displayName: 'Staff User' });
+        setAuthed?.(true);
         navigate('/');
       } else setError(data.error);
     } catch (err) { setError(err.message); }
