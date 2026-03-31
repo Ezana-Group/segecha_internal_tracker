@@ -548,19 +548,21 @@ h1, h2, h3, h4, h5, h6 {
 /* Tables */
 .table-container {
   width: 100%;
-  overflow-x: hidden;
+  overflow-x: auto;
   overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
   border-radius: var(--radius-lg);
   border: 1px solid var(--border-subtle);
   background: var(--bg-card);
   position: relative;
+  scrollbar-width: none; /* hide scrollbar Firefox */
 }
+.table-container::-webkit-scrollbar { display: none; } /* hide scrollbar Chrome/Safari */
 
 /* Responsive column visibility */
 @media (max-width: 767px)  { .col-hide-md { display: none; } }
-@media (max-width: 1023px) { .col-hide-lg { display: none; } }
-@media (max-width: 1279px) { .col-hide-xl { display: none; } }
+@media (max-width: 1199px) { .col-hide-lg { display: none; } }
+@media (max-width: 1399px) { .col-hide-xl { display: none; } }
 
 .table-modern {
   width: 100%;
