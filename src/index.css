@@ -717,6 +717,26 @@ h1, h2, h3, h4, h5, h6 {
   min-width: 1180px;
 }
 
+/* Sticky first column — Mission ID pins to left while table scrolls */
+.sticky-col {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: var(--bg-card);
+}
+
+.journeys-matrix-table thead th:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  background: var(--bg-card);
+}
+
+/* Ensure sticky cells get background on hover rows too */
+.table-modern tbody tr:hover .sticky-col {
+  background: var(--bg-hover, var(--bg-card));
+}
+
 .journeys-col-notes {
   max-width: 260px;
   min-width: 140px;
