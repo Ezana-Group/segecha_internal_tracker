@@ -40,10 +40,9 @@ envPaths.forEach(envPath => {
 });
 
 const app = express();
-const PORT = process.env.PORT;
-if (!PORT) {
-    console.error('FATAL: PORT environment variable is not set. Server cannot start.');
-    process.exit(1);
+const PORT = process.env.PORT || 8080;
+if (!process.env.PORT) {
+    console.warn('[SERVER] PORT env var not set — falling back to 8080. Railway should inject this automatically.');
 }
 
 // Core Dependencies (Must be before autoSeed)
