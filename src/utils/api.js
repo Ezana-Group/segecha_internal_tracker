@@ -1,6 +1,10 @@
 import { adminAuth } from "./adminAuth";
-import { PAYMENT_API, ADMIN_KEY } from "./env";
+import { PAYMENT_API } from "./env";
 
+// CRIT-02 / CRIT-09: Admin key is no longer sent from the frontend.
+// All privileged requests are authenticated exclusively via the JWT Bearer token
+// obtained from /api/admin/login. The static ADMIN_KEY must never be exposed
+// in the browser bundle or sent as a query parameter.
 export async function fetchWithAuth(url, options = {}) {
   const token = adminAuth.getToken();
   const headers = {
@@ -11,24 +15,10 @@ export async function fetchWithAuth(url, options = {}) {
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  // Also include x-admin-key for legacy endpoints
-  if (ADMIN_KEY) {
-    headers['x-admin-key'] = ADMIN_KEY;
-  }
-
   // Handle URL (automatically prepend PAYMENT_API if relative)
   let finalUrl = url;
   if (!url.startsWith('http')) {
     finalUrl = `${PAYMENT_API}${url.startsWith('/') ? '' : '/'}${url}`;
-  }
-
-  // For GET requests, ensure adminKey is in query if needed
-  if ((!options.method || options.method.toUpperCase() === 'GET') && ADMIN_KEY) {
-    const urlObj = new URL(finalUrl, window.location.origin);
-    if (!urlObj.searchParams.has('adminKey')) {
-      urlObj.searchParams.set('adminKey', ADMIN_KEY);
-    }
-    finalUrl = urlObj.toString();
   }
 
   return fetch(finalUrl, {

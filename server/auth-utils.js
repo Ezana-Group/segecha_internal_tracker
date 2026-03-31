@@ -29,13 +29,15 @@ function hashValue(v) {
 }
 
 function generateOtp() {
-    return String(Math.floor(100000 + Math.random() * 900000));
+    // crypto.randomInt is cryptographically secure (replaces Math.random — CRIT-05)
+    return String(crypto.randomInt(100000, 1000000));
 }
 
 function generateTempPassword() {
     const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
     let out = 'Sg-';
-    for (let i = 0; i < 9; i++) out += alphabet[Math.floor(Math.random() * alphabet.length)];
+    // crypto.randomInt is cryptographically secure (replaces Math.random — CRIT-05)
+    for (let i = 0; i < 9; i++) out += alphabet[crypto.randomInt(0, alphabet.length)];
     return out;
 }
 

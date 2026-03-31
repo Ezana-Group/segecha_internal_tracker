@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { SEED } from "../constants/seed";
 import { today, uid } from "../utils/formatters";
 import { TYRE_WARN_KM } from "../constants/nav";
-import { PAYMENT_API, ADMIN_KEY, DRIVER_PORTAL_URL } from "../utils/env";
+import { PAYMENT_API, DRIVER_PORTAL_URL } from "../utils/env";
 import { readSettings, getCrossBorderRules } from "../utils/settingsStore.js";
 import { mergeProfilePermissions } from "../utils/profilePermissions.js";
 import { expandMessageTemplateContext } from "../utils/templateContext.js";
@@ -54,14 +54,14 @@ export function useAppState() {
     const [loading, setLoading] = useState(false);
 
     const fetchTrackerData = useCallback(async () => {
-        if (!PAYMENT_API || !ADMIN_KEY) return;
+        if (!PAYMENT_API) return;
         setLoading(true);
         try {
             const token = adminAuth.getToken();
+            if (!token) return; // No token — skip fetch, user is not logged in
             const res = await fetch(`${PAYMENT_API}/api/tracker/data-full`, {
                 headers: {
-                    'x-admin-key': ADMIN_KEY,
-                    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                    'Authorization': `Bearer ${token}`
                 }
             });
             if (res.status === 401) {
@@ -97,20 +97,19 @@ export function useAppState() {
     // Auto-sync to server on every data change (debounced 1.5s)
     const autoSyncTimerRef = useRef(null);
     useEffect(() => {
-        if (!PAYMENT_API || !ADMIN_KEY) return;
-        // Don't auto-sync back "empty" state if we are still loading or if data matches SEED too closely
+        if (!PAYMENT_API) return;
         if (loading) return;
 
         if (autoSyncTimerRef.current) clearTimeout(autoSyncTimerRef.current);
         autoSyncTimerRef.current = setTimeout(async () => {
             try {
                 const token = adminAuth.getToken();
+                if (!token) return;
                 await fetch(`${PAYMENT_API}/api/tracker/data`, {
                     method: 'POST',
-                    headers: { 
-                        'Content-Type': 'application/json', 
-                        'x-admin-key': ADMIN_KEY,
-                        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
                     },
                     body: JSON.stringify(data),
                 });
