@@ -205,7 +205,7 @@ export function Journeys({ data, isMobile, modal, form, setForm, openModal, clos
                 </div>
             )}
 
-            <Card style={{ padding: 0, overflow: "hidden", borderRadius: 24 }}>
+            <Card style={{ padding: 0, overflow: "clip", borderRadius: 24 }}>
                 <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", gap: 12 }}>
                     <SearchIcon size={18} color="var(--text-dim)" />
                     <input

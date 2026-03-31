@@ -714,7 +714,7 @@ h1, h2, h3, h4, h5, h6 {
 
 /* Journeys list — wide matrix, full notes */
 .journeys-matrix-table {
-  min-width: 1180px;
+  min-width: 1600px; /* 13 cols × ~123px avg — ensures Revenue/Status/Actions never wrap or disappear */
 }
 
 /* Sticky first column — Mission ID pins to left while table scrolls */
