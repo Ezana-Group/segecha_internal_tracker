@@ -54,15 +54,17 @@ const driverData = require('./driver-data');
 
 
 // 1. Security headers — must come before routes (HIGH-01)
+// CSP allows the API origin and external resources used by the SPA
+const API_ORIGIN = process.env.API_URL || process.env.PAYMENT_API || '';
 app.use(helmet({
     contentSecurityPolicy: {
         directives: {
             defaultSrc: ["'self'"],
-            scriptSrc: ["'self'", "'unsafe-inline'"], // Allow inline scripts for SPA
-            styleSrc: ["'self'", "'unsafe-inline'"],
+            scriptSrc: ["'self'", "'unsafe-inline'", 'https://cdnjs.cloudflare.com'],
+            styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+            fontSrc: ["'self'", 'https://fonts.gstatic.com'],
             imgSrc: ["'self'", 'data:', 'https://res.cloudinary.com', 'https://*.r2.dev'],
-            connectSrc: ["'self'"],
-            fontSrc: ["'self'"],
+            connectSrc: ["'self'", ...(API_ORIGIN ? [API_ORIGIN] : [])],
             objectSrc: ["'none'"],
             frameSrc: ["'none'"],
         }
