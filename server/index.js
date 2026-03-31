@@ -108,10 +108,12 @@ app.get('/health', async (req, res) => {
     try {
         // Verify DB connectivity on every health check (LOW-03)
         await db.query('SELECT 1');
-        res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
+        res.status(200).json({ status: 'ok', db: 'connected', timestamp: new Date().toISOString() });
     } catch (e) {
         console.error('[HEALTH] DB check failed:', e.message);
-        res.status(503).json({ status: 'error', message: 'Database unavailable' });
+        // Return 200 so Railway doesn't mark the deployment unhealthy on a brief DB cold-start.
+        // DB errors surface on individual API calls — static file serving must keep working.
+        res.status(200).json({ status: 'degraded', db: 'unavailable', timestamp: new Date().toISOString() });
     }
 });
 
