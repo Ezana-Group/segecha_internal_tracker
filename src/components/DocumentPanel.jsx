@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { PAYMENT_API } from "../utils/env";
+import { fetchWithAuth } from "../utils/api";
 
 export const DOC_TYPES_TRUCK = [
     { value: 'insurance_lorry', label: 'Lorry Insurance Certificate' },
@@ -33,24 +34,23 @@ export const DOC_TYPES_JOURNEY = [
 export const uploadDocument = async (file, entityType, entityId, docType, label, expiryDate) => {
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('adminKey', import.meta.env.VITE_ADMIN_KEY);
     formData.append('entityType', entityType);
     formData.append('entityId', entityId);
     formData.append('docType', docType);
     formData.append('label', label);
     if (expiryDate) formData.append('expiryDate', expiryDate);
     formData.append('uploadedBy', 'admin');
-    const res = await fetch(`${PAYMENT_API}/api/documents/upload`, { method: 'POST', body: formData });
+    const res = await fetchWithAuth(`${PAYMENT_API}/api/documents/upload`, { method: 'POST', body: formData });
     return res.json();
 };
 
 export const deleteDocumentById = async (docId, setDocuments) => {
     if (!window.confirm('Delete this document? This cannot be undone.')) return;
     try {
-        const res = await fetch(`${PAYMENT_API}/api/documents/${docId}`, {
+        const res = await fetchWithAuth(`${PAYMENT_API}/api/documents/${docId}`, {
             method: 'DELETE',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ adminKey: import.meta.env.VITE_ADMIN_KEY }),
+            body: JSON.stringify({}),
         });
         const result = await res.json();
         if (result.success) setDocuments(d => d.filter(doc => doc.id !== docId));

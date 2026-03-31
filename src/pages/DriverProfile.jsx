@@ -43,7 +43,8 @@ import {
     useMergedProfilePermissions,
 } from "../utils/profilePermissions.js";
 import { ProfilePermissionOverridesPanel } from "../components/ProfilePermissionOverridesPanel.jsx";
-import { PAYMENT_API, ADMIN_KEY } from "../utils/env.js";
+import { PAYMENT_API } from "../utils/env.js";
+import { fetchWithAuth } from "../utils/api";
 
 const ACTIVE_TRIP_STATUSES = ["Loading", "In Transit", "Awaiting Verification"];
 
@@ -177,7 +178,7 @@ export function DriverProfile({ data, setData, dark, isMobile, truckReg, openMod
     const mask = (v) => (v ? "•".repeat(Math.max(8, String(v).length)) : "—");
     useEffect(() => {
         if (tab !== "account" || !driver?.id || !PAYMENT_API) return;
-        fetch(`${PAYMENT_API}/api/driver/account-status/${driver.id}?adminKey=${encodeURIComponent(ADMIN_KEY)}`)
+        fetchWithAuth(`${PAYMENT_API}/api/driver/account-status/${driver.id}`)
             .then((r) => r.json())
             .then((j) => setAccountStatus(j))
             .catch((err) => showAccountErr(err, "Could not load account status"));
@@ -186,7 +187,7 @@ export function DriverProfile({ data, setData, dark, isMobile, truckReg, openMod
     const regenerateCredentials = async (forcePasswordReset = true) => {
         try {
             setAccountBusy(true);
-            const res = await fetch(`${PAYMENT_API}/api/driver/account/regenerate-credentials`, {
+            const res = await fetchWithAuth(`${PAYMENT_API}/api/driver/account/regenerate-credentials`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -194,7 +195,6 @@ export function DriverProfile({ data, setData, dark, isMobile, truckReg, openMod
                     email: driver.email || driver.name,
                     phone: driver.phone || "",
                     forcePasswordReset,
-                    adminKey: ADMIN_KEY,
                 }),
             });
             const j = await res.json();
@@ -212,7 +212,7 @@ export function DriverProfile({ data, setData, dark, isMobile, truckReg, openMod
     const exportAccount = async () => {
         try {
             setAccountBusy(true);
-            const res = await fetch(`${PAYMENT_API}/api/driver/account-export/${driver.id}?adminKey=${encodeURIComponent(ADMIN_KEY)}`);
+            const res = await fetchWithAuth(`${PAYMENT_API}/api/driver/account-export/${driver.id}`);
             const j = await res.json();
             if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
             downloadJson(`${driver.name.replace(/\s+/g, "_")}_account_export.json`, j);
@@ -228,7 +228,7 @@ export function DriverProfile({ data, setData, dark, isMobile, truckReg, openMod
         if (!window.confirm(`Delete ${driver.name}'s full account and related records? This cannot be undone.`)) return;
         try {
             setAccountBusy(true);
-            const res = await fetch(`${PAYMENT_API}/api/driver/account/${driver.id}?adminKey=${encodeURIComponent(ADMIN_KEY)}`, { method: "DELETE" });
+            const res = await fetchWithAuth(`${PAYMENT_API}/api/driver/account/${driver.id}`, { method: "DELETE" });
             const j = await res.json();
             if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
             setData((prev) => ({

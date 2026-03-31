@@ -21,8 +21,8 @@ import {
     Calendar,
     Cloud
 } from "lucide-react";
-import { adminAuth } from '../utils/adminAuth';
-import { PAYMENT_API, ADMIN_KEY } from "../utils/env";
+import { PAYMENT_API } from "../utils/env";
+import { fetchWithAuth } from "../utils/api";
 import { fmtDate } from "../utils/formatters";
 import { DOC_TYPES_TRUCK, DOC_TYPES_DRIVER, uploadDocument, deleteDocumentById } from "../components/DocumentPanel";
 import { Card } from "../components/Card";
@@ -55,13 +55,10 @@ export function Documents({ data, setData, dark, isMobile }) {
     const fetchDocuments = async (entityType, entityId) => {
         setDocsLoading(true);
         try {
-            const token = adminAuth.getToken();
-            const params = new URLSearchParams({ adminKey: ADMIN_KEY });
+            const params = new URLSearchParams();
             if (entityType) params.set('entityType', entityType);
             if (entityId) params.set('entityId', entityId);
-            const res = await fetch(`${PAYMENT_API}/api/documents?${params}`, {
-                headers: token ? { 'Authorization': `Bearer ${token}` } : {}
-            });
+            const res = await fetchWithAuth(`${PAYMENT_API}/api/documents?${params}`);
             const apiData = await res.json();
             setDocuments(apiData.documents || []);
         } catch { setDocuments([]); }
@@ -71,10 +68,7 @@ export function Documents({ data, setData, dark, isMobile }) {
     // ── Load on mount
     useEffect(() => {
         fetchDocuments(null, null);
-        const token = adminAuth.getToken();
-        fetch(`${PAYMENT_API}/api/documents/expiring?adminKey=${ADMIN_KEY}&days=60`, {
-            headers: token ? { 'Authorization': `Bearer ${token}` } : {}
-        })
+        fetchWithAuth(`${PAYMENT_API}/api/documents/expiring?days=60`)
             .then(r => r.json())
             .then(d => setExpiringDocs(d.documents || []))
             .catch(() => {});
