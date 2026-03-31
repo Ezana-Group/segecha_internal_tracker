@@ -145,7 +145,7 @@ export function Journeys({ data, isMobile, modal, form, setForm, openModal, clos
 
             {/* Quick Stats */}
             {(!isDriverPreview || jpv("statsRow")) && (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 20, marginBottom: 32 }}>
+            <div className="journeys-stats">
                 <Card title="Filtered Missions" icon={Navigation} accent="#3b82f6">
                     <div style={{ fontSize: 18, fontWeight: 800, color: "var(--text-primary)" }}>{sortedItems.length} missions</div>
                 </Card>
