@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const cookieParser = require('cookie-parser');
 const { readFileSync, writeFileSync, existsSync, mkdirSync } = require('fs');
 const path = require('path');
 const multer = require('multer');
@@ -115,6 +116,7 @@ process.on('unhandledRejection', (reason, promise) => {
 
 
 app.use(express.json());
+app.use(cookieParser());
 
 // 3. Rate limiters for auth endpoints (CRIT-04)
 const authLimiter = rateLimit({
@@ -147,7 +149,7 @@ if (!JWT_SECRET || !ADMIN_KEY) {
     console.log(`[AUTH] ADMIN_KEY loaded (Length: ${ADMIN_KEY.length}): ${maskedKey}`);
 }
 
-const PUBLIC_ROUTES = ['/admin/login', '/driver/login', '/staff/login', '/health'];
+const PUBLIC_ROUTES = ['/admin/login', '/admin/logout', '/driver/login', '/staff/login', '/health'];
 
 const adminAuth = async (req, res, next) => {
     // 0. Skip for preflight
@@ -178,9 +180,13 @@ const adminAuth = async (req, res, next) => {
         }
     }
 
-    // Check JWT Token
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-        const token = authHeader.slice(7);
+    // Check JWT Token (Bearer header or HttpOnly cookie — MED-06)
+    const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+    const cookieToken = req.cookies?.admin_token;
+    const jwtToken = bearerToken || cookieToken;
+
+    if (jwtToken) {
+        const token = jwtToken;
         try {
             const decoded = jwt.verify(token, JWT_SECRET);
             if (decoded.role === 'superadmin' || decoded.role === 'admin') {
@@ -605,6 +611,14 @@ app.post('/api/admin/login', authLimiter, async (req, res) => {
             { expiresIn: '12h' }
         );
 
+        // Set HttpOnly cookie for XSS protection (MED-06)
+        res.cookie('admin_token', token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'strict',
+            maxAge: 8 * 60 * 60 * 1000  // 8 hours
+        });
+
         res.json({
             token,
             user: {
@@ -618,6 +632,12 @@ app.post('/api/admin/login', authLimiter, async (req, res) => {
         console.error('Login error:', e);
         res.status(500).json({ error: 'Database authentication error' });
     }
+});
+
+// Admin logout — clears HttpOnly cookie (MED-06)
+app.post('/api/admin/logout', (req, res) => {
+    res.clearCookie('admin_token', { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict' });
+    res.json({ ok: true });
 });
 
 // Pending verification (Used by Admin Panel)

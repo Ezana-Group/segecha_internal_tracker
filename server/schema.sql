@@ -240,6 +240,8 @@ CREATE TABLE IF NOT EXISTS driver_auth (
     account_status          TEXT DEFAULT 'pending',
     preferred_method        TEXT,
     session_version         INTEGER DEFAULT 1,      -- Force-logout support (MED-01)
+    failed_attempts         INTEGER DEFAULT 0,      -- Per-account lockout (HIGH-04)
+    locked_until            TIMESTAMP WITH TIME ZONE, -- Per-account lockout (HIGH-04)
     created_at              TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at              TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -258,6 +260,8 @@ CREATE TABLE IF NOT EXISTS staff_auth (
     account_status          TEXT DEFAULT 'pending',
     preferred_method        TEXT,
     session_version         INTEGER DEFAULT 1,      -- Force-logout support (MED-01)
+    failed_attempts         INTEGER DEFAULT 0,      -- Per-account lockout (HIGH-04)
+    locked_until            TIMESTAMP WITH TIME ZONE, -- Per-account lockout (HIGH-04)
     created_at              TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at              TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -355,5 +359,17 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns
                    WHERE table_name='staff_auth' AND column_name='session_version') THEN
         ALTER TABLE staff_auth  ADD COLUMN session_version INTEGER DEFAULT 1;
+    END IF;
+
+    -- Per-account lockout columns (HIGH-04)
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_name='driver_auth' AND column_name='failed_attempts') THEN
+        ALTER TABLE driver_auth ADD COLUMN failed_attempts INTEGER DEFAULT 0;
+        ALTER TABLE driver_auth ADD COLUMN locked_until TIMESTAMP WITH TIME ZONE;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_name='staff_auth' AND column_name='failed_attempts') THEN
+        ALTER TABLE staff_auth  ADD COLUMN failed_attempts INTEGER DEFAULT 0;
+        ALTER TABLE staff_auth  ADD COLUMN locked_until TIMESTAMP WITH TIME ZONE;
     END IF;
 END $$;
