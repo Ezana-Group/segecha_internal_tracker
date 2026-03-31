@@ -548,41 +548,19 @@ h1, h2, h3, h4, h5, h6 {
 /* Tables */
 .table-container {
   width: 100%;
-  overflow-x: auto;
+  overflow-x: hidden;
   overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
   border-radius: var(--radius-lg);
   border: 1px solid var(--border-subtle);
   background: var(--bg-card);
   position: relative;
-  scrollbar-width: thin;
-  scrollbar-color: var(--border-strong) transparent;
 }
 
-/* Always show scrollbar so users know the table scrolls horizontally */
-.table-container { scrollbar-width: thin; scrollbar-color: var(--border-medium) transparent; }
-
-/* Premium Scrollbar Styling */
-.table-container::-webkit-scrollbar {
-  height: 8px;
-  background: transparent;
-}
-
-.table-container::-webkit-scrollbar-thumb {
-  background: var(--border-medium);
-  border-radius: 10px;
-  border: 2px solid transparent;
-  background-clip: padding-box;
-}
-
-.table-container::-webkit-scrollbar-thumb:hover {
-  background: var(--border-strong);
-  background-clip: padding-box;
-}
-
-.table-container::-webkit-scrollbar-track {
-  background: transparent;
-}
+/* Responsive column visibility */
+@media (max-width: 767px)  { .col-hide-md { display: none; } }
+@media (max-width: 1023px) { .col-hide-lg { display: none; } }
+@media (max-width: 1279px) { .col-hide-xl { display: none; } }
 
 .table-modern {
   width: 100%;
@@ -729,9 +707,9 @@ h1, h2, h3, h4, h5, h6 {
   color: var(--brand-primary);
 }
 
-/* Journeys list — wide matrix, full notes */
+/* Journeys list — responsive, columns hide at breakpoints */
 .journeys-matrix-table {
-  min-width: 1600px; /* 13 cols × ~123px avg — ensures Revenue/Status/Actions never wrap or disappear */
+  width: 100%;
 }
 
 /* Sticky first column — Mission ID pins to left while table scrolls */

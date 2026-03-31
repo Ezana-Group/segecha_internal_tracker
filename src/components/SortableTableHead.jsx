@@ -40,10 +40,10 @@ export function SortableTableHead({
                     const isFirst = index === 0;
 
                     return (
-                        <th 
-                            key={col.key} 
-                            className={isFirst ? "sticky-col" : ""}
-                            style={{ 
+                        <th
+                            key={col.key}
+                            className={[isFirst ? "sticky-col" : "", col.className || ""].filter(Boolean).join(" ")}
+                            style={{
                                 verticalAlign: "middle",
                                 padding: "12px 16px",
                                 position: isFirst ? "sticky" : "relative",
