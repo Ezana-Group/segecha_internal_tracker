@@ -531,6 +531,20 @@ h1, h2, h3, h4, h5, h6 {
   border-color: var(--border-medium);
 }
 
+/* Journeys stats row — explicit breakpoints so cards always wrap correctly */
+.journeys-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
+  margin-bottom: 32px;
+}
+@media (max-width: 1100px) {
+  .journeys-stats { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 560px) {
+  .journeys-stats { grid-template-columns: 1fr; gap: 12px; margin-bottom: 20px; }
+}
+
 /* Tables */
 .table-container {
   width: 100%;
@@ -544,6 +558,9 @@ h1, h2, h3, h4, h5, h6 {
   scrollbar-width: thin;
   scrollbar-color: var(--border-strong) transparent;
 }
+
+/* Always show scrollbar so users know the table scrolls horizontally */
+.table-container { scrollbar-width: thin; scrollbar-color: var(--border-medium) transparent; }
 
 /* Premium Scrollbar Styling */
 .table-container::-webkit-scrollbar {
