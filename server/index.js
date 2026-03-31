@@ -71,13 +71,15 @@ app.use(helmet({
 }));
 
 // 2. CORS — whitelist explicit origins only (CRIT-01)
+// Apply only to /api routes — static assets never need CORS headers
 const ALLOWED_ORIGINS = [
     process.env.TRACKER_URL,
     process.env.PORTAL_URL,
     process.env.DRIVER_PORTAL_URL,
+    process.env.ADMIN_PORTAL_URL,  // e.g. https://dash.segecha.com
 ].filter(Boolean);
 
-app.use(cors({
+const corsOptions = {
     origin: (origin, cb) => {
         // Allow server-to-server (no origin) and whitelisted origins
         if (!origin || ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
@@ -85,13 +87,18 @@ app.use(cors({
         if (process.env.NODE_ENV !== 'production' && /^https?:\/\/localhost(:\d+)?$/.test(origin)) {
             return cb(null, true);
         }
-        cb(new Error(`CORS: origin '${origin}' not allowed`));
+        // Use cb(null, false) — not cb(new Error(...)) — to avoid triggering the 500 error handler
+        console.warn(`[CORS] Rejected origin: ${origin}`);
+        cb(null, false);
     },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true,
     maxAge: 86400
-}));
+};
+
+// Only apply CORS to API routes — static file requests are same-origin and don't need it
+app.use('/api', cors(corsOptions));
 
 
 
