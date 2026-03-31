@@ -86,38 +86,34 @@ const SETTINGS_MENU = [
         id: "grp-workspace",
         label: "Workspace",
         items: [
-            { id: "profile", label: "My Profile", icon: User },
-            { id: "general", label: "Organization", icon: Building2 },
-            { id: "appearance", label: "Appearance", icon: Palette },
-            { id: "staff", label: "Staff & HR", icon: UserPlus },
+            { id: "profile",    label: "My Profile",    icon: User },
+            { id: "general",    label: "Organization",  icon: Building2 },
+            { id: "appearance", label: "Brand & Email", icon: Palette },
         ],
     },
     {
         id: "grp-ops",
         label: "Fleet & compliance",
         items: [
-            { id: "fleet", label: "Fleet & fuel", icon: Truck },
-            { id: "maintenance", label: "Maintenance", icon: Wrench },
-            { id: "routes", label: "Routes & rates", icon: Navigation },
-            { id: "waybill", label: "Waybill defaults", icon: ClipboardList },
-            { id: "alerts", label: "Alerts & rules", icon: Bell },
+            { id: "fleet",   label: "Fleet & operations", icon: Truck },
+            { id: "routes",  label: "Routes & rates",     icon: Navigation },
+            { id: "waybill", label: "Waybill defaults",   icon: ClipboardList },
         ],
     },
     {
         id: "grp-commercial",
         label: "Revenue & messages",
         items: [
-            { id: "finance", label: "Finance & payments", icon: Wallet },
-            { id: "templates", label: "Message templates", icon: MessageSquare },
+            { id: "finance",   label: "Finance & payments",  icon: Wallet },
+            { id: "templates", label: "Message templates",   icon: MessageSquare },
         ],
     },
     {
         id: "grp-system",
-        label: "Data & API",
+        label: "Data & Access",
         items: [
-            { id: "security", label: "Portal & API", icon: ShieldCheck },
             { id: "permissions", label: "Profile permissions", icon: UserRoundCog },
-            { id: "data", label: "Backup & import", icon: Database },
+            { id: "data",        label: "Backup & import",     icon: Database },
         ],
     },
 ];
@@ -132,9 +128,6 @@ const SETTINGS_WORKSPACE_TABS = new Set([
     "fleet",
     "routes",
     "waybill",
-    "maintenance",
-    "alerts",
-    "staff",
     "permissions",
 ]);
 const SECTION_BY_ID = Object.fromEntries(
@@ -1009,23 +1002,6 @@ export function Settings({
                                         />
                                     </SettingsShellField>
                                 </div>
-                                <div style={{ gridColumn: "1/-1", marginTop: 8 }}>
-                                    <div style={{ background: "var(--surface-subtle)", borderRadius: 16, padding: 22, border: "1px solid var(--border-subtle)" }}>
-                                        <h4 style={{ fontSize: 14, fontWeight: 800, color: "var(--text-primary)", marginBottom: 6 }}>Signed-in user</h4>
-                                        <p style={{ fontSize: 12, color: "var(--text-dim)", marginBottom: 18, lineHeight: 1.5 }}>
-                                            Shown in the top bar. Sign out clears these fields on this device only; your workspace data is not removed.
-                                        </p>
-                                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
-                                            <SettingsShellField label="Your display name" sub="e.g. Jane Wanjiku">
-                                                <SettingsShellInput value={localS.operatorDisplayName || ""} onChange={(e) => saveSettings({ operatorDisplayName: e.target.value })} placeholder="Full Name" />
-                                            </SettingsShellField>
-                                            <SettingsShellField label="Your work email" sub="Optional; for your reference in the menu">
-                                                <SettingsShellInput type="email" value={localS.operatorWorkEmail || ""} onChange={(e) => saveSettings({ operatorWorkEmail: e.target.value })} placeholder="email@example.com" />
-                                            </SettingsShellField>
-                                        </div>
-                                    </div>
-                                </div>
-
                                 <div style={{ gridColumn: "1/-1", marginTop: 24, padding: 24, borderRadius: 16, border: "1px solid var(--border-subtle)", background: "var(--surface-subtle)" }}>
                                     <SettingsShellSectionHeader title="Security & Session" desc="Configure automatic safeguards for your workspace." icon={ShieldCheck} />
                                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
@@ -1415,6 +1391,62 @@ export function Settings({
                                             </>
                                         );
                                     })()}
+                                </div>
+                            </div>
+
+                            {/* ── DEPARTMENTS & ROLES ── */}
+                            <SettingsShellSectionHeader title="Departments & Roles" desc="Manage company departments and employee roles." icon={UserPlus} />
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 32 }}>
+                                {/* Departments */}
+                                <div style={{ background: "var(--surface-subtle)", borderRadius: 12, border: "1px solid var(--border-subtle)", padding: 20 }}>
+                                    <h4 style={{ fontSize: 16, fontWeight: 800, color: "var(--text-primary)", marginBottom: 16, display: "flex", justifyContent: "space-between" }}>
+                                        Departments
+                                        <Badge status="Active" text={(localS.departments || ['Operations', 'Finance', 'Logistics']).length} />
+                                    </h4>
+                                    <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
+                                        {(localS.departments || ['Operations', 'Finance', 'Logistics']).map((d, i) => (
+                                            <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: "var(--bg-card)", borderRadius: 8, border: "1px solid var(--border-subtle)", fontSize: 13, fontWeight: 600, color: "var(--text-primary)" }}>
+                                                {d}
+                                                <Button variant="danger" size="sm" onClick={() => saveSettings({ departments: (localS.departments || ['Operations', 'Finance', 'Logistics']).filter((_, idx) => idx !== i) })} style={{ padding: "4px 8px", height: "auto" }}><Trash2 size={12}/></Button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <div style={{ display: "flex", gap: 8 }}>
+                                        <SettingsShellInput id="new-dept" placeholder="New Department..." />
+                                        <Button variant="premium" onClick={() => {
+                                            const val = document.getElementById('new-dept').value;
+                                            if (val) {
+                                                saveSettings({ departments: [...(localS.departments || ['Operations', 'Finance', 'Logistics']), val] });
+                                                document.getElementById('new-dept').value = '';
+                                            }
+                                        }}><Plus size={16} /></Button>
+                                    </div>
+                                </div>
+
+                                {/* Roles */}
+                                <div style={{ background: "var(--surface-subtle)", borderRadius: 12, border: "1px solid var(--border-subtle)", padding: 20 }}>
+                                    <h4 style={{ fontSize: 16, fontWeight: 800, color: "var(--text-primary)", marginBottom: 16, display: "flex", justifyContent: "space-between" }}>
+                                        Roles
+                                        <Badge status="Active" text={(localS.roles || ['Manager', 'Clerk', 'Accountant']).length} />
+                                    </h4>
+                                    <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
+                                        {(localS.roles || ['Manager', 'Clerk', 'Accountant']).map((r, i) => (
+                                            <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: "var(--bg-card)", borderRadius: 8, border: "1px solid var(--border-subtle)", fontSize: 13, fontWeight: 600, color: "var(--text-primary)" }}>
+                                                {r}
+                                                <Button variant="danger" size="sm" onClick={() => saveSettings({ roles: (localS.roles || ['Manager', 'Clerk', 'Accountant']).filter((_, idx) => idx !== i) })} style={{ padding: "4px 8px", height: "auto" }}><Trash2 size={12}/></Button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <div style={{ display: "flex", gap: 8 }}>
+                                        <SettingsShellInput id="new-role" placeholder="New Role..." />
+                                        <Button variant="premium" onClick={() => {
+                                            const val = document.getElementById('new-role').value;
+                                            if (val) {
+                                                saveSettings({ roles: [...(localS.roles || ['Manager', 'Clerk', 'Accountant']), val] });
+                                                document.getElementById('new-role').value = '';
+                                            }
+                                        }}><Plus size={16} /></Button>
+                                    </div>
                                 </div>
                             </div>
                         </fieldset>
@@ -2096,27 +2128,19 @@ export function Settings({
                                     </Button>
                                 </div>
                             </div>
-                        </fieldset>
-                    )}
-
-                    {/* ── MAINTENANCE ── */}
-                    {activeTab === 'maintenance' && (
-                        <fieldset disabled={!workspaceTabEditable.maintenance || !canEditSettings} className="settings-workspace-fieldset">
-                            <legend className="settings-fieldset-sr-only">Maintenance schedule</legend>
+                            {/* ── MAINTENANCE SCHEDULE ── */}
                             <SettingsShellSectionHeader title="Preventive Maintenance Schedule" desc="Define recurring service tasks and their kilometer intervals." icon={Wrench} />
-                            
                             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginBottom: 32 }}>
                                 <SettingsShellField label="Maintenance Overdue Threshold (Days)" sub="Grace period after scheduled service date before status turns critical.">
                                     <SettingsShellInput type="number" value={localS.maintenanceOverdueDays || 7} onChange={e => saveSettings({ maintenanceOverdueDays: +e.target.value })} />
                                 </SettingsShellField>
                             </div>
-                            <div style={{ background: "var(--surface-subtle)", borderRadius: 16, border: "1px solid var(--border-subtle)", padding: 24 }}>
+                            <div style={{ background: "var(--surface-subtle)", borderRadius: 16, border: "1px solid var(--border-subtle)", padding: 24, marginBottom: 32 }}>
                                 <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 16, marginBottom: 12, padding: "0 12px", fontSize: 11, fontWeight: 800, color: "var(--text-dim)", textTransform: "uppercase" }}>
                                     <div>Service Task</div>
                                     <div>Interval (KM)</div>
                                     <div style={{ textAlign: "right" }}>Actions</div>
                                 </div>
-                                
                                 <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 24 }}>
                                     {(localS.maintenanceSchedule || [
                                         { task: 'Oil Change', intervalKm: 10000 },
@@ -2164,7 +2188,6 @@ export function Settings({
                                         </div>
                                     ))}
                                 </div>
-
                                 <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr auto", gap: 12, paddingTop: 20, borderTop: "1px dashed var(--border-subtle)" }}>
                                     <SettingsShellInput id="new-task-name" placeholder="Task Name (e.g. Gearbox Service)" />
                                     <SettingsShellInput id="new-task-km" type="number" placeholder="Interval (KM)" />
@@ -2191,15 +2214,9 @@ export function Settings({
                                     }}><Plus size={18} /> Add Task</Button>
                                 </div>
                             </div>
-                        </fieldset>
-                    )}
 
-
-                    {/* ── ALERTS & RULES ── */}
-                    {activeTab === 'alerts' && (
-                        <fieldset disabled={!workspaceTabEditable.alerts || !canEditSettings} className="settings-workspace-fieldset">
-                            <legend className="settings-fieldset-sr-only">Alerts and rules</legend>
-                            <SettingsShellSectionHeader title="Alerts & Rules" desc="Configure notification threshold and document warnings." icon={Bell} />
+                            {/* ── ALERTS ── */}
+                            <SettingsShellSectionHeader title="Alerts & Rules" desc="Configure notification thresholds and document warnings." icon={Bell} />
                             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
                                 <SettingsShellField label="Document Expiry Warning (Days)">
                                     <SettingsShellInput type="number" value={localS.docAlertDays || 30} onChange={e => saveSettings({ docAlertDays: +e.target.value })} />
@@ -2208,70 +2225,6 @@ export function Settings({
                                     <SettingsShellInput type="number" value={localS.lateThreshold || 4} onChange={e => saveSettings({ lateThreshold: +e.target.value })} />
                                 </SettingsShellField>
                             </div>
-                        </fieldset>
-                    )}
-
-                    {/* ── STAFF CONFIGURATION ── */}
-                    {activeTab === 'staff' && (
-                        <fieldset disabled={!workspaceTabEditable.staff || !canEditSettings} className="settings-workspace-fieldset">
-                            <legend className="settings-fieldset-sr-only">Staff and HR</legend>
-                            <SettingsShellSectionHeader title="Staff & HR Configuration" desc="Manage company departments, employee roles, and access control." icon={UserPlus} />
-                            
-                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 32 }}>
-                                {/* Departments */}
-                                <div style={{ background: "var(--surface-subtle)", borderRadius: 12, border: "1px solid var(--border-subtle)", padding: 20 }}>
-                                    <h4 style={{ fontSize: 16, fontWeight: 800, color: "var(--text-primary)", marginBottom: 16, display: "flex", justifyContent: "space-between" }}>
-                                        Departments 
-                                        <Badge status="Active" text={(localS.departments || ['Operations', 'Finance', 'Logistics']).length} />
-                                    </h4>
-                                    <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
-                                        {(localS.departments || ['Operations', 'Finance', 'Logistics']).map((d, i) => (
-                                            <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: "var(--bg-card)", borderRadius: 8, border: "1px solid var(--border-subtle)", fontSize: 13, fontWeight: 600, color: "var(--text-primary)" }}>
-                                                {d}
-                                                <Button variant="danger" size="sm" onClick={() => saveSettings({ departments: (localS.departments || ['Operations', 'Finance', 'Logistics']).filter((_, idx) => idx !== i) })} style={{ padding: "4px 8px", height: "auto" }}><Trash2 size={12}/></Button>
-                                            </div>
-                                        ))}
-                                    </div>
-                                    <div style={{ display: "flex", gap: 8 }}>
-                                        <SettingsShellInput id="new-dept" placeholder="New Department..." />
-                                        <Button variant="premium" onClick={() => {
-                                            const val = document.getElementById('new-dept').value;
-                                            if (val) {
-                                                saveSettings({ departments: [...(localS.departments || ['Operations', 'Finance', 'Logistics']), val] });
-                                                document.getElementById('new-dept').value = '';
-                                            }
-                                        }}><Plus size={16} /></Button>
-                                    </div>
-                                </div>
-
-                                {/* Roles */}
-                                <div style={{ background: "var(--surface-subtle)", borderRadius: 12, border: "1px solid var(--border-subtle)", padding: 20 }}>
-                                    <h4 style={{ fontSize: 16, fontWeight: 800, color: "var(--text-primary)", marginBottom: 16, display: "flex", justifyContent: "space-between" }}>
-                                        Roles 
-                                        <Badge status="Active" text={(localS.roles || ['Manager', 'Clerk', 'Accountant']).length} />
-                                    </h4>
-                                    <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
-                                        {(localS.roles || ['Manager', 'Clerk', 'Accountant']).map((r, i) => (
-                                            <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: "var(--bg-card)", borderRadius: 8, border: "1px solid var(--border-subtle)", fontSize: 13, fontWeight: 600, color: "var(--text-primary)" }}>
-                                                {r}
-                                                <Button variant="danger" size="sm" onClick={() => saveSettings({ roles: (localS.roles || ['Manager', 'Clerk', 'Accountant']).filter((_, idx) => idx !== i) })} style={{ padding: "4px 8px", height: "auto" }}><Trash2 size={12}/></Button>
-                                            </div>
-                                        ))}
-                                    </div>
-                                    <div style={{ display: "flex", gap: 8 }}>
-                                        <SettingsShellInput id="new-role" placeholder="New Role..." />
-                                        <Button variant="premium" onClick={() => {
-                                            const val = document.getElementById('new-role').value;
-                                            if (val) {
-                                                saveSettings({ roles: [...(localS.roles || ['Manager', 'Clerk', 'Accountant']), val] });
-                                                document.getElementById('new-role').value = '';
-                                            }
-                                        }}><Plus size={16} /></Button>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Access control moved to Staff section */}
                         </fieldset>
                     )}
 
@@ -3150,11 +3103,29 @@ export function Settings({
                         </div>
                     )}
 
-                        {/* ── SECURITY / PORTAL ── */}
-                    {activeTab === 'security' && (
+                    {/* ── PROFILE PERMISSIONS ── */}
+                    {activeTab === "permissions" && (
+                        <div role="region" aria-label="Profile permissions" className="settings-workspace-fieldset">
+                            <SettingsProfilePermissions
+                                localProfilePermissions={localS.profilePermissions}
+                                disabled={!workspaceTabEditable.permissions || !canEditSettings}
+                                locked={!workspaceTabEditable.permissions || !canEditSettings}
+                                onRequestUnlock={unlockWorkspaceTab}
+                                onCommit={(next) => {
+                                    saveSettings({ profilePermissions: next });
+                                }}
+                            />
+                        </div>
+                    )}
+
+                    {/* ── DATA INTEGRITY ── */}
+                    {activeTab === 'data' && (
                         <div>
-                            <SettingsShellSectionHeader title="Portal Authentication" desc="Connect to the driver mobile service." icon={ShieldCheck} />
-                            <div style={{ background: "var(--surface-subtle)", borderRadius: 16, padding: 24, border: "1px solid var(--border-subtle)" }}>
+                            <SettingsShellSectionHeader title="System Maintenance" desc="Local-first workspace: your browser is the source of truth. Push snapshots to the API for the driver portal and server-side jobs." icon={Database} />
+                            <div style={{ background: "var(--surface-subtle)", borderRadius: 16, padding: 24, border: "1px solid var(--border-subtle)", marginBottom: 24 }}>
+                                <h4 style={{ fontSize: 14, fontWeight: 800, color: "var(--text-primary)", marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
+                                    <ShieldCheck size={16} style={{ color: "var(--brand-primary)" }} /> Portal Authentication
+                                </h4>
                                 <SettingsShellField label="Driver API Endpoint">
                                     <SettingsShellInput value={PAYMENT_API} readOnly style={{ opacity: 0.5, cursor: "not-allowed", fontFamily: "var(--font-mono)" }} />
                                 </SettingsShellField>
@@ -3178,28 +3149,6 @@ export function Settings({
                                     </Button>
                                 </div>
                             </div>
-                        </div>
-                    )}
-
-                    {/* ── PROFILE PERMISSIONS ── */}
-                    {activeTab === "permissions" && (
-                        <div role="region" aria-label="Profile permissions" className="settings-workspace-fieldset">
-                            <SettingsProfilePermissions
-                                localProfilePermissions={localS.profilePermissions}
-                                disabled={!workspaceTabEditable.permissions || !canEditSettings}
-                                locked={!workspaceTabEditable.permissions || !canEditSettings}
-                                onRequestUnlock={unlockWorkspaceTab}
-                                onCommit={(next) => {
-                                    saveSettings({ profilePermissions: next });
-                                }}
-                            />
-                        </div>
-                    )}
-
-                    {/* ── DATA INTEGRITY ── */}
-                    {activeTab === 'data' && (
-                        <div>
-                            <SettingsShellSectionHeader title="System Maintenance" desc="Local-first workspace: your browser is the source of truth. Push snapshots to the API for the driver portal and server-side jobs." icon={Database} />
                             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginBottom: 24 }}>
                                 <Card accent="#2563eb" title="Sync to server" subtitle="Update server with local data" style={{ padding: 20 }}>
                                     <p style={{ fontSize: 13, color: "var(--text-muted)", lineHeight: 1.5, marginBottom: 16 }}>
