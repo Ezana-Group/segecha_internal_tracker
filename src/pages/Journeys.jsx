@@ -291,13 +291,13 @@ export function Journeys({ data, isMobile, modal, form, setForm, openModal, clos
                                 { key: "date",      label: "Departure",   sortable: !isDriverPreview || jpv("colDate") },
                                 { key: "origin",    label: "Origin",      sortable: !isDriverPreview || jpv("colRoute") },
                                 { key: "dest",      label: "Destination", sortable: !isDriverPreview || jpv("colRoute") },
-                                { key: "_customer", label: "Client",      sortable: !isDriverPreview || jpv("colClient"),   className: "col-hide-lg" },
+                                { key: "_customer", label: "Client",      sortable: !isDriverPreview || jpv("colClient"),   className: "col-hide-2xl" },
                                 { key: "_vehicle",  label: "Vehicle",     sortable: !isDriverPreview || jpv("colVehicle"),  className: "col-hide-md" },
-                                { key: "driver",    label: "Crew",        sortable: !isDriverPreview || jpv("colCrew"),     className: "col-hide-lg" },
-                                { key: "cargoType", label: "Cargo",       sortable: !isDriverPreview || jpv("colCargo"),    className: "col-hide-xl" },
-                                { key: "_distance", label: "Distance",    sortable: !isDriverPreview || jpv("colDistance"), className: "col-hide-xl", align: "right" },
-                                { key: "notes",     label: "Notes",       sortable: !isDriverPreview || jpv("colNotes"),    className: "col-hide-xl" },
-                                { key: "_revenue",  label: "Revenue",     sortable: !isDriverPreview || jpv("colRevenue"),  className: "col-hide-md", align: "right" },
+                                { key: "driver",    label: "Crew",        sortable: !isDriverPreview || jpv("colCrew"),     className: "col-hide-xl" },
+                                { key: "cargoType", label: "Cargo",       sortable: !isDriverPreview || jpv("colCargo"),    className: "col-hide-3xl" },
+                                { key: "_distance", label: "Distance",    sortable: !isDriverPreview || jpv("colDistance"), className: "col-hide-3xl", align: "right" },
+                                { key: "notes",     label: "Notes",       sortable: !isDriverPreview || jpv("colNotes"),    className: "col-hide-4xl" },
+                                { key: "_revenue",  label: "Revenue",     sortable: !isDriverPreview || jpv("colRevenue"),  className: "col-hide-lg", align: "right" },
                                 { key: "status",    label: "Status",      sortable: !isDriverPreview || jpv("colStatus") },
                                 { key: "actions",   label: "Actions",     sortable: false, align: "right" },
                             ].filter(c => c.sortable !== false || c.key === "actions")}
@@ -365,7 +365,7 @@ export function Journeys({ data, isMobile, modal, form, setForm, openModal, clos
 
                                         {/* Client */}
                                         {(!isDriverPreview || jpv("colClient")) && (
-                                            <td className="col-hide-lg" title={customerName(j.customerId)}>
+                                            <td className="col-hide-2xl" title={customerName(j.customerId)}>
                                                 {j.customerId ? (
                                                     <button
                                                         type="button"
@@ -397,7 +397,7 @@ export function Journeys({ data, isMobile, modal, form, setForm, openModal, clos
 
                                         {/* Crew */}
                                         {(!isDriverPreview || jpv("colCrew")) && (
-                                            <td className="col-hide-lg" title={driverName(j.driver)}>
+                                            <td className="col-hide-xl" title={driverName(j.driver)}>
                                                 <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: "var(--text-primary)" }}>
                                                     <User size={12} color="var(--text-dim)" strokeWidth={2} aria-hidden />
                                                     {driverName(j.driver)}
@@ -407,7 +407,7 @@ export function Journeys({ data, isMobile, modal, form, setForm, openModal, clos
 
                                         {/* Cargo */}
                                         {(!isDriverPreview || jpv("colCargo")) && (
-                                            <td className="col-hide-xl" title={`${j.cargo || "General cargo"} ${j.weight ? `(${j.weight} T)` : ""}`}>
+                                            <td className="col-hide-3xl" title={`${j.cargo || "General cargo"} ${j.weight ? `(${j.weight} T)` : ""}`}>
                                                 <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-primary)" }}>{j.cargo || "General cargo"}</div>
                                                 {j.weight != null && j.weight !== "" && (
                                                     <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>{j.weight} T</div>
@@ -417,7 +417,7 @@ export function Journeys({ data, isMobile, modal, form, setForm, openModal, clos
 
                                         {/* Distance */}
                                         {(!isDriverPreview || jpv("colDistance")) && (
-                                            <td className="col-hide-xl" style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }} title={j.distance != null && j.distance !== "" ? `${Number(j.distance).toLocaleString()} km` : "—"}>
+                                            <td className="col-hide-3xl" style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }} title={j.distance != null && j.distance !== "" ? `${Number(j.distance).toLocaleString()} km` : "—"}>
                                                 <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>
                                                     {j.distance != null && j.distance !== "" ? `${Number(j.distance).toLocaleString()} km` : "—"}
                                                 </div>
@@ -426,7 +426,7 @@ export function Journeys({ data, isMobile, modal, form, setForm, openModal, clos
 
                                         {/* Notes */}
                                         {(!isDriverPreview || jpv("colNotes")) && (
-                                            <td className="journeys-col-notes col-hide-xl" title={j.notes && String(j.notes).trim() ? String(j.notes).trim() : "—"}>
+                                            <td className="journeys-col-notes col-hide-4xl" title={j.notes && String(j.notes).trim() ? String(j.notes).trim() : "—"}>
                                                 {j.notes && String(j.notes).trim() ? (
                                                     <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>{String(j.notes).trim()}</span>
                                                 ) : (
@@ -437,7 +437,7 @@ export function Journeys({ data, isMobile, modal, form, setForm, openModal, clos
 
                                         {/* Revenue */}
                                         {(!isDriverPreview || jpv("colRevenue")) && (
-                                            <td className="col-hide-md" style={{ textAlign: "right" }} title={fmt(j.revenue)}>
+                                            <td className="col-hide-lg" style={{ textAlign: "right" }} title={fmt(j.revenue)}>
                                                 <div style={{ fontWeight: 800, color: "#10b981", fontSize: 13, fontVariantNumeric: "tabular-nums" }}>{fmt(j.revenue)}</div>
                                                 {j.driverMileage && (!isDriverPreview || jpv("colAllowanceSubline")) && (
                                                     <div style={{ fontSize: 10, color: "var(--text-dim)", marginTop: 2, fontVariantNumeric: "tabular-nums", display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4 }}>
