@@ -110,7 +110,7 @@ body {
   color: var(--text-secondary);
   line-height: 1.5;
   font-size: 14px;
-  overflow-x: auto; /* Enable page-level horizontal scroll */
+  overflow-x: hidden; /* Prevent page-level horizontal scroll — tables scroll inside .table-container */
 }
 
 #root {
