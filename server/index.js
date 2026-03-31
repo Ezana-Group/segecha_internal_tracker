@@ -40,6 +40,12 @@ envPaths.forEach(envPath => {
 });
 
 const app = express();
+
+// Trust the Railway / Render load-balancer so express-rate-limit reads
+// the real client IP from X-Forwarded-For instead of the proxy's IP.
+// '1' means trust exactly one proxy hop.
+app.set('trust proxy', 1);
+
 const PORT = process.env.PORT || 8080;
 if (!process.env.PORT) {
     console.warn('[SERVER] PORT env var not set — falling back to 8080. Railway should inject this automatically.');
