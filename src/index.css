@@ -129,11 +129,15 @@ h1, h2, h3, h4, h5, h6 {
   max-width: 1600px;
   margin: 0 auto;
   width: 100%;
+  box-sizing: border-box;
+  overflow-x: clip; /* contain children — doesn't create a scroll context, preserves child overflow-x:auto */
+  padding-bottom: 48px;
 }
 
 .page-shell-wide {
   max-width: 100%;
   padding: 0 32px 48px;
+  box-sizing: border-box;
 }
 
 /* Responsive Page Shell */
@@ -560,19 +564,19 @@ h1, h2, h3, h4, h5, h6 {
 .table-container::-webkit-scrollbar { display: none; } /* hide scrollbar Chrome/Safari */
 
 /* Responsive column visibility — progressive reveal as screen widens
-   md  ≥ 900px  : Vehicle
+   md  ≥  900px : Vehicle
    lg  ≥ 1100px : Revenue
    xl  ≥ 1300px : Crew
-   2xl ≥ 1500px : Client
-   3xl ≥ 1700px : Cargo, Distance
-   4xl ≥ 1900px : Notes
+   2xl ≥ 1600px : Client
+   3xl ≥ 1800px : Cargo, Distance
+   4xl ≥ 2000px : Notes
 */
 @media (max-width: 899px)  { .col-hide-md  { display: none; } }
 @media (max-width: 1099px) { .col-hide-lg  { display: none; } }
 @media (max-width: 1299px) { .col-hide-xl  { display: none; } }
-@media (max-width: 1499px) { .col-hide-2xl { display: none; } }
-@media (max-width: 1699px) { .col-hide-3xl { display: none; } }
-@media (max-width: 1899px) { .col-hide-4xl { display: none; } }
+@media (max-width: 1599px) { .col-hide-2xl { display: none; } }
+@media (max-width: 1799px) { .col-hide-3xl { display: none; } }
+@media (max-width: 1999px) { .col-hide-4xl { display: none; } }
 
 .table-modern {
   width: 100%;
