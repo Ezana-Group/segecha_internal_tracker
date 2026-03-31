@@ -27,7 +27,8 @@ import { fmt, fmtDate } from "../utils/formatters";
 import { Card } from "../components/Card";
 import { Badge } from "../components/Badge";
 import { adminAuth } from "../utils/adminAuth";
-import { PAYMENT_API, ADMIN_KEY } from "../utils/env";
+import { PAYMENT_API } from "../utils/env";
+import { fetchWithAuth } from "../utils/api";
 import { Button } from "../components/Button";
 import { DocumentPanel } from "../components/DocumentPanel";
 import { ProfileQuickActionTile } from "../components/ProfileQuickActionTile";
@@ -138,7 +139,7 @@ export function StaffProfile({ data, setData, dark, isMobile, openModal, showToa
     // Note: this hook must be registered before any early return.
     useEffect(() => {
         if (tab !== "account" || !staff?.id || !PAYMENT_API) return;
-        fetch(`${PAYMENT_API}/api/staff/account-status/${staff.id}?adminKey=${encodeURIComponent(ADMIN_KEY)}`)
+        fetchWithAuth(`${PAYMENT_API}/api/staff/account-status/${staff.id}`)
             .then((r) => r.json())
             .then((j) => setAccountStatus(j))
             .catch((err) => showAccountErr(err, "Could not load account status"));
@@ -203,7 +204,7 @@ export function StaffProfile({ data, setData, dark, isMobile, openModal, showToa
         if (!window.confirm(`Reset password for ${staff.name}? They will be required to log in with a new OTP.`)) return;
         try {
             setAccountBusy(true);
-            const res = await fetch(`${PAYMENT_API}/api/staff/account/regenerate-credentials`, {
+            const res = await fetchWithAuth(`${PAYMENT_API}/api/staff/account/regenerate-credentials`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -211,7 +212,6 @@ export function StaffProfile({ data, setData, dark, isMobile, openModal, showToa
                     email: staff.email || staff.name,
                     phone: staff.phone || "",
                     forcePasswordReset: true,
-                    adminKey: ADMIN_KEY,
                 }),
             });
             const j = await res.json();
@@ -236,7 +236,7 @@ export function StaffProfile({ data, setData, dark, isMobile, openModal, showToa
         if (!window.confirm(`Delete ${staff.name}'s account and payroll records? This cannot be undone.`)) return;
         try {
             setAccountBusy(true);
-            const res = await fetch(`${PAYMENT_API}/api/staff/account/${staff.id}?adminKey=${encodeURIComponent(ADMIN_KEY)}`, { method: "DELETE" });
+            const res = await fetchWithAuth(`${PAYMENT_API}/api/staff/account/${staff.id}`, { method: "DELETE" });
             const j = await res.json();
             if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
             setData((prev) => ({
@@ -264,7 +264,7 @@ export function StaffProfile({ data, setData, dark, isMobile, openModal, showToa
     const exportAccount = async () => {
         try {
             setAccountBusy(true);
-            const res = await fetch(`${PAYMENT_API}/api/staff/account-export/${staff.id}?adminKey=${encodeURIComponent(ADMIN_KEY)}`);
+            const res = await fetchWithAuth(`${PAYMENT_API}/api/staff/account-export/${staff.id}`);
             const j = await res.json();
             if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
             downloadJson(`${staff.name.replace(/\s+/g, "_")}_account_export.json`, j);
@@ -301,7 +301,7 @@ export function StaffProfile({ data, setData, dark, isMobile, openModal, showToa
         }
         try {
             setAccountBusy(true);
-            const res = await fetch(`${PAYMENT_API}/api/staff/account/regenerate-credentials`, {
+            const res = await fetchWithAuth(`${PAYMENT_API}/api/staff/account/regenerate-credentials`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -309,7 +309,6 @@ export function StaffProfile({ data, setData, dark, isMobile, openModal, showToa
                     email: staff.email || staff.name,
                     phone: staff.phone || "",
                     forcePasswordReset: false,
-                    adminKey: ADMIN_KEY,
                 }),
             });
             const j = await res.json();

@@ -30,7 +30,8 @@ import { Badge } from "../components/Badge";
 import { Button } from "../components/Button";
 import { InvoiceView } from "../components/InvoiceView";
 import { PaymentRequestModal } from "../components/PaymentRequestModal";
-import { PAYMENT_API, ADMIN_KEY, PORTAL_URL } from "../utils/env";
+import { PAYMENT_API, PORTAL_URL } from "../utils/env";
+import { fetchWithAuth } from "../utils/api";
 import { readSettings } from "../utils/settingsStore.js";
 import { PageHeader } from "../components/PageHeader";
 import { TableRowActions } from "../components/TableRowActions";
@@ -68,13 +69,12 @@ export function Invoices({ data, setData, dark, isMobile, modal, form, setForm, 
         }));
 
         if (inv.email && payment.method) {
-            fetch(`${PAYMENT_API}/api/invoices/send-receipt`, {
+            fetchWithAuth(`${PAYMENT_API}/api/invoices/send-receipt`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     invoiceId: inv.id,
                     payment: { ...payment, id: payment.id || Date.now() },
-                    adminKey: ADMIN_KEY,
                     settings: s,
                 }),
             }).catch(err => console.warn('Receipt email failed:', err.message));

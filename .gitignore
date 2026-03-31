@@ -14,11 +14,15 @@ server/.env
 env_backup/
 archive/
 
-# Server data files — managed on Render, not in git
+# Server data files — managed at runtime, never in git (CRIT-08)
 server/drivers-auth.json
 server/documents.json
 server/tracker-data.json
 server/cached-settings.json
+server/staff-auth.json
+server/error.log
+server/backups/
+archive/server/*.json
 
 # Build outputs
 dist/

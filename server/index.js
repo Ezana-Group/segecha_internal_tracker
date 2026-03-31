@@ -1,11 +1,30 @@
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+const cookieParser = require('cookie-parser');
 const { readFileSync, writeFileSync, existsSync, mkdirSync } = require('fs');
 const path = require('path');
 const multer = require('multer');
-const upload = multer();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+
+// Multer with strict limits and file-type filtering (CRIT-11)
+const ALLOWED_MIME_TYPES = new Set([
+    'image/jpeg', 'image/png', 'image/webp', 'image/gif',
+    'application/pdf'
+]);
+const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 10 * 1024 * 1024, files: 5 }, // 10 MB per file, max 5 files
+    fileFilter: (_req, file, cb) => {
+        if (ALLOWED_MIME_TYPES.has(file.mimetype)) {
+            cb(null, true);
+        } else {
+            cb(new Error(`File type not allowed: ${file.mimetype}`));
+        }
+    }
+});
 
 // Load environment variables from both root and server directory
 // server/.env takes precedence for backend-specific configs
@@ -22,7 +41,10 @@ envPaths.forEach(envPath => {
 
 const app = express();
 const PORT = process.env.PORT;
-if (!PORT) console.warn('WARNING: PORT not set, some environments may fail to bind.');
+if (!PORT) {
+    console.error('FATAL: PORT environment variable is not set. Server cannot start.');
+    process.exit(1);
+}
 
 // Core Dependencies (Must be before autoSeed)
 const db = require('./db');
@@ -31,23 +53,65 @@ const staffAuth = require('./staff-auth');
 const driverData = require('./driver-data');
 
 
-// 1. CORS - MUST BE FIRST for production reliability
-app.use(cors({
-    origin: true, // Reflect the request origin
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'x-admin-key'],
-    credentials: true,
-    maxAge: 86400
+// 1. Security headers — must come before routes (HIGH-01)
+// CSP allows the API origin and external resources used by the SPA
+const API_ORIGIN = process.env.API_URL || process.env.PAYMENT_API || '';
+app.use(helmet({
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'self'"],
+            scriptSrc: ["'self'", "'unsafe-inline'", 'https://cdnjs.cloudflare.com'],
+            styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+            fontSrc: ["'self'", 'https://fonts.gstatic.com'],
+            imgSrc: ["'self'", 'data:', 'https://res.cloudinary.com', 'https://*.r2.dev'],
+            connectSrc: ["'self'", ...(API_ORIGIN ? [API_ORIGIN] : [])],
+            objectSrc: ["'none'"],
+            frameSrc: ["'none'"],
+        }
+    },
+    crossOriginEmbedderPolicy: false, // Needed for some SPA assets
 }));
 
+// 2. CORS — whitelist explicit origins only (CRIT-01)
+// Apply only to /api routes — static assets never need CORS headers
+const ALLOWED_ORIGINS = [
+    process.env.TRACKER_URL,
+    process.env.PORTAL_URL,
+    process.env.DRIVER_PORTAL_URL,
+    process.env.ADMIN_PORTAL_URL,  // e.g. https://dash.segecha.com
+].filter(Boolean);
+
+const corsOptions = {
+    origin: (origin, cb) => {
+        // Allow server-to-server (no origin) and whitelisted origins
+        if (!origin || ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
+        // In development, allow localhost on any port
+        if (process.env.NODE_ENV !== 'production' && /^https?:\/\/localhost(:\d+)?$/.test(origin)) {
+            return cb(null, true);
+        }
+        // Use cb(null, false) — not cb(new Error(...)) — to avoid triggering the 500 error handler
+        console.warn(`[CORS] Rejected origin: ${origin}`);
+        cb(null, false);
+    },
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true,
+    maxAge: 86400
+};
+
+// Only apply CORS to API routes — static file requests are same-origin and don't need it
+app.use('/api', cors(corsOptions));
 
 
-app.get('/health', (req, res) => {
+
+app.get('/health', async (req, res) => {
     try {
+        // Verify DB connectivity on every health check (LOW-03)
+        await db.query('SELECT 1');
         res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
     } catch (e) {
-        console.error('[DEBUG] Health check failed:', e);
-        res.status(500).send(e.message);
+        console.error('[HEALTH] DB check failed:', e.message);
+        res.status(503).json({ status: 'error', message: 'Database unavailable' });
     }
 });
 
@@ -61,21 +125,40 @@ process.on('unhandledRejection', (reason, promise) => {
 
 
 app.use(express.json());
+app.use(cookieParser());
 
-// 3. Admin Auth Middleware
+// 3. Rate limiters for auth endpoints (CRIT-04)
+const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 20,                   // max 20 attempts per window per IP
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many login attempts. Please try again in 15 minutes.' },
+    skipSuccessfulRequests: true, // Only count failures
+});
+
+const passwordResetLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000, // 1 hour
+    max: 5,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many password reset requests. Please try again in 1 hour.' },
+});
+
+// 4. Admin Auth Middleware
 const JWT_SECRET = process.env.JWT_SECRET;
-const ADMIN_KEY_SOURCE = process.env.ADMIN_KEY ? 'process.env.ADMIN_KEY' : (process.env.VITE_ADMIN_KEY ? 'process.env.VITE_ADMIN_KEY' : 'NONE');
-const ADMIN_KEY = (process.env.ADMIN_KEY || process.env.VITE_ADMIN_KEY || '').trim();
+// ADMIN_KEY: only use ADMIN_KEY, never fall back to the frontend VITE_ADMIN_KEY (CRIT-09, LOW-01)
+const ADMIN_KEY = (process.env.ADMIN_KEY || '').trim();
 if (!ADMIN_KEY) console.error('CRITICAL: ADMIN_KEY not set in environment.');
 
 if (!JWT_SECRET || !ADMIN_KEY) {
     console.warn('[SECURITY] CRITICAL: JWT_SECRET or ADMIN_KEY not set. Using insecure defaults is dangerous.');
 } else {
     const maskedKey = ADMIN_KEY.substring(0, 4) + '...' + ADMIN_KEY.substring(ADMIN_KEY.length - 4);
-    console.log(`[AUTH] ADMIN_KEY loaded from ${ADMIN_KEY_SOURCE}: ${maskedKey} (Length: ${ADMIN_KEY.length})`);
+    console.log(`[AUTH] ADMIN_KEY loaded (Length: ${ADMIN_KEY.length}): ${maskedKey}`);
 }
 
-const PUBLIC_ROUTES = ['/admin/login', '/driver/login', '/staff/login', '/health'];
+const PUBLIC_ROUTES = ['/admin/login', '/admin/logout', '/driver/login', '/staff/login', '/health'];
 
 const adminAuth = async (req, res, next) => {
     // 0. Skip for preflight
@@ -87,26 +170,32 @@ const adminAuth = async (req, res, next) => {
         return next();
     }
 
-    // 2. Check for Admin Key (Legacy/Internal) or JWT Token
-    const adminKey = req.headers['x-admin-key'] || req.body?.adminKey || req.query?.adminKey;
+    // 2. Check for Admin Key (header only — never accept from body or query) or JWT Token (CRIT-09)
+    const adminKey = req.headers['x-admin-key'];
     const authHeader = req.headers.authorization;
 
-    // Check Admin Key
+    // Check Admin Key (header only)
     if (adminKey && adminKey.trim() === ADMIN_KEY && ADMIN_KEY !== '') {
         return next();
     }
 
-    // Diagnostic logging for auth failure
+    // Diagnostic logging for auth failure (suppress full headers in production to avoid log leakage)
     if (adminKey || authHeader) {
+        const isDev = process.env.NODE_ENV !== 'production';
         console.warn(`[AUTH] Authentication failure for ${req.method} ${req.path}`);
-        console.warn(`  - Admin Key received: "${adminKey || '(none)'}" (Matches server? ${adminKey?.trim() === ADMIN_KEY})`);
-        console.warn(`  - Auth Header: "${authHeader || '(none)'}"`);
-        console.warn(`  - Full Headers: ${JSON.stringify(req.headers)}`);
+        if (isDev) {
+            console.warn(`  - Admin Key received: "${adminKey || '(none)'}" (Matches server? ${adminKey?.trim() === ADMIN_KEY})`);
+            console.warn(`  - Auth Header present: ${!!authHeader}`);
+        }
     }
 
-    // Check JWT Token
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-        const token = authHeader.slice(7);
+    // Check JWT Token (Bearer header or HttpOnly cookie — MED-06)
+    const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+    const cookieToken = req.cookies?.admin_token;
+    const jwtToken = bearerToken || cookieToken;
+
+    if (jwtToken) {
+        const token = jwtToken;
         try {
             const decoded = jwt.verify(token, JWT_SECRET);
             if (decoded.role === 'superadmin' || decoded.role === 'admin') {
@@ -250,13 +339,14 @@ async function autoSeed() {
             END $$;
         `);
 
-        console.log(`[SEED] Syncing superadmin (${initialAdminEmail})...`);
+        console.log(`[SEED] Ensuring superadmin exists (${initialAdminEmail})...`);
 
-        // 1. Core Admin Login (Always Sync password on boot during dev/staging)
+        // 1. Core Admin Login — only create if not already exists; never overwrite an existing
+        //    password (HIGH-08: avoids resetting a manually-changed password on every restart)
         await db.query(`
             INSERT INTO admins (id, email, password_hash, role, display_name)
             VALUES ($1, $2, $3, 'superadmin', 'System Admin')
-            ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash
+            ON CONFLICT (email) DO NOTHING
         `, [staffId, initialAdminEmail, initialHash]);
 
         // 2. Staff Record
@@ -266,11 +356,11 @@ async function autoSeed() {
             ON CONFLICT (id) DO NOTHING
         `, [staffId, initialAdminEmail, initialAdminPhone]);
 
-        // 3. Staff Portal Auth
+        // 3. Staff Portal Auth — only create; never overwrite existing password
         await db.query(`
             INSERT INTO staff_auth (staff_id, email, phone, password_hash, account_status)
             VALUES ($1, $2, $3, $4, 'active')
-            ON CONFLICT (staff_id) DO UPDATE SET password_hash = EXCLUDED.password_hash
+            ON CONFLICT (staff_id) DO NOTHING
         `, [staffId, initialAdminEmail, initialAdminPhone, initialHash]);
 
 
@@ -501,9 +591,10 @@ async function restoreEverything(backup) {
 
 // --- ADMIN ROUTES ---
 
-// Login
-app.post('/api/admin/login', async (req, res) => {
+// Login — rate-limited (CRIT-04)
+app.post('/api/admin/login', authLimiter, async (req, res) => {
     const { email, password } = req.body;
+    if (!email || !password) return res.status(400).json({ error: 'Email and password are required' });
     try {
         const result = await db.query('SELECT * FROM admins WHERE email = $1', [email.toLowerCase().trim()]);
         if (result.rows.length === 0) {
@@ -529,6 +620,14 @@ app.post('/api/admin/login', async (req, res) => {
             { expiresIn: '12h' }
         );
 
+        // Set HttpOnly cookie for XSS protection (MED-06)
+        res.cookie('admin_token', token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'strict',
+            maxAge: 8 * 60 * 60 * 1000  // 8 hours
+        });
+
         res.json({
             token,
             user: {
@@ -542,6 +641,12 @@ app.post('/api/admin/login', async (req, res) => {
         console.error('Login error:', e);
         res.status(500).json({ error: 'Database authentication error' });
     }
+});
+
+// Admin logout — clears HttpOnly cookie (MED-06)
+app.post('/api/admin/logout', (req, res) => {
+    res.clearCookie('admin_token', { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict' });
+    res.json({ ok: true });
 });
 
 // Pending verification (Used by Admin Panel)
@@ -661,14 +766,14 @@ app.delete('/api/documents/:id', async (req, res) => {
     }
 });
 
-// Admin upload placeholder (deprecated, use /api/documents/upload)
+// Admin upload — replaced by /api/documents/upload (HIGH-07)
 app.post('/api/admin/upload', (req, res) => {
-    res.json({ success: true, url: 'https://cdn.example.com/uploads/fallback.png' });
+    res.status(410).json({ error: 'Deprecated. Use POST /api/documents/upload instead.' });
 });
 
-// Generic update for collections
+// Generic collection update — not implemented; return 501 so callers know (HIGH-07)
 app.put('/api/admin/:col/:id', (req, res) => {
-    res.json({ success: true });
+    res.status(501).json({ error: 'Generic collection update not implemented. Use the specific entity endpoint.' });
 });
 
 // Admin verification for journeys (start or completion)
@@ -741,32 +846,9 @@ app.post('/api/admin/submission/verify', async (req, res) => {
     }
 });
 
-// Deep Reset - Wipes all server data
-app.post('/api/admin/reset', async (req, res) => {
-    try {
-        // 1. Reset all database tables (CASCADE handles order)
-        for (const table of DB_TABLES) {
-            await db.query(`TRUNCATE TABLE ${table} CASCADE`);
-        }
-
-        // 2. Re-seed default superadmin to prevent lockout
-        const defaultEmail = process.env.INITIAL_ADMIN_EMAIL || 'admin@example.com';
-        const defaultPass = 'segecha2025';
-        const salt = bcrypt.genSaltSync(10);
-        const hash = bcrypt.hashSync(defaultPass, salt);
-        const adminId = 'adm-' + Math.random().toString(36).substr(2, 9);
-
-        await db.query(
-            'INSERT INTO admins (id, email, password_hash, display_name, role) VALUES ($1, $2, $3, $4, $5)',
-            [adminId, defaultEmail, hash, 'System Administrator', 'superadmin']
-        );
-
-        res.json({ success: true, message: 'All database data destroyed and re-seeded.' });
-    } catch (e) {
-        console.error('RESET_ERROR:', e);
-        res.status(500).json({ error: 'Reset failed: ' + e.message });
-    }
-});
+// NOTE: Duplicate /api/admin/reset removed (CRIT-03/CRIT-06).
+// The authoritative reset route is defined above (line ~343).
+// It uses ADMIN_KEY from the environment — never a hardcoded password.
 
 // --- TRACKER SYNC & BACKUP ---
 
@@ -951,9 +1033,13 @@ app.post('/api/driver/create-account', async (req, res) => {
     }
 });
 
-app.get('/api/driver/account-status/:id', (req, res) => {
-    const status = driverAuth.getDriverAccountStatus(req.params.id);
-    res.json(status);
+app.get('/api/driver/account-status/:id', async (req, res) => {
+    try {
+        const status = await driverAuth.getDriverAccountStatus(req.params.id);
+        res.json(status);
+    } catch (e) {
+        res.status(500).json({ error: 'Failed to fetch account status' });
+    }
 });
 
 app.post('/api/driver/account/regenerate-credentials', async (req, res) => {
@@ -966,15 +1052,23 @@ app.post('/api/driver/account/regenerate-credentials', async (req, res) => {
     }
 });
 
-app.get('/api/driver/account-export/:id', (req, res) => {
-    const exportData = driverAuth.exportDriverAccount(req.params.id);
-    if (!exportData) return res.status(404).json({ error: 'Account not found' });
-    res.json(exportData);
+app.get('/api/driver/account-export/:id', async (req, res) => {
+    try {
+        const exportData = await driverAuth.exportDriverAccount(req.params.id);
+        if (!exportData) return res.status(404).json({ error: 'Account not found' });
+        res.json(exportData);
+    } catch (e) {
+        res.status(500).json({ error: 'Failed to export account' });
+    }
 });
 
-app.delete('/api/driver/account/:id', (req, res) => {
-    const success = driverAuth.deleteDriverAccount(req.params.id);
-    res.json({ success });
+app.delete('/api/driver/account/:id', async (req, res) => {
+    try {
+        const success = await driverAuth.deleteDriverAccount(req.params.id);
+        res.json({ success });
+    } catch (e) {
+        res.status(500).json({ error: 'Failed to delete account' });
+    }
 });
 
 // --- STAFF ACCOUNT MANAGEMENT (ADMIN) ---
@@ -1174,56 +1268,74 @@ app.post('/api/documents/driver-upload', driverAuth.authMiddleware, upload.any()
 });
 
 // --- DRIVER LOGIN & AUTH ---
-app.post('/api/driver/login', async (req, res) => {
+// Rate-limited (CRIT-04) — 20 attempts per 15 min per IP
+app.post('/api/driver/login', authLimiter, async (req, res) => {
     const { identifier, password, method } = req.body;
-    const result = await driverAuth.loginDriver(identifier, password, method);
-    if (!result.success) return res.status(200).json(result);
-    res.json(result);
+    try {
+        const result = await driverAuth.loginDriver(identifier, password, method);
+        // Return 401 on failure — not 200 (CRIT-12)
+        if (!result.success) return res.status(401).json(result);
+        res.json(result);
+    } catch (e) {
+        res.status(500).json({ error: 'Login failed' });
+    }
 });
 
-app.post('/api/driver/forgot-password', async (req, res) => {
+app.post('/api/driver/forgot-password', passwordResetLimiter, async (req, res) => {
     const { identifier } = req.body;
     try {
         const result = await driverAuth.requestPasswordReset(identifier);
         res.json(result);
-    } catch (e) { res.status(500).json({ error: e.message }); }
+    } catch (e) { res.status(500).json({ error: 'Password reset request failed' }); }
 });
 
-app.post('/api/driver/set-password', async (req, res) => {
+app.post('/api/driver/set-password', passwordResetLimiter, async (req, res) => {
     const { token, password } = req.body;
     try {
         const result = await driverAuth.resetPasswordWithToken(token, password);
         res.json(result);
-    } catch (e) { res.status(500).json({ error: e.message }); }
+    } catch (e) { res.status(500).json({ error: 'Password reset failed' }); }
 });
 
 // --- STAFF LOGIN & AUTH ---
-app.post('/api/staff/login', async (req, res) => {
+// Rate-limited (CRIT-04) — 20 attempts per 15 min per IP
+app.post('/api/staff/login', authLimiter, async (req, res) => {
     const { identifier, password, method } = req.body;
-    const result = await staffAuth.loginStaff(identifier, password, method);
-    if (!result.success) return res.status(200).json(result);
-    res.json(result);
+    try {
+        const result = await staffAuth.loginStaff(identifier, password, method);
+        // Return 401 on failure — not 200 (CRIT-12)
+        if (!result.success) return res.status(401).json(result);
+        res.json(result);
+    } catch (e) {
+        res.status(500).json({ error: 'Login failed' });
+    }
 });
 
-app.post('/api/staff/forgot-password', async (req, res) => {
+app.post('/api/staff/forgot-password', passwordResetLimiter, async (req, res) => {
     const { identifier } = req.body;
-    const result = await staffAuth.requestStaffPasswordReset(identifier);
-    res.json(result);
+    try {
+        const result = await staffAuth.requestStaffPasswordReset(identifier);
+        res.json(result);
+    } catch (e) { res.status(500).json({ error: 'Password reset request failed' }); }
 });
 
-app.post('/api/staff/set-password', async (req, res) => {
+app.post('/api/staff/set-password', passwordResetLimiter, async (req, res) => {
     const { token, password } = req.body;
-    const result = await staffAuth.resetStaffPasswordWithToken(token, password);
-    res.json(result);
+    try {
+        const result = await staffAuth.resetStaffPasswordWithToken(token, password);
+        res.json(result);
+    } catch (e) { res.status(500).json({ error: 'Password reset failed' }); }
 });
 
 
-// Global Error Handler
-
+// Global Error Handler (HIGH-10, HIGH-03)
+// - No synchronous writeFileSync (event loop blocking removed)
+// - Error details hidden from clients in production
 app.use((err, req, res, next) => {
-    console.error('SERVER_ERROR:', err);
-    writeFileSync(path.join(__dirname, 'error.log'), `${new Date().toISOString()} - ${req.url} - ${err.message}\n${err.stack}\n\n`, { flag: 'a' });
-    res.status(500).json({ error: err.message });
+    const isDev = process.env.NODE_ENV !== 'production';
+    console.error(`[SERVER_ERROR] ${req.method} ${req.url}:`, err);
+    const clientMessage = isDev ? err.message : 'An unexpected error occurred. Please try again.';
+    res.status(err.status || 500).json({ error: clientMessage });
 });
 
 app.listen(PORT, '0.0.0.0', () => {

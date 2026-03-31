@@ -4,7 +4,8 @@ import { Field } from "./Field";
 import { Button } from "./Button";
 import { fmt, fmtDate, today, uid, monthLabel } from "../utils/formatters";
 import { validators } from "../utils/validators";
-import { PAYMENT_API, ADMIN_KEY } from "../utils/env";
+import { PAYMENT_API } from "../utils/env";
+import { fetchWithAuth } from "../utils/api";
 import { DEFAULT_FUEL_PRICE, STATUSES_JOURNEY, CARGO_TYPES, TRUCK_TYPES, STATUSES_TRUCK, INVOICE_PREFIX, PAYMENT_TERMS_DAYS } from "../constants/nav";
 import { getLicenceClasses, getCommonRoutes, subscribeSettings } from "../utils/settingsStore.js";
 
@@ -18,9 +19,8 @@ const FuelPhotoField = ({ label, k, form, setForm, S, T }) => {
         setUploading(true);
         const formData = new FormData();
         formData.append("photo", file);
-        formData.append("adminKey", ADMIN_KEY);
         try {
-            const res = await fetch(`${PAYMENT_API}/api/driver/upload`, {
+            const res = await fetchWithAuth(`${PAYMENT_API}/api/driver/upload`, {
                 method: "POST",
                 body: formData,
             });
@@ -77,11 +77,10 @@ function JourneyOdomPhotoField({ label, k, form, setForm, S, T }) {
         setUploading(true);
         const fd = new FormData();
         fd.append('file', file);
-        fd.append('adminKey', ADMIN_KEY);
         fd.append('folder', 'journey_odom_admin');
         fd.append('filename', k);
         try {
-            const res = await fetch(`${PAYMENT_API}/api/admin/upload`, { method: 'POST', body: fd });
+            const res = await fetchWithAuth(`${PAYMENT_API}/api/admin/upload`, { method: 'POST', body: fd });
             const d = await res.json();
             if (d.success) setForm((f) => ({ ...f, [k]: d.url }));
             else alert('Upload failed: ' + (d.error || 'unknown'));
@@ -1127,10 +1126,10 @@ export function GlobalModals(props) {
 
             if (isNew && driverEmail && driverEmail.includes('@')) {
                 try {
-                    const res = await fetch(`${PAYMENT_API}/api/driver/create-account`, {
+                    const res = await fetchWithAuth(`${PAYMENT_API}/api/driver/create-account`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ driverId, email: driverEmail, phone: form.phone, driverName, adminKey: ADMIN_KEY }),
+                        body: JSON.stringify({ driverId, email: driverEmail, phone: form.phone, driverName }),
                     });
                     const result = await res.json();
                     if (result.success) {
@@ -1302,7 +1301,7 @@ export function GlobalModals(props) {
 
             if (isNew && email.includes("@")) {
                 try {
-                    const res = await fetch(`${PAYMENT_API}/api/staff/create-account`, {
+                    const res = await fetchWithAuth(`${PAYMENT_API}/api/staff/create-account`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
@@ -1310,7 +1309,6 @@ export function GlobalModals(props) {
                             email,
                             phone: next.phone,
                             staffName: name,
-                            adminKey: ADMIN_KEY,
                         }),
                     });
                     const result = await res.json();

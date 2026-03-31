@@ -169,7 +169,7 @@ export default function App() {
         flex: 1,
         padding: !authed ? "0" : (isMobile ? "16px" : "32px"),
         marginTop: !authed ? "0" : (state.previewMode ? "calc(var(--topbar-height) + 40px)" : "var(--topbar-height)"),
-        minWidth: "400px",
+        minWidth: 0,
         width: "100%",
         display: "flex",
         flexDirection: "column",

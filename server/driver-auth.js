@@ -163,6 +163,11 @@ async function loginDriver(identifier, secret, method) {
     const record = await findDriverRecord(identifier);
     if (!record) return { success: false, error: 'Account not found. Contact your office.' };
 
+    // Per-account lockout (HIGH-04): block if locked
+    if (record.locked_until && new Date(record.locked_until) > new Date()) {
+        return { success: false, error: 'Account temporarily locked due to too many failed attempts. Try again later.' };
+    }
+
     const secretRaw = String(secret || '');
     const now = new Date();
 
@@ -173,23 +178,41 @@ async function loginDriver(identifier, secret, method) {
     if (record.require_password_change) {
         if (method === 'email') {
             const valid = !!(record.temp_password_hash && await bcrypt.compare(secretRaw, record.temp_password_hash));
-            if (!valid) return { success: false, error: 'Incorrect temporary password.' };
+            if (!valid) {
+                const attempts = (record.failed_attempts || 0) + 1;
+                const lockClause = attempts >= 10 ? `, locked_until = NOW() + INTERVAL '15 minutes'` : '';
+                await db.query(`UPDATE driver_auth SET failed_attempts = $1${lockClause} WHERE driver_id = $2`, [attempts, record.driver_id]);
+                return { success: false, error: 'Incorrect temporary password.' };
+            }
         } else if (method === 'phone') {
             const valid = !!(record.otp_hash && record.otp_expiry && new Date(record.otp_expiry) > now && hashValue(secretRaw) === record.otp_hash);
-            if (!valid) return { success: false, error: 'Invalid or expired OTP.' };
+            if (!valid) {
+                const attempts = (record.failed_attempts || 0) + 1;
+                const lockClause = attempts >= 10 ? `, locked_until = NOW() + INTERVAL '15 minutes'` : '';
+                await db.query(`UPDATE driver_auth SET failed_attempts = $1${lockClause} WHERE driver_id = $2`, [attempts, record.driver_id]);
+                return { success: false, error: 'Invalid or expired OTP.' };
+            }
         }
-        
+
         if (method) await db.query('UPDATE driver_auth SET preferred_method = $1 WHERE driver_id = $2', [method, record.driver_id]);
         const tokenData = issueSetupTokenData();
-        await db.query('UPDATE driver_auth SET reset_token_hash = $1, reset_token_expiry = $2 WHERE driver_id = $3', [tokenData.hash, tokenData.expiry, record.driver_id]);
+        await db.query('UPDATE driver_auth SET reset_token_hash = $1, reset_token_expiry = $2, failed_attempts = 0, locked_until = NULL WHERE driver_id = $3', [tokenData.hash, tokenData.expiry, record.driver_id]);
 
         return { success: true, requirePasswordChange: true, setupToken: tokenData.resetToken, driverId: record.driver_id, email: record.email };
     }
 
     if (!record.password_hash) return { success: false, error: 'Pending setup. Use OTP/Temp password.' };
     const match = await bcrypt.compare(secretRaw, record.password_hash);
-    if (!match) return { success: false, error: 'Incorrect password.' };
+    if (!match) {
+        // Increment failed attempts; lock after 10 failures for 15 minutes
+        const attempts = (record.failed_attempts || 0) + 1;
+        const lockClause = attempts >= 10 ? `, locked_until = NOW() + INTERVAL '15 minutes'` : '';
+        await db.query(`UPDATE driver_auth SET failed_attempts = $1${lockClause} WHERE driver_id = $2`, [attempts, record.driver_id]);
+        return { success: false, error: 'Incorrect password.' };
+    }
 
+    // Success: reset lockout counters
+    await db.query('UPDATE driver_auth SET failed_attempts = 0, locked_until = NULL WHERE driver_id = $1', [record.driver_id]);
     const token = jwt.sign({ driverId: record.driver_id, email: record.email }, JWT_SECRET, { expiresIn: '12h' });
     return { success: true, token, driverId: record.driver_id };
 }

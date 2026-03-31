@@ -59,7 +59,8 @@ import { Button } from "../components/Button";
 import { Badge } from "../components/Badge";
 import { PageHeader } from "../components/PageHeader";
 import { TableRowActions } from "../components/TableRowActions";
-import { PAYMENT_API, ADMIN_KEY } from "../utils/env";
+import { PAYMENT_API } from "../utils/env";
+import { fetchWithAuth } from "../utils/api";
 import { IMPORT_SCHEMAS } from "../utils/importEngine";
 import { uid, fmt, canonicalTemplateType } from "../utils/formatters";
 import { exportToExcel, exportToCSV, exportAllToCSV } from "../utils/exportUtils";
@@ -293,14 +294,13 @@ export function Settings({
 
         setPassLoading(true);
         try {
-            const res = await fetch(`${PAYMENT_API}/api/admin/change-password`, {
+            const res = await fetchWithAuth(`${PAYMENT_API}/api/admin/change-password`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json", "Authorization": `Bearer ${adminAuth.getToken()}` },
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     email: operatorEmail,
                     oldPassword: passForm.old,
                     newPassword: passForm.new,
-                    adminKey: ADMIN_KEY
                 }),
             });
             const d = await res.json();
@@ -3157,9 +3157,6 @@ export function Settings({
                             <div style={{ background: "var(--surface-subtle)", borderRadius: 16, padding: 24, border: "1px solid var(--border-subtle)" }}>
                                 <SettingsShellField label="Driver API Endpoint">
                                     <SettingsShellInput value={PAYMENT_API} readOnly style={{ opacity: 0.5, cursor: "not-allowed", fontFamily: "var(--font-mono)" }} />
-                                </SettingsShellField>
-                                <SettingsShellField label="Administrator Secret Key">
-                                    <SettingsShellInput type="password" value={ADMIN_KEY} readOnly style={{ opacity: 0.5, cursor: "not-allowed", fontFamily: "var(--font-mono)" }} />
                                 </SettingsShellField>
                                 <div style={{ display: "flex", gap: 12, marginTop: 12, flexWrap: "wrap" }}>
                                     <Button
