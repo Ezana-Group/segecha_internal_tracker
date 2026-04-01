@@ -50,7 +50,7 @@ export function Incidents({ data, dark, isMobile, driverName, truckReg, setVerif
     const [localIncidents, setLocalIncidents] = useState([]);
 
     const drivers = data.drivers || [];
-    const fleet   = data.fleet   || [];
+    const fleet   = data.trucks  || [];
 
     // Merge server incidents with any locally-added ones (show immediately after submit)
     const allIncidents = [...localIncidents, ...(data.incidents || [])];
