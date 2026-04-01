@@ -50,6 +50,7 @@ import {
     ArrowLeft,
     Send,
     UserRoundCog,
+    Pencil,
 } from "lucide-react";
 
 import { useNavigate, useSearchParams } from "react-router-dom";
