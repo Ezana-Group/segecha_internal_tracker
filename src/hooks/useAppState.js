@@ -14,6 +14,201 @@ const LAST_SYNC_KEY = "segecha_last_server_sync";
 
 const STORAGE_KEY = "segecha_tracker_v2";
 
+/**
+ * Transform raw PostgreSQL rows (snake_case columns + JSONB metadata) into the
+ * camelCase/short-name shape that all frontend components expect.
+ *
+ * Strategy per row:
+ *   1. Spread metadata JSONB first (catches legacy data stored with frontend names)
+ *   2. Override with dedicated DB columns (authoritative source for each field)
+ *   3. Fall back to metadata equivalents where a DB column is null/empty
+ */
+function transformDBTables(tables = {}) {
+    const m = (row) => (row && row.metadata) ? row.metadata : {};
+
+    const trucks = (tables.trucks || []).map(row => ({
+        ...m(row),
+        id:        row.id,
+        uId:       m(row).uId || m(row).uid || row.id,
+        reg:       row.registration_number || m(row).reg || '',
+        make:      m(row).make || row.model || '',
+        year:      m(row).year || '',
+        type:      m(row).type || '',
+        isRigid:   m(row).isRigid ?? false,
+        capacity:  m(row).capacity || '',
+        driver:    m(row).driver || m(row).driverId || row.driver_id || '',
+        status:    row.status || 'Active',
+        odom:      Number(row.current_mileage) || 0,
+        tyreOdom:  Number(row.tyre_odom)       || 0,
+        tyreLimit: Number(row.tyre_limit)       || 0,
+    }));
+
+    const trailers = (tables.trailers || []).map(row => ({
+        ...m(row),
+        id:     row.id,
+        uId:    m(row).uId || m(row).uid || row.id,
+        reg:    row.registration_number || m(row).reg || '',
+        make:   m(row).make || '',
+        type:   row.type || m(row).type || '',
+        status: row.status || 'Active',
+    }));
+
+    const drivers = (tables.drivers || []).map(row => ({
+        ...m(row),
+        id:      row.id,
+        uId:     m(row).uId || m(row).uid || row.id,
+        name:    row.name    || '',
+        phone:   row.phone   || m(row).phone || '',
+        license: row.license_number || m(row).license || '',
+        class:   m(row).class   || '',
+        status:  row.status     || 'Active',
+        truck:   row.truck_id   || m(row).truck || '',
+        joined:  m(row).joined  || '',
+        salary:  m(row).salary  || 0,
+        mpesa:   m(row).mpesa   || '',
+        email:   m(row).email   || row.email || '',
+    }));
+
+    const customers = (tables.customers || []).map(row => ({
+        ...m(row),
+        id:            row.id,
+        uId:           m(row).uId || m(row).uid || row.id,
+        name:          row.name    || '',
+        type:          m(row).type || '',
+        contactPerson: m(row).contactPerson || '',
+        phone:         row.phone   || '',
+        email:         row.email   || '',
+        address:       row.address || '',
+    }));
+
+    const staff = (tables.staff || []).map(row => ({
+        ...m(row),
+        id:         row.id,
+        uId:        m(row).uId || m(row).uid || row.id,
+        name:       row.name   || '',
+        email:      row.email  || '',
+        phone:      row.phone  || '',
+        role:       row.role   || '',
+        status:     row.status || 'Active',
+        salary:     m(row).salary || 0,
+        joined:     m(row).joined || '',
+        firstLogin: m(row).firstLogin ?? true,
+    }));
+
+    const journeys = (tables.journeys || []).map(row => ({
+        ...m(row),
+        id:                  row.id,
+        customerId:          row.customer_id          || m(row).customerId || '',
+        deliveryCustomerId:  row.delivery_customer_id || m(row).deliveryCustomerId || '',
+        truck:               row.truck_id    || m(row).truck   || '',
+        driver:              row.driver_id   || m(row).driver  || '',
+        trailer:             row.trailer_id  || m(row).trailer || '',
+        origin:              row.origin      || '',
+        dest:                row.destination || m(row).dest    || '',
+        date:                row.start_date  || m(row).date    || '',
+        endDate:             row.end_date    || m(row).endDate || '',
+        cargo:               row.cargo_type  || m(row).cargo   || '',
+        status:              row.status      || '',
+        notes:               row.notes       || '',
+        startOdom:           m(row).startOdom || 0,
+        finalOdom:           m(row).finalOdom || 0,
+        distance:            m(row).distance  || 0,
+        revenue:             m(row).revenue   || 0,
+        weight:              m(row).weight    || '',
+        waybillNo:           m(row).waybillNo || '',
+        waybillGenerated:    m(row).waybillGenerated ?? false,
+        waybillData:         m(row).waybillData || null,
+    }));
+
+    const fuel = (tables.fuel_logs || []).map(row => ({
+        ...m(row),
+        id:        row.id,
+        truck:     row.truck_id   || m(row).truck   || '',
+        journey:   row.journey_id || m(row).journey || '',
+        date:      row.date || '',
+        litres:    Number(row.litres) || 0,
+        pricePerL: m(row).pricePerL || (row.amount && row.litres ? row.amount / row.litres : 0),
+        station:   row.station  || '',
+        odom:      m(row).odom  || 0,
+        status:    row.status   || '',
+        amount:    Number(row.amount) || 0,
+    }));
+
+    const expenses = (tables.expenses || []).map(row => ({
+        ...m(row),
+        id:      row.id,
+        truck:   row.truck_id   || m(row).truck   || '',
+        journey: row.journey_id || m(row).journey || '',
+        cat:     row.category   || m(row).cat     || '',
+        amount:  Number(row.amount) || 0,
+        date:    row.date    || '',
+        desc:    row.description || m(row).desc || '',
+        status:  row.status  || '',
+    }));
+
+    const invoices = (tables.invoices || []).map(row => ({
+        ...m(row),
+        id:           row.id,
+        customerId:   row.customer_id || m(row).customerId || '',
+        journey:      row.journey_id  || m(row).journey    || '',
+        client:       m(row).client   || '',
+        phone:        m(row).phone    || '',
+        amount:       Number(row.amount) || 0,
+        issued:       m(row).issued   || row.created_at || '',
+        due:          row.due_date    || m(row).due      || '',
+        status:       row.status      || '',
+        mpesaRef:     m(row).mpesaRef  || '',
+        paidDate:     m(row).paidDate  || '',
+        paidAmount:   m(row).paidAmount || 0,
+        payments:     m(row).payments  || [],
+        notes:        m(row).notes     || '',
+    }));
+
+    const payroll = (tables.payroll || []).map(row => ({
+        ...m(row),
+        id:          row.id,
+        driver:      row.entity_id  || m(row).driver || '',
+        entityType:  row.entity_type || 'driver',
+        month:       row.month   || '',
+        baseSalary:  m(row).baseSalary || Number(row.amount) || 0,
+        allowance:   m(row).allowance  || 0,
+        deductions:  m(row).deductions || 0,
+        amount:      Number(row.amount) || 0,
+        status:      row.status     || '',
+        mpesaRef:    m(row).mpesaRef || '',
+        paidDate:    m(row).paidDate || '',
+    }));
+
+    const incidents = (tables.incidents || []).map(row => ({
+        ...m(row),
+        id:          row.id,
+        journey:     row.journey_id || m(row).journey   || '',
+        type:        row.type       || '',
+        severity:    row.severity   || m(row).severity  || '',
+        description: row.description || '',
+        status:      row.status     || '',
+        date:        m(row).date    || row.created_at   || '',
+        driverId:    m(row).driverId || '',
+        truck:       m(row).truck   || '',
+        location:    m(row).location || '',
+    }));
+
+    return {
+        trucks,
+        trailers,
+        drivers,
+        customers,
+        staff,
+        journeys,
+        fuel,
+        expenses,
+        invoices,
+        payroll,
+        incidents,
+        documents: tables.documents || [],
+    };
+}
+
 /** Append seed templates whose ids are missing from saved data (keeps PDF/SMS rows when older saves overwrote the array). */
 function mergeTemplateList(seedTemplates, savedTemplates) {
     const saved = Array.isArray(savedTemplates) ? [...savedTemplates] : [];
@@ -79,23 +274,12 @@ export function useAppState() {
             if (res.ok) {
                 const result = await res.json();
                 // Server returns { success, data: { version, tables: { trucks, drivers, ... } } }
-                // Map DB table names → frontend state keys
+                // DB uses snake_case columns + JSONB metadata; frontend expects camelCase/short names.
+                // transformDBTables maps every entity to the shape the UI components expect.
                 if (result.success && result.data?.tables) {
-                    const t = result.data.tables;
                     setData(d => ({
                         ...d,
-                        trucks:          t.trucks          ?? [],
-                        trailers:        t.trailers         ?? [],
-                        drivers:         t.drivers          ?? [],
-                        customers:       t.customers        ?? [],
-                        staff:           t.staff            ?? [],
-                        journeys:        t.journeys         ?? [],
-                        fuel:            t.fuel_logs        ?? [],
-                        expenses:        t.expenses         ?? [],
-                        incidents:       t.incidents        ?? [],
-                        invoices:        t.invoices         ?? [],
-                        payroll:         t.payroll          ?? [],
-                        documents:       t.documents        ?? [],
+                        ...transformDBTables(result.data.tables),
                     }));
                 }
             }
