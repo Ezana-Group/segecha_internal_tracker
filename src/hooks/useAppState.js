@@ -218,6 +218,22 @@ function transformDBTables(tables = {}) {
         location:     m(row).location || '',
     }));
 
+    const tyreLogs = (tables.tyre_logs || []).map(row => ({
+        ...m(row),
+        id:           row.id,
+        truck:        row.truck_id     || m(row).truck    || '',
+        position:     row.position     || m(row).position || '',
+        serialNumber: row.serial_number || m(row).serialNumber || '',
+        status:       row.status       || '',
+        date:         m(row).date      || row.created_at  || '',
+        odom:         m(row).odom      || 0,
+        brand:        m(row).brand     || '',
+        size:         m(row).size      || '',
+        cost:         m(row).cost      || 0,
+        notes:        m(row).notes     || '',
+        action:       m(row).action    || 'Replacement',
+    }));
+
     return {
         trucks,
         trailers,
@@ -230,6 +246,7 @@ function transformDBTables(tables = {}) {
         invoices,
         payroll,
         incidents,
+        tyreLogs,
         documents: tables.documents || [],
     };
 }
@@ -256,6 +273,7 @@ export function useAppState() {
         trucks: [], drivers: [], trailers: [], customers: [],
         journeys: [], fuel: [], expenses: [], incidents: [],
         staff: [], payroll: [], invoices: [], documents: [],
+        tyreLogs: [],
     };
     const [data, setData] = useState(() => {
         try {
@@ -577,7 +595,7 @@ export function useAppState() {
     // Frontend name → server collection slug (used in /api/admin/collection/:col)
     const SERVER_COLLECTIONS = new Set([
         'trucks', 'trailers', 'drivers', 'staff', 'customers',
-        'journeys', 'fuel', 'expenses', 'invoices', 'payroll', 'maintenanceLogs',
+        'journeys', 'fuel', 'expenses', 'invoices', 'payroll', 'maintenanceLogs', 'tyreLogs',
     ]);
 
     /**
@@ -1625,6 +1643,70 @@ export function useAppState() {
 
     const tyreStatus = (truck) => maintenanceStatus(truck, "m16"); // Default to tyre replacement setting
 
+    /**
+     * Log a tyre event (replacement, rotation, inspection, puncture repair).
+     * For replacements: resets truck.tyreOdom to the current odometer reading.
+     * Also creates a linked expense entry so it shows in Tyre Spend tab.
+     */
+    const logTyreChange = (entry) => {
+        const logId = 'tyr' + uid().slice(0, 7);
+        const log = {
+            id: logId,
+            truck:        entry.truck,
+            position:     entry.position     || '',
+            serialNumber: entry.serialNumber || '',
+            brand:        entry.brand        || '',
+            size:         entry.size         || '',
+            odom:         Number(entry.odom) || 0,
+            cost:         Number(entry.cost) || 0,
+            date:         entry.date         || today(),
+            action:       entry.action       || 'Replacement',
+            notes:        entry.notes        || '',
+            status:       'Active',
+        };
+
+        setData(d => {
+            const newState = {
+                ...d,
+                tyreLogs: [log, ...(d.tyreLogs || [])],
+            };
+
+            // Reset tyreOdom on the truck when it's a replacement
+            if (entry.action === 'Replacement' || !entry.action) {
+                newState.trucks = d.trucks.map(t =>
+                    t.id === entry.truck ? { ...t, tyreOdom: Number(entry.odom) || t.odom } : t
+                );
+                // Sync updated truck to DB so tyreOdom persists
+                const updatedTruck = newState.trucks.find(t => t.id === entry.truck);
+                if (updatedTruck) {
+                    setTimeout(() => _syncItemToServer('trucks', updatedTruck), 0);
+                }
+            }
+
+            // Add a Tyre expense if cost > 0
+            if (Number(entry.cost) > 0) {
+                const expense = {
+                    id: 'e' + uid().slice(0, 6),
+                    truck: entry.truck,
+                    cat: 'Tyre',
+                    amount: Number(entry.cost),
+                    date: entry.date || today(),
+                    desc: `${entry.action || 'Tyre replacement'} — ${entry.position || ''} ${entry.brand ? '(' + entry.brand + ')' : ''}`.trim(),
+                    journey: '',
+                    status: 'Approved',
+                };
+                newState.expenses = [expense, ...(d.expenses || [])];
+                setTimeout(() => _syncItemToServer('expenses', expense), 0);
+            }
+
+            return newState;
+        });
+
+        // Persist the tyre log to DB
+        _syncItemToServer('tyreLogs', log);
+        showToast("Tyre entry logged", "success");
+    };
+
     const fillTemplate = useCallback((templateStr, context = {}) => {
         if (!templateStr) return "";
         let result = templateStr;
@@ -1655,7 +1737,7 @@ export function useAppState() {
         saveItem, delItem, markPayrollPaid, markInvoicePaid, resetData, hardResetSystem,
         verifyJourney, fetchPendingVerifications, syncToServer,
         verifySubmission,
-        driverName, driverPhone, staffName, truckReg, customerName, truckStats, tyreStatus, maintenanceStatus, logMaintenance,
+        driverName, driverPhone, staffName, truckReg, customerName, truckStats, tyreStatus, maintenanceStatus, logMaintenance, logTyreChange,
         toasts, showToast,
         verifyModal, setVerifyModal, pendingVerifications, rejectReason, setRejectReason, rejectedFields, setRejectedFields, verifyLoading, verifyMsg, setVerifyMsg,
         importSession, setImportSession, importHistory, runExcelImport,

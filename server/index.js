@@ -936,6 +936,15 @@ const ADMIN_COLLECTIONS = {
             next_service_mileage: Number(item.nextOdom || item.next_service_mileage) || 0,
         }),
     },
+    tyreLogs: {
+        table: 'tyre_logs',
+        extract: (item) => ({
+            truck_id:      item.truck  || item.truck_id || null,
+            position:      item.position     || '',
+            serial_number: item.serialNumber || item.serial_number || '',
+            status:        item.status       || 'Active',
+        }),
+    },
 };
 
 // Helper: build INSERT/UPDATE SQL for a collection row
