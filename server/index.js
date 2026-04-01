@@ -186,25 +186,14 @@ const adminAuth = async (req, res, next) => {
         return next();
     }
 
-    // Diagnostic logging for auth failure (suppress full headers in production to avoid log leakage)
-    if (adminKey || authHeader) {
-        const isDev = process.env.NODE_ENV !== 'production';
-        console.warn(`[AUTH] Authentication failure for ${req.method} ${req.path}`);
-        if (isDev) {
-            console.warn(`  - Admin Key received: "${adminKey || '(none)'}" (Matches server? ${adminKey?.trim() === ADMIN_KEY})`);
-            console.warn(`  - Auth Header present: ${!!authHeader}`);
-        }
-    }
-
     // Check JWT Token (Bearer header or HttpOnly cookie — MED-06)
     const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
     const cookieToken = req.cookies?.admin_token;
     const jwtToken = bearerToken || cookieToken;
 
     if (jwtToken) {
-        const token = jwtToken;
         try {
-            const decoded = jwt.verify(token, JWT_SECRET);
+            const decoded = jwt.verify(jwtToken, JWT_SECRET);
             if (decoded.role === 'superadmin' || decoded.role === 'admin') {
                 // Force logout check: Compare session_version in token vs DB
                 const dbRes = await db.query('SELECT session_version FROM admins WHERE id = $1', [decoded.id]);
@@ -212,22 +201,24 @@ const adminAuth = async (req, res, next) => {
                     const currentVersion = dbRes.rows[0].session_version || 1;
                     const tokenVersion = decoded.version || 1;
                     if (tokenVersion < currentVersion) {
+                        console.warn(`[AUTH] Session invalidated (version mismatch) for ${req.method} ${req.path}`);
                         return res.status(401).json({ error: 'Session expired (password changed). Please log in again.' });
                     }
                 }
                 req.admin = decoded;
                 return next();
             }
+            // Token valid but role not permitted
+            console.warn(`[AUTH] Forbidden role "${decoded.role}" for ${req.method} ${req.path}`);
+            return res.status(403).json({ error: 'Insufficient permissions' });
         } catch (e) {
-            console.warn(`[AUTH] JWT Verification failed for ${req.path}: ${e.message}`);
+            console.warn(`[AUTH] Invalid token for ${req.method} ${req.path}: ${e.message}`);
             return res.status(401).json({ error: 'Session expired or invalid' });
         }
     }
 
-    if (authHeader) {
-        console.warn(`[AUTH] Unauthorized access (token missing or invalid role) for ${req.method} ${req.path}`);
-    }
-
+    // No credentials at all
+    console.warn(`[AUTH] No credentials for ${req.method} ${req.path}`);
     return res.status(403).json({ error: 'Unauthorized access' });
 };
 
