@@ -358,6 +358,13 @@ async function autoSeed() {
                 IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='payroll' AND column_name='updated_at') THEN
                     ALTER TABLE payroll ADD COLUMN updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
                 END IF;
+                -- status columns used by ADMIN_COLLECTIONS extract functions
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='fuel_logs' AND column_name='status') THEN
+                    ALTER TABLE fuel_logs ADD COLUMN status TEXT DEFAULT 'Pending';
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='expenses' AND column_name='status') THEN
+                    ALTER TABLE expenses ADD COLUMN status TEXT DEFAULT 'Pending';
+                END IF;
             END $$;
         `);
 
