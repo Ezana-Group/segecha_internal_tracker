@@ -1542,8 +1542,12 @@ export function useAppState() {
 
         setImportSession(s => ({ ...s, committed: true }));
 
-        // Sync to server immediately
-        setTimeout(() => syncToServer(), 500);
+        // Sync each imported record to DB individually so revenue, odom, and all
+        // fields land in the metadata column — syncToServer() is a no-op since the
+        // server now reads from PostgreSQL, not the old JSON blob.
+        newJourneys.forEach(j => _syncItemToServer('journeys', j));
+        newFuel.forEach(f  => _syncItemToServer('fuel',     f));
+        newExpenses.forEach(e => _syncItemToServer('expenses', e));
 
         // Record history
         if (PAYMENT_API) {
@@ -1587,7 +1591,9 @@ export function useAppState() {
         const totalLitres = fuelEntries.reduce((s, f) => s + f.litres, 0);
         const totalKm = jrns.filter(j => j.status === "Completed").reduce((s, j) => s + +j.distance, 0);
         const kmPerL = totalLitres > 0 ? totalKm / totalLitres : 0;
-        const otherExp = data.expenses.filter(e => e.truck === tid).reduce((s, e) => s + +e.amount, 0);
+        // Exclude cat='Fuel' expenses — fuel cost is already tallied from data.fuel (fuel_logs).
+        // Counting both would double-count when a Fuel expense was created alongside a fuel log.
+        const otherExp = data.expenses.filter(e => e.truck === tid && e.cat !== 'Fuel').reduce((s, e) => s + +e.amount, 0);
         const exp = fuelCost + otherExp;
         return { rev, exp, profit: rev - exp, trips: jrns.length, totalKm, totalLitres, fuelCost, kmPerL };
     };

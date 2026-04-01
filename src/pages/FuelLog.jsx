@@ -372,10 +372,10 @@ export function FuelLog({ data, isMobile, modal, form, setForm, openModal, close
                                                     <MapPin size={12} color="var(--brand-primary)" /> {f.station}
                                                 </div>
                                             </td>
-                                            <td title={`${truckReg(f.truck)} | ${(f.odom || 0).toLocaleString()} KM`}>
+                                            <td title={`${truckReg(f.truck)}${f.odom > 0 ? ` | ${f.odom.toLocaleString()} KM` : ''}`}>
                                                 <div style={{ fontWeight: 800, color: "var(--brand-primary)", fontSize: 13 }}>{truckReg(f.truck)}</div>
-                                                <div style={{ fontSize: 10, color: "var(--text-dim)", marginTop: 2, fontWeight: 600 }}>
-                                                    {(f.odom || 0).toLocaleString()} KM Reading
+                                                <div style={{ fontSize: 10, color: f.odom > 0 ? "var(--text-dim)" : "var(--text-muted)", marginTop: 2, fontWeight: 600 }}>
+                                                    {f.odom > 0 ? `${f.odom.toLocaleString()} KM Reading` : 'Odom not recorded'}
                                                 </div>
                                             </td>
                                             <td title={f.litres.toLocaleString()}>
