@@ -1446,6 +1446,10 @@ button.journeys-table-link:hover {
 .settings-sidebar.is-collapsed {
   width: 58px;
 }
+.settings-sidebar.is-collapsed .settings-sidebar-head {
+  justify-content: center;
+}
+.settings-sidebar.is-collapsed .settings-sidebar-title-compact { display: none; }
 .settings-sidebar.is-collapsed .settings-nav-group-label { display: none; }
 .settings-sidebar.is-collapsed .settings-nav-item {
   justify-content: center;
