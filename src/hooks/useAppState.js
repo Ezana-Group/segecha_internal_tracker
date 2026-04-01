@@ -28,27 +28,33 @@ function mergeTemplateList(seedTemplates, savedTemplates) {
 }
 
 export function useAppState() {
-    // P1.1 — localStorage-backed state
+    // P1.1 — Server-first state: collections always come from the DB.
+    // localStorage is used only as a short-lived cache for non-collection settings/templates.
+    // SEED dummy data (T001, D001…) is never shown in production — collections start empty
+    // and are populated by fetchTrackerData() after login.
+    const EMPTY_COLLECTIONS = {
+        trucks: [], drivers: [], trailers: [], customers: [],
+        journeys: [], fuel: [], expenses: [], incidents: [],
+        staff: [], payroll: [], invoices: [], documents: [],
+    };
     const [data, setData] = useState(() => {
         try {
             const saved = localStorage.getItem(STORAGE_KEY);
-            // If we have saved data, use it; otherwise, check if we should start fresh
-            // or use SEED. For production alignment, we prefer empty if reset was called.
             if (saved) {
                 const parsed = JSON.parse(saved);
-                return { 
-                    ...SEED, 
+                // Keep non-collection settings from cache but reset collections so
+                // server data always wins on next fetchTrackerData call.
+                return {
+                    ...SEED,
                     ...parsed,
-                    templates: mergeTemplateList(SEED.templates, parsed.templates)
+                    ...EMPTY_COLLECTIONS,          // wipe any cached/seed collections
+                    templates: mergeTemplateList(SEED.templates, parsed.templates),
                 };
             }
-            // If no saved data, check if we just did a reset
-            const lastSync = localStorage.getItem(LAST_SYNC_KEY);
-            if (lastSync === 'CLEAN_WIPE') return { ...SEED, trucks: [], drivers: [], journeys: [], fuel: [], expenses: [], incidents: [], customers: [], trailers: [], staff: [], payroll: [], invoices: [], documents: [] };
-            
-            return SEED;
+            // No saved data — start fully clean; server will populate everything.
+            return { ...SEED, ...EMPTY_COLLECTIONS };
         } catch {
-            return SEED;
+            return { ...SEED, ...EMPTY_COLLECTIONS };
         }
     });
 
@@ -72,8 +78,25 @@ export function useAppState() {
             }
             if (res.ok) {
                 const result = await res.json();
-                if (result.success && result.data) {
-                    setData(d => ({ ...d, ...result.data }));
+                // Server returns { success, data: { version, tables: { trucks, drivers, ... } } }
+                // Map DB table names → frontend state keys
+                if (result.success && result.data?.tables) {
+                    const t = result.data.tables;
+                    setData(d => ({
+                        ...d,
+                        trucks:          t.trucks          ?? [],
+                        trailers:        t.trailers         ?? [],
+                        drivers:         t.drivers          ?? [],
+                        customers:       t.customers        ?? [],
+                        staff:           t.staff            ?? [],
+                        journeys:        t.journeys         ?? [],
+                        fuel:            t.fuel_logs        ?? [],
+                        expenses:        t.expenses         ?? [],
+                        incidents:       t.incidents        ?? [],
+                        invoices:        t.invoices         ?? [],
+                        payroll:         t.payroll          ?? [],
+                        documents:       t.documents        ?? [],
+                    }));
                 }
             }
         } catch (e) {
@@ -83,8 +106,16 @@ export function useAppState() {
         }
     }, []);
 
+    // Run on mount
     useEffect(() => {
         fetchTrackerData();
+    }, [fetchTrackerData]);
+
+    // Re-run whenever the user logs in (same-tab login dispatches 'segecha:login')
+    useEffect(() => {
+        const handleLogin = () => fetchTrackerData();
+        window.addEventListener('segecha:login', handleLogin);
+        return () => window.removeEventListener('segecha:login', handleLogin);
     }, [fetchTrackerData]);
 
     useEffect(() => {

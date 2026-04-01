@@ -5,6 +5,8 @@ export const adminAuth = {
   setSession: (token, user) => {
     localStorage.setItem(TOKEN_KEY, token);
     localStorage.setItem(USER_KEY, JSON.stringify(user));
+    // Signal useAppState to immediately fetch real data from the server
+    window.dispatchEvent(new CustomEvent('segecha:login'));
   },
   
   clearSession: () => {
