@@ -21,8 +21,16 @@ export async function fetchWithAuth(url, options = {}) {
     finalUrl = `${PAYMENT_API}${url.startsWith('/') ? '' : '/'}${url}`;
   }
 
-  return fetch(finalUrl, {
+  const res = await fetch(finalUrl, {
     ...options,
     headers,
   });
+
+  // Auto-clear stale session on 401 so the login screen re-appears
+  if (res.status === 401) {
+    adminAuth.clearSession();
+    window.location.reload();
+  }
+
+  return res;
 }

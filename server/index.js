@@ -681,6 +681,37 @@ app.get(['/api/admin/journeys/pending', '/api/admin/journeys/pending-verificatio
     }
 });
 
+// Admin: log an incident directly (no driver submission required)
+app.post('/admin/incidents', async (req, res) => {
+    const { incidentType, description, driverId, truck, location, date } = req.body;
+    const id = `INC-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const now = new Date().toISOString();
+    try {
+        await db.query(
+            `INSERT INTO incidents (id, type, description, status, metadata) VALUES ($1,$2,$3,'Open',$4)`,
+            [
+                id,
+                incidentType || 'Other',
+                description || '',
+                JSON.stringify({
+                    driverId: driverId || '',
+                    truck: truck || '',
+                    location: location || '',
+                    date: date || now.split('T')[0],
+                    incidentType: incidentType || 'Other',
+                    _pendingApproval: false,
+                    _submittedAt: now,
+                    _loggedBy: req.admin?.email || 'admin',
+                }),
+            ]
+        );
+        res.json({ success: true, id });
+    } catch (e) {
+        console.error('[INCIDENTS] Failed to create incident:', e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
 // Import history (Now using DB journeys)
 app.get(['/api/admin/history', '/api/admin/import-history'], async (req, res) => {
     try {
