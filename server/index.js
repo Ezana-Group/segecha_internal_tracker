@@ -811,9 +811,232 @@ app.post('/api/admin/upload', (req, res) => {
     res.status(410).json({ error: 'Deprecated. Use POST /api/documents/upload instead.' });
 });
 
-// Generic collection update — not implemented; return 501 so callers know (HIGH-07)
-app.put('/api/admin/:col/:id', (req, res) => {
-    res.status(501).json({ error: 'Generic collection update not implemented. Use the specific entity endpoint.' });
+// ─── GENERIC ADMIN CRUD ────────────────────────────────────────────────────
+// Maps frontend collection names → DB tables + dedicated column extraction.
+// The ENTIRE frontend object is always stored in metadata (lossless).
+// Dedicated columns are ALSO extracted so transformDBTables() reads them correctly.
+
+const ADMIN_COLLECTIONS = {
+    trucks: {
+        table: 'trucks',
+        extract: (item) => ({
+            registration_number: item.reg || item.registration_number || '',
+            model:               item.make || item.model || '',
+            status:              item.status || 'Active',
+            current_mileage:     Number(item.odom || item.current_mileage) || 0,
+            tyre_odom:           Number(item.tyreOdom || item.tyre_odom) || 0,
+            tyre_limit:          Number(item.tyreLimit || item.tyre_limit) || 0,
+        }),
+    },
+    trailers: {
+        table: 'trailers',
+        extract: (item) => ({
+            registration_number: item.reg || item.registration_number || '',
+            type:                item.type || '',
+            status:              item.status || 'Active',
+        }),
+    },
+    drivers: {
+        table: 'drivers',
+        extract: (item) => ({
+            name:           item.name    || '',
+            phone:          item.phone   || '',
+            license_number: item.license || item.license_number || '',
+            status:         item.status  || 'Active',
+            truck_id:       item.truck   || item.truck_id || null,
+        }),
+    },
+    staff: {
+        table: 'staff',
+        extract: (item) => ({
+            name:   item.name   || '',
+            role:   item.role   || '',
+            email:  item.email  || '',
+            phone:  item.phone  || '',
+            status: item.status || 'Active',
+        }),
+    },
+    customers: {
+        table: 'customers',
+        extract: (item) => ({
+            name:    item.name    || '',
+            phone:   item.phone   || '',
+            email:   item.email   || '',
+            address: item.address || '',
+            status:  item.status  || 'Active',
+        }),
+    },
+    journeys: {
+        table: 'journeys',
+        extract: (item) => ({
+            truck_id:             item.truck   || item.truck_id             || null,
+            driver_id:            item.driver  || item.driver_id            || null,
+            trailer_id:           item.trailer || item.trailer_id           || null,
+            customer_id:          item.customerId || item.customer_id       || null,
+            delivery_customer_id: item.deliveryCustomerId || item.delivery_customer_id || null,
+            origin:               item.origin      || '',
+            destination:          item.dest || item.destination             || '',
+            cargo_type:           item.cargo || item.cargoType || item.cargo_type || '',
+            status:               item.status      || 'Loading',
+            start_date:           item.date || item.start_date              || null,
+            end_date:             item.endDate || item.end_date             || null,
+            notes:                item.notes       || '',
+        }),
+    },
+    fuel: {
+        table: 'fuel_logs',
+        extract: (item) => ({
+            truck_id:   item.truck   || item.truck_id   || null,
+            journey_id: item.journey || item.journey_id || null,
+            date:       item.date    || null,
+            amount:     Number(item.amount) || 0,
+            litres:     Number(item.litres) || 0,
+            station:    item.station || '',
+            status:     item.status  || 'Pending',
+        }),
+    },
+    expenses: {
+        table: 'expenses',
+        extract: (item) => ({
+            journey_id:  item.journey  || item.journey_id || null,
+            category:    item.cat      || item.category   || '',
+            amount:      Number(item.amount) || 0,
+            date:        item.date     || null,
+            description: item.desc     || item.description || '',
+            status:      item.status   || 'Pending',
+        }),
+    },
+    invoices: {
+        table: 'invoices',
+        extract: (item) => ({
+            customer_id: item.customerId || item.customer_id || null,
+            journey_id:  item.journey    || item.journey_id  || null,
+            amount:      Number(item.amount) || 0,
+            due_date:    item.due || item.dueDate || item.due_date || null,
+            status:      item.status || 'Pending',
+        }),
+    },
+    payroll: {
+        table: 'payroll',
+        extract: (item) => ({
+            entity_id:   item.driver     || item.entity_id   || null,
+            entity_type: item.entityType || item.entity_type || 'driver',
+            amount:      Number(item.amount || item.baseSalary) || 0,
+            month:       item.month  || '',
+            status:      item.status || 'Pending',
+        }),
+    },
+    maintenanceLogs: {
+        table: 'maintenance_logs',
+        extract: (item) => ({
+            truck_id:             item.truck || item.truck_id || null,
+            date:                 item.date  || null,
+            description:          item.desc  || item.description || '',
+            cost:                 Number(item.amount || item.cost) || 0,
+            next_service_mileage: Number(item.nextOdom || item.next_service_mileage) || 0,
+        }),
+    },
+};
+
+// Helper: build INSERT/UPDATE SQL for a collection row
+async function upsertCollectionRow(collection, item) {
+    const cfg = ADMIN_COLLECTIONS[collection];
+    if (!cfg) throw new Error(`Unknown collection: ${collection}`);
+    const cols = cfg.extract(item);
+    const meta = JSON.stringify(item); // full frontend object → lossless metadata
+
+    const colNames  = Object.keys(cols);
+    const colValues = Object.values(cols);
+
+    // Check if row exists
+    const existing = await db.query(`SELECT id FROM ${cfg.table} WHERE id = $1`, [item.id]);
+    if (existing.rows.length > 0) {
+        // UPDATE
+        const sets = colNames.map((c, i) => `${c} = $${i + 2}`).join(', ');
+        await db.query(
+            `UPDATE ${cfg.table} SET ${sets}, metadata = $${colNames.length + 2}, updated_at = NOW() WHERE id = $1`,
+            [item.id, ...colValues, meta]
+        );
+    } else {
+        // INSERT
+        const placeholders = colNames.map((_, i) => `$${i + 3}`).join(', ');
+        await db.query(
+            `INSERT INTO ${cfg.table} (id, metadata, ${colNames.join(', ')}) VALUES ($1, $2, ${placeholders})`,
+            [item.id, meta, ...colValues]
+        );
+    }
+}
+
+// POST /api/admin/collection/:col — create or upsert a record
+app.post('/api/admin/collection/:col', async (req, res) => {
+    const { col } = req.params;
+    if (!ADMIN_COLLECTIONS[col]) return res.status(400).json({ error: `Unknown collection: ${col}` });
+    try {
+        await upsertCollectionRow(col, req.body);
+        res.json({ success: true });
+    } catch (e) {
+        console.error(`[CRUD] POST ${col} failed:`, e.message);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// PUT /api/admin/collection/:col/:id — update a record
+app.put('/api/admin/collection/:col/:id', async (req, res) => {
+    const { col } = req.params;
+    if (!ADMIN_COLLECTIONS[col]) return res.status(400).json({ error: `Unknown collection: ${col}` });
+    try {
+        await upsertCollectionRow(col, { ...req.body, id: req.params.id });
+        res.json({ success: true });
+    } catch (e) {
+        console.error(`[CRUD] PUT ${col}/${req.params.id} failed:`, e.message);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// DELETE /api/admin/collection/:col/:id — delete a record
+app.delete('/api/admin/collection/:col/:id', async (req, res) => {
+    const { col, id } = req.params;
+    const cfg = ADMIN_COLLECTIONS[col];
+    if (!cfg) return res.status(400).json({ error: `Unknown collection: ${col}` });
+    try {
+        await db.query(`DELETE FROM ${cfg.table} WHERE id = $1`, [id]);
+        res.json({ success: true });
+    } catch (e) {
+        console.error(`[CRUD] DELETE ${col}/${id} failed:`, e.message);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// PATCH /api/admin/collection/:col/:id — partial update (e.g. markPaid)
+app.patch('/api/admin/collection/:col/:id', async (req, res) => {
+    const { col, id } = req.params;
+    const cfg = ADMIN_COLLECTIONS[col];
+    if (!cfg) return res.status(400).json({ error: `Unknown collection: ${col}` });
+    try {
+        // Fetch existing row, merge patch, then upsert
+        const result = await db.query(`SELECT * FROM ${cfg.table} WHERE id = $1`, [id]);
+        if (result.rows.length === 0) return res.status(404).json({ error: 'Record not found' });
+        const existing = result.rows[0];
+        const existingMeta = existing.metadata || {};
+        const merged = { ...existingMeta, ...req.body, id };
+        await upsertCollectionRow(col, merged);
+        res.json({ success: true });
+    } catch (e) {
+        console.error(`[CRUD] PATCH ${col}/${id} failed:`, e.message);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// Legacy PUT /api/admin/:col/:id — now forwards to the collection handler
+app.put('/api/admin/:col/:id', async (req, res) => {
+    const { col, id } = req.params;
+    if (!ADMIN_COLLECTIONS[col]) return res.status(501).json({ error: `No handler for collection: ${col}` });
+    try {
+        await upsertCollectionRow(col, { ...req.body, id });
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
 });
 
 // Admin verification for journeys (start or completion)

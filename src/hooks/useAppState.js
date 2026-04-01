@@ -573,14 +573,35 @@ export function useAppState() {
         setWaybillModalJourney(journey);
     }, [data.trucks, data.drivers, data.trailers, data.invoices, data.customers]);
 
+    // Collections that have server-side CRUD endpoints.
+    // Frontend name → server collection slug (used in /api/admin/collection/:col)
+    const SERVER_COLLECTIONS = new Set([
+        'trucks', 'trailers', 'drivers', 'staff', 'customers',
+        'journeys', 'fuel', 'expenses', 'invoices', 'payroll', 'maintenanceLogs',
+    ]);
+
+    /**
+     * Persist a single item to the server in the background.
+     * Never blocks the UI — optimistic local update already happened.
+     */
+    const _syncItemToServer = useCallback((col, item) => {
+        if (!PAYMENT_API || !SERVER_COLLECTIONS.has(col)) return;
+        fetchWithAuth(`${PAYMENT_API}/api/admin/collection/${col}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(item),
+        }).catch(err => console.warn(`[SYNC] ${col} save failed:`, err.message));
+    }, []);
+
     const saveItem = (col, item, options = {}) => {
         const skipClose = options?.skipClose === true;
         let isNew = false;
+        let finalItem = { ...item };
+
         setData(d => {
             const arr = [...(d[col] || [])];
             const i = arr.findIndex(x => x.id === item.id);
 
-            let finalItem = { ...item };
             if (col === 'journeys') {
                 if (finalItem.startOdom && finalItem.finalOdom) {
                     finalItem.distance = Number(finalItem.finalOdom) - Number(finalItem.startOdom);
@@ -605,7 +626,6 @@ export function useAppState() {
                             customers: settings.customerIdPrefix || 'CST-',
                             trailers: settings.trailerIdPrefix || 'TRL-',
                         };
-
                         if (prefixes[col]) {
                             const count = (d[col] || []).length + 1;
                             uId = prefixes[col] + String(count).padStart(3, '0');
@@ -614,11 +634,14 @@ export function useAppState() {
                         console.error("Error generating uId:", e);
                     }
                 }
-
-                arr.push({ ...finalItem, id: finalItem.id || uid(), uId });
+                finalItem = { ...finalItem, id: finalItem.id || uid(), uId };
+                arr.push(finalItem);
             }
             return { ...d, [col]: arr };
         });
+
+        // Persist to DB in the background (non-blocking)
+        _syncItemToServer(col, finalItem);
 
         if (!options?.silent) {
             if (isNew && col === 'drivers') {
@@ -668,19 +691,17 @@ export function useAppState() {
         const desc = label ? `"${label}"` : 'this record';
         if (!window.confirm(`Delete ${desc}? This cannot be undone.`)) return;
 
+        // Optimistic local delete
         setData(d => ({ ...d, [col]: d[col].filter(x => x.id !== id) }));
 
-        if (PAYMENT_API) {
+        // Persist deletion to DB
+        if (PAYMENT_API && SERVER_COLLECTIONS.has(col)) {
             try {
-                const res = await fetchWithAuth(`${PAYMENT_API}/api/admin/${col}/${id}`, {
+                const res = await fetchWithAuth(`${PAYMENT_API}/api/admin/collection/${col}/${id}`, {
                     method: 'DELETE',
                 });
                 const j = await res.json().catch(() => ({}));
-                if (res.ok && j.success) {
-                    console.log(`Backend sync: deleted ${id} from ${col}`);
-                } else {
-                    console.warn(`Backend delete failed: ${j.error || res.status}. Local delete persists.`);
-                }
+                if (!res.ok) console.warn(`Backend delete failed: ${j.error || res.status}. Local delete persists.`);
             } catch (err) {
                 console.warn(`Sync failed: ${err.message}. Local delete persists.`);
             }
@@ -690,32 +711,57 @@ export function useAppState() {
     };
 
     const markPayrollPaid = (id) => {
+        const paidDate = today();
+        const mpesaRef = "MPESA" + uid().slice(0, 8);
         setData(d => ({
             ...d,
-            payroll: d.payroll.map(p => p.id === id ? { ...p, status: "Paid", paidDate: today(), mpesaRef: "MPESA" + uid().slice(0, 8) } : p)
+            payroll: d.payroll.map(p => p.id === id ? { ...p, status: "Paid", paidDate, mpesaRef } : p)
         }));
+        // Persist status change to DB
+        if (PAYMENT_API) {
+            fetchWithAuth(`${PAYMENT_API}/api/admin/collection/payroll/${id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: 'Paid', paidDate, mpesaRef }),
+            }).catch(err => console.warn('[SYNC] markPayrollPaid failed:', err.message));
+        }
         showToast("Payroll marked as paid", "success");
     };
 
     const markInvoicePaid = (id) => {
+        const paidDate = today();
+        const mpesaRef = "QJK" + uid().slice(0, 7);
+        let updatedInvoice = null;
         setData(d => ({
             ...d,
-            invoices: d.invoices.map(i => i.id === id ? {
-                ...i,
-                status: "Paid",
-                paidAmount: +i.amount,
-                paidDate: today(),
-                mpesaRef: "QJK" + uid().slice(0, 7),
-                payments: [...(i.payments || []), {
-                    id: uid().slice(0, 8),
-                    date: today(),
-                    amount: +i.amount - (+i.paidAmount || 0),
-                    method: 'Quick Pay',
-                    ref: "QJK" + uid().slice(0, 7),
-                    notes: 'Marked as paid by admin'
-                }]
-            } : i)
+            invoices: d.invoices.map(i => {
+                if (i.id !== id) return i;
+                updatedInvoice = {
+                    ...i,
+                    status: "Paid",
+                    paidAmount: +i.amount,
+                    paidDate,
+                    mpesaRef,
+                    payments: [...(i.payments || []), {
+                        id: uid().slice(0, 8),
+                        date: paidDate,
+                        amount: +i.amount - (+i.paidAmount || 0),
+                        method: 'Quick Pay',
+                        ref: mpesaRef,
+                        notes: 'Marked as paid by admin'
+                    }]
+                };
+                return updatedInvoice;
+            })
         }));
+        // Persist status change to DB
+        if (PAYMENT_API && updatedInvoice) {
+            fetchWithAuth(`${PAYMENT_API}/api/admin/collection/invoices/${id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: 'Paid', paidAmount: updatedInvoice.paidAmount, paidDate, mpesaRef, payments: updatedInvoice.payments }),
+            }).catch(err => console.warn('[SYNC] markInvoicePaid failed:', err.message));
+        }
         showToast("Invoice marked as paid", "success");
     };
 
@@ -1569,6 +1615,11 @@ export function useAppState() {
             maintenanceLogs: [log, ...d.maintenanceLogs],
             expenses: [expense, ...d.expenses]
         }));
+
+        // Persist both the maintenance log and the linked expense to DB
+        _syncItemToServer('maintenanceLogs', log);
+        _syncItemToServer('expenses', expense);
+
         showToast("Maintenance logged and expense added", "success");
     };
 
