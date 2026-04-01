@@ -262,20 +262,31 @@ console.log(`[SERVER] Static paths resolved at ${new Date().toISOString()}:`);
 });
 
 // --- PUBLIC FRONTEND & STATIC ASSETS ---
+// Cache headers helper for static portals
+const staticOpts = {
+    setHeaders(res, filePath) {
+        if (filePath.endsWith('index.html')) {
+            res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        } else if (/\/assets\//.test(filePath)) {
+            res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        }
+    },
+};
+
 // Domain-based static serving (for driver.segecha.com, track.segecha.com etc)
 app.use((req, res, next) => {
     const host = req.hostname || '';
-    if (host.startsWith('driver.')) return express.static(DRIVER_DIST)(req, res, next);
-    if (host.startsWith('track.')) return express.static(TRACK_DIST)(req, res, next);
-    if (host.startsWith('pay.') || host.startsWith('payment.')) return express.static(PAY_DIST)(req, res, next);
+    if (host.startsWith('driver.')) return express.static(DRIVER_DIST, staticOpts)(req, res, next);
+    if (host.startsWith('track.')) return express.static(TRACK_DIST, staticOpts)(req, res, next);
+    if (host.startsWith('pay.') || host.startsWith('payment.')) return express.static(PAY_DIST, staticOpts)(req, res, next);
     next();
 });
 // 1. Specific Portals first (more specific routes)
-app.use('/driver', express.static(DRIVER_DIST));
-app.use('/track', express.static(TRACK_DIST));
-app.use('/pay', express.static(PAY_DIST));
+app.use('/driver', express.static(DRIVER_DIST, staticOpts));
+app.use('/track', express.static(TRACK_DIST, staticOpts));
+app.use('/pay', express.static(PAY_DIST, staticOpts));
 // 2. Root Admin Panel
-app.use(express.static(ADMIN_DIST));
+app.use(express.static(ADMIN_DIST, staticOpts));
 // Handle React routing (SPA)
 app.use((req, res, next) => {
     if (req.method !== 'GET') return next();
