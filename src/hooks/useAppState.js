@@ -4,7 +4,7 @@ import { today, uid } from "../utils/formatters";
 import { TYRE_WARN_KM } from "../constants/nav";
 import { PAYMENT_API, DRIVER_PORTAL_URL } from "../utils/env";
 import { fetchWithAuth } from "../utils/api";
-import { readSettings, getCrossBorderRules } from "../utils/settingsStore.js";
+import { readSettings, writeSettingsLocal, getCrossBorderRules } from "../utils/settingsStore.js";
 import { mergeProfilePermissions } from "../utils/profilePermissions.js";
 import { expandMessageTemplateContext } from "../utils/templateContext.js";
 import { readPreviewFromSession, writePreviewToSession } from "../constants/previewNav.js";
@@ -302,10 +302,25 @@ export function useAppState() {
                 // DB uses snake_case columns + JSONB metadata; frontend expects camelCase/short names.
                 // transformDBTables maps every entity to the shape the UI components expect.
                 if (result.success && result.data?.tables) {
+                    // Restore entity collections
                     setData(d => ({
                         ...d,
                         ...transformDBTables(result.data.tables),
                     }));
+
+                    // Restore settings from system_settings table rows.
+                    // Each row is { key, value } where value is JSONB.
+                    // Merge into localStorage without triggering another server sync.
+                    const settingRows = result.data.tables.system_settings;
+                    if (Array.isArray(settingRows) && settingRows.length > 0) {
+                        const dbSettings = {};
+                        for (const row of settingRows) {
+                            if (row.key) dbSettings[row.key] = row.value;
+                        }
+                        // DB wins for every key it has; local-only keys are preserved
+                        const current = readSettings();
+                        writeSettingsLocal({ ...current, ...dbSettings });
+                    }
                 }
             }
         } catch (e) {

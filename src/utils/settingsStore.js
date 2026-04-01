@@ -8,11 +8,42 @@
  * - `GlobalModals`, `InvoiceView`, `PaymentRequestModal` — invoice/company copy
  * - `WaybillModal` / `waybillPrint.js` — carrier defaults, logo, counter, cross-border keyword rules (`crossBorderRules`)
  * - `Maintenance` page — maintenance schedule JSON
- * - Server sync (`syncToServer`) — pushes tracker `data` + should include settings in exports
+ * - Server sync — every `writeSettings` call debounces a push to /api/tracker/snapshot
+ *   so settings survive localStorage clears (restored by useAppState on login).
  *
  * Use `patchSettings` from UI so all listeners stay aligned. Direct `localStorage` writes
  * elsewhere should gradually migrate here.
  */
+
+import { PAYMENT_API } from './env';
+import { adminAuth } from './adminAuth';
+
+// Debounce timer for server sync — avoids one API call per keystroke
+let _syncTimer = null;
+
+/**
+ * Push the current full settings object to the server (system_settings table).
+ * Called automatically by writeSettings; debounced 2s.
+ * Silent on failure — localStorage is still the source of truth for immediate reads.
+ */
+function _syncToServer(settings) {
+    if (!PAYMENT_API) return;
+    if (_syncTimer) clearTimeout(_syncTimer);
+    _syncTimer = setTimeout(async () => {
+        try {
+            const token = adminAuth.getToken();
+            if (!token) return;
+            await fetch(`${PAYMENT_API}/api/tracker/snapshot`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                },
+                body: JSON.stringify({ settings }),
+            });
+        } catch { /* silent — localStorage copy is still intact */ }
+    }, 2000);
+}
 
 export const SETTINGS_STORAGE_KEY = "segecha_settings";
 
@@ -131,10 +162,20 @@ export function readSettings() {
     }
 }
 
-/** Replace entire settings object (e.g. restore backup). */
-export function writeSettings(next) {
+/**
+ * Write settings to localStorage only — used internally when restoring from the
+ * server so we don't echo the data straight back to the API.
+ */
+export function writeSettingsLocal(next) {
     localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(next));
     window.dispatchEvent(new CustomEvent(CHANGE_EVENT, { detail: next }));
+    return next;
+}
+
+/** Replace entire settings object and sync to server (e.g. user save, restore backup). */
+export function writeSettings(next) {
+    writeSettingsLocal(next);
+    _syncToServer(next); // debounced push to /api/tracker/snapshot
     return next;
 }
 
