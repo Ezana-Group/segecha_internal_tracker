@@ -343,6 +343,14 @@ BEGIN
         ALTER TABLE journeys  ADD COLUMN updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
     END IF;
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_name='fuel_logs' AND column_name='updated_at') THEN
+        ALTER TABLE fuel_logs ADD COLUMN updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_name='expenses' AND column_name='updated_at') THEN
+        ALTER TABLE expenses  ADD COLUMN updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
                    WHERE table_name='fuel_logs' AND column_name='status') THEN
         ALTER TABLE fuel_logs ADD COLUMN status TEXT DEFAULT 'Pending';
     END IF;

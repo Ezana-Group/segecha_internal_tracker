@@ -338,12 +338,25 @@ async function autoSeed() {
 
         console.log(`[SEED] Ensuring system tables and columns...`);
         
-        // 0. Schema Migrations (Ensure session_version exists for force-logout feature)
+        // 0. Schema Migrations
         await db.query(`
-            DO $$ 
-            BEGIN 
+            DO $$
+            BEGIN
                 IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='admins' AND column_name='session_version') THEN
                     ALTER TABLE admins ADD COLUMN session_version INTEGER DEFAULT 1;
+                END IF;
+                -- updated_at columns needed by upsertCollectionRow UPDATE queries
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='fuel_logs' AND column_name='updated_at') THEN
+                    ALTER TABLE fuel_logs ADD COLUMN updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='expenses' AND column_name='updated_at') THEN
+                    ALTER TABLE expenses ADD COLUMN updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='invoices' AND column_name='updated_at') THEN
+                    ALTER TABLE invoices ADD COLUMN updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='payroll' AND column_name='updated_at') THEN
+                    ALTER TABLE payroll ADD COLUMN updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
                 END IF;
             END $$;
         `);
@@ -889,7 +902,8 @@ const ADMIN_COLLECTIONS = {
             truck_id:   item.truck   || item.truck_id   || null,
             journey_id: item.journey || item.journey_id || null,
             date:       item.date    || null,
-            amount:     Number(item.amount) || 0,
+            // amount = total cost (litres × pricePerL); pricePerL lives in metadata via full-object JSON
+            amount:     (Number(item.litres) || 0) * (Number(item.pricePerL) || 0),
             litres:     Number(item.litres) || 0,
             station:    item.station || '',
             status:     item.status  || 'Pending',
