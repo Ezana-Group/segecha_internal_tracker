@@ -80,7 +80,8 @@ export function Dashboard({ data, dark, truckStats, tyreStatus, truckReg, driver
 
     const totalRevenue = data.journeys.filter(j => j.status === "Completed" && j.date?.startsWith(latestMonth)).reduce((s, j) => s + +j.revenue, 0);
     const totalFuelCost = data.fuel.filter(f => f.date?.startsWith(latestMonth)).reduce((s, f) => s + f.litres * f.pricePerL, 0);
-    const totalOtherExp = data.expenses.filter(e => e.date?.startsWith(latestMonth)).reduce((s, e) => s + +e.amount, 0);
+    // Exclude cat='Fuel' expenses — fuel cost is already counted from data.fuel (fuel_logs).
+    const totalOtherExp = data.expenses.filter(e => e.date?.startsWith(latestMonth) && e.cat !== 'Fuel').reduce((s, e) => s + +e.amount, 0);
     const totalExpenses = totalFuelCost + totalOtherExp;
     const netProfit = totalRevenue - totalExpenses;
     const invList = Array.isArray(data.invoices) ? data.invoices : [];
@@ -129,7 +130,8 @@ export function Dashboard({ data, dark, truckStats, tyreStatus, truckReg, driver
     const getMonthData = (m) => {
         const rev = data.journeys.filter(j => j.status === "Completed" && j.date?.startsWith(m)).reduce((s, j) => s + +j.revenue, 0);
         const fuel = data.fuel.filter(f => f.date?.startsWith(m)).reduce((s, f) => s + f.litres * f.pricePerL, 0);
-        const exp = data.expenses.filter(e => e.date?.startsWith(m)).reduce((s, e) => s + +e.amount, 0);
+        // Exclude cat='Fuel' expenses to avoid double-counting with fuel_logs
+        const exp = data.expenses.filter(e => e.date?.startsWith(m) && e.cat !== 'Fuel').reduce((s, e) => s + +e.amount, 0);
         return { rev, exp: fuel + exp };
     };
 

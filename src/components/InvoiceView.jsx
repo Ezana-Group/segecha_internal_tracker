@@ -12,7 +12,7 @@ import {
     User,
     CreditCard
 } from "lucide-react";
-import { fmt, canonicalTemplateType } from "../utils/formatters";
+import { fmt, fmtDate, canonicalTemplateType } from "../utils/formatters";
 
 const VAT_RATE = 0.16;
 
@@ -21,8 +21,9 @@ export function InvoiceView({ inv, data, dark, fillTemplate }) {
     const journey = data.journeys.find(j => j.id === inv.journey);
     const truck = journey ? data.trucks.find(t => t.id === journey.truck) : null;
     const driver = journey ? data.drivers.find(d => d.id === journey.driver) : null;
-    const vat = Math.round(inv.amount * 0.16);
-    const subtotal = inv.amount - vat;
+    // inv.amount is the total (VAT-inclusive). Back-calculate net + tax correctly.
+    const subtotal = Math.round(Number(inv.amount) / 1.16);
+    const vat = Number(inv.amount) - subtotal;
 
     // Template Logic
     const templateId = s.defaultInvoiceTemplate;
@@ -133,8 +134,8 @@ export function InvoiceView({ inv, data, dark, fillTemplate }) {
                 </div>
                 <div style={{ textAlign: "right" }}>
                     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                        <div style={{ fontSize: 14, color: "var(--text-secondary)" }}>Issued: <b style={{ color: "var(--text-primary)" }}>{inv.issued}</b></div>
-                        <div style={{ fontSize: 14, color: "var(--text-secondary)" }}>Due: <b style={{ color: "#ef4444" }}>{inv.due}</b></div>
+                        <div style={{ fontSize: 14, color: "var(--text-secondary)" }}>Issued: <b style={{ color: "var(--text-primary)" }}>{fmtDate(inv.issued)}</b></div>
+                        <div style={{ fontSize: 14, color: "var(--text-secondary)" }}>Due: <b style={{ color: "#ef4444" }}>{fmtDate(inv.due)}</b></div>
                     </div>
                     <div style={{ marginTop: 16 }}>
                         <span style={{ 

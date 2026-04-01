@@ -36,7 +36,14 @@ export function PnL({ data, dark, isMobile, truckStats, truckReg, customerName, 
     const [activeTab, setActiveTab] = useState('analytics'); // 'analytics' | 'statement'
 
     const totalSalaries = data.payroll.filter(p => p.status === "Paid").reduce((s, p) => s + +p.baseSalary + +p.allowance - +p.deductions, 0);
-    const invoicesPaid = data.invoices.filter(i => i.status === "Paid").reduce((s, i) => s + +i.paidAmount || 0, 0);
+    const invoicesPaid = data.invoices.filter(i => i.status === "Paid").reduce((s, i) => s + (+i.paidAmount || 0), 0);
+    // Pre-compute statement totals once for reuse in JSX
+    const stmtFreightRevenue = data.journeys.filter(j => j.status === "Completed").reduce((s, j) => s + +j.revenue, 0);
+    const stmtFuelCost = data.fuel.reduce((s, f) => s + f.litres * f.pricePerL, 0);
+    // Exclude cat='Fuel' expenses — already counted in stmtFuelCost from fuel_logs
+    const stmtOtherExp = data.expenses.filter(e => e.cat !== 'Fuel').reduce((s, e) => s + +e.amount, 0);
+    const stmtTotalExp = stmtFuelCost + stmtOtherExp + totalSalaries;
+    const stmtNetProfit = stmtFreightRevenue - stmtTotalExp;
 
     // Refine trucks for performance matrix sorting
     const refinedMatrix = data.trucks.map(t => {
@@ -396,16 +403,16 @@ export function PnL({ data, dark, isMobile, truckStats, truckReg, customerName, 
                                     </div>
                                     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                            <span style={{ fontWeight: 600, color: "var(--text-secondary)" }}>Freight Revenue (All)</span>
-                                            <span style={{ fontWeight: 800, color: "#10b981" }}>{fmt(data.journeys.filter(j => j.status === "Completed").reduce((s, j) => s + +j.revenue, 0))}</span>
+                                            <span style={{ fontWeight: 600, color: "var(--text-secondary)" }}>Freight Revenue (Completed trips)</span>
+                                            <span style={{ fontWeight: 800, color: "#10b981" }}>{fmt(stmtFreightRevenue)}</span>
                                         </div>
                                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                            <span style={{ fontWeight: 600, color: "var(--text-secondary)" }}>Invoices Collected (M-Pesa)</span>
+                                            <span style={{ fontWeight: 600, color: "var(--text-secondary)" }}>Cash Collected (Invoices paid)</span>
                                             <span style={{ fontWeight: 800, color: "#10b981" }}>{fmt(invoicesPaid)}</span>
                                         </div>
                                         <div style={{ borderTop: "2px solid var(--border-subtle)", paddingTop: 16, marginTop: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                                             <span style={{ fontWeight: 900, color: "var(--text-primary)" }}>TOTAL INCOME</span>
-                                            <span style={{ fontWeight: 900, color: "#10b981", fontSize: 18 }}>{fmt(data.journeys.filter(j => j.status === "Completed").reduce((s, j) => s + +j.revenue, 0))}</span>
+                                            <span style={{ fontWeight: 900, color: "#10b981", fontSize: 18 }}>{fmt(stmtFreightRevenue)}</span>
                                         </div>
                                     </div>
                                 </div>
@@ -418,7 +425,7 @@ export function PnL({ data, dark, isMobile, truckStats, truckReg, customerName, 
                                     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                                             <span style={{ fontWeight: 600, color: "var(--text-secondary)" }}>Fuel Consumption</span>
-                                            <span style={{ fontWeight: 700, color: "var(--text-primary)" }}>{fmt(data.fuel.reduce((s, f) => s + f.litres * f.pricePerL, 0))}</span>
+                                            <span style={{ fontWeight: 700, color: "var(--text-primary)" }}>{fmt(stmtFuelCost)}</span>
                                         </div>
                                         {catBreakdown.map(c => (
                                             <div key={c.cat} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -430,26 +437,26 @@ export function PnL({ data, dark, isMobile, truckStats, truckReg, customerName, 
                                             <span style={{ fontWeight: 600, color: "var(--text-secondary)" }}>Payroll (Paid Salaries)</span>
                                             <span style={{ fontWeight: 700, color: "var(--text-primary)" }}>{fmt(totalSalaries)}</span>
                                         </div>
-                                        
+
                                         <div style={{ borderTop: "2px solid var(--border-subtle)", paddingTop: 16, marginTop: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                                             <span style={{ fontWeight: 900, color: "var(--text-primary)" }}>TOTAL EXPENSES</span>
-                                            <span style={{ fontWeight: 900, color: "#f97316", fontSize: 18 }}>{fmt(data.fuel.reduce((s, f) => s + f.litres * f.pricePerL, 0) + data.expenses.reduce((s, e) => s + +e.amount, 0))}</span>
+                                            <span style={{ fontWeight: 900, color: "#f97316", fontSize: 18 }}>{fmt(stmtTotalExp)}</span>
                                         </div>
                                     </div>
                                 </div>
                             </div>
 
-                            <div style={{ background: "#10b98108", borderRadius: 16, padding: "24px 32px", border: "1px solid #10b98120", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <div style={{ background: stmtNetProfit >= 0 ? "#10b98108" : "#ef444408", borderRadius: 16, padding: "24px 32px", border: `1px solid ${stmtNetProfit >= 0 ? "#10b98120" : "#ef444420"}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                                 <div>
-                                    <div style={{ fontSize: 12, fontWeight: 800, color: "#10b981", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>
-                                        Net Operating Profit
+                                    <div style={{ fontSize: 12, fontWeight: 800, color: stmtNetProfit >= 0 ? "#10b981" : "#ef4444", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>
+                                        Net Operating {stmtNetProfit >= 0 ? "Profit" : "Loss"}
                                     </div>
-                                    <div style={{ fontSize: 32, fontWeight: 900, color: "#10b981" }}>
-                                        {fmt(data.journeys.filter(j => j.status === "Completed").reduce((s, j) => s + +j.revenue, 0) - (data.fuel.reduce((s, f) => s + f.litres * f.pricePerL, 0) + data.expenses.reduce((s, e) => s + +e.amount, 0)))}
+                                    <div style={{ fontSize: 32, fontWeight: 900, color: stmtNetProfit >= 0 ? "#10b981" : "#ef4444" }}>
+                                        {fmt(stmtNetProfit)}
                                     </div>
                                 </div>
                                 <div style={{ textAlign: "right", color: "var(--text-dim)", fontSize: 12, fontWeight: 600 }}>
-                                    Operational Efficiency: {((data.journeys.filter(j => j.status === "Completed").reduce((s, j) => s + +j.revenue, 0) - (data.fuel.reduce((s, f) => s + f.litres * f.pricePerL, 0) + data.expenses.reduce((s, e) => s + +e.amount, 0))) / (data.journeys.filter(j => j.status === "Completed").reduce((s, j) => s + +j.revenue, 0) || 1) * 100).toFixed(1)}% <br />
+                                    Operating Margin: {stmtFreightRevenue > 0 ? (stmtNetProfit / stmtFreightRevenue * 100).toFixed(1) : 0}% <br />
                                     Report Type: Internal Audit
                                 </div>
                             </div>

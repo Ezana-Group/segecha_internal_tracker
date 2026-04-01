@@ -2282,66 +2282,77 @@ export function Settings({
 
                             {!localS._activeTemplateId ? (
                                 <>
-                                    <p className="template-studio-instructions">
-                                        Use placeholders such as <code>{"{{businessName}}"}</code>, <code>{"{{invoiceId}}"}</code>,{" "}
-                                        <code>{"{{destination}}"}</code>, <code>{"{{waybillNo}}"}</code>, and <code>{"{{staffId}}"}</code>. Snake_case
-                                        variants (e.g. <code>{"{{customer_name}}"}</code>) still work. Sample preview uses your organization name from
-                                        Settings where available.
-                                    </p>
-
-                                    <div className="template-studio-tabs" role="tablist" aria-label="Template channel">
+                                    {/* ── Channel filter tabs with counts ── */}
+                                    <div style={{ display: "flex", gap: 4, marginBottom: 20, background: "var(--surface-subtle)", padding: 4, borderRadius: 14, width: "fit-content", flexWrap: "wrap" }}>
                                         {["Email", "PDF", "SMS", "WhatsApp"].map((tf) => {
                                             const TIcon = tf === "Email" ? Mail : tf === "PDF" ? FileText : tf === "SMS" ? MessageSquare : MessageCircle;
+                                            const count = (data.templates || []).filter(t => canonicalTemplateType(t.type) === tf).length;
+                                            const isActive = templateTypeFilter === tf;
                                             return (
                                                 <button
                                                     key={tf}
                                                     type="button"
                                                     role="tab"
-                                                    aria-selected={templateTypeFilter === tf}
-                                                    className={`template-studio-tab${templateTypeFilter === tf ? " is-active" : ""}`}
-                                                    onClick={() => setTemplateTypeFilter(tf)}
-                                                    style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 18px", fontSize: 13, fontWeight: 700 }}
+                                                    aria-selected={isActive}
+                                                    onClick={() => { setTemplateTypeFilter(tf); setTemplateSearch(""); }}
+                                                    style={{
+                                                        display: "flex", alignItems: "center", gap: 7,
+                                                        padding: "8px 16px", borderRadius: 10, border: "none", cursor: "pointer",
+                                                        fontSize: 13, fontWeight: 700, transition: "all 0.15s",
+                                                        background: isActive ? "var(--bg-card)" : "transparent",
+                                                        color: isActive ? "var(--text-primary)" : "var(--text-dim)",
+                                                        boxShadow: isActive ? "0 1px 4px rgba(0,0,0,0.1)" : "none",
+                                                    }}
                                                 >
-                                                    <TIcon size={16} />
+                                                    <TIcon size={15} />
                                                     {tf}
+                                                    {count > 0 && (
+                                                        <span style={{
+                                                            background: isActive ? "var(--brand-primary)" : "var(--border-subtle)",
+                                                            color: isActive ? "#fff" : "var(--text-muted)",
+                                                            fontSize: 10, fontWeight: 800, minWidth: 18, height: 18,
+                                                            borderRadius: 99, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 5px"
+                                                        }}>{count}</span>
+                                                    )}
                                                 </button>
                                             );
                                         })}
                                     </div>
 
-                                    <div className="template-studio-search-row">
-                                        <div className="template-studio-search-input-wrap">
-                                            <Search size={18} strokeWidth={2} className="template-studio-search-icon" aria-hidden />
-                                            <input
-                                                value={templateSearch}
-                                                onChange={(e) => setTemplateSearch(e.target.value)}
-                                                placeholder="Search templates…"
-                                                className="template-studio-search-input"
-                                                aria-label="Search templates"
-                                            />
-                                        </div>
-                                        <Button
-                                            type="button"
-                                            variant="premium"
-                                            onClick={() =>
-                                                showToast?.(
-                                                    `${filteredTemplates.length} ${templateTypeFilter} template(s) match your search.`,
-                                                    "success"
-                                                )
-                                            }
-                                        >
-                                            Search
-                                        </Button>
+                                    {/* ── Search bar ── */}
+                                    <div style={{ position: "relative", marginBottom: 24 }}>
+                                        <Search size={16} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "var(--text-dim)", pointerEvents: "none" }} />
+                                        <input
+                                            value={templateSearch}
+                                            onChange={(e) => setTemplateSearch(e.target.value)}
+                                            placeholder={`Search ${templateTypeFilter} templates…`}
+                                            style={{
+                                                width: "100%", height: 42, paddingLeft: 40, paddingRight: 16,
+                                                border: "1px solid var(--border-subtle)", borderRadius: 12,
+                                                background: "var(--surface-card)", color: "var(--text-primary)",
+                                                fontSize: 14, fontWeight: 500, boxSizing: "border-box", outline: "none",
+                                            }}
+                                        />
+                                    </div>
+
+                                    {/* ── Placeholder hint ── */}
+                                    <div style={{ fontSize: 12, color: "var(--text-dim)", marginBottom: 20, lineHeight: 1.6, padding: "10px 14px", background: "var(--surface-subtle)", borderRadius: 10, borderLeft: "3px solid var(--border-subtle)" }}>
+                                        Use <code style={{ background: "var(--bg-card)", padding: "1px 5px", borderRadius: 4, fontSize: 11, fontFamily: "monospace" }}>{"{{businessName}}"}</code>,{" "}
+                                        <code style={{ background: "var(--bg-card)", padding: "1px 5px", borderRadius: 4, fontSize: 11, fontFamily: "monospace" }}>{"{{invoiceId}}"}</code>,{" "}
+                                        <code style={{ background: "var(--bg-card)", padding: "1px 5px", borderRadius: 4, fontSize: 11, fontFamily: "monospace" }}>{"{{customerName}}"}</code>,{" "}
+                                        <code style={{ background: "var(--bg-card)", padding: "1px 5px", borderRadius: 4, fontSize: 11, fontFamily: "monospace" }}>{"{{destination}}"}</code> and more. Click any template to edit.
                                     </div>
 
                                     {filteredTemplates.length === 0 ? (
-                                        <Card style={{ padding: 56, textAlign: "center", border: "1px dashed var(--border-subtle)", borderRadius: 20, background: "var(--surface-subtle)" }}>
-                                            <PenLine size={40} color="var(--text-dim)" style={{ margin: "0 auto 16px", opacity: 0.6 }} />
-                                            <div style={{ fontSize: 18, fontWeight: 800, color: "var(--text-primary)", marginBottom: 8 }}>No templates yet</div>
-                                            <p style={{ color: "var(--text-muted)", marginBottom: 20, fontSize: 14 }}>
-                                                {(data.templates || []).length === 0
-                                                    ? `Create your first ${templateTypeFilter} template.`
-                                                    : `No ${templateTypeFilter} templates match your search.`}
+                                        <div style={{ padding: "60px 24px", textAlign: "center", background: "var(--surface-subtle)", borderRadius: 20, border: "1px dashed var(--border-subtle)" }}>
+                                            <div style={{ width: 56, height: 56, borderRadius: 16, background: "var(--bg-card)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", border: "1px solid var(--border-subtle)" }}>
+                                                <PenLine size={24} color="var(--text-dim)" />
+                                            </div>
+                                            <div style={{ fontSize: 16, fontWeight: 800, color: "var(--text-primary)", marginBottom: 6 }}>
+                                                {(data.templates || []).length === 0 ? "No templates yet" : `No ${templateTypeFilter} templates`}
+                                            </div>
+                                            <p style={{ color: "var(--text-muted)", marginBottom: 20, fontSize: 13 }}>
+                                                {templateSearch ? `No results for "${templateSearch}".` : `Create your first ${templateTypeFilter} template to get started.`}
                                             </p>
                                             <Button
                                                 variant="premium"
@@ -2349,13 +2360,11 @@ export function Settings({
                                                 onClick={() => {
                                                     const id = uid();
                                                     const newTpl = {
-                                                        id,
-                                                        name: "New template",
+                                                        id, name: "New template",
                                                         subject: "Subject line with {{businessName}}",
                                                         description: "When this message is sent (e.g. after invoice issued).",
                                                         body: templateTypeFilter === "PDF" ? "<h1>{{businessName}}</h1><p></p>" : "Hello {{customerName}},\n\n",
-                                                        type: templateTypeFilter,
-                                                        category: "General",
+                                                        type: templateTypeFilter, category: "General",
                                                         _editorMode: templateTypeFilter === "PDF" ? "HTML" : "Visual",
                                                         updatedAt: new Date().toISOString(),
                                                     };
@@ -2364,94 +2373,109 @@ export function Settings({
                                                     showToast?.("Template created — edit below", "success");
                                                 }}
                                             >
-                                                Create template
+                                                Create {templateTypeFilter} template
                                             </Button>
-                                        </Card>
+                                        </div>
                                     ) : (
-                                        <Card style={{ padding: 0, overflow: "hidden", borderRadius: 20, border: "1px solid var(--border-subtle)" }}>
-                                            <div className="table-container">
-                                                <table className="table-modern template-studio-table">
-                                                    <thead>
-                                                        <tr>
-                                                            <th className="sticky-col" title="Template">Template</th>
-                                                            <th title="Description">Description</th>
-                                                            <th title="Last updated">Last updated</th>
-                                                            <th className="status-col" style={{ textAlign: "right" }} title="Actions">Actions</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody>
-                                                        {filteredTemplates.map((t) => {
-                                                            const updatedLabel = t.updatedAt
-                                                                ? new Date(t.updatedAt).toLocaleDateString("en-GB", {
-                                                                      day: "numeric",
-                                                                      month: "short",
-                                                                      year: "numeric",
-                                                                  })
-                                                                : "—";
-                                                            return (
-                                                                <tr
-                                                                    key={t.id}
-                                                                    className="template-studio-table-row"
-                                                                    onClick={() => {
-                                                                        setTemplateTypeFilter(canonicalTemplateType(t.type));
-                                                                        setLocalS((s) => ({ ...s, _activeTemplateId: t.id }));
-                                                                    }}
+                                        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fill, minmax(300px, 1fr))", gap: 16 }}>
+                                            {filteredTemplates.map((t) => {
+                                                const tplType = canonicalTemplateType(t.type);
+                                                const TIcon = tplType === "Email" ? Mail : tplType === "PDF" ? FileText : tplType === "SMS" ? MessageSquare : MessageCircle;
+                                                const channelColor = tplType === "Email" ? "#3b82f6" : tplType === "PDF" ? "#ef4444" : tplType === "SMS" ? "#10b981" : "#22c55e";
+                                                const updatedLabel = t.updatedAt
+                                                    ? new Date(t.updatedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
+                                                    : "—";
+                                                return (
+                                                    <div
+                                                        key={t.id}
+                                                        onClick={() => { setTemplateTypeFilter(tplType); setLocalS((s) => ({ ...s, _activeTemplateId: t.id })); }}
+                                                        style={{
+                                                            background: "var(--bg-card)", borderRadius: 16, border: "1px solid var(--border-subtle)",
+                                                            cursor: "pointer", display: "flex", flexDirection: "column", overflow: "hidden",
+                                                            transition: "box-shadow 0.15s, border-color 0.15s",
+                                                        }}
+                                                        onMouseOver={(e) => { e.currentTarget.style.boxShadow = "0 4px 20px rgba(0,0,0,0.08)"; e.currentTarget.style.borderColor = channelColor + "60"; }}
+                                                        onMouseOut={(e) => { e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.borderColor = "var(--border-subtle)"; }}
+                                                    >
+                                                        {/* Card accent bar */}
+                                                        <div style={{ height: 3, background: channelColor, width: "100%" }} />
+
+                                                        {/* Card body */}
+                                                        <div style={{ padding: "18px 20px", flex: 1 }}>
+                                                            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8, marginBottom: 10 }}>
+                                                                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                                                    <div style={{ width: 36, height: 36, borderRadius: 10, background: channelColor + "18", display: "flex", alignItems: "center", justifyContent: "center", color: channelColor, flexShrink: 0 }}>
+                                                                        <TIcon size={18} />
+                                                                    </div>
+                                                                    <div>
+                                                                        <div style={{ fontSize: 14, fontWeight: 800, color: "var(--text-primary)", lineHeight: 1.3 }}>{t.name}</div>
+                                                                        <div style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 2, display: "flex", alignItems: "center", gap: 6 }}>
+                                                                            <span style={{ background: "var(--surface-subtle)", padding: "1px 6px", borderRadius: 4, fontWeight: 700 }}>{t.category || "General"}</span>
+                                                                            <span>·</span>
+                                                                            <span>{tplType}</span>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+
+                                                            {t.description && (
+                                                                <p style={{ fontSize: 12, color: "var(--text-muted)", margin: 0, lineHeight: 1.5, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                                                                    {t.description}
+                                                                </p>
+                                                            )}
+
+                                                            {t.subject && tplType !== "PDF" && (
+                                                                <div style={{ marginTop: 10, padding: "6px 10px", background: "var(--surface-subtle)", borderRadius: 8, fontSize: 11, color: "var(--text-secondary)", fontFamily: "monospace", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                                                    {t.subject}
+                                                                </div>
+                                                            )}
+                                                        </div>
+
+                                                        {/* Card footer */}
+                                                        <div style={{ padding: "12px 20px", borderTop: "1px solid var(--border-subtle)", display: "flex", justifyContent: "space-between", alignItems: "center", background: "var(--surface-subtle)" }}>
+                                                            <span style={{ fontSize: 11, color: "var(--text-dim)", fontWeight: 600 }}>Updated {updatedLabel}</span>
+                                                            <div style={{ display: "flex", gap: 4 }} onClick={(e) => e.stopPropagation()}>
+                                                                <button
+                                                                    type="button"
+                                                                    title="Edit template"
+                                                                    onClick={(e) => { e.stopPropagation(); setTemplateTypeFilter(tplType); setLocalS((s) => ({ ...s, _activeTemplateId: t.id })); }}
+                                                                    style={{ border: "none", background: "none", color: "var(--brand-primary)", fontWeight: 700, fontSize: 12, cursor: "pointer", padding: "4px 10px", borderRadius: 8, display: "flex", alignItems: "center", gap: 4 }}
                                                                 >
-                                                                    <td className="sticky-col" title={t.name}>
-                                                                        <div style={{ fontWeight: 800, color: "var(--text-primary)", fontSize: 14 }}>{t.name}</div>
-                                                                        <div style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 4 }}>{t.category || "General"}</div>
-                                                                    </td>
-                                                                    <td style={{ color: "var(--text-secondary)", fontSize: 13, maxWidth: 360 }} title={t.description || "No description"}>
-                                                                        {t.description || "—"}
-                                                                    </td>
-                                                                    <td style={{ color: "var(--text-muted)", fontSize: 13, whiteSpace: "nowrap" }} title={updatedLabel}>{updatedLabel}</td>
-                                                                    <td className="status-col" style={{ textAlign: "right", display: "flex", justifyContent: "flex-end", gap: 12, alignItems: "center" }}>
-                                                                        <button
-                                                                            type="button"
-                                                                            className="template-studio-edit-link"
-                                                                            onClick={(e) => {
-                                                                                e.stopPropagation();
-                                                                                setLocalS((s) => ({ ...s, _activeTemplateId: t.id }));
-                                                                            }}
-                                                                            title="Edit template"
-                                                                        >
-                                                                            Edit
-                                                                        </button>
-                                                                        <button
-                                                                            type="button"
-                                                                            className="template-studio-delete-icon-btn"
-                                                                            onClick={(e) => {
-                                                                                e.stopPropagation();
-                                                                                if (window.confirm(`Delete the template "${t.name}" permanently?`)) {
-                                                                                    setData((d) => ({ ...d, templates: (d.templates || []).filter((tx) => tx.id !== t.id) }));
-                                                                                    showToast?.("Template deleted", "success");
-                                                                                }
-                                                                            }}
-                                                                            style={{ 
-                                                                                background: "none", 
-                                                                                border: "none", 
-                                                                                color: "#ef4444", 
-                                                                                cursor: "pointer", 
-                                                                                padding: "6px",
-                                                                                borderRadius: "8px",
-                                                                                display: "flex",
-                                                                                alignItems: "center",
-                                                                                transition: "background 0.2s"
-                                                                            }}
-                                                                            onMouseOver={(e) => e.currentTarget.style.background = "#fee2e2"}
-                                                                            onMouseOut={(e) => e.currentTarget.style.background = "none"}
-                                                                            title="Delete template"
-                                                                        >
-                                                                            <Trash2 size={18} />
-                                                                        </button>
-                                                                    </td>
-                                                                </tr>
-                                                            );
-                                                        })}
-                                                    </tbody>
-                                                </table>
-                                            </div>
-                                        </Card>
+                                                                    <Pencil size={13} /> Edit
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    title="Duplicate template"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        const newId = uid();
+                                                                        setData((d) => ({ ...d, templates: [...(d.templates || []), { ...t, id: newId, name: t.name + " (copy)", updatedAt: new Date().toISOString() }] }));
+                                                                        showToast?.("Template duplicated", "success");
+                                                                    }}
+                                                                    style={{ border: "none", background: "none", color: "var(--text-dim)", fontSize: 12, fontWeight: 700, cursor: "pointer", padding: "4px 10px", borderRadius: 8, display: "flex", alignItems: "center", gap: 4 }}
+                                                                >
+                                                                    <Copy size={13} /> Copy
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    title="Delete template"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        if (window.confirm(`Delete "${t.name}" permanently?`)) {
+                                                                            setData((d) => ({ ...d, templates: (d.templates || []).filter((tx) => tx.id !== t.id) }));
+                                                                            showToast?.("Template deleted", "success");
+                                                                        }
+                                                                    }}
+                                                                    style={{ border: "none", background: "none", color: "#ef4444", fontSize: 12, fontWeight: 700, cursor: "pointer", padding: "4px 8px", borderRadius: 8, display: "flex", alignItems: "center" }}
+                                                                >
+                                                                    <Trash2 size={13} />
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
                                     )}
                                 </>
                             ) : (

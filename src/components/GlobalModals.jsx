@@ -176,8 +176,8 @@ export function GlobalModals(props) {
                     )}
                     <Field label="Station Name" k="station" form={form} setForm={setForm} S={S} />
                     <Field label="Odometer Reading (km)" k="odom" type="number" form={form} setForm={setForm} S={S} />
-                    <Field label="Linked Journey" k="journey" options={[{ v: "", l: "None" }, ...data.journeys.map(j => ({ v: j.id, l: `${j.origin}→${j.dest} (${j.date})` }))]} full form={form} setForm={setForm} S={S} />
-                    
+                    <Field label="Linked Journey" k="journey" options={[{ v: "", l: "None" }, ...data.journeys.map(j => ({ v: j.id, l: `${j.origin}→${j.dest} (${fmtDate(j.date)})` }))]} full form={form} setForm={setForm} S={S} />
+
                     <div style={{ ...S.fg, gridColumn: "1/-1", paddingTop: 12, borderTop: `1px solid ${T.border2}`, marginTop: 8 }}>
                         <div style={{ fontWeight: 800, fontSize: 13, marginBottom: 12, color: T.text }}>Fuel verification photos</div>
                         <div style={S.fgg(3)}>
@@ -234,8 +234,8 @@ export function GlobalModals(props) {
                     <Field label="Amount (KES)" k="amount" type="number" form={form} setForm={setForm} S={S} error={errors.amount} />
                     <Field label="Date" k="date" type="date" form={form} setForm={setForm} S={S} />
                     <Field label="Description" k="desc" full form={form} setForm={setForm} S={S} placeholder="e.g. Workshop repair, Toll fee..." />
-                    <Field label="Linked Journey" k="journey" options={[{ v: "", l: "None" }, ...data.journeys.map(j => ({ v: j.id, l: `${j.origin}→${j.dest} (${j.date})` }))]} full form={form} setForm={setForm} S={S} />
-                    
+                    <Field label="Linked Journey" k="journey" options={[{ v: "", l: "None" }, ...data.journeys.map(j => ({ v: j.id, l: `${j.origin}→${j.dest} (${fmtDate(j.date)})` }))]} full form={form} setForm={setForm} S={S} />
+
                     <div style={{ ...S.fg, gridColumn: "1/-1" }}>
                         <FuelPhotoField label="Receipt / Invoice Photo" k="receiptUrl" form={form} setForm={setForm} S={S} T={T} />
                     </div>
@@ -263,7 +263,7 @@ export function GlobalModals(props) {
             }} S={S} closeModal={closeModal} saveDisabled={hasErrors}>
                 <div style={S.fgg(2)}>
                     <Field label="Customer" k="customerId" options={data.customers.map(c => ({ v: c.id, l: c.name }))} form={form} setForm={setForm} S={S} />
-                    <Field label="Linked Journey" k="journey" options={[{ v: "", l: "None" }, ...data.journeys.map(j => ({ v: j.id, l: `${j.origin}→${j.dest} (${j.date})` }))]} form={form} setForm={setForm} S={S} />
+                    <Field label="Linked Journey" k="journey" options={[{ v: "", l: "None" }, ...data.journeys.map(j => ({ v: j.id, l: `${j.origin}→${j.dest} (${fmtDate(j.date)})` }))]} form={form} setForm={setForm} S={S} />
                     <Field label="Amount (KES)" k="amount" type="number" form={form} setForm={setForm} S={S} error={errors.amount} />
                     
                     {form.amount && (

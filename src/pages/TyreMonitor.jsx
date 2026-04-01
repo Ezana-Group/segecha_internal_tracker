@@ -1,9 +1,11 @@
 import React, { useState } from "react";
-import { CircleDot, Gauge, AlertTriangle, Pencil, Search as SearchIcon, CreditCard, Activity, AlertCircle, Plus, X, ClipboardList } from "lucide-react";
+import { CircleDot, Gauge, AlertTriangle, Pencil, Search as SearchIcon, CreditCard, Activity, AlertCircle, Plus, ClipboardList } from "lucide-react";
 import { Card } from "../components/Card";
 import { Button } from "../components/Button";
 import { Badge } from "../components/Badge";
 import { PageHeader } from "../components/PageHeader";
+import { Modal } from "../components/Modal";
+import { Field } from "../components/Field";
 import { SortableTableHead } from "../components/SortableTableHead";
 import { useTableFilter } from "../hooks/useTableFilter";
 import { fmt, fmtN, fmtDate, today } from "../utils/formatters";
@@ -31,7 +33,7 @@ const EMPTY_LOG_FORM = {
     notes: "",
 };
 
-export function TyreMonitor({ data, dark, openModal, tyreStatus, truckReg, logTyreChange, isMobile }) {
+export function TyreMonitor({ data, dark, openModal, tyreStatus, truckReg, logTyreChange, isMobile, S, T }) {
     const [activeTab, setActiveTab] = useState("health");
     const [logModal, setLogModal] = useState(false);
     const [logForm, setLogForm] = useState(EMPTY_LOG_FORM);
@@ -142,14 +144,9 @@ export function TyreMonitor({ data, dark, openModal, tyreStatus, truckReg, logTy
         }
     };
 
-    // ── Shared styles ──────────────────────────────────────────────────────
-    const inputStyle = {
-        width: "100%", padding: "10px 14px", borderRadius: 10,
-        border: "1.5px solid var(--border-subtle)", background: "var(--surface-card)",
-        color: "var(--text-primary)", fontSize: 14, fontWeight: 500, boxSizing: "border-box",
-    };
-    const labelStyle = { fontSize: 12, fontWeight: 700, color: "var(--text-dim)", textTransform: "uppercase", marginBottom: 6, display: "block" };
-    const fieldStyle = { display: "flex", flexDirection: "column" };
+    // ── Shared modal form helpers ──────────────────────────────────────────
+    // logForm works as the Field component's `form` object; patch() acts as setForm
+    const setLogFormField = (updater) => setLogForm(f => typeof updater === 'function' ? updater(f) : updater);
 
     const tabs = [
         { id: "health", label: "Tyre Health",       icon: Activity      },
@@ -404,125 +401,70 @@ export function TyreMonitor({ data, dark, openModal, tyreStatus, truckReg, logTy
             )}
 
             {/* ── LOG ENTRY MODAL ── */}
-            {logModal && (
-                <div style={{
-                    position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", backdropFilter: "blur(4px)",
-                    zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 20
-                }} onClick={(e) => { if (e.target === e.currentTarget) setLogModal(false); }}>
-                    <div style={{
-                        background: "var(--surface-card)", borderRadius: 20, padding: 32, width: "100%",
-                        maxWidth: 560, maxHeight: "90vh", overflowY: "auto",
-                        boxShadow: "0 24px 80px rgba(0,0,0,0.35)"
-                    }}>
-                        {/* Header */}
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-                            <div>
-                                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
-                                    <CircleDot size={22} color="var(--brand-primary)" />
-                                    <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: "var(--text-primary)" }}>Log Tyre Entry</h2>
-                                </div>
-                                <p style={{ margin: 0, fontSize: 13, color: "var(--text-dim)" }}>Record a tyre replacement, rotation, or inspection.</p>
-                            </div>
-                            <button onClick={() => setLogModal(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-dim)", borderRadius: 8, padding: 6 }}>
-                                <X size={20} />
-                            </button>
-                        </div>
-
-                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                            {/* Vehicle */}
-                            <div style={{ ...fieldStyle, gridColumn: "1 / -1" }}>
-                                <label style={labelStyle}>Vehicle *</label>
-                                <select value={logForm.truck} onChange={e => patch("truck", e.target.value)} style={inputStyle}>
-                                    <option value="">Select vehicle...</option>
-                                    {(data.trucks || []).map(t => (
-                                        <option key={t.id} value={t.id}>{t.reg} {t.make ? `— ${t.make}` : ""}</option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            {/* Action */}
-                            <div style={fieldStyle}>
-                                <label style={labelStyle}>Action *</label>
-                                <select value={logForm.action} onChange={e => patch("action", e.target.value)} style={inputStyle}>
-                                    {TYRE_ACTIONS.map(a => <option key={a} value={a}>{a}</option>)}
-                                </select>
-                            </div>
-
-                            {/* Position */}
-                            <div style={fieldStyle}>
-                                <label style={labelStyle}>Position</label>
-                                <select value={logForm.position} onChange={e => patch("position", e.target.value)} style={inputStyle}>
-                                    {TYRE_POSITIONS.map(p => <option key={p} value={p}>{p}</option>)}
-                                </select>
-                            </div>
-
-                            {/* Date */}
-                            <div style={fieldStyle}>
-                                <label style={labelStyle}>Date</label>
-                                <input type="date" value={logForm.date} onChange={e => patch("date", e.target.value)} style={inputStyle} />
-                            </div>
-
-                            {/* Odometer */}
-                            <div style={fieldStyle}>
-                                <label style={labelStyle}>Odometer (km)</label>
-                                <input type="number" placeholder="e.g. 142300" value={logForm.odom}
-                                    onChange={e => patch("odom", e.target.value)} style={inputStyle} />
-                            </div>
-
-                            {/* Brand */}
-                            <div style={fieldStyle}>
-                                <label style={labelStyle}>Brand</label>
-                                <input type="text" placeholder="e.g. Michelin" value={logForm.brand}
-                                    onChange={e => patch("brand", e.target.value)} style={inputStyle} />
-                            </div>
-
-                            {/* Size */}
-                            <div style={fieldStyle}>
-                                <label style={labelStyle}>Tyre Size</label>
-                                <input type="text" placeholder="e.g. 11R22.5" value={logForm.size}
-                                    onChange={e => patch("size", e.target.value)} style={inputStyle} />
-                            </div>
-
-                            {/* Serial Number */}
-                            <div style={fieldStyle}>
-                                <label style={labelStyle}>Serial Number</label>
-                                <input type="text" placeholder="Optional" value={logForm.serialNumber}
-                                    onChange={e => patch("serialNumber", e.target.value)} style={inputStyle} />
-                            </div>
-
-                            {/* Cost */}
-                            <div style={fieldStyle}>
-                                <label style={labelStyle}>Cost (KES)</label>
-                                <input type="number" placeholder="0" value={logForm.cost}
-                                    onChange={e => patch("cost", e.target.value)} style={inputStyle} />
-                            </div>
-
-                            {/* Notes */}
-                            <div style={{ ...fieldStyle, gridColumn: "1 / -1" }}>
-                                <label style={labelStyle}>Notes</label>
-                                <textarea rows={2} placeholder="Additional notes..." value={logForm.notes}
-                                    onChange={e => patch("notes", e.target.value)}
-                                    style={{ ...inputStyle, resize: "vertical" }} />
-                            </div>
-                        </div>
-
-                        {/* Info box for replacements */}
-                        {logForm.action === "Replacement" && (
-                            <div style={{ marginTop: 16, padding: "10px 14px", borderRadius: 10, background: "var(--brand-primary)18", border: "1px solid var(--brand-primary)40", fontSize: 12, color: "var(--text-secondary)" }}>
-                                ℹ️ Logging a replacement will reset the tyre odometer on this truck to the odometer value entered above.
-                                {Number(logForm.cost) > 0 && " A Tyre expense will also be created automatically."}
-                            </div>
-                        )}
-
-                        {/* Actions */}
-                        <div style={{ display: "flex", gap: 12, marginTop: 24, justifyContent: "flex-end" }}>
-                            <Button variant="secondary" onClick={() => setLogModal(false)}>Cancel</Button>
-                            <Button variant="primary" icon={ClipboardList} onClick={submitLog} disabled={logSubmitting}>
-                                {logSubmitting ? "Saving..." : "Save Entry"}
-                            </Button>
+            {logModal && S && (
+                <Modal
+                    title="Log Tyre Entry"
+                    onSave={submitLog}
+                    saveLabel={logSubmitting ? "Saving…" : "Save Entry"}
+                    saveDisabled={logSubmitting || !logForm.truck}
+                    closeModal={() => setLogModal(false)}
+                    S={S}
+                    wide
+                >
+                    <div style={S.fgg(2)}>
+                        <Field
+                            label="Vehicle *"
+                            k="truck"
+                            full
+                            options={[{ v: "", l: "Select vehicle…" }, ...(data.trucks || []).map(t => ({ v: t.id, l: t.reg + (t.make ? ` — ${t.make}` : "") }))]}
+                            form={logForm}
+                            setForm={setLogFormField}
+                            S={S}
+                            T={T}
+                        />
+                        <Field
+                            label="Action *"
+                            k="action"
+                            options={TYRE_ACTIONS.map(a => ({ v: a, l: a }))}
+                            form={logForm}
+                            setForm={setLogFormField}
+                            S={S}
+                            T={T}
+                        />
+                        <Field
+                            label="Position"
+                            k="position"
+                            options={TYRE_POSITIONS.map(p => ({ v: p, l: p }))}
+                            form={logForm}
+                            setForm={setLogFormField}
+                            S={S}
+                            T={T}
+                        />
+                        <Field label="Date" k="date" type="date" form={logForm} setForm={setLogFormField} S={S} T={T} />
+                        <Field label="Odometer (KM)" k="odom" type="number" placeholder="e.g. 142300" form={logForm} setForm={setLogFormField} S={S} T={T} />
+                        <Field label="Brand" k="brand" placeholder="e.g. Michelin" form={logForm} setForm={setLogFormField} S={S} T={T} />
+                        <Field label="Tyre Size" k="size" placeholder="e.g. 11R22.5" form={logForm} setForm={setLogFormField} S={S} T={T} />
+                        <Field label="Serial Number" k="serialNumber" placeholder="Optional" form={logForm} setForm={setLogFormField} S={S} T={T} />
+                        <Field label="Cost (KES)" k="cost" type="number" placeholder="0" form={logForm} setForm={setLogFormField} S={S} T={T} />
+                        <div style={{ ...S.fg, gridColumn: "1 / -1" }}>
+                            <label style={S.lbl}>Notes</label>
+                            <textarea
+                                rows={2}
+                                placeholder="Additional notes…"
+                                value={logForm.notes}
+                                onChange={e => patch("notes", e.target.value)}
+                                style={{ ...S.inp, resize: "vertical", height: "auto" }}
+                            />
                         </div>
                     </div>
-                </div>
+
+                    {logForm.action === "Replacement" && (
+                        <div style={{ marginTop: 16, padding: "10px 14px", borderRadius: 10, background: "rgba(var(--brand-primary-rgb, 249 115 22) / 0.08)", border: "1px solid rgba(var(--brand-primary-rgb, 249 115 22) / 0.25)", fontSize: 12, color: "var(--text-secondary)" }}>
+                            Logging a replacement will reset the tyre odometer on this truck to the odometer value entered above.
+                            {Number(logForm.cost) > 0 && " A Tyre expense will also be created automatically."}
+                        </div>
+                    )}
+                </Modal>
             )}
         </div>
     );
