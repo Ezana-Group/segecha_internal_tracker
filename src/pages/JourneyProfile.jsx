@@ -207,8 +207,9 @@ export function JourneyProfile({
                                         { l: 'Delivery Address', v: journey.deliveryAddress || '—' },
                                         { l: 'Deployment Date', v: fmtDate(journey.date) },
                                         { l: 'Completion Date', v: fmtDate(journey.endDate) || 'Active Mission' },
-                                        { l: 'Cargo Classification', v: journey.cargo || 'General Freight' },
-                                        { l: 'Payload Weight', v: `${journey.weight || '—'} T` },
+                                        { l: 'Cargo Classification', v: journey.cargo || journey.cargoType || 'General Freight' },
+                                        { l: 'Payload Weight', v: journey.weight ? `${journey.weight} KGs` : '—' },
+                                        ...(journey.isInternational ? [{ l: 'TR8 Transit Document', v: journey.tr8Url ? 'Uploaded' : 'Not uploaded', link: journey.tr8Url || null }] : []),
                                         { l: 'Waybill Number', v: journey.waybillNo || journey.waybill || 'N/A' },
                                         { l: 'Operational Status', v: journey.status },
                                         { l: 'Start Odometer', v: `${journey.startOdom || '—'} km`, img: journey.startOdomPhotoUrl || journey.photoOdomStart },
@@ -218,6 +219,11 @@ export function JourneyProfile({
                                         <div key={row.l}>
                                             <div style={{ fontSize: 11, color: "var(--text-dim)", fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>{row.l}</div>
                                             <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)" }}>{row.v || row.val}</div>
+                                            {row.link && (
+                                                <div style={{ marginTop: 4 }}>
+                                                    <a href={row.link} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: "var(--brand-primary)", fontWeight: 700 }}>View document</a>
+                                                </div>
+                                            )}
                                             {row.img && (
                                                 <div style={{ marginTop: 8 }}>
                                                     <a href={row.img} target="_blank" rel="noreferrer">

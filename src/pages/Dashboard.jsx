@@ -78,7 +78,8 @@ export function Dashboard({ data, dark, truckStats, tyreStatus, truckReg, driver
             .catch(() => setExpiringDocs([]));
     }, []);
 
-    const totalRevenue = data.journeys.filter(j => j.status === "Completed" && j.date?.startsWith(latestMonth)).reduce((s, j) => s + +j.revenue, 0);
+    const COUNTABLE_STATUSES = ["Accepted", "Loading", "In Transit", "Awaiting Start Verification", "Awaiting Verification", "Completed"];
+    const totalRevenue = data.journeys.filter(j => COUNTABLE_STATUSES.includes(j.status) && j.date?.startsWith(latestMonth)).reduce((s, j) => s + +j.revenue, 0);
     const totalFuelCost = data.fuel.filter(f => f.date?.startsWith(latestMonth)).reduce((s, f) => s + f.litres * f.pricePerL, 0);
     // Exclude cat='Fuel' expenses — fuel cost is already counted from data.fuel (fuel_logs).
     const totalOtherExp = data.expenses.filter(e => e.date?.startsWith(latestMonth) && e.cat !== 'Fuel').reduce((s, e) => s + +e.amount, 0);
@@ -128,7 +129,7 @@ export function Dashboard({ data, dark, truckStats, tyreStatus, truckReg, driver
     const fleetActiveWarning = data.trucks.length > 0 && fleetActivePct < FLEET_ACTIVE_WARN_PCT;
 
     const getMonthData = (m) => {
-        const rev = data.journeys.filter(j => j.status === "Completed" && j.date?.startsWith(m)).reduce((s, j) => s + +j.revenue, 0);
+        const rev = data.journeys.filter(j => COUNTABLE_STATUSES.includes(j.status) && j.date?.startsWith(m)).reduce((s, j) => s + +j.revenue, 0);
         const fuel = data.fuel.filter(f => f.date?.startsWith(m)).reduce((s, f) => s + f.litres * f.pricePerL, 0);
         // Exclude cat='Fuel' expenses to avoid double-counting with fuel_logs
         const exp = data.expenses.filter(e => e.date?.startsWith(m) && e.cat !== 'Fuel').reduce((s, e) => s + +e.amount, 0);

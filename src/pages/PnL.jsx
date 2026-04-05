@@ -38,7 +38,8 @@ export function PnL({ data, dark, isMobile, truckStats, truckReg, customerName, 
     const totalSalaries = data.payroll.filter(p => p.status === "Paid").reduce((s, p) => s + +p.baseSalary + +p.allowance - +p.deductions, 0);
     const invoicesPaid = data.invoices.filter(i => i.status === "Paid").reduce((s, i) => s + (+i.paidAmount || 0), 0);
     // Pre-compute statement totals once for reuse in JSX
-    const stmtFreightRevenue = data.journeys.filter(j => j.status === "Completed").reduce((s, j) => s + +j.revenue, 0);
+    const COUNTABLE_STATUSES = ["Accepted", "Loading", "In Transit", "Awaiting Start Verification", "Awaiting Verification", "Completed"];
+    const stmtFreightRevenue = data.journeys.filter(j => COUNTABLE_STATUSES.includes(j.status)).reduce((s, j) => s + +j.revenue, 0);
     const stmtFuelCost = data.fuel.reduce((s, f) => s + f.litres * f.pricePerL, 0);
     // Exclude cat='Fuel' expenses — already counted in stmtFuelCost from fuel_logs
     const stmtOtherExp = data.expenses.filter(e => e.cat !== 'Fuel').reduce((s, e) => s + +e.amount, 0);

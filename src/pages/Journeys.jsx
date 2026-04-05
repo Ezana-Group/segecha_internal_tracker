@@ -407,10 +407,10 @@ export function Journeys({ data, isMobile, modal, form, setForm, openModal, clos
 
                                         {/* Cargo */}
                                         {(!isDriverPreview || jpv("colCargo")) && (
-                                            <td className="col-hide-3xl" title={`${j.cargo || "General cargo"} ${j.weight ? `(${j.weight} T)` : ""}`}>
-                                                <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-primary)" }}>{j.cargo || "General cargo"}</div>
+                                            <td className="col-hide-3xl" title={`${j.cargo || j.cargoType || "General cargo"} ${j.weight ? `(${j.weight} KGs)` : ""}`}>
+                                                <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-primary)" }}>{j.cargo || j.cargoType || "General cargo"}</div>
                                                 {j.weight != null && j.weight !== "" && (
-                                                    <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>{j.weight} T</div>
+                                                    <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>{j.weight} KGs</div>
                                                 )}
                                             </td>
                                         )}

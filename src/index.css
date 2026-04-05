@@ -2398,8 +2398,7 @@ button.journeys-table-link:hover {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(280px, 340px);
   gap: 0;
-  min-height: 0;
-  height: clamp(620px, calc(100vh - 200px), 920px);
+  min-height: clamp(600px, calc(100vh - 220px), 900px);
 }
 
 .template-studio-editor-grid.is-mobile {
@@ -2417,12 +2416,6 @@ button.journeys-table-link:hover {
 
 .template-studio-placeholder-panel {
   border-left: 1px solid var(--border-subtle);
-  position: sticky;
-  top: 0;
-  align-self: start;
-  height: 100%;
-  max-height: inherit;
-  z-index: 2;
 }
 
 .template-studio-placeholder-head {
@@ -2436,14 +2429,14 @@ button.journeys-table-link:hover {
 @media (max-width: 1280px) {
   .template-studio-editor-grid {
     grid-template-columns: minmax(0, 1fr) minmax(248px, 300px);
-    height: clamp(560px, calc(100vh - 180px), 860px);
+    min-height: clamp(540px, calc(100vh - 200px), 840px);
   }
 }
 
 @media (max-width: 1120px) {
   .template-studio-editor-grid {
     grid-template-columns: 1fr;
-    height: auto;
+    min-height: 0;
   }
 
   .template-studio-placeholder-panel {

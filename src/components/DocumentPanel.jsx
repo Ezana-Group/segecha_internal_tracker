@@ -24,6 +24,7 @@ export const DOC_TYPES_DRIVER = [
 export const DOC_TYPES_JOURNEY = [
     { value: 'delivery_note', label: 'Delivery Note / POD' },
     { value: 'loading_manifest', label: 'Loading Manifest' },
+    { value: 'tr8_form', label: 'TR8 Transit Document' },
     { value: 'fuel_receipt', label: 'External Fuel Receipt' },
     { value: 'weighbridge_ticket', label: 'Weighbridge Ticket' },
     { value: 'customs_clearance', label: 'Customs Clearance' },

@@ -1583,13 +1583,14 @@ export function useAppState() {
     };
     const customerName = (id) => (data.customers || []).find(c => c.id === id)?.name || "—";
 
+    const COUNTABLE_JOURNEY_STATUSES = ["Accepted", "Loading", "In Transit", "Awaiting Start Verification", "Awaiting Verification", "Completed"];
     const truckStats = (tid) => {
         const jrns = data.journeys.filter(j => j.truck === tid);
-        const rev = jrns.filter(j => j.status === "Completed").reduce((s, j) => s + +j.revenue, 0);
+        const rev = jrns.filter(j => COUNTABLE_JOURNEY_STATUSES.includes(j.status)).reduce((s, j) => s + +j.revenue, 0);
         const fuelEntries = data.fuel.filter(f => f.truck === tid);
         const fuelCost = fuelEntries.reduce((s, f) => s + f.litres * f.pricePerL, 0);
         const totalLitres = fuelEntries.reduce((s, f) => s + f.litres, 0);
-        const totalKm = jrns.filter(j => j.status === "Completed").reduce((s, j) => s + +j.distance, 0);
+        const totalKm = jrns.filter(j => COUNTABLE_JOURNEY_STATUSES.includes(j.status)).reduce((s, j) => s + +j.distance, 0);
         const kmPerL = totalLitres > 0 ? totalKm / totalLitres : 0;
         // Exclude cat='Fuel' expenses — fuel cost is already tallied from data.fuel (fuel_logs).
         // Counting both would double-count when a Fuel expense was created alongside a fuel log.

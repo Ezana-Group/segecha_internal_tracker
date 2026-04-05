@@ -680,6 +680,45 @@ export function GlobalModals(props) {
                             </div>
                         </label>
                     </div>
+
+                    {/* TR8 form upload — only for international journeys */}
+                    {form.isInternational && (
+                        <div style={{ ...S.fg, gridColumn: '1/-1' }}>
+                            <div style={{ fontWeight: 700, color: T.text, fontSize: 13, marginBottom: 10, paddingTop: 8, borderTop: `1px solid ${T.border2}` }}>
+                                TR8 Transit Document (required for international journeys)
+                            </div>
+                            <label style={{ display: 'block', background: dark ? T.bg : '#f8fafc', border: `1.5px dashed ${form.tr8Uploading ? '#38bdf8' : form.tr8Url ? 'var(--brand-primary)' : T.border}`, borderRadius: 10, padding: 14, textAlign: 'center', cursor: 'pointer', fontSize: 13, color: form.tr8Uploading ? '#38bdf8' : form.tr8Url ? 'var(--brand-primary)' : T.textDim }}>
+                                {form.tr8Uploading ? 'Uploading TR8…' : form.tr8Url ? 'TR8 uploaded — click to replace' : 'Upload TR8 transit form (PDF or image)'}
+                                <input
+                                    type="file"
+                                    accept="image/*,.pdf"
+                                    style={{ display: 'none' }}
+                                    disabled={form.tr8Uploading}
+                                    onChange={async (e) => {
+                                        const file = e.target.files[0];
+                                        if (!file) return;
+                                        setForm(f => ({ ...f, tr8Uploading: true }));
+                                        try {
+                                            const fd = new FormData();
+                                            fd.append('file', file);
+                                            const res = await fetchWithAuth(`${PAYMENT_API}/api/admin/upload`, { method: 'POST', body: fd });
+                                            const result = await res.json();
+                                            if (result.success) setForm(f => ({ ...f, tr8Url: result.url, tr8Uploading: false }));
+                                            else { alert(result.error); setForm(f => ({ ...f, tr8Uploading: false })); }
+                                        } catch (err) { alert(err.message); setForm(f => ({ ...f, tr8Uploading: false })); }
+                                        e.target.value = '';
+                                    }}
+                                />
+                            </label>
+                            {form.tr8Url && (
+                                <div style={{ marginTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <a href={form.tr8Url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: 'var(--brand-primary)', fontWeight: 700 }}>View TR8 document</a>
+                                    <button type="button" onClick={() => setForm(f => ({ ...f, tr8Url: '' }))} style={{ border: 'none', background: 'none', color: '#ef4444', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Remove</button>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
                     {!form.returningEmpty && (
                     <div style={{ ...S.fg, gridColumn: '1 / -1' }}>
                         <div style={{ fontWeight: 700, color: T.text, fontSize: 13, marginBottom: 10 }}>Billing customer (consignor) — required</div>
@@ -812,15 +851,31 @@ export function GlobalModals(props) {
                     <Field label="Revenue (KES)" k="revenue" type="number" form={form} setForm={setForm} S={S} error={errors.revenue} />
                     
                     <div style={S.fg}>
-                        <label style={S.lbl}>Cargo Description</label>
-                        <input style={S.inp} list="cargo-types-list" value={form.cargo || ''} placeholder="Type or select cargo type"
-                            onChange={e => setForm(f => ({ ...f, cargo: e.target.value }))} />
-                        <datalist id="cargo-types-list">
-                            {CARGO_TYPES.map(c => <option key={c} value={c} />)}
-                        </datalist>
+                        <label style={S.lbl}>Cargo Type</label>
+                        {(() => {
+                            // Backwards-compat: derive cargoType from legacy cargo field if not set
+                            const effectiveCargoType = form.cargoType || (CARGO_TYPES.includes(form.cargo) ? form.cargo : form.cargo ? 'Other' : '');
+                            return (
+                                <select style={S.inp} value={effectiveCargoType} onChange={e => {
+                                    const v = e.target.value;
+                                    setForm(f => ({ ...f, cargoType: v, cargo: v !== 'Other' ? v : '' }));
+                                }}>
+                                    <option value="">Select cargo type…</option>
+                                    {CARGO_TYPES.map(c => <option key={c} value={c}>{c}</option>)}
+                                </select>
+                            );
+                        })()}
                     </div>
-                    
-                    <Field label="Weight (Tonnes)" k="weight" type="number" form={form} setForm={setForm} S={S} />
+
+                    {(form.cargoType === 'Other' || (!form.cargoType && form.cargo && !CARGO_TYPES.includes(form.cargo))) && (
+                        <div style={S.fg}>
+                            <label style={S.lbl}>Specify Cargo</label>
+                            <input style={S.inp} value={form.cargo || ''} placeholder="Describe what the cargo is…"
+                                onChange={e => setForm(f => ({ ...f, cargo: e.target.value }))} />
+                        </div>
+                    )}
+
+                    <Field label="Weight (KGs)" k="weight" type="number" form={form} setForm={setForm} S={S} />
                     <Field label="Status" k="status" options={STATUSES_JOURNEY} form={form} setForm={setForm} S={S} />
                     
                     {/* Projected Allowance Preview */}
