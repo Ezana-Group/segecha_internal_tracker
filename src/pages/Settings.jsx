@@ -196,27 +196,126 @@ function SettingsShellSelect(props) {
 
 function SettingsShellSectionHeader({ title, desc, icon: Icon }) {
     return (
-        <div style={{ marginBottom: 32 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
+        <div style={{ marginBottom: 28, paddingBottom: 20, borderBottom: "1px solid var(--border-subtle)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: desc ? 8 : 0 }}>
                 {Icon && (
                     <div
                         style={{
-                            width: 40,
-                            height: 40,
-                            borderRadius: 10,
-                            background: "var(--brand-primary)15",
+                            width: 44,
+                            height: 44,
+                            borderRadius: 12,
+                            background: "var(--brand-primary)12",
+                            border: "1px solid var(--brand-primary)20",
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
                             color: "var(--brand-primary)",
+                            flexShrink: 0,
                         }}
                     >
-                        <Icon size={20} />
+                        <Icon size={22} strokeWidth={2} />
                     </div>
                 )}
-                <h2 style={{ fontSize: 24, fontWeight: 800, color: "var(--text-primary)", letterSpacing: "-0.02em" }}>{title}</h2>
+                <h2 style={{ fontSize: 20, fontWeight: 800, color: "var(--text-primary)", letterSpacing: "-0.02em", margin: 0 }}>{title}</h2>
             </div>
-            {desc && <p style={{ color: "var(--text-muted)", fontSize: 14, fontWeight: 500 }}>{desc}</p>}
+            {desc && <p style={{ color: "var(--text-muted)", fontSize: 13, fontWeight: 500, margin: "8px 0 0", paddingLeft: Icon ? 58 : 0, lineHeight: 1.5 }}>{desc}</p>}
+        </div>
+    );
+}
+
+/** Toggle switch — renders a styled pill toggle with label + optional sub-text */
+function SettingsToggle({ id, checked, onChange, label, sub, disabled }) {
+    return (
+        <div className={`s-toggle-wrap${disabled ? " opacity-50" : ""}`} style={disabled ? { opacity: 0.5 } : undefined}>
+            <label className="s-toggle-label" htmlFor={id} style={{ cursor: disabled ? "not-allowed" : "pointer" }}>
+                <span className="s-toggle-label-title">{label}</span>
+                {sub && <span className="s-toggle-label-sub">{sub}</span>}
+            </label>
+            <label className="s-toggle">
+                <input
+                    type="checkbox"
+                    id={id}
+                    checked={checked}
+                    onChange={onChange}
+                    disabled={disabled}
+                />
+                <span className="s-toggle-track" />
+            </label>
+        </div>
+    );
+}
+
+/** Tag chip list — renders items as dismissible pill chips with an add-item form below */
+function SettingsTagList({ items, onRemove, onAdd, addValue, onAddChange, addPlaceholder, onAddKeyDown, onResetDefaults, disabled }) {
+    return (
+        <div>
+            <div className="s-tags">
+                {items.map((item, i) => (
+                    <span key={`${item}-${i}`} className="s-tag">
+                        {item}
+                        {!disabled && (
+                            <button
+                                type="button"
+                                className="s-tag-x"
+                                onClick={() => onRemove(i)}
+                                aria-label={`Remove ${item}`}
+                            >
+                                <X size={11} strokeWidth={2.5} />
+                            </button>
+                        )}
+                    </span>
+                ))}
+            </div>
+            {!disabled && (
+                <div className="s-tag-add">
+                    <input
+                        className="input-premium"
+                        style={{
+                            flex: "1 1 180px",
+                            height: 38,
+                            background: "var(--surface-subtle)",
+                            border: "1px solid var(--border-subtle)",
+                            borderRadius: 8,
+                            padding: "0 12px",
+                            fontSize: 13,
+                            color: "var(--text-primary)",
+                            fontWeight: 600,
+                        }}
+                        placeholder={addPlaceholder || "Add item…"}
+                        value={addValue}
+                        onChange={onAddChange}
+                        onKeyDown={onAddKeyDown}
+                    />
+                    <button
+                        type="button"
+                        className="btn-premium btn-base"
+                        onClick={onAdd}
+                        style={{
+                            display: "inline-flex", alignItems: "center", gap: 6,
+                            padding: "0 14px", height: 38, borderRadius: 8,
+                            background: "var(--brand-primary)", color: "#fff",
+                            border: "none", fontWeight: 700, fontSize: 13, cursor: "pointer",
+                        }}
+                    >
+                        <Plus size={14} strokeWidth={2.5} />
+                        Add
+                    </button>
+                    {onResetDefaults && (
+                        <button
+                            type="button"
+                            onClick={onResetDefaults}
+                            style={{
+                                background: "transparent", border: "1px solid var(--border-subtle)",
+                                borderRadius: 8, padding: "0 12px", height: 38,
+                                fontSize: 12, fontWeight: 600, color: "var(--text-muted)",
+                                cursor: "pointer",
+                            }}
+                        >
+                            Restore defaults
+                        </button>
+                    )}
+                </div>
+            )}
         </div>
     );
 }
@@ -435,6 +534,8 @@ export function Settings({
     const [newTruckType, setNewTruckType] = useState("");
     const [newCargoType, setNewCargoType] = useState("");
     const [newExpenseCategory, setNewExpenseCategory] = useState("");
+    const [newDept, setNewDept] = useState("");
+    const [newRole, setNewRole] = useState("");
 
     const unlockWorkspaceTab = useCallback(() => {
         if (!canEditSettings) {
@@ -720,16 +821,6 @@ export function Settings({
                                             onClick={() => navigateTab(item.id)}
                                             title={item.label}
                                             aria-label={item.label}
-                                            style={isActive ? {
-                                                borderLeft: "3px solid var(--brand-primary)",
-                                                paddingLeft: 9,
-                                                color: "var(--brand-primary)",
-                                                fontWeight: 700,
-                                                background: "var(--brand-primary)12",
-                                            } : {
-                                                borderLeft: "3px solid transparent",
-                                                paddingLeft: 9,
-                                            }}
                                         >
                                             <item.icon size={18} strokeWidth={isActive ? 2.5 : 2} aria-hidden />
                                             {!settingsMenuCollapsed ? <span>{item.label}</span> : null}
@@ -763,20 +854,35 @@ export function Settings({
                         </SettingsShellSelect>
                     </div>
                 )}
-                <Card className="settings-content-card" style={{ padding: isMobile ? 18 : "clamp(20px, 3vw, 40px)" }}>
+                <div className="settings-content-card">
                     {currentSection && (
                         <div className="settings-toolbar" role="status" aria-live="polite">
                             <div className="settings-toolbar-crumb">
                                 <span className="settings-toolbar-group">{currentSection.groupLabel}</span>
-                                <ChevronRight size={14} className="settings-toolbar-sep" aria-hidden />
+                                <ChevronRight size={12} className="settings-toolbar-sep" aria-hidden />
                                 <span className="settings-toolbar-section">{currentSection.label}</span>
                             </div>
                             <div className="settings-toolbar-right">
+                                <div className="settings-toolbar-status">
+                                    {saving ? (
+                                        <span style={{ color: "var(--brand-primary)", fontWeight: 700 }}>Saving…</span>
+                                    ) : SETTINGS_WORKSPACE_TABS.has(activeTab) && !workspaceTabEditable[activeTab] ? (
+                                        <span className="settings-toolbar-muted">Click <strong>Edit</strong> to unlock</span>
+                                    ) : activeTab === "templates" && !templatesEditable ? (
+                                        <span className="settings-toolbar-muted">Click <strong>Edit</strong> to unlock</span>
+                                    ) : lastSaved ? (
+                                        <span style={{ color: "#10b981", fontWeight: 700, fontSize: 12 }}>
+                                            ✓ Saved {lastSaved.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
+                                        </span>
+                                    ) : (
+                                        <span className="settings-toolbar-muted">Unsaved changes</span>
+                                    )}
+                                </div>
                                 <div className="settings-toolbar-actions">
                                     {SETTINGS_WORKSPACE_TABS.has(activeTab) &&
                                         (workspaceTabEditable[activeTab] ? (
                                             <Button type="button" variant="primary" icon={Save} disabled={saving} onClick={saveWorkspaceTab}>
-                                                Save
+                                                {saving ? "Saving…" : "Save changes"}
                                             </Button>
                                         ) : (
                                             <Button type="button" variant="secondary" icon={PenLine} onClick={unlockWorkspaceTab} disabled={!canEditSettings}>
@@ -786,32 +892,13 @@ export function Settings({
                                     {activeTab === "templates" &&
                                         (templatesEditable ? (
                                             <Button type="button" variant="primary" icon={Save} onClick={saveTemplatesTab}>
-                                                Save
+                                                Save changes
                                             </Button>
                                         ) : (
                                             <Button type="button" variant="secondary" icon={PenLine} disabled={!canEditSettings} onClick={() => setTemplatesEditable(true)}>
                                                 Edit
                                             </Button>
                                         ))}
-                                </div>
-                                <div className="settings-toolbar-status">
-                                    {saving ? (
-                                        <span>Saving…</span>
-                                    ) : SETTINGS_WORKSPACE_TABS.has(activeTab) && !workspaceTabEditable[activeTab] ? (
-                                        <span className="settings-toolbar-muted">Locked — click Edit to change this tab</span>
-                                    ) : activeTab === "templates" && !templatesEditable ? (
-                                        <span className="settings-toolbar-muted">Locked — click Edit to change templates</span>
-                                    ) : lastSaved ? (
-                                        <span>
-                                            Saved ·{" "}
-                                            {lastSaved.toLocaleTimeString(undefined, {
-                                                hour: "2-digit",
-                                                minute: "2-digit",
-                                            })}
-                                        </span>
-                                    ) : (
-                                        <span className="settings-toolbar-muted">Edit, then Save to confirm</span>
-                                    )}
                                 </div>
                             </div>
                         </div>
@@ -858,6 +945,7 @@ export function Settings({
                             </p>
                         </div>
                     )}
+                    <div className="settings-content-body">
                     {/* ── PROFILE ── */}
                     {activeTab === 'profile' && (
                         <fieldset disabled={!workspaceTabEditable.profile || !canEditSettings} className="settings-workspace-fieldset">
@@ -1020,18 +1108,13 @@ export function Settings({
                                     <SettingsShellSectionHeader title="Security & Session" desc="Configure automatic safeguards for your workspace." icon={ShieldCheck} />
                                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
                                         <SettingsShellField label="Auto-Logout (Inactivity)" sub="Automatically sign out after a period of no activity.">
-                                            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                                                <input 
-                                                    type="checkbox" 
-                                                    id="autoLogoutEnabled"
-                                                    checked={localS.autoLogoutEnabled !== false} 
-                                                    onChange={e => saveSettings({ autoLogoutEnabled: e.target.checked })}
-                                                    style={{ width: 18, height: 18, cursor: "pointer" }}
-                                                />
-                                                <label htmlFor="autoLogoutEnabled" style={{ fontSize: 13, cursor: "pointer", color: "var(--text-primary)" }}>
-                                                    {localS.autoLogoutEnabled !== false ? "Enabled (Recommended)" : "Disabled"}
-                                                </label>
-                                            </div>
+                                            <SettingsToggle
+                                                id="autoLogoutEnabled"
+                                                checked={localS.autoLogoutEnabled !== false}
+                                                onChange={e => saveSettings({ autoLogoutEnabled: e.target.checked })}
+                                                label={localS.autoLogoutEnabled !== false ? "Auto-logout enabled (recommended)" : "Auto-logout disabled"}
+                                                sub="Session expires after idle period"
+                                            />
                                         </SettingsShellField>
                                         <SettingsShellField label="Idle Timeout Duration" sub="How long to wait before signing out.">
                                             <select 
@@ -1361,48 +1444,24 @@ export function Settings({
                                             : [...DEFAULT_EXPENSE_CATEGORIES];
                                         const persistExpenseCats = (next) => saveSettings({ expenseCategories: next });
                                         return (
-                                            <>
-                                                {expenseCatList.map((cat, i) => (
-                                                    <div key={`${cat}-${i}`} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, padding: "12px 14px", background: "var(--bg-card)", borderRadius: 10, border: "1px solid var(--border-subtle)" }}>
-                                                        <span style={{ fontWeight: 700, color: "var(--text-primary)", fontSize: 14 }}>{cat}</span>
-                                                        <Button variant="danger" size="sm" onClick={() => persistExpenseCats(expenseCatList.filter((_, idx) => idx !== i))}>
-                                                            <Trash2 size={14} aria-hidden />
-                                                        </Button>
-                                                    </div>
-                                                ))}
-                                                <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 16, paddingTop: 16, borderTop: "1px dashed var(--border-subtle)", alignItems: "center" }}>
-                                                    <SettingsShellInput
-                                                        style={{ flex: "1 1 200px", minWidth: 160 }}
-                                                        placeholder="e.g. Parking, Fines, Loading"
-                                                        value={newExpenseCategory}
-                                                        onChange={(e) => setNewExpenseCategory(e.target.value)}
-                                                        onKeyDown={(e) => {
-                                                            if (e.key === "Enter") {
-                                                                e.preventDefault();
-                                                                const t = newExpenseCategory.trim();
-                                                                if (!t) return;
-                                                                persistExpenseCats([...expenseCatList, t]);
-                                                                setNewExpenseCategory("");
-                                                            }
-                                                        }}
-                                                    />
-                                                    <Button variant="premium" onClick={() => {
-                                                        const t = newExpenseCategory.trim();
-                                                        if (!t) return;
-                                                        persistExpenseCats([...expenseCatList, t]);
-                                                        setNewExpenseCategory("");
-                                                    }}>
-                                                        <Plus size={16} aria-hidden style={{ marginRight: 6 }} />
-                                                        Add category
-                                                    </Button>
-                                                    <Button variant="ghost" onClick={() => {
-                                                        persistExpenseCats([...DEFAULT_EXPENSE_CATEGORIES]);
-                                                        showToast?.("Expense categories reset to defaults", "success");
-                                                    }}>
-                                                        Restore defaults
-                                                    </Button>
-                                                </div>
-                                            </>
+                                            <SettingsTagList
+                                                items={expenseCatList}
+                                                onRemove={(i) => persistExpenseCats(expenseCatList.filter((_, idx) => idx !== i))}
+                                                onAdd={() => {
+                                                    const t = newExpenseCategory.trim();
+                                                    if (!t) return;
+                                                    persistExpenseCats([...expenseCatList, t]);
+                                                    setNewExpenseCategory("");
+                                                }}
+                                                addValue={newExpenseCategory}
+                                                onAddChange={(e) => setNewExpenseCategory(e.target.value)}
+                                                addPlaceholder="e.g. Parking, Fines, Loading"
+                                                onAddKeyDown={(e) => {
+                                                    if (e.key === "Enter") { e.preventDefault(); const t = newExpenseCategory.trim(); if (!t) return; persistExpenseCats([...expenseCatList, t]); setNewExpenseCategory(""); }
+                                                }}
+                                                onResetDefaults={() => { persistExpenseCats([...DEFAULT_EXPENSE_CATEGORIES]); showToast?.("Expense categories reset to defaults", "success"); }}
+                                                disabled={!workspaceTabEditable.finance || !canEditSettings}
+                                            />
                                         );
                                     })()}
                                 </div>
@@ -1410,57 +1469,42 @@ export function Settings({
 
                             {/* ── DEPARTMENTS & ROLES ── */}
                             <SettingsShellSectionHeader title="Departments & Roles" desc="Manage company departments and employee roles." icon={UserPlus} />
-                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 32 }}>
-                                {/* Departments */}
-                                <div style={{ background: "var(--surface-subtle)", borderRadius: 12, border: "1px solid var(--border-subtle)", padding: 20 }}>
-                                    <h4 style={{ fontSize: 16, fontWeight: 800, color: "var(--text-primary)", marginBottom: 16, display: "flex", justifyContent: "space-between" }}>
-                                        Departments
-                                        <Badge status="Active" text={(localS.departments || ['Operations', 'Finance', 'Logistics']).length} />
-                                    </h4>
-                                    <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
-                                        {(localS.departments || ['Operations', 'Finance', 'Logistics']).map((d, i) => (
-                                            <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: "var(--bg-card)", borderRadius: 8, border: "1px solid var(--border-subtle)", fontSize: 13, fontWeight: 600, color: "var(--text-primary)" }}>
-                                                {d}
-                                                <Button variant="danger" size="sm" onClick={() => saveSettings({ departments: (localS.departments || ['Operations', 'Finance', 'Logistics']).filter((_, idx) => idx !== i) })} style={{ padding: "4px 8px", height: "auto" }}><Trash2 size={12}/></Button>
-                                            </div>
-                                        ))}
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+                                <div className="s-block">
+                                    <div className="s-block-hd">
+                                        <div className="s-block-icon"><UserPlus size={16} /></div>
+                                        <div>
+                                            <div className="s-block-title">Departments &nbsp;<Badge status="Active" text={(localS.departments || ['Operations', 'Finance', 'Logistics']).length} /></div>
+                                        </div>
                                     </div>
-                                    <div style={{ display: "flex", gap: 8 }}>
-                                        <SettingsShellInput id="new-dept" placeholder="New Department..." />
-                                        <Button variant="premium" onClick={() => {
-                                            const val = document.getElementById('new-dept').value;
-                                            if (val) {
-                                                saveSettings({ departments: [...(localS.departments || ['Operations', 'Finance', 'Logistics']), val] });
-                                                document.getElementById('new-dept').value = '';
-                                            }
-                                        }}><Plus size={16} /></Button>
-                                    </div>
+                                    <SettingsTagList
+                                        items={localS.departments || ['Operations', 'Finance', 'Logistics']}
+                                        onRemove={(i) => saveSettings({ departments: (localS.departments || ['Operations', 'Finance', 'Logistics']).filter((_, idx) => idx !== i) })}
+                                        onAdd={() => { if (newDept.trim()) { saveSettings({ departments: [...(localS.departments || ['Operations', 'Finance', 'Logistics']), newDept.trim()] }); setNewDept(""); } }}
+                                        addValue={newDept}
+                                        onAddChange={(e) => setNewDept(e.target.value)}
+                                        addPlaceholder="New department…"
+                                        onAddKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); if (newDept.trim()) { saveSettings({ departments: [...(localS.departments || ['Operations', 'Finance', 'Logistics']), newDept.trim()] }); setNewDept(""); } } }}
+                                        disabled={!workspaceTabEditable.finance || !canEditSettings}
+                                    />
                                 </div>
-
-                                {/* Roles */}
-                                <div style={{ background: "var(--surface-subtle)", borderRadius: 12, border: "1px solid var(--border-subtle)", padding: 20 }}>
-                                    <h4 style={{ fontSize: 16, fontWeight: 800, color: "var(--text-primary)", marginBottom: 16, display: "flex", justifyContent: "space-between" }}>
-                                        Roles
-                                        <Badge status="Active" text={(localS.roles || ['Manager', 'Clerk', 'Accountant']).length} />
-                                    </h4>
-                                    <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
-                                        {(localS.roles || ['Manager', 'Clerk', 'Accountant']).map((r, i) => (
-                                            <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: "var(--bg-card)", borderRadius: 8, border: "1px solid var(--border-subtle)", fontSize: 13, fontWeight: 600, color: "var(--text-primary)" }}>
-                                                {r}
-                                                <Button variant="danger" size="sm" onClick={() => saveSettings({ roles: (localS.roles || ['Manager', 'Clerk', 'Accountant']).filter((_, idx) => idx !== i) })} style={{ padding: "4px 8px", height: "auto" }}><Trash2 size={12}/></Button>
-                                            </div>
-                                        ))}
+                                <div className="s-block">
+                                    <div className="s-block-hd">
+                                        <div className="s-block-icon"><Users size={16} /></div>
+                                        <div>
+                                            <div className="s-block-title">Roles &nbsp;<Badge status="Active" text={(localS.roles || ['Manager', 'Clerk', 'Accountant']).length} /></div>
+                                        </div>
                                     </div>
-                                    <div style={{ display: "flex", gap: 8 }}>
-                                        <SettingsShellInput id="new-role" placeholder="New Role..." />
-                                        <Button variant="premium" onClick={() => {
-                                            const val = document.getElementById('new-role').value;
-                                            if (val) {
-                                                saveSettings({ roles: [...(localS.roles || ['Manager', 'Clerk', 'Accountant']), val] });
-                                                document.getElementById('new-role').value = '';
-                                            }
-                                        }}><Plus size={16} /></Button>
-                                    </div>
+                                    <SettingsTagList
+                                        items={localS.roles || ['Manager', 'Clerk', 'Accountant']}
+                                        onRemove={(i) => saveSettings({ roles: (localS.roles || ['Manager', 'Clerk', 'Accountant']).filter((_, idx) => idx !== i) })}
+                                        onAdd={() => { if (newRole.trim()) { saveSettings({ roles: [...(localS.roles || ['Manager', 'Clerk', 'Accountant']), newRole.trim()] }); setNewRole(""); } }}
+                                        addValue={newRole}
+                                        onAddChange={(e) => setNewRole(e.target.value)}
+                                        addPlaceholder="New role…"
+                                        onAddKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); if (newRole.trim()) { saveSettings({ roles: [...(localS.roles || ['Manager', 'Clerk', 'Accountant']), newRole.trim()] }); setNewRole(""); } } }}
+                                        disabled={!workspaceTabEditable.finance || !canEditSettings}
+                                    />
                                 </div>
                             </div>
                         </fieldset>
@@ -1523,104 +1567,32 @@ export function Settings({
                                             : [...DEFAULT_LICENCE_CLASSES];
                                         const persistList = (next) => saveSettings({ licenceClasses: next });
                                         return (
-                                            <>
-                                                {licenceList.length === 0 && (
-                                                    <p
-                                                        style={{
-                                                            margin: "0 0 16px",
-                                                            fontSize: 13,
-                                                            color: "var(--text-muted)",
-                                                            fontWeight: 500,
-                                                            lineHeight: 1.5,
-                                                        }}
-                                                    >
-                                                        No licence classes yet. Add labels below, or use <strong>Restore defaults</strong> for the standard list.
-                                                    </p>
-                                                )}
-                                                {licenceList.map((cls, i) => (
-                                                    <div
-                                                        key={`${cls}-${i}`}
-                                                        style={{
-                                                            display: "flex",
-                                                            justifyContent: "space-between",
-                                                            alignItems: "center",
-                                                            marginBottom: 12,
-                                                            padding: "12px 14px",
-                                                            background: "var(--bg-card)",
-                                                            borderRadius: 10,
-                                                            border: "1px solid var(--border-subtle)",
-                                                        }}
-                                                    >
-                                                        <span style={{ fontWeight: 700, color: "var(--text-primary)", fontSize: 14 }}>{cls}</span>
-                                                        <Button
-                                                            variant="danger"
-                                                            size="sm"
-                                                            onClick={() => {
-                                                                const next = licenceList.filter((_, idx) => idx !== i);
-                                                                persistList(next);
-                                                            }}
-                                                        >
-                                                            <Trash2 size={14} aria-hidden />
-                                                        </Button>
-                                                    </div>
-                                                ))}
-                                                <div
-                                                    style={{
-                                                        display: "flex",
-                                                        flexWrap: "wrap",
-                                                        gap: 12,
-                                                        marginTop: 16,
-                                                        paddingTop: 16,
-                                                        borderTop: "1px dashed var(--border-subtle)",
-                                                        alignItems: "center",
-                                                    }}
-                                                >
-                                                    <SettingsShellInput
-                                                        style={{ flex: "1 1 200px", minWidth: 160 }}
-                                                        placeholder="e.g. Class D1, CE artic"
-                                                        value={newLicenceClass}
-                                                        onChange={(e) => setNewLicenceClass(e.target.value)}
-                                                        onKeyDown={(e) => {
-                                                            if (e.key === "Enter") {
-                                                                e.preventDefault();
-                                                                const t = newLicenceClass.trim();
-                                                                if (!t) return;
-                                                                if (licenceList.some((c) => c.toLowerCase() === t.toLowerCase())) {
-                                                                    showToast?.("That class is already listed", "warning");
-                                                                    return;
-                                                                }
-                                                                persistList([...licenceList, t]);
-                                                                setNewLicenceClass("");
-                                                            }
-                                                        }}
-                                                    />
-                                                    <Button
-                                                        variant="premium"
-                                                        onClick={() => {
-                                                            const t = newLicenceClass.trim();
-                                                            if (!t) return;
-                                                            if (licenceList.some((c) => c.toLowerCase() === t.toLowerCase())) {
-                                                                showToast?.("That class is already listed", "warning");
-                                                                return;
-                                                            }
-                                                            persistList([...licenceList, t]);
-                                                            setNewLicenceClass("");
-                                                        }}
-                                                    >
-                                                        <Plus size={16} aria-hidden style={{ marginRight: 6 }} />
-                                                        Add class
-                                                    </Button>
-                                                    <Button
-                                                        variant="ghost"
-                                                        onClick={() => {
-                                                            persistList([...DEFAULT_LICENCE_CLASSES]);
-                                                            showToast?.("Licence classes reset to defaults", "success");
-                                                        }}
-                                                    >
-                                                        Restore defaults
-                                                    </Button>
-                                                </div>
-                                            </>
+                                            <SettingsTagList
+                                                items={licenceList}
+                                                onRemove={(i) => persistList(licenceList.filter((_, idx) => idx !== i))}
+                                                onAdd={() => {
+                                                    const t = newLicenceClass.trim();
+                                                    if (!t) return;
+                                                    if (licenceList.some((c) => c.toLowerCase() === t.toLowerCase())) { showToast?.("That class is already listed", "warning"); return; }
+                                                    persistList([...licenceList, t]);
+                                                    setNewLicenceClass("");
+                                                }}
+                                                addValue={newLicenceClass}
+                                                onAddChange={(e) => setNewLicenceClass(e.target.value)}
+                                                addPlaceholder="e.g. Class D1, CE artic"
+                                                onAddKeyDown={(e) => {
+                                                    if (e.key === "Enter") {
+                                                        e.preventDefault();
+                                                        const t = newLicenceClass.trim();
+                                                        if (!t) return;
+                                                        if (licenceList.some((c) => c.toLowerCase() === t.toLowerCase())) { showToast?.("Already listed", "warning"); return; }
+                                                        persistList([...licenceList, t]);
+                                                        setNewLicenceClass("");
+                                                    }
+                                                }}
+                                                onResetDefaults={() => { persistList([...DEFAULT_LICENCE_CLASSES]); showToast?.("Licence classes reset to defaults", "success"); }}
+                                                disabled={!workspaceTabEditable.fleet || !canEditSettings}
+                                            />
                                         );
                                     })()}
                                 </div>
@@ -1644,53 +1616,24 @@ export function Settings({
                                             : [...DEFAULT_TRUCK_TYPES];
                                         const persistTruckTypes = (next) => saveSettings({ truckTypes: next });
                                         return (
-                                            <>
-                                                {truckTypeList.length === 0 && (
-                                                    <p style={{ margin: "0 0 16px", fontSize: 13, color: "var(--text-muted)", fontWeight: 500, lineHeight: 1.5 }}>
-                                                        No truck types defined. Add labels below, or use <strong>Restore defaults</strong>.
-                                                    </p>
-                                                )}
-                                                {truckTypeList.map((type, i) => (
-                                                    <div key={`${type}-${i}`} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, padding: "12px 14px", background: "var(--bg-card)", borderRadius: 10, border: "1px solid var(--border-subtle)" }}>
-                                                        <span style={{ fontWeight: 700, color: "var(--text-primary)", fontSize: 14 }}>{type}</span>
-                                                        <Button variant="danger" size="sm" onClick={() => persistTruckTypes(truckTypeList.filter((_, idx) => idx !== i))}>
-                                                            <Trash2 size={14} aria-hidden />
-                                                        </Button>
-                                                    </div>
-                                                ))}
-                                                <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 16, paddingTop: 16, borderTop: "1px dashed var(--border-subtle)", alignItems: "center" }}>
-                                                    <SettingsShellInput
-                                                        style={{ flex: "1 1 200px", minWidth: 160 }}
-                                                        placeholder="e.g. Low Loader, Crane Truck"
-                                                        value={newTruckType}
-                                                        onChange={(e) => setNewTruckType(e.target.value)}
-                                                        onKeyDown={(e) => {
-                                                            if (e.key === "Enter") {
-                                                                e.preventDefault();
-                                                                const t = newTruckType.trim();
-                                                                if (!t) return;
-                                                                persistTruckTypes([...truckTypeList, t]);
-                                                                setNewTruckType("");
-                                                            }
-                                                        }}
-                                                    />
-                                                    <Button variant="premium" onClick={() => {
-                                                        const t = newTruckType.trim();
-                                                        if (!t) return;
-                                                        persistTruckTypes([...truckTypeList, t]);
-                                                        setNewTruckType("");
-                                                    }}>
-                                                        <Plus size={16} aria-hidden style={{ marginRight: 6 }} />
-                                                        Add type
-                                                    </Button>
-                                                    <Button variant="ghost" onClick={() => {
-                                                        persistTruckTypes([...DEFAULT_TRUCK_TYPES]);
-                                                        showToast?.("Truck types reset to defaults", "success");
-                                                    }}>
-                                                        Restore defaults
-                                                    </Button>
-                                                </div>
-                                            </>
+                                            <SettingsTagList
+                                                items={truckTypeList}
+                                                onRemove={(i) => persistTruckTypes(truckTypeList.filter((_, idx) => idx !== i))}
+                                                onAdd={() => {
+                                                    const t = newTruckType.trim();
+                                                    if (!t) return;
+                                                    persistTruckTypes([...truckTypeList, t]);
+                                                    setNewTruckType("");
+                                                }}
+                                                addValue={newTruckType}
+                                                onAddChange={(e) => setNewTruckType(e.target.value)}
+                                                addPlaceholder="e.g. Low Loader, Crane Truck"
+                                                onAddKeyDown={(e) => {
+                                                    if (e.key === "Enter") { e.preventDefault(); const t = newTruckType.trim(); if (!t) return; persistTruckTypes([...truckTypeList, t]); setNewTruckType(""); }
+                                                }}
+                                                onResetDefaults={() => { persistTruckTypes([...DEFAULT_TRUCK_TYPES]); showToast?.("Truck types reset to defaults", "success"); }}
+                                                disabled={!workspaceTabEditable.fleet || !canEditSettings}
+                                            />
                                         );
                                     })()}
                                 </div>
@@ -1714,48 +1657,24 @@ export function Settings({
                                             : [...DEFAULT_CARGO_TYPES];
                                         const persistCargoTypes = (next) => saveSettings({ cargoTypes: next });
                                         return (
-                                            <>
-                                                {cargoTypeList.map((type, i) => (
-                                                    <div key={`${type}-${i}`} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, padding: "12px 14px", background: "var(--bg-card)", borderRadius: 10, border: "1px solid var(--border-subtle)" }}>
-                                                        <span style={{ fontWeight: 700, color: "var(--text-primary)", fontSize: 14 }}>{type}</span>
-                                                        <Button variant="danger" size="sm" onClick={() => persistCargoTypes(cargoTypeList.filter((_, idx) => idx !== i))}>
-                                                            <Trash2 size={14} aria-hidden />
-                                                        </Button>
-                                                    </div>
-                                                ))}
-                                                <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 16, paddingTop: 16, borderTop: "1px dashed var(--border-subtle)", alignItems: "center" }}>
-                                                    <SettingsShellInput
-                                                        style={{ flex: "1 1 200px", minWidth: 160 }}
-                                                        placeholder="e.g. Hazardous Materials, Milk"
-                                                        value={newCargoType}
-                                                        onChange={(e) => setNewCargoType(e.target.value)}
-                                                        onKeyDown={(e) => {
-                                                            if (e.key === "Enter") {
-                                                                e.preventDefault();
-                                                                const t = newCargoType.trim();
-                                                                if (!t) return;
-                                                                persistCargoTypes([...cargoTypeList, t]);
-                                                                setNewCargoType("");
-                                                            }
-                                                        }}
-                                                    />
-                                                    <Button variant="premium" onClick={() => {
-                                                        const t = newCargoType.trim();
-                                                        if (!t) return;
-                                                        persistCargoTypes([...cargoTypeList, t]);
-                                                        setNewCargoType("");
-                                                    }}>
-                                                        <Plus size={16} aria-hidden style={{ marginRight: 6 }} />
-                                                        Add type
-                                                    </Button>
-                                                    <Button variant="ghost" onClick={() => {
-                                                        persistCargoTypes([...DEFAULT_CARGO_TYPES]);
-                                                        showToast?.("Cargo types reset to defaults", "success");
-                                                    }}>
-                                                        Restore defaults
-                                                    </Button>
-                                                </div>
-                                            </>
+                                            <SettingsTagList
+                                                items={cargoTypeList}
+                                                onRemove={(i) => persistCargoTypes(cargoTypeList.filter((_, idx) => idx !== i))}
+                                                onAdd={() => {
+                                                    const t = newCargoType.trim();
+                                                    if (!t) return;
+                                                    persistCargoTypes([...cargoTypeList, t]);
+                                                    setNewCargoType("");
+                                                }}
+                                                addValue={newCargoType}
+                                                onAddChange={(e) => setNewCargoType(e.target.value)}
+                                                addPlaceholder="e.g. Hazardous Materials, Milk"
+                                                onAddKeyDown={(e) => {
+                                                    if (e.key === "Enter") { e.preventDefault(); const t = newCargoType.trim(); if (!t) return; persistCargoTypes([...cargoTypeList, t]); setNewCargoType(""); }
+                                                }}
+                                                onResetDefaults={() => { persistCargoTypes([...DEFAULT_CARGO_TYPES]); showToast?.("Cargo types reset to defaults", "success"); }}
+                                                disabled={!workspaceTabEditable.fleet || !canEditSettings}
+                                            />
                                         );
                                     })()}
                                 </div>
@@ -3368,13 +3287,15 @@ export function Settings({
                         </div>
                     )}
 
+                    </div>{/* end settings-content-body */}
+
                     {/* Footer */}
                     <div className="settings-footer-hint">
                         <div style={{ fontSize: 12, color: "var(--text-dim)", fontWeight: 500 }}>
                             Settings save to this browser. Use Data → Push snapshot for the driver portal.
                         </div>
                     </div>
-                </Card>
+                </div>
             </div>
         </div>
     );
