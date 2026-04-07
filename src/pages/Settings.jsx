@@ -2269,11 +2269,37 @@ export function Settings({
                                     </div>
 
                                     {/* ── Placeholder hint ── */}
-                                    <div style={{ fontSize: 12, color: "var(--text-dim)", marginBottom: 20, lineHeight: 1.6, padding: "10px 14px", background: "var(--surface-subtle)", borderRadius: 10, borderLeft: "3px solid var(--border-subtle)" }}>
-                                        Use <code style={{ background: "var(--bg-card)", padding: "1px 5px", borderRadius: 4, fontSize: 11, fontFamily: "monospace" }}>{"{{businessName}}"}</code>,{" "}
-                                        <code style={{ background: "var(--bg-card)", padding: "1px 5px", borderRadius: 4, fontSize: 11, fontFamily: "monospace" }}>{"{{invoiceId}}"}</code>,{" "}
-                                        <code style={{ background: "var(--bg-card)", padding: "1px 5px", borderRadius: 4, fontSize: 11, fontFamily: "monospace" }}>{"{{customerName}}"}</code>,{" "}
-                                        <code style={{ background: "var(--bg-card)", padding: "1px 5px", borderRadius: 4, fontSize: 11, fontFamily: "monospace" }}>{"{{destination}}"}</code> and more. Click any template to edit.
+                                    <div style={{ marginBottom: 24, padding: "14px 18px", background: "var(--surface-subtle)", borderRadius: 14, border: "1px solid var(--border-subtle)" }}>
+                                        <div style={{ fontSize: 11, fontWeight: 800, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 10 }}>
+                                            ✦ Dynamic placeholders — auto-filled when sent
+                                        </div>
+                                        <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+                                            {[
+                                                { tag: "{{businessName}}", color: "#3b82f6" },
+                                                { tag: "{{customerName}}", color: "#10b981" },
+                                                { tag: "{{invoiceId}}", color: "#f97316" },
+                                                { tag: "{{amountDue}}", color: "#f97316" },
+                                                { tag: "{{dueDate}}", color: "#f97316" },
+                                                { tag: "{{journeyId}}", color: "#6366f1" },
+                                                { tag: "{{destination}}", color: "#6366f1" },
+                                                { tag: "{{driverName}}", color: "#ec4899" },
+                                                { tag: "{{truckReg}}", color: "#ec4899" },
+                                                { tag: "{{waybillNo}}", color: "#6366f1" },
+                                            ].map(({ tag, color }) => (
+                                                <span key={tag} style={{
+                                                    fontSize: 11, fontWeight: 700,
+                                                    fontFamily: "ui-monospace, monospace",
+                                                    background: color + "12",
+                                                    color: color,
+                                                    border: `1px solid ${color}28`,
+                                                    padding: "3px 9px", borderRadius: 7,
+                                                    whiteSpace: "nowrap",
+                                                }}>{tag}</span>
+                                            ))}
+                                            <span style={{ fontSize: 11, color: "var(--text-dim)", display: "flex", alignItems: "center", fontStyle: "italic" }}>
+                                                + more in the editor panel →
+                                            </span>
+                                        </div>
                                     </div>
 
                                     {filteredTemplates.length === 0 ? (
@@ -2318,6 +2344,11 @@ export function Settings({
                                                 const updatedLabel = t.updatedAt
                                                     ? new Date(t.updatedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
                                                     : "—";
+                                                // Extract placeholders used in subject + body
+                                                const allText = `${t.subject || ""} ${t.body || ""}`;
+                                                const usedPlaceholders = [...new Set(
+                                                    Array.from(allText.matchAll(/\{\{(\w+)\}\}/g)).map(m => m[1])
+                                                )].slice(0, 6);
                                                 return (
                                                     <div
                                                         key={t.id}
@@ -2325,47 +2356,87 @@ export function Settings({
                                                         style={{
                                                             background: "var(--bg-card)", borderRadius: 16, border: "1px solid var(--border-subtle)",
                                                             cursor: "pointer", display: "flex", flexDirection: "column", overflow: "hidden",
-                                                            transition: "box-shadow 0.15s, border-color 0.15s",
+                                                            transition: "box-shadow 0.18s, border-color 0.18s, transform 0.15s",
                                                         }}
-                                                        onMouseOver={(e) => { e.currentTarget.style.boxShadow = "0 4px 20px rgba(0,0,0,0.08)"; e.currentTarget.style.borderColor = channelColor + "60"; }}
-                                                        onMouseOut={(e) => { e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.borderColor = "var(--border-subtle)"; }}
+                                                        onMouseOver={(e) => { e.currentTarget.style.boxShadow = "0 8px 28px rgba(0,0,0,0.10)"; e.currentTarget.style.borderColor = channelColor + "70"; e.currentTarget.style.transform = "translateY(-2px)"; }}
+                                                        onMouseOut={(e) => { e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.borderColor = "var(--border-subtle)"; e.currentTarget.style.transform = "translateY(0)"; }}
                                                     >
-                                                        {/* Card accent bar */}
-                                                        <div style={{ height: 3, background: channelColor, width: "100%" }} />
+                                                        {/* Card accent bar — gradient */}
+                                                        <div style={{ height: 4, background: `linear-gradient(90deg, ${channelColor}, ${channelColor}88)`, width: "100%" }} />
 
                                                         {/* Card body */}
-                                                        <div style={{ padding: "18px 20px", flex: 1 }}>
-                                                            <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8, marginBottom: 10 }}>
-                                                                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                                                                    <div style={{ width: 36, height: 36, borderRadius: 10, background: channelColor + "18", display: "flex", alignItems: "center", justifyContent: "center", color: channelColor, flexShrink: 0 }}>
-                                                                        <TIcon size={18} />
-                                                                    </div>
-                                                                    <div>
-                                                                        <div style={{ fontSize: 14, fontWeight: 800, color: "var(--text-primary)", lineHeight: 1.3 }}>{t.name}</div>
-                                                                        <div style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 2, display: "flex", alignItems: "center", gap: 6 }}>
-                                                                            <span style={{ background: "var(--surface-subtle)", padding: "1px 6px", borderRadius: 4, fontWeight: 700 }}>{t.category || "General"}</span>
-                                                                            <span>·</span>
-                                                                            <span>{tplType}</span>
-                                                                        </div>
+                                                        <div style={{ padding: "18px 20px", flex: 1, display: "flex", flexDirection: "column", gap: 12 }}>
+                                                            {/* Header: icon + name + badges */}
+                                                            <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+                                                                <div style={{
+                                                                    width: 40, height: 40, borderRadius: 12,
+                                                                    background: `linear-gradient(135deg, ${channelColor}20, ${channelColor}10)`,
+                                                                    border: `1px solid ${channelColor}30`,
+                                                                    display: "flex", alignItems: "center", justifyContent: "center",
+                                                                    color: channelColor, flexShrink: 0,
+                                                                }}>
+                                                                    <TIcon size={19} strokeWidth={2.2} />
+                                                                </div>
+                                                                <div style={{ flex: 1, minWidth: 0 }}>
+                                                                    <div style={{ fontSize: 14, fontWeight: 800, color: "var(--text-primary)", lineHeight: 1.3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.name}</div>
+                                                                    <div style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 3, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                                                                        <span style={{
+                                                                            background: channelColor + "18",
+                                                                            color: channelColor,
+                                                                            padding: "1px 8px", borderRadius: 99, fontWeight: 800, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.04em",
+                                                                        }}>{tplType}</span>
+                                                                        <span style={{ background: "var(--surface-subtle)", padding: "1px 6px", borderRadius: 4, fontWeight: 700 }}>{t.category || "General"}</span>
                                                                     </div>
                                                                 </div>
                                                             </div>
 
+                                                            {/* Subject line preview */}
+                                                            {t.subject && (
+                                                                <div style={{
+                                                                    padding: "8px 12px",
+                                                                    background: "var(--surface-subtle)",
+                                                                    borderRadius: 10,
+                                                                    border: "1px solid var(--border-subtle)",
+                                                                    fontSize: 12,
+                                                                    color: "var(--text-secondary)",
+                                                                    fontFamily: "ui-monospace, monospace",
+                                                                    whiteSpace: "nowrap",
+                                                                    overflow: "hidden",
+                                                                    textOverflow: "ellipsis",
+                                                                }}>
+                                                                    <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-dim)", marginRight: 6, textTransform: "uppercase" }}>
+                                                                        {tplType === "PDF" ? "Title:" : tplType === "SMS" ? "Label:" : "Subject:"}
+                                                                    </span>
+                                                                    {t.subject}
+                                                                </div>
+                                                            )}
+
+                                                            {/* Description */}
                                                             {t.description && (
                                                                 <p style={{ fontSize: 12, color: "var(--text-muted)", margin: 0, lineHeight: 1.5, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
                                                                     {t.description}
                                                                 </p>
                                                             )}
 
-                                                            {t.subject && tplType !== "PDF" && (
-                                                                <div style={{ marginTop: 10, padding: "6px 10px", background: "var(--surface-subtle)", borderRadius: 8, fontSize: 11, color: "var(--text-secondary)", fontFamily: "monospace", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                                                                    {t.subject}
+                                                            {/* Placeholders used */}
+                                                            {usedPlaceholders.length > 0 && (
+                                                                <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: "auto" }}>
+                                                                    {usedPlaceholders.map(ph => (
+                                                                        <span key={ph} style={{
+                                                                            fontSize: 10, fontWeight: 700,
+                                                                            background: "var(--brand-primary)12",
+                                                                            color: "var(--brand-primary)",
+                                                                            border: "1px solid var(--brand-primary)25",
+                                                                            padding: "2px 7px", borderRadius: 6,
+                                                                            fontFamily: "ui-monospace, monospace",
+                                                                        }}>{`{{${ph}}}`}</span>
+                                                                    ))}
                                                                 </div>
                                                             )}
                                                         </div>
 
                                                         {/* Card footer */}
-                                                        <div style={{ padding: "12px 20px", borderTop: "1px solid var(--border-subtle)", display: "flex", justifyContent: "space-between", alignItems: "center", background: "var(--surface-subtle)" }}>
+                                                        <div style={{ padding: "10px 20px", borderTop: "1px solid var(--border-subtle)", display: "flex", justifyContent: "space-between", alignItems: "center", background: "var(--surface-subtle)" }}>
                                                             <span style={{ fontSize: 11, color: "var(--text-dim)", fontWeight: 600 }}>Updated {updatedLabel}</span>
                                                             <div style={{ display: "flex", gap: 4 }} onClick={(e) => e.stopPropagation()}>
                                                                 <button

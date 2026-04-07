@@ -843,6 +843,64 @@ export function GlobalModals(props) {
                         </>
                     )}
 
+                    {/* ── T1 FORM (Local journeys only — optional) ── */}
+                    {!form.isInternational && (
+                        <>
+                            <SectionDivider title="Documents (Optional)" />
+                            <InfoBox color="#6366f1" icon="📋">
+                                T1 Transit Form — used for goods moving within Kenya. This is optional but recommended when transiting through controlled or border-adjacent areas.
+                            </InfoBox>
+                            <div style={{ gridColumn: "1/-1" }}>
+                                <FormLabel>T1 Transit Form (PDF or image)</FormLabel>
+                                <label style={{
+                                    display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8,
+                                    minHeight: 80, borderRadius: "var(--radius-md)",
+                                    border: `1.5px dashed ${form.t1Uploading ? "var(--brand-primary)" : form.t1Url ? "#10b981" : "var(--border-medium)"}`,
+                                    background: form.t1Url ? "rgba(16,185,129,0.04)" : form.t1Uploading ? "var(--brand-muted)" : "var(--bg-main)",
+                                    cursor: form.t1Uploading ? "wait" : "pointer",
+                                    padding: "16px", textAlign: "center", transition: "border-color 0.15s",
+                                }}>
+                                    {form.t1Uploading ? (
+                                        <span style={{ fontSize: 13, color: "var(--brand-primary)", fontWeight: 600 }}>Uploading T1…</span>
+                                    ) : form.t1Url ? (
+                                        <div style={{ display: "flex", alignItems: "center", gap: 12, width: "100%" }}>
+                                            <span style={{ fontSize: 20 }}>✅</span>
+                                            <div style={{ flex: 1, textAlign: "left" }}>
+                                                <div style={{ fontSize: 12, fontWeight: 700, color: "#10b981" }}>T1 form uploaded</div>
+                                                <a href={form.t1Url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: "var(--brand-primary)", fontWeight: 600 }}>View document</a>
+                                            </div>
+                                            <button type="button" onClick={() => setForm(f => ({ ...f, t1Url: "" }))}
+                                                style={{ border: "none", background: "none", color: "#ef4444", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+                                                Remove
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <span style={{ fontSize: 22, opacity: 0.4 }}>⬆</span>
+                                            <span style={{ fontSize: 12, color: "var(--text-dim)", fontWeight: 600 }}>Upload T1 transit form (PDF or image)</span>
+                                            <span style={{ fontSize: 11, color: "var(--text-dim)", opacity: 0.7 }}>Optional — skip if not required for this route</span>
+                                        </>
+                                    )}
+                                    <input type="file" accept="image/*,.pdf" style={{ display: "none" }} disabled={form.t1Uploading}
+                                        onChange={async (e) => {
+                                            const file = e.target.files[0];
+                                            if (!file) return;
+                                            setForm(f => ({ ...f, t1Uploading: true }));
+                                            try {
+                                                const fd = new FormData();
+                                                fd.append("file", file);
+                                                const res    = await fetchWithAuth(`${PAYMENT_API}/api/admin/upload`, { method: "POST", body: fd });
+                                                const result = await res.json();
+                                                if (result.success) setForm(f => ({ ...f, t1Url: result.url, t1Uploading: false }));
+                                                else { alert(result.error); setForm(f => ({ ...f, t1Uploading: false })); }
+                                            } catch (err) { alert(err.message); setForm(f => ({ ...f, t1Uploading: false })); }
+                                            e.target.value = "";
+                                        }} />
+                                </label>
+                            </div>
+                        </>
+                    )}
+
                     {/* ── BILLING & DELIVERY ── */}
                     {!form.returningEmpty && (
                         <>

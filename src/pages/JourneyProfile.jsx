@@ -229,6 +229,7 @@ export function JourneyProfile({
                                         { l: 'Cargo Classification', v: journey.cargo || journey.cargoType || 'General Freight' },
                                         { l: 'Payload Weight', v: journey.weight ? `${journey.weight} KGs` : '—' },
                                         ...(journey.isInternational ? [{ l: 'TR8 Transit Document', v: journey.tr8Url ? 'Uploaded' : 'Not uploaded', link: journey.tr8Url || null }] : []),
+                                        ...(!journey.isInternational && journey.t1Url ? [{ l: 'T1 Transit Form', v: 'Uploaded', link: journey.t1Url }] : []),
                                         { l: 'Waybill Number', v: journey.waybillNo || journey.waybill || 'N/A' },
                                         { l: 'Operational Status', v: journey.status },
                                         { l: 'Start Odometer', v: `${journey.startOdom || '—'} km`, img: journey.startOdomPhotoUrl || journey.photoOdomStart },
