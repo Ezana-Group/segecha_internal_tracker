@@ -35,6 +35,110 @@ function buildDefaultsFromUi(sections) {
 /** Declarative list for defaults + Settings UI. */
 export const PERMISSION_UI_SECTIONS = [
     {
+        namespace: "adminTracker",
+        title: "Admin · tracker access controls",
+        description: "Controls what users with the 'admin' role can see and do in the main tracker. Super Admins always have full access regardless of these settings.",
+        groups: [
+            {
+                title: "Navigation & pages",
+                keys: [
+                    { key: "navDashboard", label: "Dashboard page" },
+                    { key: "navJourneys", label: "Journeys page" },
+                    { key: "navFleet", label: "Fleet (trucks & trailers)" },
+                    { key: "navDrivers", label: "Drivers & turnboys" },
+                    { key: "navStaff", label: "Staff directory" },
+                    { key: "navCustomers", label: "Customers page" },
+                    { key: "navFinance", label: "Finance pages (invoices, expenses, fuel, payroll)" },
+                    { key: "navReports", label: "Reports & analytics" },
+                    { key: "navSettings", label: "Settings page" },
+                    { key: "navImport", label: "Data import / import review" },
+                    { key: "navVerification", label: "Pending verifications queue" },
+                ],
+            },
+            {
+                title: "Journey operations",
+                keys: [
+                    { key: "journeyCreate", label: "Create new journey" },
+                    { key: "journeyEdit", label: "Edit journey details" },
+                    { key: "journeyDelete", label: "Delete journeys" },
+                    { key: "journeyVerify", label: "Verify driver submissions (odometer / proof)" },
+                    { key: "journeyChangeStatus", label: "Manually change journey status" },
+                    { key: "journeyViewFinancials", label: "View revenue & billing on journeys" },
+                ],
+            },
+            {
+                title: "Fleet management",
+                keys: [
+                    { key: "fleetCreate", label: "Add new truck / trailer" },
+                    { key: "fleetEdit", label: "Edit truck / trailer records" },
+                    { key: "fleetDelete", label: "Delete fleet records" },
+                    { key: "fleetMaintenance", label: "Log & view maintenance records" },
+                    { key: "fleetViewFinancials", label: "View fuel costs & expense totals on fleet" },
+                ],
+            },
+            {
+                title: "People management",
+                keys: [
+                    { key: "driverCreate", label: "Add new driver / turnboy" },
+                    { key: "driverEdit", label: "Edit driver / turnboy profiles" },
+                    { key: "driverDelete", label: "Delete driver / turnboy records" },
+                    { key: "driverViewSalary", label: "View salary & mileage allowances" },
+                    { key: "staffCreate", label: "Add new staff member" },
+                    { key: "staffEdit", label: "Edit staff profiles" },
+                    { key: "staffDelete", label: "Delete staff records" },
+                    { key: "staffViewSalary", label: "View staff salary information" },
+                ],
+            },
+            {
+                title: "Finance & payments",
+                keys: [
+                    { key: "finCreateInvoice", label: "Create & edit invoices" },
+                    { key: "finDeleteInvoice", label: "Delete invoices" },
+                    { key: "finMarkPaid", label: "Mark invoices as paid" },
+                    { key: "finCreateExpense", label: "Log expenses & fuel entries" },
+                    { key: "finDeleteExpense", label: "Delete expense / fuel records" },
+                    { key: "finViewPayroll", label: "View payroll records" },
+                    { key: "finManagePayroll", label: "Create & edit payroll entries" },
+                    { key: "finMarkPayrollPaid", label: "Mark payroll as paid" },
+                    { key: "finViewSalaries", label: "View staff & driver salary figures" },
+                    { key: "finExport", label: "Export financial data (CSV / Excel)" },
+                ],
+            },
+            {
+                title: "Settings & data",
+                keys: [
+                    { key: "settingsEdit", label: "Edit workspace settings" },
+                    { key: "settingsViewPermissions", label: "View profile permissions panel" },
+                    { key: "settingsEditPermissions", label: "Edit profile permissions" },
+                    { key: "dataPushSnapshot", label: "Push snapshot to API (sync to server)" },
+                    { key: "dataImport", label: "Import data from Excel" },
+                    { key: "dataExport", label: "Export all data" },
+                    { key: "dataBackup", label: "Create & restore backups", default: true },
+                    { key: "dataHardReset", label: "Hard reset (destroy local data)", default: false },
+                    { key: "adminManageUsers", label: "Manage admin user accounts", default: false },
+                ],
+            },
+            {
+                title: "Customers",
+                keys: [
+                    { key: "customerCreate", label: "Add new customer" },
+                    { key: "customerEdit", label: "Edit customer records" },
+                    { key: "customerDelete", label: "Delete customers" },
+                    { key: "customerViewRates", label: "View negotiated rates & credit terms" },
+                ],
+            },
+            {
+                title: "Verification & approvals",
+                keys: [
+                    { key: "verifyJourneySubmissions", label: "Approve / reject journey verifications" },
+                    { key: "verifyFuelClaims", label: "Approve / reject fuel claims" },
+                    { key: "verifyExpenseClaims", label: "Approve / reject expense claims" },
+                    { key: "verifyDocuments", label: "Review uploaded documents" },
+                ],
+            },
+        ],
+    },
+    {
         namespace: "staffTracker",
         title: "Staff · tracker preview (“My profile”)",
         description:
@@ -372,6 +476,7 @@ export function mergeNamespace(namespace, storedRoot) {
 /** Full merged permission object (all namespaces). */
 export function mergeProfilePermissions(storedRoot) {
     return {
+        adminTracker: mergeNamespace("adminTracker", storedRoot),
         staffTracker: mergeNamespace("staffTracker", storedRoot),
         driverTracker: mergeNamespace("driverTracker", storedRoot),
         driverPreviewJourneys: mergeNamespace("driverPreviewJourneys", storedRoot),

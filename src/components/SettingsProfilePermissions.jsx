@@ -4,6 +4,7 @@ import { PERMISSION_UI_SECTIONS, mergeProfilePermissions } from "../utils/profil
 import { PermissionSwitchRow } from "./ProfilePermissionsUi.jsx";
 
 const NAMESPACE_TAB_LABEL = {
+    adminTracker: "Admin access",
     staffTracker: "Staff",
     driverTracker: "Driver",
     driverPreviewJourneys: "My trips",

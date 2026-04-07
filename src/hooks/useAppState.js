@@ -1035,12 +1035,16 @@ export function useAppState() {
     };
 
     const fetchPendingVerifications = useCallback(async () => {
+        const user = adminAuth.getUser();
+        const userRole = user?.role;
+        if (userRole !== 'admin' && userRole !== 'superadmin') return;
         try {
             const res = await fetchWithAuth(`${PAYMENT_API}/api/admin/journeys/pending-verification`);
             if (res.status === 401) {
                 adminAuth.clearSession();
                 return;
             }
+            if (res.status === 403) return; // role not permitted
             if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
             const result = await res.json();
             const pendingJourneys = result.journeys || [];
@@ -1174,12 +1178,16 @@ export function useAppState() {
     }, [showToast]);
 
     const fetchImportHistory = useCallback(async () => {
+        const user = adminAuth.getUser();
+        const userRole = user?.role;
+        if (userRole !== 'admin' && userRole !== 'superadmin') return;
         try {
             const res = await fetchWithAuth(`${PAYMENT_API}/api/admin/import-history`);
             if (res.status === 401) {
                 adminAuth.clearSession();
                 return;
             }
+            if (res.status === 403) return; // role not permitted
             if (res.ok) {
                 const result = await res.json();
                 setImportHistory(result.history || []);
