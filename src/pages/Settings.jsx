@@ -81,6 +81,7 @@ import { buildSmsUrl } from "../utils/contactLinks.js";
 import { expandMessageTemplateContext } from "../utils/templateContext.js";
 import { SettingsProfilePermissions } from "../components/SettingsProfilePermissions.jsx";
 import { adminAuth } from "../utils/adminAuth";
+import { TemplateEditor } from "./TemplateEditor.jsx";
 
 const SETTINGS_MENU = [
     {
@@ -336,6 +337,9 @@ export function Settings({
     const [phCategory, setPhCategory] = useState('ALL');
     const [templatePreviewOpen, setTemplatePreviewOpen] = useState(false);
     const [sendTestEmail, setSendTestEmail] = useState("");
+    // New template editor overlay state
+    const [templateEditorOpen, setTemplateEditorOpen] = useState(false);
+    const [editingTemplate, setEditingTemplate] = useState(null);
     const [sendTestPhone, setSendTestPhone] = useState("");
     const [localS, setLocalS] = useState(readSettings);
     const [saving, setSaving] = useState(false);
@@ -2164,970 +2168,209 @@ export function Settings({
                     {/* ── MESSAGE TEMPLATES ── */}
                     {activeTab === 'templates' && (
                         <div style={{ animation: "fade-in 0.4s ease-out" }}>
-                            <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "flex-start", gap: 20, marginBottom: 28 }}>
-                                <div style={{ display: "flex", gap: 18, alignItems: "flex-start" }}>
-                                    <div style={{ width: 52, height: 52, borderRadius: 16, background: "linear-gradient(135deg, var(--brand-primary) 0%, #a855f7 100%)", display: "flex", alignItems: "center", justifyContent: "center", color: "white", flexShrink: 0, boxShadow: "0 8px 24px rgba(249, 115, 22, 0.25)" }}>
-                                        <Sparkles size={26} strokeWidth={2.2} />
-                                    </div>
-                                    <div>
-                                        <div style={{ fontSize: 11, color: "var(--text-dim)", display: "flex", alignItems: "center", gap: 6, marginBottom: 6, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                                            Settings <ChevronRight size={10} /> Message Templates
-                                        </div>
-                                        <h2 style={{ fontSize: 28, fontWeight: 900, color: "var(--text-primary)", letterSpacing: "-0.04em", margin: 0, lineHeight: 1.15 }}>
-                                            Message & document templates
-                                        </h2>
-                                        <p style={{ margin: "10px 0 0", fontSize: 14, color: "var(--text-muted)", maxWidth: 520, lineHeight: 1.5 }}>
-                                            Build emails, SMS, and PDF copy with placeholders. Changes save automatically with your workspace data.
-                                        </p>
-                                    </div>
+                            {/* ── Page heading ── */}
+                            <div style={{ marginBottom: 24 }}>
+                                <h2 style={{ fontSize: 22, fontWeight: 900, color: "var(--text-primary)", margin: "0 0 6px", letterSpacing: "-0.03em" }}>
+                                    Templates
+                                </h2>
+                                <p style={{ fontSize: 13, color: "var(--text-muted)", margin: 0, lineHeight: 1.6, maxWidth: 580 }}>
+                                    Manage automated communication templates for Email, WhatsApp, and PDF documents. Use placeholders like{" "}
+                                    <code style={{ fontFamily: "ui-monospace, monospace", fontSize: 12, background: "var(--surface-subtle)", padding: "1px 5px", borderRadius: 4 }}>{`{{businessName}}`}</code>{" "}
+                                    and{" "}
+                                    <code style={{ fontFamily: "ui-monospace, monospace", fontSize: 12, background: "var(--surface-subtle)", padding: "1px 5px", borderRadius: 4 }}>{`{{orderNumber}}`}</code>{" "}
+                                    for dynamic data.
+                                </p>
+                            </div>
+
+                            {/* ── Tab bar + Search row ── */}
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, marginBottom: 20, flexWrap: "wrap" }}>
+                                {/* Type tabs with count badges */}
+                                <div style={{ display: "flex", gap: 0, borderBottom: "2px solid var(--border-subtle)" }}>
+                                    {["Email", "WhatsApp", "PDF"].map((tf) => {
+                                        const count = (data.templates || []).filter(t => canonicalTemplateType(t.type) === tf).length;
+                                        const isActive = templateTypeFilter === tf;
+                                        return (
+                                            <button
+                                                key={tf}
+                                                type="button"
+                                                role="tab"
+                                                aria-selected={isActive}
+                                                onClick={() => { setTemplateTypeFilter(tf); setTemplateSearch(""); }}
+                                                style={{
+                                                    display: "flex", alignItems: "center", gap: 7,
+                                                    padding: "10px 18px", border: "none", cursor: "pointer",
+                                                    fontSize: 13, fontWeight: 700, transition: "all 0.15s",
+                                                    background: "transparent",
+                                                    color: isActive ? "var(--brand-primary)" : "var(--text-dim)",
+                                                    borderBottom: isActive ? "2px solid var(--brand-primary)" : "2px solid transparent",
+                                                    marginBottom: -2,
+                                                    borderRadius: 0,
+                                                }}
+                                            >
+                                                {tf}
+                                                <span style={{
+                                                    background: isActive ? "var(--brand-primary)" : "var(--surface-subtle)",
+                                                    color: isActive ? "#fff" : "var(--text-muted)",
+                                                    fontSize: 10, fontWeight: 800, minWidth: 18, height: 18,
+                                                    borderRadius: 99, display: "inline-flex", alignItems: "center", justifyContent: "center", padding: "0 5px"
+                                                }}>{count}</span>
+                                            </button>
+                                        );
+                                    })}
                                 </div>
-                                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                                    {localS._activeTemplateId && (
-                                        <Button variant="secondary" onClick={() => { setLocalS((s) => ({ ...s, _activeTemplateId: null })); setTemplatePreviewOpen(false); }}>
-                                            <X size={16} /> Back to library
-                                        </Button>
-                                    )}
+
+                                {/* Right side: search + new button */}
+                                <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                                    <div style={{ position: "relative" }}>
+                                        <Search size={14} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--text-dim)", pointerEvents: "none" }} />
+                                        <input
+                                            value={templateSearch}
+                                            onChange={(e) => setTemplateSearch(e.target.value)}
+                                            placeholder="Search templates…"
+                                            style={{
+                                                width: 220, height: 36, paddingLeft: 34, paddingRight: 12,
+                                                border: "1px solid var(--border-subtle)", borderRadius: 8,
+                                                background: "var(--bg-card)", color: "var(--text-primary)",
+                                                fontSize: 13, fontWeight: 500, boxSizing: "border-box", outline: "none",
+                                            }}
+                                        />
+                                    </div>
                                     <Button
-                                        variant="premium"
+                                        variant="primary"
                                         icon={Plus}
                                         onClick={() => {
-                                            const id = uid();
-                                            const newTpl = {
-                                                id,
-                                                name: "New template",
-                                                subject: "Subject line with {{businessName}}",
-                                                description: "When this message is sent (e.g. after invoice issued).",
-                                                body: templateTypeFilter === "PDF" ? "<h1>{{businessName}}</h1><p></p>" : "Hello {{customerName}},\n\n",
-                                                type: templateTypeFilter,
-                                                category: "General",
-                                                _editorMode: templateTypeFilter === "PDF" ? "HTML" : "Visual",
-                                                updatedAt: new Date().toISOString(),
-                                            };
-                                            setData((d) => ({ ...d, templates: [...(d.templates || []), newTpl] }));
-                                            setLocalS((s) => ({ ...s, _activeTemplateId: id }));
-                                            showToast?.("Template created — edit below", "success");
+                                            setEditingTemplate(null);
+                                            setTemplateEditorOpen(true);
                                         }}
                                     >
-                                        New template
+                                        New Template
                                     </Button>
                                 </div>
                             </div>
 
-                            {!localS._activeTemplateId ? (
-                                <>
-                                    {/* ── Channel filter tabs with counts ── */}
-                                    <div style={{ display: "flex", gap: 4, marginBottom: 20, background: "var(--surface-subtle)", padding: 4, borderRadius: 14, width: "fit-content", flexWrap: "wrap" }}>
-                                        {["Email", "PDF", "SMS", "WhatsApp"].map((tf) => {
-                                            const TIcon = tf === "Email" ? Mail : tf === "PDF" ? FileText : tf === "SMS" ? MessageSquare : MessageCircle;
-                                            const count = (data.templates || []).filter(t => canonicalTemplateType(t.type) === tf).length;
-                                            const isActive = templateTypeFilter === tf;
-                                            return (
-                                                <button
-                                                    key={tf}
-                                                    type="button"
-                                                    role="tab"
-                                                    aria-selected={isActive}
-                                                    onClick={() => { setTemplateTypeFilter(tf); setTemplateSearch(""); }}
-                                                    style={{
-                                                        display: "flex", alignItems: "center", gap: 7,
-                                                        padding: "8px 16px", borderRadius: 10, border: "none", cursor: "pointer",
-                                                        fontSize: 13, fontWeight: 700, transition: "all 0.15s",
-                                                        background: isActive ? "var(--bg-card)" : "transparent",
-                                                        color: isActive ? "var(--text-primary)" : "var(--text-dim)",
-                                                        boxShadow: isActive ? "0 1px 4px rgba(0,0,0,0.1)" : "none",
-                                                    }}
-                                                >
-                                                    <TIcon size={15} />
-                                                    {tf}
-                                                    {count > 0 && (
-                                                        <span style={{
-                                                            background: isActive ? "var(--brand-primary)" : "var(--border-subtle)",
-                                                            color: isActive ? "#fff" : "var(--text-muted)",
-                                                            fontSize: 10, fontWeight: 800, minWidth: 18, height: 18,
-                                                            borderRadius: 99, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 5px"
-                                                        }}>{count}</span>
-                                                    )}
-                                                </button>
-                                            );
-                                        })}
+                            {/* ── Template table ── */}
+                            {filteredTemplates.length === 0 ? (
+                                <div style={{ padding: "60px 24px", textAlign: "center", background: "var(--surface-subtle)", borderRadius: 16, border: "1px dashed var(--border-subtle)" }}>
+                                    <div style={{ width: 48, height: 48, borderRadius: 14, background: "var(--bg-card)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 14px", border: "1px solid var(--border-subtle)" }}>
+                                        <PenLine size={22} color="var(--text-dim)" />
                                     </div>
-
-                                    {/* ── Search bar ── */}
-                                    <div style={{ position: "relative", marginBottom: 24 }}>
-                                        <Search size={16} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "var(--text-dim)", pointerEvents: "none" }} />
-                                        <input
-                                            value={templateSearch}
-                                            onChange={(e) => setTemplateSearch(e.target.value)}
-                                            placeholder={`Search ${templateTypeFilter} templates…`}
-                                            style={{
-                                                width: "100%", height: 42, paddingLeft: 40, paddingRight: 16,
-                                                border: "1px solid var(--border-subtle)", borderRadius: 12,
-                                                background: "var(--surface-card)", color: "var(--text-primary)",
-                                                fontSize: 14, fontWeight: 500, boxSizing: "border-box", outline: "none",
-                                            }}
-                                        />
+                                    <div style={{ fontSize: 15, fontWeight: 800, color: "var(--text-primary)", marginBottom: 6 }}>
+                                        {(data.templates || []).length === 0 ? "No templates yet" : `No ${templateTypeFilter} templates`}
                                     </div>
-
-                                    {/* ── Placeholder hint ── */}
-                                    <div style={{ marginBottom: 24, padding: "14px 18px", background: "var(--surface-subtle)", borderRadius: 14, border: "1px solid var(--border-subtle)" }}>
-                                        <div style={{ fontSize: 11, fontWeight: 800, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 10 }}>
-                                            ✦ Dynamic placeholders — auto-filled when sent
-                                        </div>
-                                        <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
-                                            {[
-                                                { tag: "{{businessName}}", color: "#3b82f6" },
-                                                { tag: "{{customerName}}", color: "#10b981" },
-                                                { tag: "{{invoiceId}}", color: "#f97316" },
-                                                { tag: "{{amountDue}}", color: "#f97316" },
-                                                { tag: "{{dueDate}}", color: "#f97316" },
-                                                { tag: "{{journeyId}}", color: "#6366f1" },
-                                                { tag: "{{destination}}", color: "#6366f1" },
-                                                { tag: "{{driverName}}", color: "#ec4899" },
-                                                { tag: "{{truckReg}}", color: "#ec4899" },
-                                                { tag: "{{waybillNo}}", color: "#6366f1" },
-                                            ].map(({ tag, color }) => (
-                                                <span key={tag} style={{
-                                                    fontSize: 11, fontWeight: 700,
-                                                    fontFamily: "ui-monospace, monospace",
-                                                    background: color + "12",
-                                                    color: color,
-                                                    border: `1px solid ${color}28`,
-                                                    padding: "3px 9px", borderRadius: 7,
-                                                    whiteSpace: "nowrap",
-                                                }}>{tag}</span>
-                                            ))}
-                                            <span style={{ fontSize: 11, color: "var(--text-dim)", display: "flex", alignItems: "center", fontStyle: "italic" }}>
-                                                + more in the editor panel →
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    {filteredTemplates.length === 0 ? (
-                                        <div style={{ padding: "60px 24px", textAlign: "center", background: "var(--surface-subtle)", borderRadius: 20, border: "1px dashed var(--border-subtle)" }}>
-                                            <div style={{ width: 56, height: 56, borderRadius: 16, background: "var(--bg-card)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", border: "1px solid var(--border-subtle)" }}>
-                                                <PenLine size={24} color="var(--text-dim)" />
-                                            </div>
-                                            <div style={{ fontSize: 16, fontWeight: 800, color: "var(--text-primary)", marginBottom: 6 }}>
-                                                {(data.templates || []).length === 0 ? "No templates yet" : `No ${templateTypeFilter} templates`}
-                                            </div>
-                                            <p style={{ color: "var(--text-muted)", marginBottom: 20, fontSize: 13 }}>
-                                                {templateSearch ? `No results for "${templateSearch}".` : `Create your first ${templateTypeFilter} template to get started.`}
-                                            </p>
-                                            <Button
-                                                variant="premium"
-                                                icon={Plus}
-                                                onClick={() => {
-                                                    const id = uid();
-                                                    const newTpl = {
-                                                        id, name: "New template",
-                                                        subject: "Subject line with {{businessName}}",
-                                                        description: "When this message is sent (e.g. after invoice issued).",
-                                                        body: templateTypeFilter === "PDF" ? "<h1>{{businessName}}</h1><p></p>" : "Hello {{customerName}},\n\n",
-                                                        type: templateTypeFilter, category: "General",
-                                                        _editorMode: templateTypeFilter === "PDF" ? "HTML" : "Visual",
-                                                        updatedAt: new Date().toISOString(),
-                                                    };
-                                                    setData((d) => ({ ...d, templates: [...(d.templates || []), newTpl] }));
-                                                    setLocalS((s) => ({ ...s, _activeTemplateId: id }));
-                                                    showToast?.("Template created — edit below", "success");
-                                                }}
-                                            >
-                                                Create {templateTypeFilter} template
-                                            </Button>
-                                        </div>
-                                    ) : (
-                                        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fill, minmax(300px, 1fr))", gap: 16 }}>
+                                    <p style={{ color: "var(--text-muted)", marginBottom: 20, fontSize: 13 }}>
+                                        {templateSearch ? `No results for "${templateSearch}".` : `Create your first ${templateTypeFilter} template to get started.`}
+                                    </p>
+                                    <Button
+                                        variant="primary"
+                                        icon={Plus}
+                                        onClick={() => {
+                                            setEditingTemplate(null);
+                                            setTemplateEditorOpen(true);
+                                        }}
+                                    >
+                                        Create {templateTypeFilter} template
+                                    </Button>
+                                </div>
+                            ) : (
+                                <div className="tpl-lib-table-wrap">
+                                    <table className="tpl-lib-table">
+                                        <thead>
+                                            <tr>
+                                                <th className="tpl-lib-th">Template</th>
+                                                <th className="tpl-lib-th">Description</th>
+                                                <th className="tpl-lib-th">Last updated</th>
+                                                <th className="tpl-lib-th tpl-lib-th--actions">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
                                             {filteredTemplates.map((t) => {
                                                 const tplType = canonicalTemplateType(t.type);
-                                                const TIcon = tplType === "Email" ? Mail : tplType === "PDF" ? FileText : tplType === "SMS" ? MessageSquare : MessageCircle;
-                                                const channelColor = tplType === "Email" ? "#3b82f6" : tplType === "PDF" ? "#ef4444" : tplType === "SMS" ? "#10b981" : "#22c55e";
                                                 const updatedLabel = t.updatedAt
                                                     ? new Date(t.updatedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
                                                     : "—";
-                                                // Extract placeholders used in subject + body
-                                                const allText = `${t.subject || ""} ${t.body || ""}`;
-                                                const usedPlaceholders = [...new Set(
-                                                    Array.from(allText.matchAll(/\{\{(\w+)\}\}/g)).map(m => m[1])
-                                                )].slice(0, 6);
                                                 return (
-                                                    <div
-                                                        key={t.id}
-                                                        onClick={() => { setTemplateTypeFilter(tplType); setLocalS((s) => ({ ...s, _activeTemplateId: t.id })); }}
-                                                        style={{
-                                                            background: "var(--bg-card)", borderRadius: 16, border: "1px solid var(--border-subtle)",
-                                                            cursor: "pointer", display: "flex", flexDirection: "column", overflow: "hidden",
-                                                            transition: "box-shadow 0.18s, border-color 0.18s, transform 0.15s",
-                                                        }}
-                                                        onMouseOver={(e) => { e.currentTarget.style.boxShadow = "0 8px 28px rgba(0,0,0,0.10)"; e.currentTarget.style.borderColor = channelColor + "70"; e.currentTarget.style.transform = "translateY(-2px)"; }}
-                                                        onMouseOut={(e) => { e.currentTarget.style.boxShadow = "none"; e.currentTarget.style.borderColor = "var(--border-subtle)"; e.currentTarget.style.transform = "translateY(0)"; }}
-                                                    >
-                                                        {/* Card accent bar — gradient */}
-                                                        <div style={{ height: 4, background: `linear-gradient(90deg, ${channelColor}, ${channelColor}88)`, width: "100%" }} />
-
-                                                        {/* Card body */}
-                                                        <div style={{ padding: "18px 20px", flex: 1, display: "flex", flexDirection: "column", gap: 12 }}>
-                                                            {/* Header: icon + name + badges */}
-                                                            <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
-                                                                <div style={{
-                                                                    width: 40, height: 40, borderRadius: 12,
-                                                                    background: `linear-gradient(135deg, ${channelColor}20, ${channelColor}10)`,
-                                                                    border: `1px solid ${channelColor}30`,
-                                                                    display: "flex", alignItems: "center", justifyContent: "center",
-                                                                    color: channelColor, flexShrink: 0,
-                                                                }}>
-                                                                    <TIcon size={19} strokeWidth={2.2} />
-                                                                </div>
-                                                                <div style={{ flex: 1, minWidth: 0 }}>
-                                                                    <div style={{ fontSize: 14, fontWeight: 800, color: "var(--text-primary)", lineHeight: 1.3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.name}</div>
-                                                                    <div style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 3, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                                                                        <span style={{
-                                                                            background: channelColor + "18",
-                                                                            color: channelColor,
-                                                                            padding: "1px 8px", borderRadius: 99, fontWeight: 800, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.04em",
-                                                                        }}>{tplType}</span>
-                                                                        <span style={{ background: "var(--surface-subtle)", padding: "1px 6px", borderRadius: 4, fontWeight: 700 }}>{t.category || "General"}</span>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-
-                                                            {/* Subject line preview */}
-                                                            {t.subject && (
-                                                                <div style={{
-                                                                    padding: "8px 12px",
-                                                                    background: "var(--surface-subtle)",
-                                                                    borderRadius: 10,
-                                                                    border: "1px solid var(--border-subtle)",
-                                                                    fontSize: 12,
-                                                                    color: "var(--text-secondary)",
-                                                                    fontFamily: "ui-monospace, monospace",
-                                                                    whiteSpace: "nowrap",
-                                                                    overflow: "hidden",
-                                                                    textOverflow: "ellipsis",
-                                                                }}>
-                                                                    <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-dim)", marginRight: 6, textTransform: "uppercase" }}>
-                                                                        {tplType === "PDF" ? "Title:" : tplType === "SMS" ? "Label:" : "Subject:"}
-                                                                    </span>
-                                                                    {t.subject}
-                                                                </div>
+                                                    <tr key={t.id} className="tpl-lib-row">
+                                                        <td className="tpl-lib-td">
+                                                            <div style={{ fontWeight: 700, fontSize: 13, color: "var(--text-primary)" }}>{t.name}</div>
+                                                            {t.slug && (
+                                                                <div style={{ fontSize: 11, color: "var(--text-dim)", fontFamily: "ui-monospace, monospace", marginTop: 2 }}>{t.slug}</div>
                                                             )}
-
-                                                            {/* Description */}
-                                                            {t.description && (
-                                                                <p style={{ fontSize: 12, color: "var(--text-muted)", margin: 0, lineHeight: 1.5, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
-                                                                    {t.description}
-                                                                </p>
-                                                            )}
-
-                                                            {/* Placeholders used */}
-                                                            {usedPlaceholders.length > 0 && (
-                                                                <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: "auto" }}>
-                                                                    {usedPlaceholders.map(ph => (
-                                                                        <span key={ph} style={{
-                                                                            fontSize: 10, fontWeight: 700,
-                                                                            background: "var(--brand-primary)12",
-                                                                            color: "var(--brand-primary)",
-                                                                            border: "1px solid var(--brand-primary)25",
-                                                                            padding: "2px 7px", borderRadius: 6,
-                                                                            fontFamily: "ui-monospace, monospace",
-                                                                        }}>{`{{${ph}}}`}</span>
-                                                                    ))}
-                                                                </div>
-                                                            )}
-                                                        </div>
-
-                                                        {/* Card footer */}
-                                                        <div style={{ padding: "10px 20px", borderTop: "1px solid var(--border-subtle)", display: "flex", justifyContent: "space-between", alignItems: "center", background: "var(--surface-subtle)" }}>
-                                                            <span style={{ fontSize: 11, color: "var(--text-dim)", fontWeight: 600 }}>Updated {updatedLabel}</span>
-                                                            <div style={{ display: "flex", gap: 4 }} onClick={(e) => e.stopPropagation()}>
+                                                        </td>
+                                                        <td className="tpl-lib-td tpl-lib-td--desc">
+                                                            <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{t.description || "—"}</span>
+                                                        </td>
+                                                        <td className="tpl-lib-td">
+                                                            <span style={{ fontSize: 12, color: "var(--text-dim)", whiteSpace: "nowrap" }}>{updatedLabel}</span>
+                                                        </td>
+                                                        <td className="tpl-lib-td tpl-lib-td--actions">
+                                                            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                                                                 <button
                                                                     type="button"
-                                                                    title="Edit template"
-                                                                    onClick={(e) => { e.stopPropagation(); setTemplateTypeFilter(tplType); setLocalS((s) => ({ ...s, _activeTemplateId: t.id })); }}
-                                                                    style={{ border: "none", background: "none", color: "var(--brand-primary)", fontWeight: 700, fontSize: 12, cursor: "pointer", padding: "4px 10px", borderRadius: 8, display: "flex", alignItems: "center", gap: 4 }}
+                                                                    className="tpl-lib-edit-link"
+                                                                    onClick={() => {
+                                                                        setEditingTemplate(t);
+                                                                        setTemplateEditorOpen(true);
+                                                                    }}
                                                                 >
-                                                                    <Pencil size={13} /> Edit
+                                                                    Edit
                                                                 </button>
                                                                 <button
                                                                     type="button"
-                                                                    title="Duplicate template"
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation();
+                                                                    title="Duplicate"
+                                                                    onClick={() => {
                                                                         const newId = uid();
                                                                         setData((d) => ({ ...d, templates: [...(d.templates || []), { ...t, id: newId, name: t.name + " (copy)", updatedAt: new Date().toISOString() }] }));
                                                                         showToast?.("Template duplicated", "success");
                                                                     }}
-                                                                    style={{ border: "none", background: "none", color: "var(--text-dim)", fontSize: 12, fontWeight: 700, cursor: "pointer", padding: "4px 10px", borderRadius: 8, display: "flex", alignItems: "center", gap: 4 }}
+                                                                    style={{ border: "none", background: "none", color: "var(--text-dim)", fontSize: 12, fontWeight: 600, cursor: "pointer", padding: "4px 8px", borderRadius: 6, display: "flex", alignItems: "center", gap: 3 }}
                                                                 >
-                                                                    <Copy size={13} /> Copy
+                                                                    <Copy size={12} /> Copy
                                                                 </button>
                                                                 <button
                                                                     type="button"
-                                                                    title="Delete template"
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation();
+                                                                    title="Delete"
+                                                                    onClick={() => {
                                                                         if (window.confirm(`Delete "${t.name}" permanently?`)) {
                                                                             setData((d) => ({ ...d, templates: (d.templates || []).filter((tx) => tx.id !== t.id) }));
                                                                             showToast?.("Template deleted", "success");
                                                                         }
                                                                     }}
-                                                                    style={{ border: "none", background: "none", color: "#ef4444", fontSize: 12, fontWeight: 700, cursor: "pointer", padding: "4px 8px", borderRadius: 8, display: "flex", alignItems: "center" }}
+                                                                    style={{ border: "none", background: "none", color: "#ef4444", fontSize: 12, fontWeight: 600, cursor: "pointer", padding: "4px 8px", borderRadius: 6, display: "flex", alignItems: "center" }}
                                                                 >
-                                                                    <Trash2 size={13} />
+                                                                    <Trash2 size={12} />
                                                                 </button>
                                                             </div>
-                                                        </div>
-                                                    </div>
+                                                        </td>
+                                                    </tr>
                                                 );
                                             })}
-                                        </div>
-                                    )}
-                                </>
-                            ) : (
-                                <div
-                                    className="template-studio-editor-shell"
-                                    style={{
-                                        background: "var(--bg-card)",
-                                        border: "1px solid var(--border-subtle)",
-                                        borderRadius: 24,
-                                        overflow: "hidden",
-                                        boxShadow: "0 8px 40px rgba(0,0,0,0.06)",
-                                    }}
-                                >
-                                    {/* MAIN: Editor */}
-                                    <div className={`template-studio-editor-grid ${isMobile ? "is-mobile" : ""}`} style={{ minHeight: 0 }}>
-                                    <div style={{ background: "var(--bg-card)", display: "flex", flexDirection: "column", minHeight: 0 }}>
-                                        {(() => {
-                                            const t = (data.templates || []).find((x) => x.id === localS._activeTemplateId);
-                                            if (!t) {
-                                                return (
-                                                    <div style={{ padding: 48, textAlign: "center" }}>
-                                                        <p style={{ color: "var(--text-muted)", marginBottom: 16 }}>This template no longer exists.</p>
-                                                        <Button variant="secondary" onClick={() => setLocalS((s) => ({ ...s, _activeTemplateId: null }))}>Back to library</Button>
-                                                    </div>
-                                                );
-                                            }
-
-                                            const tid = t.id;
-                                            const tplType = canonicalTemplateType(t.type);
-                                            const pdfPreview = tplType === "PDF" ? runTemplatePreview(t.subject, t.body) : null;
-                                            const Hicon = tplType === "SMS" ? MessageSquare : tplType === "WhatsApp" ? MessageCircle : tplType === "PDF" ? FileText : Mail;
-
-                                            return (
-                                                <>
-                                                    <div className="template-studio-editor-nav">
-                                                        <button
-                                                            type="button"
-                                                            className="template-studio-back"
-                                                            onClick={() => {
-                                                                setLocalS((s) => ({ ...s, _activeTemplateId: null }));
-                                                                setTemplatePreviewOpen(false);
-                                                            }}
-                                                        >
-                                                            <ArrowLeft size={18} strokeWidth={2} aria-hidden />
-                                                            Back to {tplType} templates
-                                                        </button>
-                                                        {t.description ? (
-                                                            <p className="template-studio-editor-purpose">{t.description}</p>
-                                                        ) : null}
-                                                    </div>
-                                                <fieldset
-                                                    disabled={!templatesEditable}
-                                                    className="settings-workspace-fieldset template-studio-fields"
-                                                    style={{
-                                                        flex: 1,
-                                                        display: "flex",
-                                                        flexDirection: "column",
-                                                        minHeight: 0,
-                                                        minWidth: 0,
-                                                        border: "none",
-                                                        margin: 0,
-                                                        padding: 0,
-                                                    }}
-                                                >
-                                                    <legend className="settings-fieldset-sr-only">Template fields</legend>
-                                                    <div style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
-                                                    <div
-                                                        className="template-studio-editor-head"
-                                                        style={{
-                                                            borderBottom: "1px solid var(--border-subtle)",
-                                                            background: "linear-gradient(180deg, var(--surface-subtle) 0%, var(--bg-card) 100%)",
-                                                        }}
-                                                    >
-                                                        <div style={{ display: "flex", alignItems: "flex-start", gap: 16, marginBottom: 20, flexWrap: "wrap" }}>
-                                                            <div style={{ width: 48, height: 48, borderRadius: 14, background: "var(--brand-primary)18", color: "var(--brand-primary)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                                                                <Hicon size={24} />
-                                                            </div>
-                                                            <div style={{ flex: 1, minWidth: 200 }}>
-                                                                <label style={{ fontSize: 11, fontWeight: 700, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Template name</label>
-                                                                <input
-                                                                    className="input-premium"
-                                                                    value={t.name}
-                                                                    onChange={(e) => updateTemplate(tid, { name: e.target.value })}
-                                                                    style={{ width: "100%", marginTop: 6, height: 44, borderRadius: 12, fontSize: 16, fontWeight: 800 }}
-                                                                />
-                                                            </div>
-                                                            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                                                                <div>
-                                                                    <label style={{ fontSize: 11, fontWeight: 700, color: "var(--text-dim)", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Type</label>
-                                                                    <select
-                                                                        className="input-premium"
-                                                                        value={tplType}
-                                                                        onChange={(e) => {
-                                                                            const val = e.target.value;
-                                                                            setTemplateTypeFilter(val);
-                                                                            updateTemplate(tid, {
-                                                                                type: val,
-                                                                                ...(val === "PDF" ? { _editorMode: "HTML" } : {}),
-                                                                            });
-                                                                        }}
-                                                                        style={{ height: 44, borderRadius: 12, minWidth: 120, fontWeight: 600 }}
-                                                                    >
-                                                                        <option value="Email">Email</option>
-                                                                        <option value="SMS">SMS</option>
-                                                                        <option value="WhatsApp">WhatsApp</option>
-                                                                        <option value="PDF">PDF</option>
-                                                                    </select>
-                                                                </div>
-                                                                <div>
-                                                                    <label style={{ fontSize: 11, fontWeight: 700, color: "var(--text-dim)", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Category</label>
-                                                                    <select
-                                                                        className="input-premium"
-                                                                        value={t.category || "General"}
-                                                                        onChange={(e) => updateTemplate(tid, { category: e.target.value })}
-                                                                        style={{ height: 44, borderRadius: 12, minWidth: 140, fontWeight: 600 }}
-                                                                    >
-                                                                        {["General", "Finance", "Staff", "Operations"].map((c) => (
-                                                                            <option key={c} value={c}>
-                                                                                {c}
-                                                                            </option>
-                                                                        ))}
-                                                                    </select>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                        <div>
-                                                            <label style={{ fontSize: 11, fontWeight: 700, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Internal description</label>
-                                                            <textarea
-                                                                className="input-premium"
-                                                                style={{ width: "100%", marginTop: 6, minHeight: 56, borderRadius: 12, resize: "vertical", fontSize: 13, lineHeight: 1.5 }}
-                                                                value={t.description || ""}
-                                                                onChange={(e) => updateTemplate(tid, { description: e.target.value })}
-                                                                placeholder="When staff should use this template (not sent to customers)."
-                                                            />
-                                                        </div>
-                                                    </div>
-
-                                                    <div className="template-studio-editor-scroll hide-scrollbar" style={{ overflowY: "auto", flex: 1 }}>
-                                                        <div style={{ marginBottom: 28 }}>
-                                                            <label style={{ fontSize: 12, fontWeight: 800, color: "var(--text-primary)", marginBottom: 10, display: "block" }}>
-                                                                {tplType === "PDF" ? "Document title" : tplType === "SMS" ? "Label (optional)" : "Subject line"}
-                                                            </label>
-                                                            <input
-                                                                ref={subjectInputRef}
-                                                                className="input-modern"
-                                                                style={{ height: 50, fontSize: 15, fontWeight: 600, borderRadius: 14, width: "100%" }}
-                                                                value={t.subject}
-                                                                onChange={(e) => updateTemplate(tid, { subject: e.target.value })}
-                                                                onFocus={() => rememberTemplateSelection("subject")}
-                                                                onClick={() => rememberTemplateSelection("subject")}
-                                                                onKeyUp={() => rememberTemplateSelection("subject")}
-                                                                onSelect={() => rememberTemplateSelection("subject")}
-                                                                placeholder={
-                                                                    tplType === "PDF"
-                                                                        ? "e.g. Tax invoice {{invoiceId}}"
-                                                                        : tplType === "SMS"
-                                                                          ? "Optional prefix (not all devices show this separately)"
-                                                                          : "e.g. Invoice {{invoiceId}} from {{businessName}}"
-                                                                }
-                                                                id="tpl-subject"
-                                                            />
-                                                        </div>
-
-                                                        <div>
-                                                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 12 }}>
-                                                                <label style={{ fontSize: 12, fontWeight: 800, color: "var(--text-primary)" }}>
-                                                                    {tplType === "PDF" ? "HTML layout" : tplType === "SMS" ? "SMS text" : "Message body"}
-                                                                </label>
-                                                                {tplType === "Email" ? (
-                                                                    <div className="template-editor-segment" role="tablist" aria-label="Editor mode">
-                                                                        <button
-                                                                            type="button"
-                                                                            role="tab"
-                                                                            aria-selected={(t._editorMode || "Visual") === "Visual"}
-                                                                            className={(t._editorMode || "Visual") === "Visual" ? "is-active" : ""}
-                                                                            onClick={() => updateTemplate(tid, { _editorMode: "Visual" })}
-                                                                        >
-                                                                            Visual
-                                                                        </button>
-                                                                        <button
-                                                                            type="button"
-                                                                            role="tab"
-                                                                            aria-selected={t._editorMode === "HTML"}
-                                                                            className={t._editorMode === "HTML" ? "is-active" : ""}
-                                                                            onClick={() => updateTemplate(tid, { _editorMode: "HTML" })}
-                                                                        >
-                                                                            HTML
-                                                                        </button>
-                                                                    </div>
-                                                                ) : tplType === "PDF" ? (
-                                                                    <span className="template-studio-badge-muted">HTML · A4 preview below</span>
-                                                                ) : (
-                                                                    <span className="template-studio-badge-muted">Plain text · GSM length limits apply</span>
-                                                                )}
-                                                            </div>
-                                                            <div style={{ border: "1px solid var(--border-subtle)", borderRadius: 18, overflow: "hidden", background: "var(--bg-card)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)" }}>
-                                                                <div className="template-editor-toolbar" style={{ padding: "10px 16px", background: "var(--surface-subtle)", borderBottom: "1px solid var(--border-subtle)" }}>
-                                                                    <span className="template-editor-toolbar-label">Quick insert</span>
-                                                                    <button
-                                                                        type="button"
-                                                                        className="template-toolbar-btn"
-                                                                        title="Focus subject field"
-                                                                        onClick={() => {
-                                                                            document.getElementById("tpl-subject")?.focus();
-                                                                            showToast?.("Editing subject line", "success");
-                                                                        }}
-                                                                    >
-                                                                        <Type size={15} strokeWidth={2} aria-hidden /> Subject
-                                                                    </button>
-                                                                    <button
-                                                                        type="button"
-                                                                        className="template-toolbar-btn"
-                                                                        title="Insert section divider"
-                                                                        onClick={() => {
-                                                                            insertIntoBody(tid, "\n\n────────────────\n");
-                                                                            showToast?.("Divider inserted", "success");
-                                                                        }}
-                                                                    >
-                                                                        <Layout size={15} strokeWidth={2} aria-hidden /> Divider
-                                                                    </button>
-                                                                    <button
-                                                                        type="button"
-                                                                        className="template-toolbar-btn"
-                                                                        title="Insert invoice reference line"
-                                                                        onClick={() => {
-                                                                            insertIntoBody(tid, "Reference: {{invoiceId}}\n");
-                                                                            showToast?.("Invoice line inserted", "success");
-                                                                        }}
-                                                                    >
-                                                                        <FileText size={15} strokeWidth={2} aria-hidden /> Invoice ref
-                                                                    </button>
-                                                                    <button
-                                                                        type="button"
-                                                                        className="template-toolbar-btn"
-                                                                        title="Wrap selection with bold markers"
-                                                                        onClick={() => {
-                                                                            wrapBodySelection(tid, "**", "**");
-                                                                            showToast?.("Bold markers added", "success");
-                                                                        }}
-                                                                    >
-                                                                        <span style={{ fontWeight: 800 }}>B</span> Bold
-                                                                    </button>
-                                                                    <button
-                                                                        type="button"
-                                                                        className="template-toolbar-btn"
-                                                                        title="Copy body to clipboard"
-                                                                        onClick={async () => {
-                                                                            try {
-                                                                                await navigator.clipboard.writeText(t.body || "");
-                                                                                showToast?.("Body copied to clipboard", "success");
-                                                                            } catch {
-                                                                                showToast?.("Could not copy — select and copy manually", "warning");
-                                                                            }
-                                                                        }}
-                                                                    >
-                                                                        <Copy size={15} strokeWidth={2} aria-hidden /> Copy
-                                                                    </button>
-                                                                </div>
-                                                                <textarea
-                                                                    ref={bodyInputRef}
-                                                                    id="tpl-body"
-                                                                    className="input-modern"
-                                                                    style={{
-                                                                        minHeight: tplType === "PDF" ? 300 : 420,
-                                                                        border: "none",
-                                                                        borderRadius: 0,
-                                                                        padding: 28,
-                                                                        fontSize: 15,
-                                                                        lineHeight: 1.75,
-                                                                        fontFamily:
-                                                                            tplType === "PDF" || tplType === "SMS" || t._editorMode === "HTML"
-                                                                                ? "ui-monospace, SFMono-Regular, Menlo, monospace"
-                                                                                : "inherit",
-                                                                        width: "100%",
-                                                                        boxSizing: "border-box",
-                                                                    }}
-                                                                    value={t.body}
-                                                                    onChange={(e) => updateTemplate(tid, { body: e.target.value })}
-                                                                    onFocus={() => rememberTemplateSelection("body")}
-                                                                    onClick={() => rememberTemplateSelection("body")}
-                                                                    onKeyUp={() => rememberTemplateSelection("body")}
-                                                                    onSelect={() => rememberTemplateSelection("body")}
-                                                                    placeholder={
-                                                                        tplType === "PDF"
-                                                                            ? "<h1>{{businessName}}</h1>\n<p>Invoice {{invoiceId}} · {{amount}}</p>"
-                                                                            : tplType === "SMS"
-                                                                              ? "Hi {{firstName}}, your invoice {{invoiceId}} is ready. {{footer}}"
-                                                                              : "Write your message. Use placeholders from the right panel."
-                                                                    }
-                                                                />
-                                                                {tplType === "PDF" && pdfPreview ? (
-                                                                    <div className="template-pdf-preview-stack">
-                                                                        <div className="template-pdf-preview-label">Live A4 preview</div>
-                                                                        <div className="template-pdf-preview-wrap template-pdf-printable">
-                                                                            <div className="template-pdf-shadow">
-                                                                                <article className="template-pdf-page">
-                                                                                    {pdfPreview.subject ? (
-                                                                                        <header className="template-pdf-doc-title">{pdfPreview.subject}</header>
-                                                                                    ) : null}
-                                                                                    <div className="template-pdf-html" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(pdfPreview.body || "") }} />
-                                                                                </article>
-                                                                            </div>
-                                                                        </div>
-                                                                    </div>
-                                                                ) : null}
-                                                            </div>
-                                                        </div>
-
-                                                        <p style={{ fontSize: 12, color: "var(--text-dim)", margin: "20px 0 0", lineHeight: 1.5 }}>
-                                                            Changes to templates are saved automatically with your workspace data.
-                                                        </p>
-                                                        <div style={{ display: "flex", gap: 10, marginTop: 16, flexWrap: "wrap", alignItems: "center" }}>
-                                                            <Button variant="primary" icon={Eye} onClick={() => setTemplatePreviewOpen(true)}>
-                                                                Preview with sample data
-                                                            </Button>
-                                                            <Button
-                                                                variant="danger"
-                                                                icon={Trash2}
-                                                                onClick={() => {
-                                                                    if (window.confirm("Delete this template permanently?")) {
-                                                                        setData((d) => ({ ...d, templates: (d.templates || []).filter((tx) => tx.id !== tid) }));
-                                                                        setLocalS((s) => ({ ...s, _activeTemplateId: null }));
-                                                                        setTemplatePreviewOpen(false);
-                                                                        showToast?.("Template deleted", "success");
-                                                                    }
-                                                                }}
-                                                                style={{ 
-                                                                    marginLeft: "auto",
-                                                                    background: "#ef4444",
-                                                                    color: "white",
-                                                                    border: "none",
-                                                                    boxShadow: "0 4px 12px rgba(239, 68, 68, 0.2)"
-                                                                }}
-                                                            >
-                                                                Delete template
-                                                            </Button>
-                                                        </div>
-
-                                                        {tplType === "Email" ? (
-                                                            <div style={{ marginTop: 40, padding: 28, background: "var(--surface-subtle)", borderRadius: 20, border: "1px solid var(--border-subtle)" }}>
-                                                                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-                                                                    <Mail size={20} color="var(--brand-primary)" />
-                                                                    <h4 style={{ fontSize: 17, fontWeight: 900, color: "var(--text-primary)", margin: 0 }}>Send test email</h4>
-                                                                </div>
-                                                                <p style={{ color: "var(--text-muted)", fontSize: 14, marginBottom: 18, lineHeight: 1.55 }}>
-                                                                    Fills subject and body with sample placeholder values and opens your default mail client. Leave the address empty to choose the recipient in the mail app, or use your organization email from settings.
-                                                                </p>
-                                                                <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-                                                                    <input
-                                                                        className="input-modern"
-                                                                        placeholder="Optional: recipient email"
-                                                                        style={{ flex: 1, minWidth: 200, borderRadius: 12, height: 46 }}
-                                                                        value={sendTestEmail}
-                                                                        onChange={(e) => setSendTestEmail(e.target.value)}
-                                                                    />
-                                                                    <Button
-                                                                        variant="secondary"
-                                                                        icon={Send}
-                                                                        onClick={() => {
-                                                                            const { subject, body } = runTemplatePreview(t.subject, t.body);
-                                                                            const to = (sendTestEmail.trim() || localS.email || "").replace(/^mailto:/i, "");
-                                                                            const q = `subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-                                                                            window.location.href = to ? `mailto:${encodeURIComponent(to)}?${q}` : `mailto:?${q}`;
-                                                                            showToast?.("Opening your email application…", "success");
-                                                                        }}
-                                                                    >
-                                                                        Send test
-                                                                    </Button>
-                                                                </div>
-                                                            </div>
-                                                        ) : tplType === "SMS" ? (
-                                                            <div style={{ marginTop: 40, padding: 28, background: "var(--surface-subtle)", borderRadius: 20, border: "1px solid var(--border-subtle)" }}>
-                                                                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-                                                                    <MessageSquare size={20} color="var(--brand-primary)" />
-                                                                    <h4 style={{ fontSize: 17, fontWeight: 900, color: "var(--text-primary)", margin: 0 }}>Send test SMS</h4>
-                                                                </div>
-                                                                <p style={{ color: "var(--text-muted)", fontSize: 14, marginBottom: 18, lineHeight: 1.55 }}>
-                                                                    Opens your device&apos;s SMS app with sample-filled text (sms: link). Use a Kenya number (e.g. 07… or 254…). Leave empty to use the organization phone from Organization settings.
-                                                                </p>
-                                                                <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-                                                                    <input
-                                                                        className="input-modern"
-                                                                        placeholder="Optional: recipient phone"
-                                                                        style={{ flex: 1, minWidth: 200, borderRadius: 12, height: 46 }}
-                                                                        value={sendTestPhone}
-                                                                        onChange={(e) => setSendTestPhone(e.target.value)}
-                                                                    />
-                                                                    <Button
-                                                                        variant="secondary"
-                                                                        icon={Send}
-                                                                        onClick={() => {
-                                                                            const prev = runTemplatePreview(t.subject, t.body);
-                                                                            const smsText = [prev.subject, prev.body].filter((x) => String(x || "").trim()).join("\n\n");
-                                                                            const raw = (sendTestPhone.trim() || localS.phone || "").trim();
-                                                                            const url = buildSmsUrl(raw, smsText);
-                                                                            if (!url) {
-                                                                                showToast?.("Enter a valid mobile number (e.g. 0712… or 254712…)", "warning");
-                                                                                return;
-                                                                            }
-                                                                            window.location.href = url;
-                                                                            showToast?.("Opening your SMS app…", "success");
-                                                                        }}
-                                                                    >
-                                                                        Send test
-                                                                    </Button>
-                                                                </div>
-                                                            </div>
-                                                        ) : (
-                                                            <div style={{ marginTop: 40, padding: 28, background: "var(--surface-subtle)", borderRadius: 20, border: "1px solid var(--border-subtle)" }}>
-                                                                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-                                                                    <FileText size={20} color="var(--brand-primary)" />
-                                                                    <h4 style={{ fontSize: 17, fontWeight: 900, color: "var(--text-primary)", margin: 0 }}>Print or save as PDF</h4>
-                                                                </div>
-                                                                <p style={{ color: "var(--text-muted)", fontSize: 14, marginBottom: 18, lineHeight: 1.55 }}>
-                                                                    Uses the live preview area above. In the print dialog, choose &quot;Save as PDF&quot; where available.
-                                                                </p>
-                                                                <Button
-                                                                    variant="secondary"
-                                                                    icon={FileText}
-                                                                    onClick={() => {
-                                                                        window.print();
-                                                                    }}
-                                                                >
-                                                                    Print preview
-                                                                </Button>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                                </fieldset>
-                                                </>
-                                            );
-                                        })()}
-                                    </div>
-
-                                    <div className="template-studio-placeholder-panel" style={{ display: "flex", flexDirection: "column", background: "var(--surface-subtle)", minHeight: 0 }}>
-                                        <div className="template-studio-placeholder-head" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
-                                            <h4 style={{ fontSize: 15, fontWeight: 900, color: "var(--text-primary)", margin: "0 0 6px" }}>Placeholders</h4>
-                                            <p style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 16, lineHeight: 1.45 }}>
-                                                Click <b>Subj</b> (title or subject line) or <b>Body</b> to insert. Focus the field first so the snippet goes to the right place.
-                                            </p>
-                                            <div style={{ position: "relative" }}>
-                                                <Search size={14} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--text-dim)" }} />
-                                                <input
-                                                    value={phSearch}
-                                                    onChange={(e) => setPhSearch(e.target.value)}
-                                                    placeholder="Filter by name…"
-                                                    style={{ width: "100%", padding: "10px 12px 10px 36px", borderRadius: 12, background: "var(--bg-card)", border: "1px solid var(--border-subtle)", fontSize: 13, color: "var(--text-primary)" }}
-                                                />
-                                            </div>
-                                            <select
-                                                className="input-premium"
-                                                value={phCategory}
-                                                onChange={(e) => setPhCategory(e.target.value)}
-                                                style={{ width: "100%", height: 40, fontSize: 13, marginTop: 12, borderRadius: 12, background: "var(--bg-card)", fontWeight: 600 }}
-                                            >
-                                                <option value="ALL">All categories</option>
-                                                <option value="Business">Business</option>
-                                                <option value="Auth & Verification">Auth & verification</option>
-                                                <option value="Customer">Customer</option>
-                                                <option value="Invoices">Invoices</option>
-                                                <option value="Journeys">Journeys &amp; waybill</option>
-                                                <option value="Staff & drivers">Staff &amp; drivers</option>
-                                            </select>
-                                        </div>
-                                        <div className="template-studio-placeholder-list hide-scrollbar" style={{ flex: 1, overflowY: "auto" }}>
-                                            {PLACEHOLDER_GROUPS.filter((g) => phCategory === "ALL" || g.filterCat === phCategory).map((group) => {
-                                                const filteredItems = group.items.filter((p) => !phSearch.trim() || p.toLowerCase().includes(phSearch.trim().toLowerCase()));
-                                                if (filteredItems.length === 0) return null;
-                                                const Gicon = group.icon;
-                                                return (
-                                                    <div key={group.cat} style={{ marginBottom: 22 }}>
-                                                        <div style={{ fontSize: 10, fontWeight: 900, color: group.color, marginBottom: 10, letterSpacing: "0.08em", display: "flex", alignItems: "center", gap: 8 }}>
-                                                            <Gicon size={14} />
-                                                            {group.cat}
-                                                        </div>
-                                                        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                                                            {filteredItems.map((p) => (
-                                                                <div
-                                                                    key={p}
-                                                                    onClick={() => {
-                                                                        const activeField = templateCursorRef.current.lastField || "body";
-                                                                        insertIntoTemplateField(localS._activeTemplateId, activeField, `{{${p}}}`);
-                                                                    }}
-                                                                    style={{
-                                                                        display: "flex",
-                                                                        alignItems: "center",
-                                                                        gap: 8,
-                                                                        background: "var(--bg-card)",
-                                                                        border: "1px solid var(--border-subtle)",
-                                                                        borderRadius: 12,
-                                                                        padding: "8px 10px",
-                                                                        fontSize: 12,
-                                                                        color: "var(--text-primary)",
-                                                                        fontWeight: 600,
-                                                                        cursor: "pointer",
-                                                                    }}
-                                                                >
-                                                                    <code style={{ flex: 1, fontFamily: "ui-monospace, monospace", fontSize: 11, color: "var(--brand-primary)", overflow: "hidden", textOverflow: "ellipsis" }}>{`{{${p}}}`}</code>
-                                                                    <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
-                                                                        <button
-                                                                            type="button"
-                                                                            onClick={(e) => {
-                                                                                e.stopPropagation();
-                                                                                insertIntoSubject(localS._activeTemplateId, `{{${p}}}`);
-                                                                            }}
-                                                                            style={{
-                                                                                fontSize: 10,
-                                                                                fontWeight: 800,
-                                                                                background: "var(--surface-subtle)",
-                                                                                border: "1px solid var(--border-subtle)",
-                                                                                borderRadius: 8,
-                                                                                padding: "4px 8px",
-                                                                                color: "var(--text-secondary)",
-                                                                                cursor: "pointer",
-                                                                            }}
-                                                                        >
-                                                                            Subj
-                                                                        </button>
-                                                                        <button
-                                                                            type="button"
-                                                                            onClick={(e) => {
-                                                                                e.stopPropagation();
-                                                                                insertIntoBody(localS._activeTemplateId, `{{${p}}}`);
-                                                                            }}
-                                                                            style={{
-                                                                                fontSize: 10,
-                                                                                fontWeight: 800,
-                                                                                background: "var(--surface-subtle)",
-                                                                                border: "1px solid var(--border-subtle)",
-                                                                                borderRadius: 8,
-                                                                                padding: "4px 8px",
-                                                                                color: "var(--text-secondary)",
-                                                                                cursor: "pointer",
-                                                                            }}
-                                                                        >
-                                                                            Body
-                                                                        </button>
-                                                                    </div>
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-                                    </div>
+                                        </tbody>
+                                    </table>
                                 </div>
                             )}
 
-                            {templatePreviewOpen && localS._activeTemplateId && (() => {
-                                const pt = (data.templates || []).find((x) => x.id === localS._activeTemplateId);
-                                if (!pt) return null;
-                                const rendered = runTemplatePreview(pt.subject, pt.body);
-                                const prevType = canonicalTemplateType(pt.type);
-                                const isPdfPrev = prevType === "PDF";
-                                return (
-                                    <div
-                                        role="dialog"
-                                        aria-modal="true"
-                                        style={{
-                                            position: "fixed",
-                                            inset: 0,
-                                            zIndex: 2000,
-                                            background: "rgba(0,0,0,0.55)",
-                                            backdropFilter: "blur(6px)",
-                                            display: "flex",
-                                            alignItems: "flex-start",
-                                            justifyContent: "center",
-                                            padding: "max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left))",
-                                            overflowY: "auto",
-                                            overscrollBehavior: "contain",
-                                        }}
-                                        onClick={() => setTemplatePreviewOpen(false)}
-                                    >
-                                        <div
-                                            onClick={(e) => e.stopPropagation()}
-                                            style={{
-                                                width: isPdfPrev ? "min(720px, calc(100vw - 32px))" : "min(560px, calc(100vw - 32px))",
-                                                maxHeight: "min(88dvh, 720px)",
-                                                margin: "20px 0",
-                                                overflow: "hidden",
-                                                display: "flex",
-                                                flexDirection: "column",
-                                                borderRadius: 20,
-                                                border: "1px solid var(--border-subtle)",
-                                                background: "var(--bg-card)",
-                                                boxShadow: "0 24px 64px rgba(0,0,0,0.25)",
-                                            }}
-                                        >
-                                            <div style={{ padding: "20px 24px", borderBottom: "1px solid var(--border-subtle)", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-                                                <div>
-                                                    <div style={{ fontSize: 11, fontWeight: 800, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: "0.06em" }}>Preview</div>
-                                                    <div style={{ fontSize: 17, fontWeight: 900, color: "var(--text-primary)" }}>{pt.name}</div>
-                                                </div>
-                                                <Button variant="ghost" size="sm" onClick={() => setTemplatePreviewOpen(false)} aria-label="Close preview">
-                                                    <X size={18} />
-                                                </Button>
-                                            </div>
-                                            <div style={{ padding: 24, overflowY: "auto", flex: 1, minHeight: 0, WebkitOverflowScrolling: "touch" }}>
-                                                {!isPdfPrev ? (
-                                                    <>
-                                                        <div style={{ fontSize: 11, fontWeight: 800, color: "var(--text-dim)", marginBottom: 8, textTransform: "uppercase" }}>
-                                                            {prevType === "SMS" ? "Label" : "Subject"}
-                                                        </div>
-                                                        <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text-primary)", marginBottom: 22, lineHeight: 1.45 }}>{rendered.subject || "—"}</div>
-                                                        <div style={{ fontSize: 11, fontWeight: 800, color: "var(--text-dim)", marginBottom: 8, textTransform: "uppercase" }}>Body</div>
-                                                        <div
-                                                            style={{
-                                                                fontSize: 14,
-                                                                lineHeight: 1.7,
-                                                                color: "var(--text-secondary)",
-                                                                whiteSpace: "pre-wrap",
-                                                                wordBreak: "break-word",
-                                                                padding: 18,
-                                                                borderRadius: 14,
-                                                                background: "var(--surface-subtle)",
-                                                                border: "1px solid var(--border-subtle)",
-                                                            }}
-                                                        >
-                                                            {rendered.body || "—"}
-                                                        </div>
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <div style={{ fontSize: 11, fontWeight: 800, color: "var(--text-dim)", marginBottom: 12, textTransform: "uppercase" }}>PDF layout</div>
-                                                        <div className="template-pdf-preview-wrap template-pdf-preview-wrap--modal">
-                                                            <div className="template-pdf-shadow">
-                                                                <article className="template-pdf-page">
-                                                                    {rendered.subject ? <header className="template-pdf-doc-title">{rendered.subject}</header> : null}
-                                                                    <div className="template-pdf-html" dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(rendered.body || "") }} />
-                                                                </article>
-                                                            </div>
-                                                        </div>
-                                                    </>
-                                                )}
-                                                <p style={{ fontSize: 12, color: "var(--text-dim)", marginTop: 16, marginBottom: 0 }}>Sample data is used for placeholders (e.g. customer name, invoice id). Your company name comes from Organization settings when available.</p>
-                                            </div>
-                                            <div style={{ padding: "16px 24px", borderTop: "1px solid var(--border-subtle)", display: "flex", justifyContent: "flex-end", gap: 10 }}>
-                                                <Button variant="secondary" onClick={() => setTemplatePreviewOpen(false)}>
-                                                    Close
-                                                </Button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                );
-                            })()}
+                            {/* ── Template Editor Overlay ── */}
+                            {templateEditorOpen && (
+                                <TemplateEditor
+                                    template={editingTemplate}
+                                    companyName={localS.companyName}
+                                    fillTemplate={fillTemplate}
+                                    showToast={showToast}
+                                    onClose={() => {
+                                        setTemplateEditorOpen(false);
+                                        setEditingTemplate(null);
+                                    }}
+                                    onSave={(saved) => {
+                                        setData((d) => {
+                                            const existing = (d.templates || []).find((x) => x.id === saved.id);
+                                            if (existing) {
+                                                return { ...d, templates: d.templates.map((x) => x.id === saved.id ? saved : x) };
+                                            }
+                                            return { ...d, templates: [...(d.templates || []), saved] };
+                                        });
+                                    }}
+                                />
+                            )}
                         </div>
                     )}
 
