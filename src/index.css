@@ -1728,36 +1728,142 @@ button.journeys-table-link:hover { text-decoration: underline; }
   .topbar-chip { display: none; } /* hide chips on very small screens */
 }
 
-/* ── 24. REWRITTEN COMPONENT STYLES ─────────────────────────── */
+/* ── 24. COMPONENT POLISH — Emil Kowalski design principles ──── */
 
-/* Button — hover lift + active press (pure CSS, no framer-motion) */
+/*
+ * Rule: specify exact transition properties, never `all`.
+ * Rule: ease-out for most interactions (feels instant, lands gently).
+ * Rule: nothing appears from nothing — scale from 0.96 + opacity.
+ * Rule: active press must feel physical — scale(0.97) downward.
+ * Rule: unseen details compound into interfaces people love.
+ */
+
+/* ── Buttons ─────────────────────────────────────────────────── */
+.btn-base {
+  transition:
+    background-color 140ms cubic-bezier(0.16, 1, 0.3, 1),
+    border-color     140ms cubic-bezier(0.16, 1, 0.3, 1),
+    color            140ms cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow       140ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform        100ms cubic-bezier(0.16, 1, 0.3, 1),
+    opacity          100ms linear;
+}
 .btn-base:not(:disabled):hover  { transform: translateY(-1px); }
-.btn-base:not(:disabled):active { transform: translateY(0) scale(0.98); }
+.btn-base:not(:disabled):active { transform: translateY(0) scale(0.97); }
 
 .btn-primary:not(:disabled):hover  { background: var(--brand-primary-hover) !important; }
-.btn-outline:not(:disabled):hover  {
-  background: var(--brand-muted) !important;
-}
+.btn-outline:not(:disabled):hover  { background: var(--brand-muted) !important; }
 .btn-secondary:not(:disabled):hover,
 .btn-ghost:not(:disabled):hover    { background: var(--surface-hover) !important; }
-.btn-premium:not(:disabled):hover  { box-shadow: 0 4px 14px rgba(249,115,22,0.45) !important; }
+.btn-premium:not(:disabled):hover  { box-shadow: 0 4px 18px rgba(249,115,22,0.4) !important; }
 .btn-danger:not(:disabled):hover   {
   background: rgba(239,68,68,0.18) !important;
   border-color: rgba(239,68,68,0.45) !important;
 }
 
-/* Card — lift on click */
+/* ── Cards ───────────────────────────────────────────────────── */
+.card {
+  transition:
+    box-shadow   200ms cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 200ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform    160ms cubic-bezier(0.16, 1, 0.3, 1);
+}
 .card[style*="cursor: pointer"]:hover {
   box-shadow: var(--shadow-md);
-  transform: translateY(-1px);
+  transform: translateY(-2px);
+  border-color: var(--border-medium);
+}
+.card[style*="cursor: pointer"]:active {
+  transform: translateY(0) scale(0.99);
 }
 
-/* Field inputs — brand focus ring */
+/* ── Form inputs ─────────────────────────────────────────────── */
+input, select, textarea {
+  transition:
+    border-color 140ms cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow   140ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+input:focus, select:focus, textarea:focus,
 .field-input:focus {
   border-color: var(--brand-primary) !important;
   box-shadow: 0 0 0 3px var(--brand-focus-ring);
   outline: none;
 }
+input:hover:not(:focus),
+select:hover:not(:focus),
+textarea:hover:not(:focus),
 .field-input:hover:not(:focus) {
   border-color: var(--border-strong);
+}
+
+/* ── Nav links ───────────────────────────────────────────────── */
+.sidebar-nav-link {
+  transition:
+    background-color 120ms cubic-bezier(0.16, 1, 0.3, 1),
+    color            120ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ── Table rows ──────────────────────────────────────────────── */
+tbody tr {
+  transition: background-color 100ms ease-out;
+}
+tbody tr:hover { background: var(--surface-hover); }
+
+/* ── Page fade-in ────────────────────────────────────────────── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in { animation: fadeUp 220ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+/* ── Modal entrance ──────────────────────────────────────────── */
+@keyframes modalIn {
+  from { opacity: 0; transform: scale(0.96) translateY(6px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* ── Toast slide-in (right→left) ────────────────────────────── */
+@keyframes toastIn {
+  from { opacity: 0; transform: translateX(20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* ── Dropdown menu ───────────────────────────────────────────── */
+@keyframes dropIn {
+  from { opacity: 0; transform: scale(0.96) translateY(-4px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* ── Scrollbar — thin, subtle ────────────────────────────────── */
+::-webkit-scrollbar       { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--border-medium);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--border-strong); }
+
+/* ── Selection color ─────────────────────────────────────────── */
+::selection {
+  background: var(--brand-muted);
+  color: var(--brand-primary);
+}
+
+/* ── Dashboard table icon btn ────────────────────────────────── */
+.dashboard-table-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px; height: 30px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background-color 120ms ease-out, color 120ms ease-out, border-color 120ms ease-out;
+}
+.dashboard-table-icon-btn:hover {
+  background: var(--brand-muted);
+  color: var(--brand-primary);
+  border-color: var(--brand-border);
 }
