@@ -174,10 +174,9 @@ export default function App() {
         padding: !authed ? "0" : (isMobile ? "16px" : "32px"),
         marginTop: !authed ? "0" : (state.previewMode ? "calc(var(--topbar-height) + 40px)" : "var(--topbar-height)"),
         minWidth: 0,
-        width: "100%",
+        overflow: "hidden",
         display: "flex",
         flexDirection: "column",
-        gridColumn: "1 / -1",
     };
 
     if (isLogin && !authed) {
