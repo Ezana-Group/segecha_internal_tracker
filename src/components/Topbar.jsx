@@ -28,7 +28,7 @@ export function Topbar({
             style={{
                 position: "fixed",
                 top: 0,
-                left: 0,
+                left: isMobile ? 0 : "var(--sidebar-width)",
                 right: 0,
                 height: "var(--topbar-height)",
                 zIndex: 100,

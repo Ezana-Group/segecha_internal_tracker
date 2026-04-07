@@ -157,44 +157,33 @@ export default function App() {
         T
     };
 
-    // CSS Grid layout: sidebar column | main content column
-    const layoutStyle = {
-        display: "grid",
-        gridTemplateColumns: authed && !state.previewMode && !isLogin
-            ? (isMobile ? "1fr" : "var(--sidebar-width) 1fr")
-            : "1fr",
-        gridTemplateRows: "1fr",
-        minHeight: "100vh",
-        background: "var(--bg-main)",
-        color: "var(--text-secondary)",
-        transition: "background-color 0.3s ease",
-    };
-
-    const mainStyle = {
-        padding: !authed ? "0" : (isMobile ? "16px" : "32px"),
-        marginTop: !authed ? "0" : (state.previewMode ? "calc(var(--topbar-height) + 40px)" : "var(--topbar-height)"),
-        minWidth: 0,
-        overflow: "hidden",
-        display: "flex",
-        flexDirection: "column",
-    };
-
     if (isLogin && !authed) {
         return (
-            <div id="app-shell" style={{ minHeight: "100vh", background: "var(--bg-main)" }}>
-                <main style={{ padding: 0, marginTop: 0 }}>
-                    <Routes>
-                        <Route path="/login" element={<Login showToast={state.showToast} />} />
-                    </Routes>
-                </main>
+            <div style={{ minHeight: "100vh", background: "var(--bg-main)" }}>
+                <Routes>
+                    <Route path="/login" element={<Login showToast={state.showToast} />} />
+                </Routes>
                 <ToastContainer toasts={state.toasts} />
             </div>
         );
     }
 
+    // Reliable flex layout: sidebar | right-column (topbar + main)
+    // PreviewModeBanner and ToastContainer are fixed/absolute — never grid items.
     return (
-        <div id="app-shell" style={layoutStyle}>
+        <div
+            id="app-shell"
+            style={{
+                display: "flex",
+                minHeight: "100vh",
+                background: "var(--bg-main)",
+                color: "var(--text-secondary)",
+                transition: "background-color 0.3s ease",
+            }}
+        >
             <div id="waybill-print-root" style={{ display: "none" }} aria-hidden="true" />
+
+            {/* Mobile overlay when sidebar is open */}
             {isMobile && state.sideOpen && (
                 <div
                     style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", backdropFilter: "blur(4px)", zIndex: 89 }}
@@ -202,62 +191,75 @@ export default function App() {
                 />
             )}
 
-            {/* Sidebar — sits in column 1 of the grid on desktop */}
+            {/* Sidebar — fixed-width left column */}
             {authed && !state.previewMode && <Sidebar {...p} />}
 
-            {/* Topbar fixed at top, spanning sidebar+main on desktop */}
-            {authed && <Topbar {...p} />}
+            {/* Right column: topbar (fixed) + scrollable main */}
+            <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+                {authed && <Topbar {...p} />}
 
-            <PreviewModeBanner
-                previewMode={state.previewMode}
-                label={previewLabel}
-                driverPortalUrl={DRIVER_PORTAL_URL}
-                className={isMobile ? "" : "with-sidebar-offset"}
-                onExit={() => {
-                    state.clearPreviewMode();
-                    navigate("/", { replace: true });
-                    state.showToast("Preview closed", "success");
-                }}
-            />
+                <PreviewModeBanner
+                    previewMode={state.previewMode}
+                    label={previewLabel}
+                    driverPortalUrl={DRIVER_PORTAL_URL}
+                    className={isMobile ? "" : "with-sidebar-offset"}
+                    onExit={() => {
+                        state.clearPreviewMode();
+                        navigate("/", { replace: true });
+                        state.showToast("Preview closed", "success");
+                    }}
+                />
 
-            {/* Main content — sits in column 2 (or full width in preview/mobile) */}
-            <main style={mainStyle} className="animate-fade-in">
-                <Routes>
-                    <Route path="/login" element={<Login showToast={state.showToast} />} />
-                    <Route path="*" element={
-                        authed ? (
-                            <Routes>
-                                <Route path="/" element={<ErrorBoundary><Dashboard {...p} /></ErrorBoundary>} />
-                                <Route path="/fleet" element={<ErrorBoundary><Fleet {...p} /></ErrorBoundary>} />
-                                <Route path="/fleet/:id" element={<ErrorBoundary><VehicleProfile {...p} /></ErrorBoundary>} />
-                                <Route path="/drivers" element={<ErrorBoundary><Drivers {...p} /></ErrorBoundary>} />
-                                <Route path="/drivers/:id" element={<ErrorBoundary><DriverProfile {...p} /></ErrorBoundary>} />
-                                <Route path="/customers" element={<ErrorBoundary><Customers {...p} /></ErrorBoundary>} />
-                                <Route path="/customers/:id" element={<ErrorBoundary><CustomerProfile {...p} /></ErrorBoundary>} />
-                                <Route path="/journeys" element={<ErrorBoundary><Journeys {...p} /></ErrorBoundary>} />
-                                <Route path="/journeys/:id" element={<ErrorBoundary><JourneyProfile {...p} /></ErrorBoundary>} />
-                                <Route path="/fuel" element={<ErrorBoundary><FuelLog {...p} /></ErrorBoundary>} />
-                                <Route path="/expenses" element={<ErrorBoundary><Expenses {...p} /></ErrorBoundary>} />
-                                <Route path="/incidents" element={<ErrorBoundary><Incidents {...p} /></ErrorBoundary>} />
-                                <Route path="/invoices" element={<ErrorBoundary><Invoices {...p} /></ErrorBoundary>} />
-                                <Route path="/payroll" element={<ErrorBoundary><Payroll {...p} /></ErrorBoundary>} />
-                                <Route path="/maintenance" element={<ErrorBoundary><Maintenance {...p} /></ErrorBoundary>} />
-                                <Route path="/tyres" element={<ErrorBoundary><TyreMonitor {...p} /></ErrorBoundary>} />
-                                <Route path="/staff" element={<ErrorBoundary><Staff {...p} /></ErrorBoundary>} />
-                                <Route path="/staff/:id" element={<ErrorBoundary><StaffProfile {...p} /></ErrorBoundary>} />
-                                <Route path="/pnl" element={<ErrorBoundary><PnL {...p} /></ErrorBoundary>} />
-                                <Route path="/documents" element={<ErrorBoundary><Documents {...p} /></ErrorBoundary>} />
-                                <Route path="/settings" element={<ErrorBoundary><Settings {...p} /></ErrorBoundary>} />
-                                <Route path="/import" element={<ErrorBoundary><ImportReview {...p} /></ErrorBoundary>} />
-                            </Routes>
-                        ) : (
-                            <ErrorBoundary>
-                                <Login showToast={state.showToast} />
-                            </ErrorBoundary>
-                        )
-                    } />
-                </Routes>
-            </main>
+                <main
+                    style={{
+                        flex: 1,
+                        marginTop: authed
+                            ? (state.previewMode ? "calc(var(--topbar-height) + 40px)" : "var(--topbar-height)")
+                            : 0,
+                        padding: isMobile ? "16px" : "32px",
+                        minWidth: 0,
+                        display: "flex",
+                        flexDirection: "column",
+                    }}
+                    className="animate-fade-in"
+                >
+                    <Routes>
+                        <Route path="/login" element={<Login showToast={state.showToast} />} />
+                        <Route path="*" element={
+                            authed ? (
+                                <Routes>
+                                    <Route path="/" element={<ErrorBoundary><Dashboard {...p} /></ErrorBoundary>} />
+                                    <Route path="/fleet" element={<ErrorBoundary><Fleet {...p} /></ErrorBoundary>} />
+                                    <Route path="/fleet/:id" element={<ErrorBoundary><VehicleProfile {...p} /></ErrorBoundary>} />
+                                    <Route path="/drivers" element={<ErrorBoundary><Drivers {...p} /></ErrorBoundary>} />
+                                    <Route path="/drivers/:id" element={<ErrorBoundary><DriverProfile {...p} /></ErrorBoundary>} />
+                                    <Route path="/customers" element={<ErrorBoundary><Customers {...p} /></ErrorBoundary>} />
+                                    <Route path="/customers/:id" element={<ErrorBoundary><CustomerProfile {...p} /></ErrorBoundary>} />
+                                    <Route path="/journeys" element={<ErrorBoundary><Journeys {...p} /></ErrorBoundary>} />
+                                    <Route path="/journeys/:id" element={<ErrorBoundary><JourneyProfile {...p} /></ErrorBoundary>} />
+                                    <Route path="/fuel" element={<ErrorBoundary><FuelLog {...p} /></ErrorBoundary>} />
+                                    <Route path="/expenses" element={<ErrorBoundary><Expenses {...p} /></ErrorBoundary>} />
+                                    <Route path="/incidents" element={<ErrorBoundary><Incidents {...p} /></ErrorBoundary>} />
+                                    <Route path="/invoices" element={<ErrorBoundary><Invoices {...p} /></ErrorBoundary>} />
+                                    <Route path="/payroll" element={<ErrorBoundary><Payroll {...p} /></ErrorBoundary>} />
+                                    <Route path="/maintenance" element={<ErrorBoundary><Maintenance {...p} /></ErrorBoundary>} />
+                                    <Route path="/tyres" element={<ErrorBoundary><TyreMonitor {...p} /></ErrorBoundary>} />
+                                    <Route path="/staff" element={<ErrorBoundary><Staff {...p} /></ErrorBoundary>} />
+                                    <Route path="/staff/:id" element={<ErrorBoundary><StaffProfile {...p} /></ErrorBoundary>} />
+                                    <Route path="/pnl" element={<ErrorBoundary><PnL {...p} /></ErrorBoundary>} />
+                                    <Route path="/documents" element={<ErrorBoundary><Documents {...p} /></ErrorBoundary>} />
+                                    <Route path="/settings" element={<ErrorBoundary><Settings {...p} /></ErrorBoundary>} />
+                                    <Route path="/import" element={<ErrorBoundary><ImportReview {...p} /></ErrorBoundary>} />
+                                </Routes>
+                            ) : (
+                                <ErrorBoundary>
+                                    <Login showToast={state.showToast} />
+                                </ErrorBoundary>
+                            )
+                        } />
+                    </Routes>
+                </main>
+            </div>
 
             <ToastContainer toasts={state.toasts} />
             <GlobalModals {...p} />
