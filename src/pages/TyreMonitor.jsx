@@ -1,5 +1,14 @@
 import React, { useState } from "react";
-import { CircleDot, Gauge, AlertTriangle, Pencil, Search as SearchIcon, CreditCard, Activity, AlertCircle, Plus, ClipboardList } from "lucide-react";
+import {
+    CircleDot,
+    AlertCircle,
+    Activity,
+    CreditCard,
+    ClipboardList,
+    Search as SearchIcon,
+    Plus,
+    Pencil,
+} from "lucide-react";
 import { Card } from "../components/Card";
 import { Button } from "../components/Button";
 import { Badge } from "../components/Badge";
@@ -144,9 +153,10 @@ export function TyreMonitor({ data, dark, openModal, tyreStatus, truckReg, logTy
         }
     };
 
-    // ── Shared modal form helpers ──────────────────────────────────────────
-    // logForm works as the Field component's `form` object; patch() acts as setForm
     const setLogFormField = (updater) => setLogForm(f => typeof updater === 'function' ? updater(f) : updater);
+
+    // ── Alert count for header chip
+    const alertCount = healthData.filter(d => d.status === "Overdue").length;
 
     const tabs = [
         { id: "health", label: "Tyre Health",       icon: Activity      },
@@ -158,7 +168,28 @@ export function TyreMonitor({ data, dark, openModal, tyreStatus, truckReg, logTy
         <div className="page-shell">
             <PageHeader
                 icon={CircleDot}
-                title="Tyre management"
+                title={
+                    <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        Tyre Monitor
+                        {alertCount > 0 && (
+                            <span style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: 4,
+                                padding: "2px 9px",
+                                borderRadius: 999,
+                                fontSize: 12,
+                                fontWeight: 800,
+                                background: "#ef444420",
+                                color: "#ef4444",
+                                border: "1px solid #ef444430",
+                            }}>
+                                <AlertCircle size={12} />
+                                {alertCount} alert{alertCount > 1 ? "s" : ""}
+                            </span>
+                        )}
+                    </span>
+                }
                 description="Monitor fleet tyre health, log tyre events, and track replacement spend."
                 actions={
                     <Button variant="primary" icon={Plus} onClick={() => openLogModal()}>
@@ -166,23 +197,30 @@ export function TyreMonitor({ data, dark, openModal, tyreStatus, truckReg, logTy
                     </Button>
                 }
                 belowTitle={
-                    <div style={{ display: "flex", gap: 12, marginTop: 24, borderBottom: "1px solid var(--border-subtle)", paddingBottom: 0 }}>
+                    <div style={{ display: "flex", gap: 4, borderBottom: "1px solid var(--border-subtle)", paddingBottom: 0 }}>
                         {tabs.map(tab => (
                             <button
                                 key={tab.id}
                                 onClick={() => setActiveTab(tab.id)}
                                 style={{
-                                    display: "flex", alignItems: "center", gap: 8,
-                                    padding: "12px 20px", border: "none", background: "none",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 7,
+                                    padding: "11px 18px",
+                                    border: "none",
+                                    background: "none",
                                     color: activeTab === tab.id ? "var(--brand-primary)" : "var(--text-dim)",
-                                    fontSize: 14, fontWeight: 700, cursor: "pointer",
-                                    position: "relative", transition: "all 0.2s"
+                                    fontSize: 13,
+                                    fontWeight: 700,
+                                    cursor: "pointer",
+                                    position: "relative",
+                                    transition: "color 0.15s",
                                 }}
                             >
-                                <tab.icon size={18} />
+                                <tab.icon size={16} />
                                 {tab.label}
                                 {activeTab === tab.id && (
-                                    <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 3, background: "var(--brand-primary)", borderRadius: "3px 3px 0 0" }} />
+                                    <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 2, background: "var(--brand-primary)", borderRadius: "2px 2px 0 0" }} />
                                 )}
                             </button>
                         ))}
@@ -193,19 +231,44 @@ export function TyreMonitor({ data, dark, openModal, tyreStatus, truckReg, logTy
             {/* ── HEALTH TAB ── */}
             {activeTab === "health" && (
                 <div className="animate-fade-in">
-                    <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 16 }}>
-                        <div style={{ display: "flex", gap: 12 }}>
-                            <Badge status="Active">{healthData.filter(d => d.status === "OK").length} Healthy</Badge>
-                            <Badge status="Due Soon">{healthData.filter(d => d.status === "Due Soon").length} Due</Badge>
-                            <Badge status="Overdue">{healthData.filter(d => d.status === "Overdue").length} Overdue</Badge>
-                        </div>
+                    {/* Status summary row */}
+                    <div style={{ display: "flex", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
+                        {[
+                            { label: "Healthy",  count: healthData.filter(d => d.status === "OK").length,       color: "#10b981", status: "Active"   },
+                            { label: "Due Soon", count: healthData.filter(d => d.status === "Due Soon").length, color: "#f59e0b", status: "Due Soon" },
+                            { label: "Overdue",  count: healthData.filter(d => d.status === "Overdue").length,  color: "#ef4444", status: "Overdue"  },
+                        ].map(({ label, count, color, status }) => (
+                            <div
+                                key={label}
+                                style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 8,
+                                    padding: "8px 14px",
+                                    borderRadius: "var(--radius-md)",
+                                    background: `${color}12`,
+                                    border: `1px solid ${color}30`,
+                                    fontSize: 13,
+                                    fontWeight: 700,
+                                    color,
+                                }}
+                            >
+                                <span style={{ fontSize: 18, fontWeight: 900 }}>{count}</span>
+                                {label}
+                            </div>
+                        ))}
                     </div>
-                    <Card style={{ padding: 0, overflow: "hidden", borderRadius: 24 }}>
-                        <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", gap: 12 }}>
-                            <SearchIcon size={18} color="var(--text-dim)" />
-                            <input type="search" placeholder="Search tyre health..." value={searchTermHealth}
+
+                    <Card style={{ padding: 0, overflow: "hidden", borderRadius: "var(--radius-md)" }}>
+                        <div style={{ padding: "14px 20px", borderBottom: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", gap: 10 }}>
+                            <SearchIcon size={16} color="var(--text-dim)" style={{ flexShrink: 0 }} />
+                            <input
+                                type="search"
+                                placeholder="Search tyre health..."
+                                value={searchTermHealth}
                                 onChange={(e) => setSearchTermHealth(e.target.value)}
-                                style={{ border: "none", background: "none", padding: 0, fontSize: 14, flex: 1, color: "var(--text-primary)", fontWeight: 500 }} />
+                                style={{ border: "none", background: "none", padding: 0, fontSize: 14, flex: 1, color: "var(--text-primary)", fontWeight: 500, outline: "none" }}
+                            />
                         </div>
                         <div className="table-container">
                             <table className="table-modern">
@@ -214,56 +277,81 @@ export function TyreMonitor({ data, dark, openModal, tyreStatus, truckReg, logTy
                                     filterState={healthFilters} onFilterChange={handleHealthFilterChange}
                                     getUniqueValues={getHealthUniqueValues}
                                     columns={[
-                                        { key: "reg",       label: "Vehicle",       sortable: true },
-                                        { key: "status",    label: "Status",        sortable: true },
-                                        { key: "rulePct",   label: "Wear level",    sortable: true },
+                                        { key: "reg",       label: "Vehicle",         sortable: true },
+                                        { key: "status",    label: "Status",          sortable: true },
+                                        { key: "rulePct",   label: "Wear",            sortable: true },
                                         { key: "kmSince",   label: "Km Since Change", sortable: true, align: "right" },
-                                        { key: "remaining", label: "Remaining Km",  sortable: true, align: "right" },
-                                        { key: "odom",      label: "Current Odom",  sortable: true, align: "right" },
-                                        { key: "actions",   label: "Actions",       sortable: false, align: "right" }
+                                        { key: "remaining", label: "Remaining Km",   sortable: true, align: "right" },
+                                        { key: "odom",      label: "Current Odom",   sortable: true, align: "right" },
+                                        { key: "actions",   label: "",               sortable: false, align: "right" },
                                     ]}
                                 />
                                 <tbody>
                                     {sortedHealthItems.length === 0 ? (
-                                        <tr><td colSpan={7} style={{ padding: 80, textAlign: "center", color: "var(--text-dim)" }}>
-                                            <div style={{ marginBottom: 16 }}><AlertCircle size={48} opacity={0.2} /></div>
-                                            <div style={{ fontWeight: 600 }}>No vehicles found.</div>
-                                        </td></tr>
-                                    ) : sortedHealthItems.map(d => (
-                                        <tr key={d.id} className="hover-scale">
-                                            <td className="sticky-col" title={d.reg}>
-                                                <div style={{ fontWeight: 800, color: "var(--text-primary)" }}>{d.reg}</div>
-                                                <div style={{ fontSize: 11, color: "var(--text-dim)" }}>{d.make} · {d.type}</div>
-                                            </td>
-                                            <td className="status-col">
-                                                <Badge status={d.status === "OK" ? "Active" : d.status === "Due Soon" ? "Due Soon" : "Overdue"}>{d.status}</Badge>
-                                            </td>
-                                            <td>
-                                                <div style={{ width: 120 }}>
-                                                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, marginBottom: 4, fontWeight: 700 }}>
-                                                        <span>{fmtN(d.rulePct, 0)}%</span>
-                                                    </div>
-                                                    <div style={{ height: 6, borderRadius: 10, background: "var(--surface-subtle)", overflow: "hidden" }}>
-                                                        <div style={{
-                                                            width: `${d.rulePct}%`, height: "100%", borderRadius: 10,
-                                                            background: d.status === "Overdue" ? "#ef4444" : d.status === "Due Soon" ? "#f59e0b" : "#10b981"
-                                                        }} />
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td style={{ textAlign: "right", fontWeight: 700, color: "var(--text-secondary)" }}>{(d.kmSince || 0).toLocaleString()} km</td>
-                                            <td style={{ textAlign: "right", fontWeight: 700, color: d.remaining <= 0 ? "#ef4444" : "var(--text-secondary)" }}>
-                                                {d.remaining <= 0 ? `${Math.abs(d.remaining).toLocaleString()} over` : `${d.remaining.toLocaleString()} left`}
-                                            </td>
-                                            <td style={{ textAlign: "right", color: "var(--text-dim)" }}>{d.odom.toLocaleString()}</td>
-                                            <td style={{ textAlign: "right", verticalAlign: "middle" }}>
-                                                <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-                                                    <Button variant="secondary" size="sm" icon={ClipboardList} onClick={() => openLogModal(d.rawTruck)}>Log</Button>
-                                                    <Button variant="secondary" size="sm" icon={Pencil} onClick={() => openModal("truck", d.rawTruck)}>Edit</Button>
-                                                </div>
+                                        <tr>
+                                            <td colSpan={7} style={{ padding: "64px 20px", textAlign: "center", color: "var(--text-dim)" }}>
+                                                <AlertCircle size={40} style={{ opacity: 0.2, display: "block", margin: "0 auto 12px" }} />
+                                                <div style={{ fontWeight: 600 }}>No vehicles found.</div>
                                             </td>
                                         </tr>
-                                    ))}
+                                    ) : sortedHealthItems.map(d => {
+                                        const statusColor = d.status === "Overdue" ? "#ef4444" : d.status === "Due Soon" ? "#f59e0b" : "#10b981";
+                                        return (
+                                            <tr
+                                                key={d.id}
+                                                className="hover-scale"
+                                                style={{ borderLeft: `3px solid ${statusColor}40` }}
+                                            >
+                                                <td className="sticky-col">
+                                                    <div style={{ fontWeight: 800, color: "var(--text-primary)" }}>{d.reg}</div>
+                                                    <div style={{ fontSize: 11, color: "var(--text-dim)" }}>{d.make} · {d.type}</div>
+                                                </td>
+                                                <td className="status-col">
+                                                    <Badge status={d.status === "OK" ? "Active" : d.status === "Due Soon" ? "Due Soon" : "Overdue"}>
+                                                        {d.status}
+                                                    </Badge>
+                                                </td>
+                                                <td>
+                                                    {/* Wear progress bar */}
+                                                    <div style={{ minWidth: 100 }}>
+                                                        <div style={{ fontSize: 11, fontWeight: 700, marginBottom: 4, color: statusColor }}>
+                                                            {fmtN(d.rulePct, 0)}%
+                                                        </div>
+                                                        <div style={{ height: 5, borderRadius: 10, background: "var(--surface-subtle)", overflow: "hidden" }}>
+                                                            <div style={{
+                                                                width: `${d.rulePct}%`,
+                                                                height: "100%",
+                                                                borderRadius: 10,
+                                                                background: statusColor,
+                                                                transition: "width 0.3s",
+                                                            }} />
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td style={{ textAlign: "right", fontWeight: 700, color: "var(--text-secondary)" }}>
+                                                    {(d.kmSince || 0).toLocaleString()} km
+                                                </td>
+                                                <td style={{ textAlign: "right", fontWeight: 700, color: d.remaining <= 0 ? "#ef4444" : "var(--text-secondary)" }}>
+                                                    {d.remaining <= 0
+                                                        ? `${Math.abs(d.remaining).toLocaleString()} over`
+                                                        : `${d.remaining.toLocaleString()} left`}
+                                                </td>
+                                                <td style={{ textAlign: "right", color: "var(--text-dim)" }}>
+                                                    {d.odom.toLocaleString()}
+                                                </td>
+                                                <td style={{ textAlign: "right", verticalAlign: "middle" }}>
+                                                    <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                                                        <Button variant="secondary" size="sm" icon={ClipboardList} onClick={() => openLogModal(d.rawTruck)}>
+                                                            Log
+                                                        </Button>
+                                                        <Button variant="secondary" size="sm" icon={Pencil} onClick={() => openModal("truck", d.rawTruck)}>
+                                                            Edit
+                                                        </Button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
                                 </tbody>
                             </table>
                         </div>
@@ -274,20 +362,32 @@ export function TyreMonitor({ data, dark, openModal, tyreStatus, truckReg, logTy
             {/* ── LOG TAB ── */}
             {activeTab === "log" && (
                 <div className="animate-fade-in">
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 16 }}>
-                        <div style={{ display: "flex", gap: 12 }}>
-                            <Badge status="Active">{logData.filter(l => l.action === "Replacement").length} Replacements</Badge>
-                            <Badge status="Due Soon">{logData.filter(l => l.action === "Rotation").length} Rotations</Badge>
-                            <Badge status="Pending">{logData.filter(l => !["Replacement","Rotation"].includes(l.action)).length} Other</Badge>
+                    {/* Summary chips */}
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
+                        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                            {[
+                                { label: "Replacements", count: logData.filter(l => l.action === "Replacement").length, status: "Active"  },
+                                { label: "Rotations",    count: logData.filter(l => l.action === "Rotation").length,    status: "Due Soon" },
+                                { label: "Other",        count: logData.filter(l => !["Replacement","Rotation"].includes(l.action)).length, status: "Pending" },
+                            ].map(({ label, count, status }) => (
+                                <Badge key={label} status={status}>{count} {label}</Badge>
+                            ))}
                         </div>
-                        <Button variant="primary" size="sm" icon={Plus} onClick={() => openLogModal()}>Log tyre entry</Button>
+                        <Button variant="primary" size="sm" icon={Plus} onClick={() => openLogModal()}>
+                            Log tyre entry
+                        </Button>
                     </div>
-                    <Card style={{ padding: 0, overflow: "hidden", borderRadius: 24 }}>
-                        <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", gap: 12 }}>
-                            <SearchIcon size={18} color="var(--text-dim)" />
-                            <input type="search" placeholder="Search tyre log..." value={searchTermLog}
+
+                    <Card style={{ padding: 0, overflow: "hidden", borderRadius: "var(--radius-md)" }}>
+                        <div style={{ padding: "14px 20px", borderBottom: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", gap: 10 }}>
+                            <SearchIcon size={16} color="var(--text-dim)" style={{ flexShrink: 0 }} />
+                            <input
+                                type="search"
+                                placeholder="Search tyre log..."
+                                value={searchTermLog}
                                 onChange={(e) => setSearchTermLog(e.target.value)}
-                                style={{ border: "none", background: "none", padding: 0, fontSize: 14, flex: 1, color: "var(--text-primary)", fontWeight: 500 }} />
+                                style={{ border: "none", background: "none", padding: 0, fontSize: 14, flex: 1, color: "var(--text-primary)", fontWeight: 500, outline: "none" }}
+                            />
                         </div>
                         <div className="table-container">
                             <table className="table-modern">
@@ -300,19 +400,23 @@ export function TyreMonitor({ data, dark, openModal, tyreStatus, truckReg, logTy
                                         { key: "vehicle",      label: "Vehicle",    sortable: true },
                                         { key: "action",       label: "Action",     sortable: true },
                                         { key: "position",     label: "Position",   sortable: true },
-                                        { key: "brand",        label: "Brand/Size", sortable: true },
+                                        { key: "brand",        label: "Brand / Size", sortable: true },
                                         { key: "serialNumber", label: "Serial No.", sortable: true },
                                         { key: "odom",         label: "Odom",       sortable: true, align: "right" },
-                                        { key: "costVal",      label: "Cost",       sortable: true, align: "right" },
+                                        { key: "costVal",      label: "Cost (KES)", sortable: true, align: "right" },
                                     ]}
                                 />
                                 <tbody>
                                     {sortedLogItems.length === 0 ? (
-                                        <tr><td colSpan={8} style={{ padding: 80, textAlign: "center", color: "var(--text-dim)" }}>
-                                            <div style={{ marginBottom: 16 }}><CircleDot size={48} opacity={0.2} /></div>
-                                            <div style={{ fontWeight: 600, marginBottom: 12 }}>No tyre entries yet.</div>
-                                            <Button variant="primary" icon={Plus} onClick={() => openLogModal()}>Log first entry</Button>
-                                        </td></tr>
+                                        <tr>
+                                            <td colSpan={8} style={{ padding: "64px 20px", textAlign: "center", color: "var(--text-dim)" }}>
+                                                <CircleDot size={40} style={{ opacity: 0.2, display: "block", margin: "0 auto 12px" }} />
+                                                <div style={{ fontWeight: 600, marginBottom: 12 }}>No tyre entries yet.</div>
+                                                <Button variant="primary" icon={Plus} onClick={() => openLogModal()}>
+                                                    Log first entry
+                                                </Button>
+                                            </td>
+                                        </tr>
                                     ) : sortedLogItems.map(l => (
                                         <tr key={l.id} className="hover-scale">
                                             <td className="sticky-col">{fmtDate(l.date)}</td>
@@ -322,14 +426,18 @@ export function TyreMonitor({ data, dark, openModal, tyreStatus, truckReg, logTy
                                                     l.action === "Replacement" ? "Active" :
                                                     l.action === "Rotation"    ? "Due Soon" :
                                                     l.action === "Inspection"  ? "Pending" : "default"
-                                                }>{l.action}</Badge>
+                                                }>
+                                                    {l.action}
+                                                </Badge>
                                             </td>
                                             <td style={{ color: "var(--text-secondary)", fontSize: 13 }}>{l.position || "—"}</td>
                                             <td style={{ color: "var(--text-secondary)", fontSize: 13 }}>
                                                 {[l.brand, l.size].filter(Boolean).join(" · ") || "—"}
                                             </td>
                                             <td style={{ color: "var(--text-dim)", fontSize: 12, fontFamily: "monospace" }}>{l.serialNumber || "—"}</td>
-                                            <td style={{ textAlign: "right", color: "var(--text-dim)" }}>{l.odom ? Number(l.odom).toLocaleString() : "—"}</td>
+                                            <td style={{ textAlign: "right", color: "var(--text-dim)" }}>
+                                                {l.odom ? Number(l.odom).toLocaleString() : "—"}
+                                            </td>
                                             <td style={{ textAlign: "right", fontWeight: 800, color: "var(--text-primary)" }}>
                                                 {l.costVal > 0 ? fmt(l.costVal) : "—"}
                                             </td>
@@ -345,26 +453,30 @@ export function TyreMonitor({ data, dark, openModal, tyreStatus, truckReg, logTy
             {/* ── SPEND TAB ── */}
             {activeTab === "spend" && (
                 <div className="animate-fade-in">
-                    <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)", gap: 20, marginBottom: 28 }}>
-                        <Card accent="var(--brand-primary)" style={{ padding: 20, borderRadius: 16 }}>
-                            <div style={{ fontSize: 11, fontWeight: 800, color: "var(--text-dim)", textTransform: "uppercase", marginBottom: 4 }}>Filtered Tyre Spend</div>
-                            <div style={{ fontSize: 24, fontWeight: 900, color: "var(--text-primary)" }}>{fmt(totalSpendFiltered)}</div>
-                        </Card>
-                        <Card accent="#10b981" style={{ padding: 20, borderRadius: 16 }}>
-                            <div style={{ fontSize: 11, fontWeight: 800, color: "var(--text-dim)", textTransform: "uppercase", marginBottom: 4 }}>Filtered Entries</div>
-                            <div style={{ fontSize: 24, fontWeight: 900, color: "var(--text-primary)" }}>{sortedSpendItems.length}</div>
-                        </Card>
-                        <Card accent="#f59e0b" style={{ padding: 20, borderRadius: 16 }}>
-                            <div style={{ fontSize: 11, fontWeight: 800, color: "var(--text-dim)", textTransform: "uppercase", marginBottom: 4 }}>Avg per Change</div>
-                            <div style={{ fontSize: 24, fontWeight: 900, color: "var(--text-primary)" }}>{fmt(totalSpendFiltered / (sortedSpendItems.length || 1))}</div>
-                        </Card>
+                    {/* KPI cards */}
+                    <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)", gap: 16, marginBottom: 24 }}>
+                        {[
+                            { label: "Filtered Tyre Spend", value: fmt(totalSpendFiltered),           color: "var(--brand-primary)" },
+                            { label: "Filtered Entries",     value: sortedSpendItems.length,           color: "#10b981" },
+                            { label: "Avg per Change",       value: fmt(totalSpendFiltered / (sortedSpendItems.length || 1)), color: "#f59e0b" },
+                        ].map(({ label, value, color }) => (
+                            <Card key={label} style={{ padding: "20px 24px", borderRadius: "var(--radius-md)", border: "1px solid var(--border-subtle)" }}>
+                                <div style={{ fontSize: 11, fontWeight: 800, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>{label}</div>
+                                <div style={{ fontSize: 22, fontWeight: 900, color }}>{value}</div>
+                            </Card>
+                        ))}
                     </div>
-                    <Card style={{ padding: 0, overflow: "hidden", borderRadius: 24 }}>
-                        <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", gap: 12 }}>
-                            <SearchIcon size={18} color="var(--text-dim)" />
-                            <input type="search" placeholder="Search spend records..." value={searchTermSpend}
+
+                    <Card style={{ padding: 0, overflow: "hidden", borderRadius: "var(--radius-md)" }}>
+                        <div style={{ padding: "14px 20px", borderBottom: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", gap: 10 }}>
+                            <SearchIcon size={16} color="var(--text-dim)" style={{ flexShrink: 0 }} />
+                            <input
+                                type="search"
+                                placeholder="Search spend records..."
+                                value={searchTermSpend}
                                 onChange={(e) => setSearchTermSpend(e.target.value)}
-                                style={{ border: "none", background: "none", padding: 0, fontSize: 14, flex: 1, color: "var(--text-primary)", fontWeight: 500 }} />
+                                style={{ border: "none", background: "none", padding: 0, fontSize: 14, flex: 1, color: "var(--text-primary)", fontWeight: 500, outline: "none" }}
+                            />
                         </div>
                         <div className="table-container">
                             <table className="table-modern">
@@ -373,18 +485,20 @@ export function TyreMonitor({ data, dark, openModal, tyreStatus, truckReg, logTy
                                     filterState={spendFilters} onFilterChange={handleSpendFilterChange}
                                     getUniqueValues={getSpendUniqueValues}
                                     columns={[
-                                        { key: "date",      label: "Date",    sortable: true },
-                                        { key: "vehicle",   label: "Vehicle", sortable: true },
+                                        { key: "date",      label: "Date",        sortable: true },
+                                        { key: "vehicle",   label: "Vehicle",     sortable: true },
                                         { key: "desc",      label: "Description", sortable: true },
-                                        { key: "amountVal", label: "Amount",  sortable: true, align: "right" }
+                                        { key: "amountVal", label: "Amount (KES)", sortable: true, align: "right" },
                                     ]}
                                 />
                                 <tbody>
                                     {sortedSpendItems.length === 0 ? (
-                                        <tr><td colSpan={4} style={{ padding: 80, textAlign: "center", color: "var(--text-dim)" }}>
-                                            <div style={{ marginBottom: 16 }}><AlertCircle size={48} opacity={0.2} /></div>
-                                            <div style={{ fontWeight: 600 }}>No spend records found.</div>
-                                        </td></tr>
+                                        <tr>
+                                            <td colSpan={4} style={{ padding: "64px 20px", textAlign: "center", color: "var(--text-dim)" }}>
+                                                <AlertCircle size={40} style={{ opacity: 0.2, display: "block", margin: "0 auto 12px" }} />
+                                                <div style={{ fontWeight: 600 }}>No spend records found.</div>
+                                            </td>
+                                        </tr>
                                     ) : sortedSpendItems.map(e => (
                                         <tr key={e.id} className="hover-scale">
                                             <td className="sticky-col">{fmtDate(e.date)}</td>

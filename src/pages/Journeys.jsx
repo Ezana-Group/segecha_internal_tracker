@@ -18,7 +18,8 @@ import {
     DollarSign,
     ArrowRight,
     MapPin,
-    Filter
+    Filter,
+    AlertTriangle
 } from "lucide-react";
 import { fmt, today, uid, fmtDate } from "../utils/formatters";
 import { STATUSES_JOURNEY, CARGO_TYPES } from "../constants/nav";
@@ -87,11 +88,31 @@ export function Journeys({ data, isMobile, modal, form, setForm, openModal, clos
         { label: "Active trips", value: ongoingCount, unit: "ongoing", icon: Clock, color: "#f59e0b", bg: "rgba(245,158,11,0.10)" },
     ];
 
+    // Quick filter tabs
+    const QUICK_TABS = [
+        { id: "ALL", label: "All" },
+        { id: "ACTIVE", label: "Active" },
+        { id: "Completed", label: "Completed" },
+        { id: "Cancelled", label: "Cancelled" },
+    ];
+    const [quickTab, setQuickTab] = useState("ALL");
+
+    const ACTIVE_STATUSES = ["Accepted", "Loading", "In Transit"];
+    const quickFilteredItems = sortedItems.filter(j => {
+        if (quickTab === "ALL") return true;
+        if (quickTab === "ACTIVE") return ACTIVE_STATUSES.includes(j.status);
+        return j.status === quickTab;
+    });
+
+    const pendingVerifCount = sortedItems.filter(j =>
+        ["Awaiting Verification", "Awaiting Start Verification"].includes(j.status)
+    ).length;
+
     return (
         <div className="page-shell">
             <PageHeader
                 icon={RouteIcon}
-                title={isDriverPreview ? "My trips" : "Journey operations"}
+                title={isDriverPreview ? "My trips" : "Journeys"}
                 description={
                     isDriverPreview ? (
                         jpv("pageDescription") ? (
@@ -109,7 +130,7 @@ export function Journeys({ data, isMobile, modal, form, setForm, openModal, clos
                             icon={Plus}
                             onClick={() => openModal("journey", { date: new Date().toISOString().split("T")[0], status: "Loading" })}
                         >
-                            New journey
+                            Create Journey
                         </Button>
                     ) : null
                 }
@@ -117,30 +138,35 @@ export function Journeys({ data, isMobile, modal, form, setForm, openModal, clos
 
             {/* ── Stats row ─────────────────────────────────────── */}
             {(!isDriverPreview || jpv("statsRow")) && (
-                <div className="journeys-stats">
+                <div style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+                    gap: 16,
+                    marginBottom: 28,
+                }}>
                     {stats.map(({ label, value, unit, icon: Icon, color, bg }) => (
                         <div key={label} style={{
                             background: "var(--bg-card)",
                             border: "1px solid var(--border-subtle)",
-                            borderRadius: 18,
-                            padding: "20px 22px",
+                            borderRadius: 16,
+                            padding: "18px 20px",
                             display: "flex",
                             alignItems: "center",
-                            gap: 16,
+                            gap: 14,
                             boxShadow: "var(--shadow-xs)",
                         }}>
                             <div style={{
-                                width: 48, height: 48, borderRadius: 14,
+                                width: 44, height: 44, borderRadius: 12,
                                 background: bg, color,
                                 display: "flex", alignItems: "center", justifyContent: "center",
                                 flexShrink: 0,
                             }}>
-                                <Icon size={22} strokeWidth={2} />
+                                <Icon size={20} strokeWidth={2} />
                             </div>
                             <div style={{ minWidth: 0 }}>
-                                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 4 }}>{label}</div>
-                                <div style={{ fontSize: 24, fontWeight: 800, color: "var(--text-primary)", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{value}</div>
-                                <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 3 }}>{unit}</div>
+                                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 2 }}>{label}</div>
+                                <div style={{ fontSize: 22, fontWeight: 800, color: "var(--text-primary)", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{value}</div>
+                                <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>{unit}</div>
                             </div>
                         </div>
                     ))}
@@ -199,7 +225,7 @@ export function Journeys({ data, isMobile, modal, form, setForm, openModal, clos
                 </div>
             )}
 
-            {/* ── Journeys table ────────────────────────────────── */}
+            {/* ── Main Table Card ───────────────────────────────── */}
             <div style={{
                 background: "var(--bg-card)",
                 border: "1px solid var(--border-subtle)",
@@ -207,311 +233,382 @@ export function Journeys({ data, isMobile, modal, form, setForm, openModal, clos
                 overflow: "clip",
                 boxShadow: "var(--shadow-xs)",
             }}>
-                {/* Toolbar: search + filters */}
+                {/* Toolbar: quick tabs + search + filters */}
                 <div style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 10,
-                    padding: "12px 16px",
+                    padding: "16px 20px",
                     borderBottom: "1px solid var(--border-subtle)",
-                    flexWrap: "wrap",
                     background: "var(--surface-subtle)",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 12,
                 }}>
-                    {/* Search */}
-                    <div style={{
-                        flex: "1 1 200px",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 8,
-                        background: "var(--bg-card)",
-                        border: "1px solid var(--border-subtle)",
-                        borderRadius: 10,
-                        padding: "8px 12px",
-                    }}>
-                        <SearchIcon size={15} color="var(--text-dim)" style={{ flexShrink: 0 }} />
-                        <input
-                            type="search"
-                            placeholder="Search missions, routes, clients…"
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            style={{
-                                border: "none", background: "none", padding: 0,
-                                fontSize: 13, flex: 1,
-                                color: "var(--text-primary)", fontWeight: 500,
-                                outline: "none",
-                            }}
-                        />
+                    {/* Row 1: quick filter tabs + pending chip */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "space-between" }}>
+                        <div style={{ display: "flex", gap: 4, background: "var(--bg-shell)", borderRadius: 10, padding: 4 }}>
+                            {QUICK_TABS.map(qt => (
+                                <button
+                                    key={qt.id}
+                                    type="button"
+                                    onClick={() => setQuickTab(qt.id)}
+                                    style={{
+                                        padding: "6px 14px",
+                                        borderRadius: 7,
+                                        border: "none",
+                                        fontSize: 12,
+                                        fontWeight: 700,
+                                        cursor: "pointer",
+                                        transition: "all 0.15s",
+                                        background: quickTab === qt.id ? "var(--brand-primary)" : "transparent",
+                                        color: quickTab === qt.id ? "white" : "var(--text-dim)",
+                                        whiteSpace: "nowrap",
+                                    }}
+                                >
+                                    {qt.label}
+                                </button>
+                            ))}
+                        </div>
+                        {!isDriverPreview && pendingVerifCount > 0 && (
+                            <div style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 6,
+                                background: "rgba(245,158,11,0.12)",
+                                border: "1px solid rgba(245,158,11,0.3)",
+                                borderRadius: 999,
+                                padding: "4px 12px",
+                                fontSize: 12,
+                                fontWeight: 700,
+                                color: "#f59e0b",
+                            }}>
+                                <AlertTriangle size={13} />
+                                {pendingVerifCount} pending verification{pendingVerifCount !== 1 ? "s" : ""}
+                            </div>
+                        )}
                     </div>
 
-                    {/* Filters */}
-                    {!isDriverPreview && (
-                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                                <Filter size={13} color="var(--text-dim)" />
+                    {/* Row 2: search + filters */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                        <div style={{
+                            flex: "1 1 200px",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 8,
+                            background: "var(--bg-card)",
+                            border: "1px solid var(--border-subtle)",
+                            borderRadius: 10,
+                            padding: "8px 12px",
+                        }}>
+                            <SearchIcon size={14} color="var(--text-dim)" style={{ flexShrink: 0 }} />
+                            <input
+                                type="search"
+                                placeholder="Search journeys, routes, clients…"
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                style={{
+                                    border: "none", background: "none", padding: 0,
+                                    fontSize: 13, flex: 1,
+                                    color: "var(--text-primary)", fontWeight: 500,
+                                    outline: "none",
+                                }}
+                            />
+                        </div>
+
+                        {!isDriverPreview && (
+                            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                    <Filter size={13} color="var(--text-dim)" />
+                                    <select
+                                        className="input-premium"
+                                        style={{ fontSize: 12, height: 36, paddingTop: 0, paddingBottom: 0, minWidth: 130 }}
+                                        value={filterTruck}
+                                        onChange={(e) => setFilterTruck(e.target.value)}
+                                    >
+                                        <option value="ALL">All vehicles</option>
+                                        {data.trucks.map((t) => (
+                                            <option key={t.id} value={t.id}>{t.reg}</option>
+                                        ))}
+                                    </select>
+                                </div>
                                 <select
                                     className="input-premium"
-                                    style={{ fontSize: 12, height: 36, paddingTop: 0, paddingBottom: 0, minWidth: 130 }}
-                                    value={filterTruck}
-                                    onChange={(e) => setFilterTruck(e.target.value)}
+                                    style={{ fontSize: 12, height: 36, paddingTop: 0, paddingBottom: 0, minWidth: 140 }}
+                                    value={jStatusFilter}
+                                    onChange={(e) => setForm((f) => ({ ...f, _jStatusFilter: e.target.value }))}
                                 >
-                                    <option value="ALL">All vehicles</option>
-                                    {data.trucks.map((t) => (
-                                        <option key={t.id} value={t.id}>{t.reg}</option>
+                                    <option value="ALL">All statuses</option>
+                                    {["Loading", "In Transit", "Awaiting Start Verification", "Awaiting Verification", "Completed", "Cancelled"].map((s) => (
+                                        <option key={s} value={s}>{s}</option>
                                     ))}
                                 </select>
                             </div>
-                            <select
-                                className="input-premium"
-                                style={{ fontSize: 12, height: 36, paddingTop: 0, paddingBottom: 0, minWidth: 140 }}
-                                value={jStatusFilter}
-                                onChange={(e) => setForm((f) => ({ ...f, _jStatusFilter: e.target.value }))}
-                            >
-                                <option value="ALL">All statuses</option>
-                                {["Loading", "In Transit", "Awaiting Start Verification", "Awaiting Verification", "Completed", "Cancelled"].map((s) => (
-                                    <option key={s} value={s}>{s}</option>
-                                ))}
-                            </select>
-                        </div>
-                    )}
+                        )}
+                    </div>
                 </div>
 
                 {/* Table */}
-                <div className="table-container">
-                    <table className="table-modern journeys-matrix-table">
-                        <SortableTableHead
-                            requestSort={requestSort}
-                            sortConfig={sortConfig}
-                            filterState={journeyFilters}
-                            onFilterChange={handleJourneyFilterChange}
-                            getUniqueValues={getUniqueValues}
-                            isFiltered={isFiltered}
-                            isSorted={isSorted}
-                            columns={[
-                                { key: "uId",       label: "Mission ID",  sortable: !isDriverPreview || jpv("colMissionId") },
-                                { key: "date",      label: "Departure",   sortable: !isDriverPreview || jpv("colDate") },
-                                { key: "origin",    label: "Origin",      sortable: !isDriverPreview || jpv("colRoute") },
-                                { key: "dest",      label: "Destination", sortable: !isDriverPreview || jpv("colRoute") },
-                                { key: "_customer", label: "Client",      sortable: !isDriverPreview || jpv("colClient"),   className: "col-hide-2xl" },
-                                { key: "_vehicle",  label: "Vehicle",     sortable: !isDriverPreview || jpv("colVehicle"),  className: "col-hide-md" },
-                                { key: "driver",    label: "Crew",        sortable: !isDriverPreview || jpv("colCrew"),     className: "col-hide-xl" },
-                                { key: "cargoType", label: "Cargo",       sortable: !isDriverPreview || jpv("colCargo"),    className: "col-hide-3xl" },
-                                { key: "_distance", label: "Distance",    sortable: !isDriverPreview || jpv("colDistance"), className: "col-hide-3xl", align: "right" },
-                                { key: "notes",     label: "Notes",       sortable: !isDriverPreview || jpv("colNotes"),    className: "col-hide-4xl" },
-                                { key: "_revenue",  label: "Revenue",     sortable: !isDriverPreview || jpv("colRevenue"),  className: "col-hide-lg", align: "right" },
-                                { key: "status",    label: "Status",      sortable: !isDriverPreview || jpv("colStatus") },
-                                { key: "actions",   label: "Actions",     sortable: false, align: "right" },
-                            ].filter(c => c.sortable !== false || c.key === "actions")}
-                        />
-                        <tbody>
-                            {sortedItems.length > 0 ? (
-                                sortedItems.map((j) => (
-                                    <tr
-                                        key={j.id}
-                                        onClick={() => {
-                                            if (isDriverPreview && !jpv("actionViewJourney")) return;
-                                            navigate(`/journeys/${j.id}`);
-                                        }}
-                                        style={{ cursor: isDriverPreview && !jpv("actionViewJourney") ? "default" : "pointer" }}
-                                        className="hover-scale"
-                                    >
-                                        {/* Mission ID — sticky */}
-                                        {(!isDriverPreview || jpv("colMissionId")) && (
-                                            <td className="sticky-col" title={j.uId || j.id.slice(0, 8).toUpperCase()}>
-                                                <span style={{
-                                                    fontWeight: 700,
-                                                    color: "var(--brand-primary)",
-                                                    fontFamily: "var(--font-mono)",
-                                                    fontSize: 11,
-                                                    background: "var(--surface-subtle)",
-                                                    padding: "3px 8px",
-                                                    borderRadius: 6,
-                                                    display: "inline-block",
-                                                    whiteSpace: "nowrap",
-                                                }}>
-                                                    {j.uId || j.id.slice(0, 8).toUpperCase()}
-                                                </span>
-                                            </td>
-                                        )}
+                {!isMobile ? (
+                    <div className="table-container">
+                        <table className="table-modern journeys-matrix-table">
+                            <SortableTableHead
+                                requestSort={requestSort}
+                                sortConfig={sortConfig}
+                                filterState={journeyFilters}
+                                onFilterChange={handleJourneyFilterChange}
+                                getUniqueValues={getUniqueValues}
+                                isFiltered={isFiltered}
+                                isSorted={isSorted}
+                                columns={[
+                                    { key: "uId",       label: "Ref",         sortable: !isDriverPreview || jpv("colMissionId") },
+                                    { key: "date",      label: "Date",        sortable: !isDriverPreview || jpv("colDate") },
+                                    { key: "origin",    label: "Origin",      sortable: !isDriverPreview || jpv("colRoute") },
+                                    { key: "dest",      label: "Destination", sortable: !isDriverPreview || jpv("colRoute") },
+                                    { key: "_vehicle",  label: "Truck",       sortable: !isDriverPreview || jpv("colVehicle"),  className: "col-hide-md" },
+                                    { key: "driver",    label: "Driver",      sortable: !isDriverPreview || jpv("colCrew"),     className: "col-hide-xl" },
+                                    { key: "status",    label: "Status",      sortable: !isDriverPreview || jpv("colStatus") },
+                                    { key: "cargoType", label: "Cargo",       sortable: !isDriverPreview || jpv("colCargo"),    className: "col-hide-3xl" },
+                                    { key: "_revenue",  label: "Revenue",     sortable: !isDriverPreview || jpv("colRevenue"),  className: "col-hide-lg", align: "right" },
+                                    { key: "actions",   label: "",            sortable: false, align: "right" },
+                                ].filter(c => c.sortable !== false || c.key === "actions")}
+                            />
+                            <tbody>
+                                {quickFilteredItems.length > 0 ? (
+                                    quickFilteredItems.map((j) => (
+                                        <tr
+                                            key={j.id}
+                                            onClick={() => {
+                                                if (isDriverPreview && !jpv("actionViewJourney")) return;
+                                                navigate(`/journeys/${j.id}`);
+                                            }}
+                                            style={{ cursor: isDriverPreview && !jpv("actionViewJourney") ? "default" : "pointer" }}
+                                            className="hover-scale"
+                                        >
+                                            {/* Ref */}
+                                            {(!isDriverPreview || jpv("colMissionId")) && (
+                                                <td className="sticky-col" title={j.uId || j.id.slice(0, 8).toUpperCase()}>
+                                                    <span style={{
+                                                        fontWeight: 700,
+                                                        color: "var(--brand-primary)",
+                                                        fontFamily: "var(--font-mono)",
+                                                        fontSize: 11,
+                                                        background: "var(--surface-subtle)",
+                                                        padding: "3px 8px",
+                                                        borderRadius: 6,
+                                                        display: "inline-block",
+                                                        whiteSpace: "nowrap",
+                                                    }}>
+                                                        {j.uId || j.id.slice(0, 8).toUpperCase()}
+                                                    </span>
+                                                </td>
+                                            )}
 
-                                        {/* Departure */}
-                                        {(!isDriverPreview || jpv("colDate")) && (
-                                            <td title={fmtDate(j.date)}>
-                                                <div style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 700, color: "var(--text-primary)", fontSize: 13, whiteSpace: "nowrap" }}>
-                                                    <Calendar size={12} color="var(--text-dim)" />
-                                                    {fmtDate(j.date)}
-                                                </div>
-                                            </td>
-                                        )}
+                                            {/* Date */}
+                                            {(!isDriverPreview || jpv("colDate")) && (
+                                                <td title={fmtDate(j.date)}>
+                                                    <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", whiteSpace: "nowrap" }}>
+                                                        <Calendar size={11} color="var(--text-dim)" />
+                                                        {fmtDate(j.date)}
+                                                    </div>
+                                                </td>
+                                            )}
 
-                                        {/* Origin */}
-                                        {(!isDriverPreview || jpv("colRoute")) && (
-                                            <td title={j.origin}>
-                                                <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>
-                                                    <MapPin size={11} color="var(--text-dim)" style={{ flexShrink: 0 }} />
-                                                    {j.origin}
-                                                </div>
-                                            </td>
-                                        )}
+                                            {/* Origin */}
+                                            {(!isDriverPreview || jpv("colRoute")) && (
+                                                <td title={j.origin}>
+                                                    <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>
+                                                        <MapPin size={11} color="var(--text-dim)" style={{ flexShrink: 0 }} />
+                                                        {j.origin}
+                                                    </div>
+                                                </td>
+                                            )}
 
-                                        {/* Destination */}
-                                        {(!isDriverPreview || jpv("colRoute")) && (
-                                            <td title={j.dest}>
-                                                <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>
-                                                    <ArrowRight size={11} color="var(--text-dim)" style={{ flexShrink: 0 }} />
-                                                    {j.dest}
-                                                </div>
-                                            </td>
-                                        )}
+                                            {/* Destination */}
+                                            {(!isDriverPreview || jpv("colRoute")) && (
+                                                <td title={j.dest}>
+                                                    <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>
+                                                        <ArrowRight size={11} color="var(--text-dim)" style={{ flexShrink: 0 }} />
+                                                        {j.dest}
+                                                    </div>
+                                                </td>
+                                            )}
 
-                                        {/* Client */}
-                                        {(!isDriverPreview || jpv("colClient")) && (
-                                            <td className="col-hide-2xl" title={customerName(j.customerId)}>
-                                                {j.customerId ? (
+                                            {/* Vehicle */}
+                                            {(!isDriverPreview || jpv("colVehicle")) && (
+                                                <td className="col-hide-md" title={truckReg(j.truck)}>
                                                     <button
                                                         type="button"
                                                         className="journeys-table-link"
-                                                        onClick={(e) => { e.stopPropagation(); navigate(`/customers/${j.customerId}`); }}
+                                                        onClick={(e) => { e.stopPropagation(); navigate(`/fleet/${j.truck}`); }}
                                                     >
-                                                        <User size={12} strokeWidth={2} aria-hidden />
-                                                        {customerName(j.customerId)}
+                                                        <Truck size={12} strokeWidth={2} aria-hidden />
+                                                        {truckReg(j.truck)}
                                                     </button>
-                                                ) : (
-                                                    <span style={{ fontSize: 12, color: "var(--text-dim)", fontWeight: 600 }}>—</span>
-                                                )}
-                                            </td>
-                                        )}
+                                                </td>
+                                            )}
 
-                                        {/* Vehicle */}
-                                        {(!isDriverPreview || jpv("colVehicle")) && (
-                                            <td className="col-hide-md" title={truckReg(j.truck)}>
-                                                <button
-                                                    type="button"
-                                                    className="journeys-table-link"
-                                                    onClick={(e) => { e.stopPropagation(); navigate(`/fleet/${j.truck}`); }}
-                                                >
-                                                    <Truck size={12} strokeWidth={2} aria-hidden />
-                                                    {truckReg(j.truck)}
-                                                </button>
-                                            </td>
-                                        )}
-
-                                        {/* Crew */}
-                                        {(!isDriverPreview || jpv("colCrew")) && (
-                                            <td className="col-hide-xl" title={driverName(j.driver)}>
-                                                <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: "var(--text-primary)" }}>
-                                                    <User size={12} color="var(--text-dim)" strokeWidth={2} aria-hidden />
-                                                    {driverName(j.driver)}
-                                                </div>
-                                            </td>
-                                        )}
-
-                                        {/* Cargo */}
-                                        {(!isDriverPreview || jpv("colCargo")) && (
-                                            <td className="col-hide-3xl" title={`${j.cargo || j.cargoType || "General cargo"} ${j.weight ? `(${j.weight} KGs)` : ""}`}>
-                                                <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-primary)" }}>{j.cargo || j.cargoType || "General cargo"}</div>
-                                                {j.weight != null && j.weight !== "" && (
-                                                    <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>{j.weight} KGs</div>
-                                                )}
-                                            </td>
-                                        )}
-
-                                        {/* Distance */}
-                                        {(!isDriverPreview || jpv("colDistance")) && (
-                                            <td className="col-hide-3xl" style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }} title={j.distance != null && j.distance !== "" ? `${Number(j.distance).toLocaleString()} km` : "—"}>
-                                                <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>
-                                                    {j.distance != null && j.distance !== "" ? `${Number(j.distance).toLocaleString()} km` : "—"}
-                                                </div>
-                                            </td>
-                                        )}
-
-                                        {/* Notes */}
-                                        {(!isDriverPreview || jpv("colNotes")) && (
-                                            <td className="journeys-col-notes col-hide-4xl" title={j.notes && String(j.notes).trim() ? String(j.notes).trim() : "—"}>
-                                                {j.notes && String(j.notes).trim() ? (
-                                                    <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>{String(j.notes).trim()}</span>
-                                                ) : (
-                                                    <span style={{ color: "var(--text-dim)" }}>—</span>
-                                                )}
-                                            </td>
-                                        )}
-
-                                        {/* Revenue */}
-                                        {(!isDriverPreview || jpv("colRevenue")) && (
-                                            <td className="col-hide-lg" style={{ textAlign: "right" }} title={fmt(j.revenue)}>
-                                                <div style={{ fontWeight: 800, color: "#10b981", fontSize: 13, fontVariantNumeric: "tabular-nums" }}>{fmt(j.revenue)}</div>
-                                                {j.driverMileage && (!isDriverPreview || jpv("colAllowanceSubline")) && (
-                                                    <div style={{ fontSize: 10, color: "var(--text-dim)", marginTop: 2, fontVariantNumeric: "tabular-nums", display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4 }}>
-                                                        Allowance {fmt(j.driverMileage)}
-                                                        {j.mileageRouteOverride && (
-                                                            <span style={{ background: "var(--brand-primary)15", color: "var(--brand-primary)", padding: "1px 4px", borderRadius: 4, fontSize: 8, fontWeight: 800 }}>ROUTE RATE</span>
-                                                        )}
+                                            {/* Driver */}
+                                            {(!isDriverPreview || jpv("colCrew")) && (
+                                                <td className="col-hide-xl" title={driverName(j.driver)}>
+                                                    <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: "var(--text-primary)" }}>
+                                                        <User size={12} color="var(--text-dim)" strokeWidth={2} aria-hidden />
+                                                        {driverName(j.driver)}
                                                     </div>
-                                                )}
-                                            </td>
-                                        )}
+                                                </td>
+                                            )}
 
-                                        {/* Status */}
-                                        {(!isDriverPreview || jpv("colStatus")) && (
-                                            <td className="status-col" title={j._isRejected ? "Rejected" : j.status}>
-                                                <Badge status={j._isRejected ? "Rejected" : j.status} />
-                                            </td>
-                                        )}
+                                            {/* Status */}
+                                            {(!isDriverPreview || jpv("colStatus")) && (
+                                                <td className="status-col" title={j._isRejected ? "Rejected" : j.status}>
+                                                    <Badge status={j._isRejected ? "Rejected" : j.status} />
+                                                </td>
+                                            )}
 
-                                        {/* Actions */}
-                                        {(!isDriverPreview || jpv("actionWaybill") || jpv("actionViewJourney")) && (
-                                            <td style={{ textAlign: "right", verticalAlign: "middle" }}>
-                                                <TableRowActions
-                                                    ariaLabel={`Actions for journey ${j.uId || j.id}`}
-                                                    items={[
-                                                        ...(openWaybillGenerator && (!isDriverPreview || jpv("actionWaybill"))
-                                                            ? [{ id: "waybill", label: j.waybillGenerated && j.waybillNo ? `Waybill · ${j.waybillNo}` : "Waybill", icon: FileText, onClick: (e) => { e.stopPropagation(); openWaybillGenerator(j); } }]
-                                                            : []),
-                                                        ...(["Awaiting Verification", "Awaiting Start Verification"].includes(j.status) && !isDriverPreview
-                                                            ? [{ id: "verify", label: j.status === "Awaiting Start Verification" ? "Review trip start" : "Verify journey", icon: CheckCircle2, onClick: (e) => { e.stopPropagation(); setVerifyModal(j); } }]
-                                                            : []),
-                                                        ...(!isDriverPreview || jpv("actionViewJourney")
-                                                            ? [{ id: "view", label: "View journey", icon: ChevronRight, onClick: (e) => { e.stopPropagation(); navigate(`/journeys/${j.id}`); } }]
-                                                            : []),
-                                                        ...(!isDriverPreview
-                                                            ? [{ id: "delete", label: "Delete journey", icon: Trash2, danger: true, onClick: (e) => { e.stopPropagation(); delItem("journeys", j.id, j.origin + "→" + j.dest); } }]
-                                                            : []),
-                                                    ]}
-                                                />
-                                            </td>
-                                        )}
-                                    </tr>
-                                ))
-                            ) : (
-                                <tr>
-                                    <td colSpan={13}>
-                                        <div style={{
-                                            display: "flex",
-                                            flexDirection: "column",
-                                            alignItems: "center",
-                                            justifyContent: "center",
-                                            padding: "56px 24px",
-                                            gap: 12,
-                                        }}>
+                                            {/* Cargo */}
+                                            {(!isDriverPreview || jpv("colCargo")) && (
+                                                <td className="col-hide-3xl" title={`${j.cargo || j.cargoType || "General cargo"} ${j.weight ? `(${j.weight} KGs)` : ""}`}>
+                                                    <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-primary)" }}>{j.cargo || j.cargoType || "General cargo"}</div>
+                                                    {j.weight != null && j.weight !== "" && (
+                                                        <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 1 }}>{j.weight} KGs</div>
+                                                    )}
+                                                </td>
+                                            )}
+
+                                            {/* Revenue */}
+                                            {(!isDriverPreview || jpv("colRevenue")) && (
+                                                <td className="col-hide-lg" style={{ textAlign: "right" }} title={fmt(j.revenue)}>
+                                                    <div style={{ fontWeight: 800, color: "#10b981", fontSize: 13, fontVariantNumeric: "tabular-nums" }}>{fmt(j.revenue)}</div>
+                                                    {j.driverMileage && (!isDriverPreview || jpv("colAllowanceSubline")) && (
+                                                        <div style={{ fontSize: 10, color: "var(--text-dim)", marginTop: 2, fontVariantNumeric: "tabular-nums", display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4 }}>
+                                                            Allowance {fmt(j.driverMileage)}
+                                                            {j.mileageRouteOverride && (
+                                                                <span style={{ background: "var(--brand-primary)15", color: "var(--brand-primary)", padding: "1px 4px", borderRadius: 4, fontSize: 8, fontWeight: 800 }}>ROUTE RATE</span>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </td>
+                                            )}
+
+                                            {/* Actions */}
+                                            {(!isDriverPreview || jpv("actionWaybill") || jpv("actionViewJourney")) && (
+                                                <td style={{ textAlign: "right", verticalAlign: "middle" }}>
+                                                    <TableRowActions
+                                                        ariaLabel={`Actions for journey ${j.uId || j.id}`}
+                                                        items={[
+                                                            ...(openWaybillGenerator && (!isDriverPreview || jpv("actionWaybill"))
+                                                                ? [{ id: "waybill", label: j.waybillGenerated && j.waybillNo ? `Waybill · ${j.waybillNo}` : "Waybill", icon: FileText, onClick: (e) => { e.stopPropagation(); openWaybillGenerator(j); } }]
+                                                                : []),
+                                                            ...(["Awaiting Verification", "Awaiting Start Verification"].includes(j.status) && !isDriverPreview
+                                                                ? [{ id: "verify", label: j.status === "Awaiting Start Verification" ? "Review trip start" : "Verify journey", icon: CheckCircle2, onClick: (e) => { e.stopPropagation(); setVerifyModal(j); } }]
+                                                                : []),
+                                                            ...(!isDriverPreview || jpv("actionViewJourney")
+                                                                ? [{ id: "view", label: "View journey", icon: ChevronRight, onClick: (e) => { e.stopPropagation(); navigate(`/journeys/${j.id}`); } }]
+                                                                : []),
+                                                            ...(!isDriverPreview
+                                                                ? [{ id: "delete", label: "Delete journey", icon: Trash2, danger: true, onClick: (e) => { e.stopPropagation(); delItem("journeys", j.id, j.origin + "→" + j.dest); } }]
+                                                                : []),
+                                                        ]}
+                                                    />
+                                                </td>
+                                            )}
+                                        </tr>
+                                    ))
+                                ) : (
+                                    <tr>
+                                        <td colSpan={10}>
                                             <div style={{
-                                                width: 52, height: 52, borderRadius: 16,
-                                                background: "var(--surface-subtle)",
-                                                display: "flex", alignItems: "center", justifyContent: "center",
+                                                display: "flex",
+                                                flexDirection: "column",
+                                                alignItems: "center",
+                                                justifyContent: "center",
+                                                padding: "56px 24px",
+                                                gap: 12,
                                             }}>
-                                                <RouteIcon size={24} color="var(--text-dim)" />
+                                                <div style={{
+                                                    width: 52, height: 52, borderRadius: 16,
+                                                    background: "var(--surface-subtle)",
+                                                    display: "flex", alignItems: "center", justifyContent: "center",
+                                                }}>
+                                                    <RouteIcon size={24} color="var(--text-dim)" />
+                                                </div>
+                                                <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text-secondary)" }}>No journeys found</div>
+                                                <div style={{ fontSize: 13, color: "var(--text-dim)", textAlign: "center", maxWidth: 300 }}>
+                                                    {searchTerm || filterTruck !== "ALL" || jStatusFilter !== "ALL" || quickTab !== "ALL"
+                                                        ? "No results match your current filters. Try adjusting your search or filter criteria."
+                                                        : "No journeys have been recorded yet. Create the first one to get started."}
+                                                </div>
                                             </div>
-                                            <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text-secondary)" }}>No journeys found</div>
-                                            <div style={{ fontSize: 13, color: "var(--text-dim)", textAlign: "center", maxWidth: 300 }}>
-                                                {searchTerm || filterTruck !== "ALL" || jStatusFilter !== "ALL"
-                                                    ? "No results match your current filters. Try adjusting your search or filter criteria."
-                                                    : "No journeys have been recorded yet. Create the first one to get started."}
-                                            </div>
-                                        </div>
-                                    </td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                ) : (
+                    /* ── Mobile stacked cards ──────────────────── */
+                    <div style={{ padding: 12, display: "flex", flexDirection: "column", gap: 10 }}>
+                        {quickFilteredItems.length === 0 ? (
+                            <div style={{ padding: "48px 24px", textAlign: "center" }}>
+                                <RouteIcon size={36} color="var(--text-dim)" style={{ marginBottom: 12, opacity: 0.4 }} />
+                                <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-secondary)" }}>No journeys found</div>
+                            </div>
+                        ) : quickFilteredItems.map((j) => (
+                            <div
+                                key={j.id}
+                                onClick={() => {
+                                    if (isDriverPreview && !jpv("actionViewJourney")) return;
+                                    navigate(`/journeys/${j.id}`);
+                                }}
+                                style={{
+                                    background: "var(--bg-shell)",
+                                    border: "1px solid var(--border-subtle)",
+                                    borderRadius: 14,
+                                    padding: "14px 16px",
+                                    cursor: isDriverPreview && !jpv("actionViewJourney") ? "default" : "pointer",
+                                    display: "flex",
+                                    flexDirection: "column",
+                                    gap: 8,
+                                }}
+                                className="hover-scale"
+                            >
+                                {/* Top row: ref + status */}
+                                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                                    <span style={{
+                                        fontFamily: "var(--font-mono)", fontSize: 11, fontWeight: 700,
+                                        color: "var(--brand-primary)", background: "var(--surface-subtle)",
+                                        padding: "2px 7px", borderRadius: 5,
+                                    }}>
+                                        {j.uId || j.id.slice(0, 8).toUpperCase()}
+                                    </span>
+                                    <Badge status={j._isRejected ? "Rejected" : j.status} />
+                                </div>
+                                {/* Route */}
+                                <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 14, fontWeight: 800, color: "var(--text-primary)" }}>
+                                    <MapPin size={12} color="var(--text-dim)" />
+                                    {j.origin}
+                                    <ArrowRight size={12} color="var(--text-dim)" />
+                                    {j.dest}
+                                </div>
+                                {/* Meta row: truck + date */}
+                                <div style={{ display: "flex", alignItems: "center", gap: 12, fontSize: 12, color: "var(--text-muted)", fontWeight: 600 }}>
+                                    <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                                        <Truck size={11} /> {truckReg(j.truck)}
+                                    </span>
+                                    <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                                        <Calendar size={11} /> {fmtDate(j.date)}
+                                    </span>
+                                    {j.cargo || j.cargoType ? (
+                                        <span>{j.cargo || j.cargoType}{j.weight ? ` · ${j.weight} KGs` : ""}</span>
+                                    ) : null}
+                                </div>
+                                {/* Revenue */}
+                                {(!isDriverPreview || jpv("colRevenue")) && j.revenue != null && (
+                                    <div style={{ fontSize: 13, fontWeight: 800, color: "#10b981", fontVariantNumeric: "tabular-nums" }}>
+                                        {fmt(j.revenue)}
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                )}
             </div>
         </div>
     );

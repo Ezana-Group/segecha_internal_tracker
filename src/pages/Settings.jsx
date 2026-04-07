@@ -681,14 +681,14 @@ export function Settings({
     const currentSection = SECTION_BY_ID[activeTab];
 
     return (
-        <div className={`page-shell-wide settings-layout ${isMobile ? "settings-layout--stack" : ""}`}>
+        <div className={`page-shell settings-layout ${isMobile ? "settings-layout--stack" : ""}`}>
             {!isMobile && (
                 <aside className={`settings-sidebar ${settingsMenuCollapsed ? "is-collapsed" : ""}`}>
                     <div className="settings-sidebar-head">
                         {!settingsMenuCollapsed ? (
-                            <PageHeader className="page-header--compact" title="Settings" marginBottom={20} />
+                            <PageHeader className="page-header--compact" icon={SettingsIcon} title="Settings" marginBottom={20} />
                         ) : (
-                            <div className="settings-sidebar-title-compact">Settings</div>
+                            <div className="settings-sidebar-title-compact">Cfg</div>
                         )}
                         <button
                             type="button"
@@ -710,19 +710,32 @@ export function Settings({
                         {SETTINGS_MENU.map((group) => (
                             <div key={group.id} className="settings-nav-group">
                                 {!settingsMenuCollapsed ? <div className="settings-nav-group-label">{group.label}</div> : null}
-                                {group.items.map((item) => (
-                                    <button
-                                        key={item.id}
-                                        type="button"
-                                        className={`settings-nav-item ${activeTab === item.id ? "is-active" : ""}`}
-                                        onClick={() => navigateTab(item.id)}
-                                        title={item.label}
-                                        aria-label={item.label}
-                                    >
-                                        <item.icon size={18} strokeWidth={activeTab === item.id ? 2.5 : 2} aria-hidden />
-                                        {!settingsMenuCollapsed ? <span>{item.label}</span> : null}
-                                    </button>
-                                ))}
+                                {group.items.map((item) => {
+                                    const isActive = activeTab === item.id;
+                                    return (
+                                        <button
+                                            key={item.id}
+                                            type="button"
+                                            className={`settings-nav-item ${isActive ? "is-active" : ""}`}
+                                            onClick={() => navigateTab(item.id)}
+                                            title={item.label}
+                                            aria-label={item.label}
+                                            style={isActive ? {
+                                                borderLeft: "3px solid var(--brand-primary)",
+                                                paddingLeft: 9,
+                                                color: "var(--brand-primary)",
+                                                fontWeight: 700,
+                                                background: "var(--brand-primary)12",
+                                            } : {
+                                                borderLeft: "3px solid transparent",
+                                                paddingLeft: 9,
+                                            }}
+                                        >
+                                            <item.icon size={18} strokeWidth={isActive ? 2.5 : 2} aria-hidden />
+                                            {!settingsMenuCollapsed ? <span>{item.label}</span> : null}
+                                        </button>
+                                    );
+                                })}
                             </div>
                         ))}
                     </nav>

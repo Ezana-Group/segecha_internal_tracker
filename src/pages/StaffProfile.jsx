@@ -394,33 +394,43 @@ export function StaffProfile({ data, setData, dark, isMobile, openModal, showToa
         delete: !isStaffSelfView || s.documentsDelete !== false,
     };
 
+    const staffInitials = staff.name
+        ? staff.name.trim().split(/\s+/).map(p => p[0]).filter(Boolean).slice(0, 2).join("").toUpperCase()
+        : "?";
+
     return (
         <div className="page-shell">
-            <div style={{ display: "flex", alignItems: "center", gap: 20, marginBottom: 32, flexWrap: "wrap" }}>
-                <Button variant="secondary" icon={ArrowLeft} onClick={() => navigate("/staff")}>
-                    Back
-                </Button>
-                <div
-                    style={{
-                        width: 64,
-                        height: 64,
-                        borderRadius: "50%",
-                        background: "var(--bg-surface)",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        color: getRoleColor(staff.role),
-                        border: "2px solid var(--border-subtle)",
-                        boxShadow: "var(--glass-shadow)",
-                    }}
-                >
-                    <User size={32} />
+            {/* Back Link */}
+            <button
+                type="button"
+                onClick={() => navigate("/staff")}
+                style={{ background: "none", border: "none", color: "var(--brand-primary)", fontWeight: 700, display: "flex", alignItems: "center", gap: 8, marginBottom: 24, cursor: "pointer", fontSize: 14, padding: 0 }}
+            >
+                <ArrowLeft size={16} /> Staff
+            </button>
+
+            {/* Profile Header */}
+            <div style={{ display: "flex", alignItems: isMobile ? "flex-start" : "center", gap: isMobile ? 16 : 24, marginBottom: isMobile ? 20 : 32, flexWrap: "wrap" }}>
+                {/* Avatar with role color */}
+                <div style={{
+                    width: isMobile ? 56 : 72, height: isMobile ? 56 : 72, borderRadius: "50%",
+                    background: getRoleColor(staff.role),
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    color: "white", fontWeight: 900, fontSize: isMobile ? 20 : 26,
+                    flexShrink: 0, boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
+                }}>
+                    {staffInitials}
                 </div>
                 <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 32, fontWeight: 900, color: "var(--text-primary)", lineHeight: 1.1, letterSpacing: "-0.04em" }}>{staff.name}</div>
-                    <div style={{ fontSize: 14, color: "var(--text-muted)", marginTop: 4, display: "flex", alignItems: "center", gap: 10, fontWeight: 500 }}>
-                        <span style={{ color: getRoleColor(staff.role), fontWeight: 700 }}>{staff.role}</span> · {staff.uId} · Joined {fmtDate(staff.joined)} ·{" "}
+                    <h1 style={{ fontSize: isMobile ? 20 : 28, fontWeight: 900, color: "var(--text-primary)", margin: "0 0 6px", lineHeight: 1.1, letterSpacing: "-0.03em" }}>{staff.name}</h1>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: getRoleColor(staff.role) }}>{staff.role}</span>
                         <Badge status={staff.status} />
+                        {staff.phone && (
+                            <span style={{ fontSize: 13, color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: 5 }}>
+                                <Phone size={12} color="var(--text-dim)" /> {staff.phone}
+                            </span>
+                        )}
                     </div>
                 </div>
                 <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>

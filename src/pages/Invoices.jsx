@@ -1,28 +1,20 @@
 import React, { useState } from "react";
-import { 
-    FileText, 
-    Plus, 
-    Send, 
-    CreditCard, 
-    CheckCircle2, 
-    Clock, 
-    AlertCircle, 
-    TrendingUp, 
-    TrendingDown,
+import {
+    FileText,
+    Plus,
+    Send,
+    CreditCard,
+    CheckCircle2,
+    Clock,
+    AlertCircle,
+    TrendingUp,
     DollarSign,
-    Search,
+    Search as SearchIcon,
     Printer,
     Download,
     MessageSquare,
-    ArrowUpRight,
-    ArrowDownRight,
-    Search as SearchIcon,
-    Filter,
-    Share2,
-    Calendar
 } from "lucide-react";
 import { fmt, uid, today, fmtDate } from "../utils/formatters";
-import { validators } from "../utils/validators";
 import { useNavigate } from "react-router-dom";
 import { INVOICE_PREFIX, PAYMENT_TERMS_DAYS } from "../constants/nav";
 import { Card } from "../components/Card";
@@ -39,14 +31,13 @@ import { CommunicationChannelMenu } from "../components/CommunicationChannelMenu
 import { SortableTableHead } from "../components/SortableTableHead";
 import { useTableFilter } from "../hooks/useTableFilter";
 
-// const PORTAL_URL = 'https://payment.example.com'; removed, imported from env.js above
-
 export function Invoices({ data, setData, dark, isMobile, modal, form, setForm, openModal, closeModal, saveItem, delItem, markInvoicePaid, invoicePreview, setInvoicePreview, customerName, ...props }) {
     const navigate = useNavigate();
-    
+
     const [paymentModal, setPaymentModal] = useState(null);
     const [payReqStatus, setPayReqStatus] = useState({});
     const [paymentReceiptWa, setPaymentReceiptWa] = useState(null);
+    const [statusTab, setStatusTab] = useState("All");
 
     const handleLogPayment = (payment) => {
         const s = JSON.parse(localStorage.getItem('segecha_settings') || '{}');
@@ -56,7 +47,7 @@ export function Invoices({ data, setData, dark, isMobile, modal, form, setForm, 
         const newPayments = [...(inv.payments || []), { ...payment, id: uid().slice(0, 8) }];
         const newPaidAmount = newPayments.reduce((s, p) => s + +p.amount, 0);
         const newStatus = newPaidAmount >= +inv.amount ? "Paid" : "Partial";
-        
+
         setData(d => ({
             ...d,
             invoices: d.invoices.map(i => i.id === inv.id ? {
@@ -118,15 +109,26 @@ export function Invoices({ data, setData, dark, isMobile, modal, form, setForm, 
         getUniqueValues: getInvoiceUniqueValues,
         searchTerm,
         setSearchTerm
-    } = useTableFilter(refinedInvoices, { 
-        namespace: "inv", 
+    } = useTableFilter(refinedInvoices, {
+        namespace: "inv",
         initialSort: { col: "date", dir: "desc" },
         searchColumns: ["id", "_client"]
     });
 
-    const totalInvoicedFiltered = sortedInvoices.reduce((s, i) => s + +i.amount, 0);
-    const totalPaidFiltered = sortedInvoices.reduce((s, i) => s + +i.paidAmount || 0, 0);
-    const totalPendingFiltered = sortedInvoices.filter(i => i.status !== "Paid").reduce((s, i) => s + (+i.amount - (+i.paidAmount || 0)), 0);
+    // Apply status tab filter on top of table filter
+    const tabFilteredInvoices = statusTab === "All"
+        ? sortedInvoices
+        : sortedInvoices.filter(i => {
+            if (statusTab === "Overdue") {
+                return i.status !== "Paid" && new Date(i.dueDate) < new Date();
+            }
+            return i.status === statusTab;
+        });
+
+    // Summary totals (from all invoices, not just filtered)
+    const paidTotal    = data.invoices.filter(i => i.status === "Paid").reduce((s, i) => s + (+i.paidAmount || 0), 0);
+    const pendingTotal = data.invoices.filter(i => i.status !== "Paid").reduce((s, i) => s + (+i.amount - (+i.paidAmount || 0)), 0);
+    const overdueTotal = data.invoices.filter(i => i.status !== "Paid" && new Date(i.dueDate) < new Date()).reduce((s, i) => s + (+i.amount - (+i.paidAmount || 0)), 0);
 
     return (
         <div className="page-shell">
@@ -136,47 +138,88 @@ export function Invoices({ data, setData, dark, isMobile, modal, form, setForm, 
                 description="Billing, payment requests, and settlement status."
                 actions={
                     <>
-                        <Button variant="secondary" icon={Download}>
-                            Export
-                        </Button>
+                        <Button variant="secondary" icon={Download}>Export</Button>
                         <Button variant="premium" icon={Plus} onClick={() => openModal("invoice")}>
-                            New invoice
+                            Create Invoice
                         </Button>
                     </>
                 }
             />
 
-            {/* Financial Status Bar */}
-            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: 16, marginBottom: 20 }}>
+            {/* ── 3 summary chips ── */}
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)", gap: 14, marginBottom: 24 }}>
                 {[
-                    { label: "Filtered Revenue", value: fmt(totalInvoicedFiltered), icon: TrendingUp, color: "var(--brand-primary)" },
-                    { label: "Filtered Settlements", value: fmt(totalPaidFiltered), icon: CheckCircle2, color: "#10b981" },
-                    { label: "Filtered Receivables", value: fmt(totalPendingFiltered), icon: Clock, color: "#f59e0b" }
-                ].map((kpi, idx) => (
-                    <Card key={idx} style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)", borderRadius: 16 }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
-                            <div style={{ width: 40, height: 40, borderRadius: 10, background: `${kpi.color}10`, display: "flex", alignItems: "center", justifyContent: "center", color: kpi.color }}>
-                                <kpi.icon size={20} />
-                            </div>
+                    { label: "Paid",    value: paidTotal,    color: "#10b981", icon: CheckCircle2, id: "Paid"    },
+                    { label: "Pending", value: pendingTotal, color: "#f59e0b", icon: Clock,         id: "Pending" },
+                    { label: "Overdue", value: overdueTotal, color: "#ef4444", icon: AlertCircle,   id: "Overdue" },
+                ].map(({ label, value, color, icon: Icon, id }) => (
+                    <button
+                        key={id}
+                        onClick={() => setStatusTab(t => t === id ? "All" : id)}
+                        style={{
+                            all: "unset",
+                            cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 14,
+                            padding: "16px 20px",
+                            borderRadius: "var(--radius-md)",
+                            background: "var(--bg-card)",
+                            border: statusTab === id ? `2px solid ${color}` : "1px solid var(--border-subtle)",
+                            transition: "border-color 0.15s",
+                        }}
+                    >
+                        <div style={{ width: 40, height: 40, borderRadius: "var(--radius-md)", background: `${color}15`, display: "flex", alignItems: "center", justifyContent: "center", color, flexShrink: 0 }}>
+                            <Icon size={20} />
                         </div>
-                        <div style={{ fontSize: 11, color: "var(--text-dim)", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 2 }}>{kpi.label}</div>
-                        <div style={{ fontSize: 18, fontWeight: 900, color: "var(--text-primary)" }}>{kpi.value}</div>
-                    </Card>
+                        <div>
+                            <div style={{ fontSize: 11, fontWeight: 800, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: "0.06em" }}>{label}</div>
+                            <div style={{ fontSize: 19, fontWeight: 900, color, marginTop: 1 }}>{fmt(value)}</div>
+                        </div>
+                    </button>
                 ))}
             </div>
 
-            {/* Main Ledger Table */}
-            <Card style={{ padding: 0, overflow: "hidden", borderRadius: 24 }}>
-                <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", gap: 12 }}>
-                    <SearchIcon size={18} color="var(--text-dim)" />
+            {/* ── Status filter tabs ── */}
+            <div style={{ display: "flex", gap: 4, borderBottom: "1px solid var(--border-subtle)", marginBottom: 20 }}>
+                {["All", "Pending", "Paid", "Overdue"].map(tab => (
+                    <button
+                        key={tab}
+                        onClick={() => setStatusTab(tab)}
+                        style={{
+                            padding: "9px 16px",
+                            border: "none",
+                            background: "none",
+                            fontSize: 13,
+                            fontWeight: 700,
+                            cursor: "pointer",
+                            color: statusTab === tab ? "var(--brand-primary)" : "var(--text-dim)",
+                            position: "relative",
+                            transition: "color 0.15s",
+                        }}
+                    >
+                        {tab}
+                        {statusTab === tab && (
+                            <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 2, background: "var(--brand-primary)", borderRadius: "2px 2px 0 0" }} />
+                        )}
+                    </button>
+                ))}
+            </div>
+
+            {/* ── Invoices table ── */}
+            <Card style={{ padding: 0, overflow: "hidden", borderRadius: "var(--radius-md)" }}>
+                {/* Search bar */}
+                <div style={{ padding: "14px 20px", borderBottom: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", gap: 10 }}>
+                    <SearchIcon size={16} color="var(--text-dim)" style={{ flexShrink: 0 }} />
                     <input
                         type="search"
-                        placeholder="Search invoices..."
+                        placeholder="Search by invoice ID or client..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        style={{ border: "none", background: "none", padding: 0, fontSize: 14, flex: 1, color: "var(--text-primary)", fontWeight: 500 }}
+                        style={{ border: "none", background: "none", padding: 0, fontSize: 14, flex: 1, color: "var(--text-primary)", fontWeight: 500, outline: "none" }}
                     />
                 </div>
+
                 <div className="table-container">
                     <table className="table-modern">
                         <SortableTableHead
@@ -186,88 +229,113 @@ export function Invoices({ data, setData, dark, isMobile, modal, form, setForm, 
                             onFilterChange={handleInvoiceFilterChange}
                             getUniqueValues={getInvoiceUniqueValues}
                             columns={[
-                                { key: "id", label: "Invoice ID", sortable: true },
-                                { key: "_client", label: "Client Name", sortable: true },
-                                { key: "date", label: "Issue Date", sortable: true },
-                                { key: "dueDate", label: "Due Date", sortable: true },
-                                { key: "_amount", label: "Total Amount", sortable: true, align: "right" },
-                                { key: "_balance", label: "Balance Owed", sortable: true, align: "right" },
-                                { key: "status", label: "Status", sortable: true },
-                                { key: "actions", label: "Actions", sortable: false, align: "right" }
+                                { key: "id",       label: "Invoice #",    sortable: true },
+                                { key: "_client",  label: "Customer",     sortable: true },
+                                { key: "_amount",  label: "Amount",       sortable: true, align: "right" },
+                                { key: "_balance", label: "Outstanding",  sortable: true, align: "right" },
+                                { key: "status",   label: "Status",       sortable: true },
+                                { key: "dueDate",  label: "Due Date",     sortable: true },
+                                { key: "actions",  label: "",             sortable: false, align: "right" },
                             ]}
                         />
                         <tbody>
-                            {sortedInvoices.length === 0 ? (
+                            {tabFilteredInvoices.length === 0 ? (
                                 <tr>
-                                    <td colSpan="8" style={{ textAlign: "center", padding: 80, color: "var(--text-dim)" }}>
-                                        <div style={{ marginBottom: 16 }}><AlertCircle size={48} opacity={0.2} /></div>
-                                        <div style={{ fontWeight: 600 }}>No invoices found matching your filters.</div>
+                                    <td colSpan={7} style={{ textAlign: "center", padding: "64px 20px", color: "var(--text-dim)" }}>
+                                        <AlertCircle size={40} style={{ opacity: 0.2, display: "block", margin: "0 auto 12px" }} />
+                                        <div style={{ fontWeight: 600 }}>No invoices match your filters.</div>
                                     </td>
                                 </tr>
-                            ) : sortedInvoices.map(inv => (
-                                <tr key={inv.id} onClick={() => setInvoicePreview(inv)} style={{ cursor: "pointer" }} className="hover-scale">
-                                    <td className="sticky-col" title={inv.id} style={{ fontWeight: 800, color: "var(--brand-primary)" }}>{inv.id}</td>
-                                    <td title={inv._client}>
-                                        <div style={{ fontWeight: 700, color: "var(--text-primary)" }}>
+                            ) : tabFilteredInvoices.map(inv => {
+                                const isOverdue = inv.status !== "Paid" && new Date(inv.dueDate) < new Date();
+                                return (
+                                    <tr
+                                        key={inv.id}
+                                        onClick={() => setInvoicePreview(inv)}
+                                        style={{ cursor: "pointer" }}
+                                        className="hover-scale"
+                                    >
+                                        {/* Invoice # */}
+                                        <td className="sticky-col" style={{ fontWeight: 800, color: "var(--brand-primary)", fontFamily: "var(--font-mono)", fontSize: 13 }}>
+                                            {inv.id}
+                                        </td>
+
+                                        {/* Customer */}
+                                        <td style={{ fontWeight: 700, color: "var(--text-primary)" }}>
                                             {inv._client}
-                                        </div>
-                                    </td>
-                                    <td title={fmtDate(inv.date)}>{fmtDate(inv.date)}</td>
-                                    <td title={fmtDate(inv.dueDate)} style={{ color: (new Date(inv.dueDate) < new Date() && inv.status !== 'Paid') ? '#ef4444' : 'inherit', fontWeight: (new Date(inv.dueDate) < new Date() && inv.status !== 'Paid') ? 700 : 400 }}>
-                                        {fmtDate(inv.dueDate)}
-                                    </td>
-                                    <td title={fmt(inv.amount)} style={{ fontWeight: 800, color: "var(--text-primary)", textAlign: "right" }}>{fmt(inv.amount)}</td>
-                                    <td title={fmt(inv._balance)} style={{ color: "#f59e0b", fontWeight: 700, textAlign: "right" }}>{fmt(inv._balance)}</td>
-                                    <td className="status-col" title={inv.status}><Badge status={inv.status} /></td>
-                                    <td style={{ textAlign: "right", verticalAlign: "middle" }}>
-                                        <TableRowActions
-                                            ariaLabel={`Actions for invoice ${inv.id}`}
-                                            items={[
-                                                {
-                                                    id: "preview",
-                                                    label: "Preview invoice",
-                                                    icon: FileText,
-                                                    onClick: (e) => {
-                                                        e.stopPropagation();
-                                                        setInvoicePreview(inv);
+                                        </td>
+
+                                        {/* Amount */}
+                                        <td style={{ fontWeight: 800, color: "var(--text-primary)", textAlign: "right" }}>
+                                            {fmt(inv.amount)}
+                                        </td>
+
+                                        {/* Outstanding */}
+                                        <td style={{ fontWeight: 700, textAlign: "right", color: inv._balance > 0 ? "#f59e0b" : "#10b981" }}>
+                                            {inv._balance > 0 ? fmt(inv._balance) : "—"}
+                                        </td>
+
+                                        {/* Status */}
+                                        <td className="status-col">
+                                            <Badge status={inv.status}>{inv.status}</Badge>
+                                        </td>
+
+                                        {/* Due date */}
+                                        <td style={{ color: isOverdue ? "#ef4444" : "var(--text-secondary)", fontWeight: isOverdue ? 700 : 400, fontSize: 13, whiteSpace: "nowrap" }}>
+                                            {fmtDate(inv.dueDate)}
+                                        </td>
+
+                                        {/* Actions */}
+                                        <td style={{ textAlign: "right", verticalAlign: "middle" }}>
+                                            <TableRowActions
+                                                ariaLabel={`Actions for invoice ${inv.id}`}
+                                                items={[
+                                                    {
+                                                        id: "preview",
+                                                        label: "View invoice",
+                                                        icon: FileText,
+                                                        onClick: (e) => {
+                                                            e.stopPropagation();
+                                                            setInvoicePreview(inv);
+                                                        },
                                                     },
-                                                },
-                                                {
-                                                    id: "payreq",
-                                                    label: "Request payment",
-                                                    icon: Send,
-                                                    onClick: (e) => {
-                                                        e.stopPropagation();
-                                                        setPaymentModal(inv);
+                                                    {
+                                                        id: "payreq",
+                                                        label: "Request payment",
+                                                        icon: Send,
+                                                        onClick: (e) => {
+                                                            e.stopPropagation();
+                                                            setPaymentModal(inv);
+                                                        },
                                                     },
-                                                },
-                                                {
-                                                    id: "logpay",
-                                                    label: "Log payment",
-                                                    icon: DollarSign,
-                                                    onClick: (e) => {
-                                                        e.stopPropagation();
-                                                        openModal("logPayment", {
-                                                            invoiceId: inv.id,
-                                                            amount: inv._balance,
-                                                            client: inv._client,
-                                                        });
+                                                    {
+                                                        id: "logpay",
+                                                        label: "Record payment",
+                                                        icon: DollarSign,
+                                                        onClick: (e) => {
+                                                            e.stopPropagation();
+                                                            openModal("logPayment", {
+                                                                invoiceId: inv.id,
+                                                                amount: inv._balance,
+                                                                client: inv._client,
+                                                            });
+                                                        },
                                                     },
-                                                },
-                                            ]}
-                                        />
-                                    </td>
-                                </tr>
-                            ))}
+                                                ]}
+                                            />
+                                        </td>
+                                    </tr>
+                                );
+                            })}
                         </tbody>
                     </table>
                 </div>
             </Card>
 
-            {/* Modals & Overlays */}
+            {/* ── Modals & Overlays ── */}
             {paymentModal && (
-                <PaymentRequestModal 
-                    inv={paymentModal} 
+                <PaymentRequestModal
+                    inv={paymentModal}
                     onClose={() => setPaymentModal(null)}
                     payReqStatus={payReqStatus}
                     setPayReqStatus={setPayReqStatus}
@@ -320,9 +388,7 @@ export function Invoices({ data, setData, dark, isMobile, modal, form, setForm, 
                                                             mpesaRef: inv.mpesaRef || "",
                                                             customerPhone: inv.phone || "",
                                                             customerEmail: (cust?.email || "").trim(),
-                                                            firstName: (cust?.contactPerson || inv.client || customerName(inv.customerId) || "")
-                                                                .trim()
-                                                                .split(/\s+/)[0] || "",
+                                                            firstName: (cust?.contactPerson || inv.client || customerName(inv.customerId) || "").trim().split(/\s+/)[0] || "",
                                                             journeyId: journey?.id || jid || "",
                                                             origin: journey?.origin || "",
                                                             destination: journey?.dest || "",
@@ -331,12 +397,8 @@ export function Invoices({ data, setData, dark, isMobile, modal, form, setForm, 
                                                             truckReg: truck?.reg || "",
                                                             driverName: driver?.name || "",
                                                             driverId: driver?.uId || driver?.id || "",
-                                                            revenue:
-                                                                journey?.revenue != null ? fmt(journey.revenue) : "",
-                                                            waybillNo:
-                                                                journey?.waybillNo ||
-                                                                journey?.waybillData?.waybillNo ||
-                                                                "",
+                                                            revenue: journey?.revenue != null ? fmt(journey.revenue) : "",
+                                                            waybillNo: journey?.waybillNo || journey?.waybillData?.waybillNo || "",
                                                             borderPoint: journey?.waybillData?.borderPoint || "",
                                                             businessName: readSettings().companyName || "",
                                                         },
@@ -367,10 +429,14 @@ export function Invoices({ data, setData, dark, isMobile, modal, form, setForm, 
                         </div>
                         <div style={{ fontWeight: 800, color: "var(--text-primary)" }}>Payment Logged!</div>
                     </div>
-                    <p style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 20 }}>Would you like to send a digital receipt to <b>{paymentReceiptWa.name}</b> via WhatsApp?</p>
+                    <p style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 20 }}>
+                        Send a digital receipt to <b>{paymentReceiptWa.name}</b> via WhatsApp?
+                    </p>
                     <div style={{ display: "flex", gap: 10 }}>
                         <Button style={{ flex: 1 }} variant="ghost" onClick={() => setPaymentReceiptWa(null)}>Dismiss</Button>
-                        <Button style={{ flex: 1, background: "#25D366", border: "none", color: "white" }} onClick={() => { window.open(paymentReceiptWa.url); setPaymentReceiptWa(null); }}>Send Now</Button>
+                        <Button style={{ flex: 1, background: "#25D366", border: "none", color: "white" }} onClick={() => { window.open(paymentReceiptWa.url); setPaymentReceiptWa(null); }}>
+                            Send Now
+                        </Button>
                     </div>
                 </div>
             )}

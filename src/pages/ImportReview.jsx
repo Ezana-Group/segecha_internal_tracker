@@ -1,10 +1,10 @@
 import React, { useState } from "react";
-import { FileUp } from "lucide-react";
+import { FileUp, AlertTriangle, CheckCircle, XCircle, Upload } from "lucide-react";
 import { Card } from "../components/Card";
 import { Button } from "../components/Button";
 import { PageHeader } from "../components/PageHeader";
-import { useNavigate } from "react-router-dom";
 import { Badge } from "../components/Badge";
+import { useNavigate } from "react-router-dom";
 
 export const ImportUploadButton = ({ label = 'Import from Excel', runExcelImport, setImportSession, onNavigate }) => {
     const [loading, setLoading] = useState(false);
@@ -26,12 +26,12 @@ export const ImportUploadButton = ({ label = 'Import from Excel', runExcelImport
 
     return (
         <div>
-            <label style={{ 
+            <label style={{
                 display: 'inline-flex', cursor: 'pointer', alignItems: 'center', gap: 8,
                 background: 'var(--brand-primary)', color: 'white', padding: '10px 18px',
                 borderRadius: 8, fontWeight: 600, fontSize: 13,
                 boxShadow: '0 4px 12px rgba(249, 115, 22, 0.3)', transition: 'all 0.2s ease'
-             }}>
+            }}>
                 {loading ? 'Parsing…' : label}
                 <input type="file" accept=".xlsx,.xls,.csv" style={{ display: 'none' }} onChange={handleFile} disabled={loading} />
             </label>
@@ -106,9 +106,8 @@ export const ImportReview = ({ importSession, setImportSession, importHistory, r
     const [uploadErr, setUploadErr] = useState('');
     const navigate = useNavigate();
 
-    // S styles might not be fully defined with tables, so providing fallbacks
     const sTable = { width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 13 };
-    const sTh = { padding: '12px 14px', borderBottom: `2px solid ${T?.border || 'var(--border-subtle)'}`, color: T?.textDim || 'var(--text-dim)', fontWeight: 600, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em' };
+    const sTh = { padding: '12px 14px', borderBottom: `2px solid ${T?.border || 'var(--border-subtle)'}`, color: T?.textDim || 'var(--text-dim)', fontWeight: 600, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', background: 'var(--surface-subtle)', position: 'sticky', top: 0, zIndex: 1 };
     const sTd = { padding: '12px 14px', borderBottom: `1px solid ${T?.border || 'var(--border-subtle)'}`, color: T?.text || 'var(--text-secondary)' };
 
     const handleUploadDrop = async (e) => {
@@ -124,115 +123,152 @@ export const ImportReview = ({ importSession, setImportSession, importHistory, r
         e.target.value = '';
     };
 
+    // ── NO SESSION: Upload screen ──────────────────────────────────────────────
     if (!session) {
         return (
-            <div className="page-shell" style={{ maxWidth: 840, padding: "40px 20px" }}>
+            <div className="page-shell">
                 <PageHeader
                     icon={FileUp}
-                    title="Import data"
+                    title="Import Data"
                     description="Upload Trucking_2025.xlsx (or CSV). Review validated rows before committing to your local workspace."
-                    marginBottom={20}
+                    marginBottom={28}
                 />
-                
-                <div style={{ display: "flex", gap: 8, marginBottom: 40 }}>
-                    <div 
-                        onClick={() => setView('new')}
-                        style={{ background: view === 'new' ? "#f97316" : "var(--bg-card)", color: view === 'new' ? "white" : "var(--text-dim)", padding: "8px 20px", borderRadius: 20, fontSize: 14, fontWeight: 700, cursor: "pointer", boxShadow: view === 'new' ? "0 2px 8px rgba(249,115,22,0.3)" : "none", border: view === 'new' ? "none" : "1px solid var(--border-subtle)" }}>
-                        New Import
-                    </div>
-                    <div 
-                        onClick={() => setView('history')}
-                        style={{ background: view === 'history' ? "#f97316" : "var(--bg-card)", color: view === 'history' ? "white" : "var(--text-dim)", padding: "8px 20px", borderRadius: 20, fontSize: 14, fontWeight: 700, cursor: "pointer", boxShadow: view === 'history' ? "0 2px 8px rgba(249,115,22,0.3)" : "none", border: view === 'history' ? "none" : "1px solid var(--border-subtle)" }}>
-                        Import History
-                    </div>
+
+                {/* View toggle: New | History */}
+                <div style={{ display: 'flex', gap: 6, marginBottom: 32 }}>
+                    {[
+                        { id: 'new', label: 'New Import' },
+                        { id: 'history', label: 'Import History' },
+                    ].map((v) => (
+                        <button
+                            key={v.id}
+                            onClick={() => setView(v.id)}
+                            style={{
+                                background: view === v.id ? 'var(--brand-primary)' : 'var(--bg-card)',
+                                color: view === v.id ? '#fff' : 'var(--text-dim)',
+                                padding: '8px 20px',
+                                borderRadius: 20,
+                                fontSize: 13,
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                border: view === v.id ? 'none' : '1px solid var(--border-subtle)',
+                                boxShadow: view === v.id ? '0 2px 8px rgba(249,115,22,0.3)' : 'none',
+                                transition: 'all 0.15s ease',
+                            }}
+                        >
+                            {v.label}
+                        </button>
+                    ))}
                 </div>
 
                 {view === 'history' ? (
                     <HistoryView history={importHistory} T={T} S={S} navigate={navigate} />
                 ) : (
                     <>
+                        {/* Step indicator */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 36, overflowX: 'auto' }} className="hide-scrollbar">
+                            {[
+                                { num: 1, label: 'Upload', active: true },
+                                { num: 2, label: 'Preview & Validate', active: false },
+                                { num: 3, label: 'Fix Issues', active: false },
+                                { num: 4, label: 'Import', active: false },
+                                { num: 5, label: 'Results', active: false },
+                            ].map((step, i) => (
+                                <React.Fragment key={step.num}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                        <div style={{
+                                            width: 26, height: 26, borderRadius: 13,
+                                            background: step.active ? 'var(--brand-primary)' : 'var(--bg-card)',
+                                            border: step.active ? 'none' : '1.5px solid var(--border-subtle)',
+                                            color: step.active ? '#fff' : 'var(--text-dim)',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            fontSize: 12, fontWeight: 800,
+                                        }}>
+                                            {step.num}
+                                        </div>
+                                        <div style={{ fontSize: 13, fontWeight: step.active ? 800 : 600, color: step.active ? 'var(--text-primary)' : 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                                            {step.label}
+                                        </div>
+                                    </div>
+                                    {i < 4 && <div style={{ color: 'var(--border-subtle)', fontSize: 14, userSelect: 'none' }}>→</div>}
+                                </React.Fragment>
+                            ))}
+                        </div>
 
-                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 40, overflowX: "auto" }} className="hide-scrollbar">
-                    {[
-                        { num: 1, label: 'Upload', active: true },
-                        { num: 2, label: 'Preview & Validate', active: false },
-                        { num: 3, label: 'Fix Issues', active: false },
-                        { num: 4, label: 'Import', active: false },
-                        { num: 5, label: 'Results', active: false },
-                    ].map((step, i) => (
-                        <React.Fragment key={step.num}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                <div style={{ width: 26, height: 26, borderRadius: 13, background: step.active ? "#f97316" : "var(--bg-card)", border: step.active ? "none" : "1.5px solid var(--border-medium)", color: step.active ? "white" : "var(--text-dim)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 800 }}>
-                                    {step.num}
+                        {/* Upload drop zone */}
+                        <Card style={{ marginBottom: 24, padding: 0, overflow: 'hidden' }}>
+                            <div style={{ padding: '32px 24px', textAlign: 'center', borderBottom: '1px solid var(--border-subtle)' }}>
+                                <div style={{ width: 56, height: 56, borderRadius: 16, background: 'var(--brand-primary)15', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', color: 'var(--brand-primary)' }}>
+                                    <Upload size={28} />
                                 </div>
-                                <div style={{ fontSize: 13, fontWeight: step.active ? 800 : 600, color: step.active ? "var(--text-primary)" : "var(--text-muted)", whiteSpace: "nowrap" }}>
-                                    {step.label}
+                                <h2 style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 6 }}>Upload Excel or CSV</h2>
+                                <p style={{ fontSize: 13, color: 'var(--text-dim)', marginBottom: 24 }}>
+                                    Supports <strong>Trucking_2025.xlsx</strong> format, or any CSV with matching columns. Max 10 MB.
+                                </p>
+
+                                <label style={{
+                                    display: 'block',
+                                    border: '2px dashed var(--border-subtle)',
+                                    borderRadius: 'var(--radius-md)',
+                                    background: 'var(--surface-subtle)',
+                                    padding: '40px 20px',
+                                    cursor: uploadLoading ? 'wait' : 'pointer',
+                                    transition: 'border-color 0.2s ease',
+                                    marginBottom: 16,
+                                }}>
+                                    {uploadLoading ? (
+                                        <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-secondary)' }}>Processing file…</div>
+                                    ) : (
+                                        <>
+                                            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'flex-end', gap: 4, marginBottom: 14 }}>
+                                                <div style={{ width: 10, height: 20, background: '#10b981', borderRadius: 3 }} />
+                                                <div style={{ width: 10, height: 30, background: '#ef4444', borderRadius: 3 }} />
+                                                <div style={{ width: 10, height: 14, background: '#3b82f6', borderRadius: 3 }} />
+                                            </div>
+                                            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 6 }}>
+                                                Drop your file here
+                                            </div>
+                                            <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+                                                or <span style={{ color: '#3b82f6', fontWeight: 600 }}>click to browse</span>
+                                            </div>
+                                            <input type="file" accept=".xlsx,.xls,.csv" style={{ display: 'none' }} onChange={handleUploadDrop} disabled={uploadLoading} />
+                                        </>
+                                    )}
+                                </label>
+                                {uploadErr && (
+                                    <div style={{ fontSize: 13, color: '#ef4444', fontWeight: 600, marginBottom: 8 }}>{uploadErr}</div>
+                                )}
+                            </div>
+
+                            {/* Expected format hint */}
+                            <div style={{ padding: '20px 24px', background: 'rgba(59,130,246,0.04)', borderTop: '1px solid rgba(59,130,246,0.12)' }}>
+                                <div style={{ fontSize: 12, fontWeight: 800, color: '#2563eb', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    Expected format — Trucking_2025.xlsx
+                                </div>
+                                <p style={{ fontSize: 12, color: '#1e40af', marginBottom: 14, lineHeight: 1.5 }}>
+                                    Sheet named <code style={{ background: 'rgba(59,130,246,0.1)', padding: '2px 6px', borderRadius: 4, fontFamily: 'monospace', color: '#2563eb' }}>Trips_2025</code> with headers on row 2. Required columns marked with *.
+                                </p>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                    {['Vehicle*', 'Date*', 'Origin*', 'Destination*', 'Gross Income*', 'Standard Distance', 'Fuel(L)', 'Fuel Price (Per Litre)', 'Fuel Cost', 'Driver Millage', 'Turn-Boy', 'Road Users fee', 'Other Expenses', 'Total Expense', 'Net Income', 'Money Deposited at Bank', 'Date Deposited', 'Deposit Received', 'Notes'].map(col => (
+                                        <span key={col} style={{
+                                            background: col.includes('*') ? 'rgba(59,130,246,0.1)' : 'transparent',
+                                            color: col.includes('*') ? '#2563eb' : 'var(--text-dim)',
+                                            fontSize: 11, fontWeight: col.includes('*') ? 700 : 500,
+                                            padding: '3px 9px', borderRadius: 20,
+                                        }}>
+                                            {col}
+                                        </span>
+                                    ))}
                                 </div>
                             </div>
-                            {i < 4 && <div style={{ color: "var(--border-medium)", margin: "0 4px", fontSize: 12 }}>→</div>}
-                        </React.Fragment>
-                    ))}
-                </div>
-
-                <div style={{ textAlign: "center", marginBottom: 24 }}>
-                    <h2 style={{ fontSize: 20, fontWeight: 800, color: "var(--text-primary)", marginBottom: 8 }}>Upload Excel or CSV</h2>
-                    <p style={{ fontSize: 13, color: "var(--text-dim)" }}>Supports: <b>Trucking_2025.xlsx</b> format, or any CSV with matching columns. Maximum file size: 10MB.</p>
-                </div>
-
-                <label style={{ 
-                    display: "block", 
-                    border: "2px dashed var(--border-medium)", 
-                    borderRadius: 16, 
-                    background: "var(--bg-card)", 
-                    padding: "60px 20px", 
-                    textAlign: "center", 
-                    cursor: uploadLoading ? "wait" : "pointer",
-                    transition: "all 0.2s ease",
-                    marginBottom: 24
-                }} className="hover-scale">
-                    {uploadLoading ? (
-                        <div style={{ fontSize: 16, fontWeight: 600, color: "var(--text-secondary)" }}>Processing file…</div>
-                    ) : (
-                        <>
-                            <div style={{ display: "flex", justifyContent: "center", alignItems: "flex-end", gap: 3, marginBottom: 20 }}>
-                                <div style={{ width: 10, height: 16, background: "#10b981", borderRadius: 2 }} />
-                                <div style={{ width: 10, height: 24, background: "#ef4444", borderRadius: 2 }} />
-                                <div style={{ width: 10, height: 8, background: "#3b82f6", borderRadius: 2 }} />
-                            </div>
-                            <div style={{ fontSize: 16, fontWeight: 800, color: "var(--text-secondary)", marginBottom: 8 }}>
-                                Drop your Excel or CSV file here
-                            </div>
-                            <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
-                                or <span style={{ color: "#3b82f6", fontWeight: 600 }}>click to browse</span>
-                            </div>
-                            <input type="file" accept=".xlsx,.xls,.csv" style={{ display: 'none' }} onChange={handleUploadDrop} disabled={uploadLoading} />
-                        </>
-                    )}
-                </label>
-                {uploadErr && <div style={{ fontSize: 13, color: '#ef4444', textAlign: 'center', fontWeight: 600, marginBottom: 24 }}>{uploadErr}</div>}
-
-                <div style={{ background: "rgba(59, 130, 246, 0.05)", border: "1px solid rgba(59, 130, 246, 0.2)", borderRadius: 16, padding: "24px 32px" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 800, color: "#2563eb", marginBottom: 12 }}>
-                        <div style={{ display: "flex", gap: 2 }}><div style={{width: 6, height: 6, background: "#ef4444", borderRadius: "50%"}}/><div style={{width: 6, height: 6, background: "#3b82f6", borderRadius: "50%"}}/></div>
-                        Expected format (Trucking_2025.xlsx)
-                    </div>
-                    <div style={{ fontSize: 13, color: "#1e3a8a", marginBottom: 20, lineHeight: 1.5 }}>
-                        Your file should have a sheet named <b style={{ background: "rgba(59, 130, 246, 0.1)", padding: "2px 6px", borderRadius: 4, fontFamily: "var(--font-mono)", color: "#2563eb" }}>Trips_2025</b> with headers on row 2. Required columns are marked with *.
-                    </div>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                        {['Vehicle*', 'Date*', 'Origin*', 'Destination*', 'Gross Income*', 'Standard Distance', 'Fuel(L)', 'Fuel Price (Per Litre)', 'Fuel Cost', 'Driver Millage', 'Turn-Boy', 'Road Users fee', 'Other Expenses', 'Total Expense', 'Net Income', 'Money Deposited at Bank', 'Date Deposited', 'Deposit Received', 'Notes'].map(col => (
-                            <div key={col} style={{ background: col.includes('*') ? "rgba(59, 130, 246, 0.1)" : "transparent", color: col.includes('*') ? "#2563eb" : "var(--text-dim)", fontSize: 11, fontWeight: col.includes('*') ? 700 : 500, padding: "4px 10px", borderRadius: 20 }}>
-                                {col}
-                            </div>
-                        ))}
-                    </div>
-                </div>
-                </>
+                        </Card>
+                    </>
                 )}
             </div>
         );
     }
 
+    // ── SESSION EXISTS: Review screen ──────────────────────────────────────────
     const sheets = {
         trips:       { label: 'Trips',           data: session.sheets.trips },
         expenses:    { label: 'Fixed Expenses',   data: session.sheets.expenses },
@@ -359,7 +395,7 @@ export const ImportReview = ({ importSession, setImportSession, importHistory, r
         setImporting(false);
     };
 
-    const inputStyle = { width: '100%', height: 32, background: 'var(--surface-subtle)', border: '1px solid var(--border-medium)', borderRadius: 6, padding: '0 8px', fontSize: 12, color: 'var(--text-primary)', fontFamily: 'inherit' };
+    const inputStyle = { width: '100%', height: 32, background: 'var(--surface-subtle)', border: '1px solid var(--border-subtle)', borderRadius: 6, padding: '0 8px', fontSize: 12, color: 'var(--text-primary)', fontFamily: 'inherit' };
     const errorBorderStyle = '1px solid #ef4444';
 
     const TripRow = ({ row }) => {
@@ -445,7 +481,7 @@ export const ImportReview = ({ importSession, setImportSession, importHistory, r
                 <td style={sTd}>
                     <input style={inputStyle} value={row.desc || ''} onChange={e => updateRow(activeSheet, row.expenseId, 'desc', e.target.value)} />
                 </td>
-                <td style={{ ...sTd }}>
+                <td style={sTd}>
                     <span style={{ fontSize: 10, padding: '4px 8px', background: 'var(--brand-primary)15', color: 'var(--brand-primary)', borderRadius: 20, fontWeight: 700, textTransform: 'uppercase' }}>{row.cat}</span>
                 </td>
                 <td style={sTd}>
@@ -462,26 +498,41 @@ export const ImportReview = ({ importSession, setImportSession, importHistory, r
     };
 
     return (
-        <div style={{ paddingBottom: 100 }}>
+        <div className="page-shell" style={{ paddingBottom: 100 }}>
             {/* Header */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 20 }}>
-                <div>
-                    <h1 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 4 }}>Import Review</h1>
-                    <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>
-                        {session.fileName} · parsed {new Date(session.parsedAt).toLocaleTimeString('en-KE')}
+            <PageHeader
+                icon={FileUp}
+                title="Import Review"
+                description={`${session.fileName} · parsed ${new Date(session.parsedAt).toLocaleTimeString('en-KE')}`}
+                marginBottom={20}
+                actions={
+                    <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <ImportUploadButton label="Re-import file" runExcelImport={runExcelImport} setImportSession={setImportSession} />
+                        <Button variant="ghost" onClick={() => setImportSession(null)}>Clear session</Button>
+                        <Button
+                            variant="primary"
+                            onClick={handleCommit}
+                            disabled={importing || session.committed || totalAccepted === 0}
+                        >
+                            {session.committed ? `Imported ${totalAccepted} rows` : importing ? 'Importing…' : `Commit Import (${totalAccepted} rows)`}
+                        </Button>
                     </div>
-                </div>
-                <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                    <ImportUploadButton label="Re-import file" runExcelImport={runExcelImport} setImportSession={setImportSession} />
-                    <Button variant="ghost" onClick={() => setImportSession(null)}>Clear session</Button>
-                    <Button variant="primary" onClick={handleCommit} disabled={importing || session.committed || totalAccepted === 0}>
-                        {session.committed ? `Imported ${totalAccepted} rows` : importing ? 'Importing…' : `Import ${totalAccepted} rows`}
-                    </Button>
-                </div>
-            </div>
+                }
+            />
 
+            {/* Import status message */}
             {importMsg && (
-                <div style={{ background: importMsg.startsWith('OK:') ? 'rgba(22, 163, 74, 0.08)' : 'rgba(220, 38, 38, 0.08)', border: `1px solid ${importMsg.startsWith('OK:') ? 'rgba(22,163,74,0.25)' : 'rgba(220,38,38,0.25)'}`, borderRadius: 'var(--radius-md)', padding: '12px 16px', marginBottom: 24, fontSize: 13, fontWeight: 600, color: importMsg.startsWith('OK:') ? '#4ade80' : '#f87171', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{
+                    background: importMsg.startsWith('OK:') ? 'rgba(22,163,74,0.08)' : 'rgba(220,38,38,0.08)',
+                    border: `1px solid ${importMsg.startsWith('OK:') ? 'rgba(22,163,74,0.25)' : 'rgba(220,38,38,0.25)'}`,
+                    borderRadius: 'var(--radius-md)',
+                    padding: '12px 16px',
+                    marginBottom: 24,
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: importMsg.startsWith('OK:') ? '#4ade80' : '#f87171',
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                }}>
                     {importMsg}
                     {session.committed && (
                         <Button variant="ghost" size="sm" onClick={() => { navigate('/journeys'); setImportSession(null); }}>
@@ -491,37 +542,61 @@ export const ImportReview = ({ importSession, setImportSession, importHistory, r
                 </div>
             )}
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 24 }}>
+            {/* Summary chips */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 24 }}>
                 {[
-                    { label: 'Total rows found',  val: totalValid + totalErrors, c: '#3b82f6' },
-                    { label: 'Ready to import',   val: totalValid,               c: '#10b981' },
-                    { label: 'Rows with errors',  val: totalErrors,              c: '#ef4444' },
-                    { label: 'Will be imported',  val: totalAccepted,            c: 'var(--brand-primary)' },
+                    { label: 'Total rows',       val: totalValid + totalErrors, color: '#3b82f6' },
+                    { label: 'Ready to import',  val: totalValid,               color: '#10b981' },
+                    { label: 'Rows with errors', val: totalErrors,              color: '#ef4444' },
+                    { label: 'Will be imported', val: totalAccepted,            color: 'var(--brand-primary)' },
                 ].map(k => (
-                    <Card key={k.label} style={{ padding: '16px 20px' }}>
-                        <div style={{ fontSize: 12, color: 'var(--text-dim)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>{k.label}</div>
-                        <div style={{ fontSize: 24, fontWeight: 800, color: k.c }}>{k.val}</div>
+                    <Card key={k.label} style={{ padding: '14px 18px' }}>
+                        <div style={{ fontSize: 11, color: 'var(--text-dim)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>{k.label}</div>
+                        <div style={{ fontSize: 22, fontWeight: 800, color: k.color }}>{k.val}</div>
                     </Card>
                 ))}
             </div>
 
-            <div style={{ display: 'flex', borderBottom: `2px solid var(--border-subtle)`, marginBottom: 16 }}>
+            {/* Sheet selector tabs */}
+            <div style={{ display: 'flex', borderBottom: '2px solid var(--border-subtle)', marginBottom: 16, gap: 2 }}>
                 {Object.entries(sheets).map(([key, sh]) => {
                     const errCount = sh.data.errors.length;
                     const valCount = sh.data.valid.length;
                     const accCount = [...sh.data.valid, ...sh.data.errors].filter(r => r.accepted).length;
+                    const isActive = activeSheet === key;
                     return (
-                        <button key={key}
-                            style={{ padding: '12px 20px', border: 'none', borderBottom: activeSheet === key ? `3px solid var(--brand-primary)` : '3px solid transparent', background: 'none', fontSize: 14, cursor: 'pointer', color: activeSheet === key ? 'var(--brand-primary)' : 'var(--text-dim)', fontWeight: activeSheet === key ? 800 : 600, marginBottom: -2 }}
-                            onClick={() => setActiveSheet(key)}>
+                        <button
+                            key={key}
+                            onClick={() => setActiveSheet(key)}
+                            style={{
+                                padding: '10px 18px',
+                                border: 'none',
+                                borderBottom: isActive ? '3px solid var(--brand-primary)' : '3px solid transparent',
+                                background: 'none',
+                                fontSize: 13,
+                                cursor: 'pointer',
+                                color: isActive ? 'var(--brand-primary)' : 'var(--text-dim)',
+                                fontWeight: isActive ? 800 : 600,
+                                marginBottom: -2,
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 8,
+                                transition: 'color 0.15s, border-color 0.15s',
+                            }}
+                        >
                             {sh.label}
-                            {errCount > 0 && <span style={{ marginLeft: 8, fontSize: 10, padding: '2px 8px', background: '#ef4444', color: 'white', borderRadius: 12 }}>{errCount} errors</span>}
-                            <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 8 }}>{accCount}/{valCount + errCount}</span>
+                            {errCount > 0 && (
+                                <span style={{ fontSize: 10, padding: '2px 7px', background: '#ef4444', color: '#fff', borderRadius: 12, fontWeight: 800 }}>
+                                    {errCount} err
+                                </span>
+                            )}
+                            <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>{accCount}/{valCount + errCount}</span>
                         </button>
                     );
                 })}
             </div>
 
+            {/* Row controls */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', marginBottom: 16, flexWrap: 'wrap' }}>
                 <Button size="sm" variant="ghost" onClick={() => acceptAll(activeSheet)}>Accept all in this sheet</Button>
                 <Button size="sm" variant="ghost" onClick={() => discardAll(activeSheet)}>Discard all</Button>
@@ -535,12 +610,13 @@ export const ImportReview = ({ importSession, setImportSession, importHistory, r
                 </span>
             </div>
 
-            <Card style={{ overflow: 'hidden' }}>
+            {/* Preview table */}
+            <Card style={{ overflow: 'hidden', padding: 0 }}>
                 {allRows.length === 0 ? (
                     <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-dim)' }}>
-                        <div style={{ marginBottom: 12, fontSize: 13, fontWeight: 600, color: "var(--text-muted)" }}>Complete</div>
-                        <div style={{ fontWeight: 700, fontSize: 16 }}>
-                            {errorRows.length === 0 ? 'No errors in this sheet — all rows are valid.' : 'No rows to show with current filters.'}
+                        <CheckCircle size={40} style={{ margin: '0 auto 12px', color: '#22c55e', display: 'block' }} />
+                        <div style={{ fontWeight: 800, fontSize: 16, color: 'var(--text-primary)', marginBottom: 6 }}>
+                            {errorRows.length === 0 ? 'No errors in this sheet — all rows are valid.' : 'No rows match current filters.'}
                         </div>
                         {!showValidRows && validRows.length > 0 && (
                             <div style={{ fontSize: 13, marginTop: 8 }}>
@@ -572,9 +648,11 @@ export const ImportReview = ({ importSession, setImportSession, importHistory, r
                                     : <ExpenseRow key={row.expenseId} row={row} />
                                 )}
                                 {showValidRows && errorRows.length > 0 && validRows.length > 0 && (
-                                    <tr><td colSpan={12} style={{ padding: '8px 16px', background: 'rgba(16, 185, 129, 0.1)', fontSize: 12, color: '#10b981', fontWeight: 700 }}>
-                                        {validRows.length} valid row{validRows.length !== 1 ? "s" : ""} — no errors
-                                    </td></tr>
+                                    <tr>
+                                        <td colSpan={12} style={{ padding: '8px 16px', background: 'rgba(16,185,129,0.08)', fontSize: 12, color: '#10b981', fontWeight: 700 }}>
+                                            {validRows.length} valid row{validRows.length !== 1 ? 's' : ''} — no errors
+                                        </td>
+                                    </tr>
                                 )}
                                 {showValidRows && validRows.map(row => activeSheet === 'trips'
                                     ? <TripRow key={row.journeyId} row={row} />
@@ -586,16 +664,38 @@ export const ImportReview = ({ importSession, setImportSession, importHistory, r
                 )}
             </Card>
 
+            {/* Sticky commit bar */}
             {!session.committed && totalAccepted > 0 && (
-                <div style={{ position: 'fixed', bottom: 'max(12px, env(safe-area-inset-bottom))', left: '50%', transform: 'translateX(-50%)', width: 'min(520px, calc(100vw - 16px))', maxWidth: 'calc(100vw - 16px)', background: 'var(--surface)', border: `1px solid var(--border-medium)`, borderRadius: 16, display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap', justifyContent: 'space-between', boxShadow: '0 10px 40px rgba(0,0,0,0.2)', padding: '16px 20px', zIndex: 100, boxSizing: 'border-box' }}>
+                <div style={{
+                    position: 'fixed',
+                    bottom: 'max(12px, env(safe-area-inset-bottom))',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    width: 'min(540px, calc(100vw - 16px))',
+                    background: 'var(--bg-card)',
+                    border: '1px solid var(--border-subtle)',
+                    borderRadius: 16,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 16,
+                    flexWrap: 'wrap',
+                    justifyContent: 'space-between',
+                    boxShadow: '0 10px 40px rgba(0,0,0,0.2)',
+                    padding: '16px 20px',
+                    zIndex: 100,
+                    boxSizing: 'border-box',
+                }}>
                     <div>
                         <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-primary)' }}>{totalAccepted} rows selected for import</div>
                         <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 2 }}>
-                            {[...session.sheets.trips.valid, ...session.sheets.trips.errors].filter(r=>r.accepted).length} journeys · {[...session.sheets.expenses.valid, ...session.sheets.expenses.errors].filter(r=>r.accepted).length} expenses · {[...session.sheets.maintenance.valid, ...session.sheets.maintenance.errors].filter(r=>r.accepted).length} maintenance
+                            {[...session.sheets.trips.valid, ...session.sheets.trips.errors].filter(r=>r.accepted).length} journeys
+                            {' · '}
+                            {[...session.sheets.expenses.valid, ...session.sheets.expenses.errors].filter(r=>r.accepted).length} expenses
+                            {' · '}
+                            {[...session.sheets.maintenance.valid, ...session.sheets.maintenance.errors].filter(r=>r.accepted).length} maintenance
                         </div>
                     </div>
-                    <Button variant="primary" style={{ marginLeft: 'auto', padding: '12px 24px', fontSize: 14 }}
-                        onClick={handleCommit} disabled={importing}>
+                    <Button variant="primary" style={{ marginLeft: 'auto', padding: '12px 24px', fontSize: 14 }} onClick={handleCommit} disabled={importing}>
                         {importing ? 'Importing…' : 'Confirm import →'}
                     </Button>
                 </div>

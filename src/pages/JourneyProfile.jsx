@@ -82,22 +82,41 @@ export function JourneyProfile({
 
     const isPendingVerif = journey.status === 'Awaiting Start Verification' || journey.status === 'Awaiting Verification';
 
+    const journeyRef = journey.id.split('-')[0].toUpperCase();
+
     return (
         <div className="page-shell">
-            {/* Header / Banner */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 20, marginBottom: 32, flexWrap: 'wrap' }}>
-                <Button variant="secondary" icon={ArrowLeft} onClick={() => navigate('/journeys')}>Back</Button>
-                <div style={{ width: 56, height: 56, borderRadius: 16, background: "var(--brand-primary)15", display: 'flex', alignItems: 'center', justifyContent: 'center', color: "var(--brand-primary)" }}>
-                    <Navigation size={32} />
-                </div>
-                <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 32, fontWeight: 900, color: "var(--text-primary)", lineHeight: 1.1, letterSpacing: "-0.04em" }}>{journey.origin} <ChevronRight size={24} style={{ verticalAlign: 'middle', opacity: 0.3 }} /> {journey.dest}</div>
-                    <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 4 }}>
-                        Mission ID: {journey.id.split('-')[0].toUpperCase()} · {fmtDate(journey.date)} · <Badge status={journey._isRejected ? "Rejected" : journey.status} />
+            {/* Back Link */}
+            <button
+                type="button"
+                onClick={() => navigate('/journeys')}
+                style={{ background: "none", border: "none", color: "var(--brand-primary)", fontWeight: 700, display: "flex", alignItems: "center", gap: 8, marginBottom: 24, cursor: "pointer", fontSize: 14, padding: 0 }}
+            >
+                <ArrowLeft size={16} /> Journeys
+            </button>
+
+            {/* Journey Header */}
+            <div style={{ marginBottom: 28 }}>
+                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+                    <div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 6 }}>
+                            <span style={{ fontFamily: "var(--font-mono)", fontSize: 13, fontWeight: 800, color: "var(--brand-primary)", background: "rgba(249,115,22,0.1)", padding: "2px 10px", borderRadius: 6 }}>
+                                {journeyRef}
+                            </span>
+                            <Badge status={journey._isRejected ? "Rejected" : journey.status} />
+                        </div>
+                        <h1 style={{ fontSize: 26, fontWeight: 900, color: "var(--text-primary)", margin: 0, letterSpacing: "-0.03em", lineHeight: 1.1 }}>
+                            {journey.origin}
+                            <ChevronRight size={20} style={{ verticalAlign: "middle", opacity: 0.35, margin: "0 4px" }} />
+                            {journey.dest}
+                        </h1>
+                        <div style={{ fontSize: 13, color: "var(--text-muted)", marginTop: 6 }}>
+                            {fmtDate(journey.date)}
+                        </div>
                     </div>
-                </div>
-                <div style={{ display: 'flex', gap: 12 }}>
-                    <Button variant="secondary" icon={Edit2} disabled={disableEdit} title={disableEdit ? "Only Super Admins can edit a completed trip" : ""} onClick={() => openModal('journey', journey)}>Edit Journey</Button>
+                    <div style={{ display: "flex", gap: 10 }}>
+                        <Button variant="secondary" icon={Edit2} disabled={disableEdit} title={disableEdit ? "Only Super Admins can edit a completed trip" : ""} onClick={() => openModal('journey', journey)}>Edit Journey</Button>
+                    </div>
                 </div>
             </div>
 

@@ -1727,3 +1727,37 @@ button.journeys-table-link:hover { text-decoration: underline; }
   .settings-sidebar { width: 100%; position: static; }
   .topbar-chip { display: none; } /* hide chips on very small screens */
 }
+
+/* ── 24. REWRITTEN COMPONENT STYLES ─────────────────────────── */
+
+/* Button — hover lift + active press (pure CSS, no framer-motion) */
+.btn-base:not(:disabled):hover  { transform: translateY(-1px); }
+.btn-base:not(:disabled):active { transform: translateY(0) scale(0.98); }
+
+.btn-primary:not(:disabled):hover  { background: var(--brand-primary-hover) !important; }
+.btn-outline:not(:disabled):hover  {
+  background: var(--brand-muted) !important;
+}
+.btn-secondary:not(:disabled):hover,
+.btn-ghost:not(:disabled):hover    { background: var(--surface-hover) !important; }
+.btn-premium:not(:disabled):hover  { box-shadow: 0 4px 14px rgba(249,115,22,0.45) !important; }
+.btn-danger:not(:disabled):hover   {
+  background: rgba(239,68,68,0.18) !important;
+  border-color: rgba(239,68,68,0.45) !important;
+}
+
+/* Card — lift on click */
+.card[style*="cursor: pointer"]:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+/* Field inputs — brand focus ring */
+.field-input:focus {
+  border-color: var(--brand-primary) !important;
+  box-shadow: 0 0 0 3px var(--brand-focus-ring);
+  outline: none;
+}
+.field-input:hover:not(:focus) {
+  border-color: var(--border-strong);
+}

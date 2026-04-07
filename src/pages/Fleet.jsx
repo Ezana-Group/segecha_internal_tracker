@@ -1,14 +1,14 @@
 import React, { useState } from "react";
-import { 
-    Truck, 
-    Plus, 
-    Search, 
-    Edit2, 
-    Trash2, 
+import {
+    Truck,
+    Plus,
+    Search,
+    Edit2,
+    Trash2,
     ChevronRight,
     ArrowUpRight,
     AlertCircle,
-    Search as SearchIcon
+    Search as SearchIcon,
 } from "lucide-react";
 import { fmt } from "../utils/formatters";
 import { useNavigate } from "react-router-dom";
@@ -37,9 +37,9 @@ export function Fleet({ data, setData, dark, isMobile, modal, form, setForm, ope
         };
     });
 
-    const { 
-        filteredRows: sortedTrucks, 
-        setSort: requestSortTrucks, 
+    const {
+        filteredRows: sortedTrucks,
+        setSort: requestSortTrucks,
         sortState: sortConfigTrucks,
         filterState: truckFilters,
         applyFilter: handleTruckFilterChange,
@@ -48,8 +48,8 @@ export function Fleet({ data, setData, dark, isMobile, modal, form, setForm, ope
         isSorted: isTruckSorted,
         searchTerm: searchTermTrucks,
         setSearchTerm: setSearchTermTrucks
-    } = useTableFilter(refinedTrucks, { 
-        namespace: "trucks", 
+    } = useTableFilter(refinedTrucks, {
+        namespace: "trucks",
         initialSort: { col: "reg", dir: "asc" },
         searchColumns: ["reg", "uId", "make", "type"]
     });
@@ -61,9 +61,9 @@ export function Fleet({ data, setData, dark, isMobile, modal, form, setForm, ope
         _truck: truckReg ? truckReg(t.truck) : (t.truck || "")
     }));
 
-    const { 
-        filteredRows: sortedTrailers, 
-        setSort: requestSortTrailers, 
+    const {
+        filteredRows: sortedTrailers,
+        setSort: requestSortTrailers,
         sortState: sortConfigTrailers,
         filterState: trailerFilters,
         applyFilter: handleTrailerFilterChange,
@@ -72,40 +72,23 @@ export function Fleet({ data, setData, dark, isMobile, modal, form, setForm, ope
         isSorted: isTrailerSorted,
         searchTerm: searchTermTrailers,
         setSearchTerm: setSearchTermTrailers
-    } = useTableFilter(refinedTrailers, { 
-        namespace: "trailers", 
+    } = useTableFilter(refinedTrailers, {
+        namespace: "trailers",
         initialSort: { col: "reg", dir: "asc" },
         searchColumns: ["reg", "uId", "make", "type"]
     });
 
-    const tabBtn = (active, onClick, label) => (
-        <button
-            type="button"
-            onClick={onClick}
-            style={{
-                border: "none",
-                background: "none",
-                padding: "0 0 8px 0",
-                cursor: "pointer",
-                fontSize: 15,
-                fontWeight: 800,
-                color: active ? "var(--brand-primary)" : "var(--text-dim)",
-                borderBottom: `2px solid ${active ? "var(--brand-primary)" : "transparent"}`,
-                transition: "all 0.2s",
-            }}
-        >
-            {label}
-        </button>
-    );
+    const isTrucks = fleetTab === "trucks";
 
     return (
         <div className="page-shell">
+            {/* Page header */}
             <PageHeader
                 icon={Truck}
                 title="Fleet management"
                 description="Vehicles, trailers, and assignment overview."
                 actions={
-                    fleetTab === "trucks" ? (
+                    isTrucks ? (
                         <Button icon={Plus} onClick={() => openModal("truck", { status: "Active" })}>
                             Add truck
                         </Button>
@@ -117,220 +100,351 @@ export function Fleet({ data, setData, dark, isMobile, modal, form, setForm, ope
                 }
                 belowTitle={
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", flexWrap: "wrap", gap: 16 }}>
-                        <div style={{ display: "flex", gap: 24 }}>
-                            {tabBtn(fleetTab === "trucks", () => setFleetTab("trucks"), `Trucks (${data.trucks.length})`)}
-                            {tabBtn(fleetTab === "trailers", () => setFleetTab("trailers"), `Trailers (${(data.trailers || []).length})`)}
+                        <div style={{ display: "flex", gap: 0 }}>
+                            {[
+                                { id: "trucks", label: `Trucks (${data.trucks.length})` },
+                                { id: "trailers", label: `Trailers (${(data.trailers || []).length})` },
+                            ].map(({ id, label }) => (
+                                <button
+                                    key={id}
+                                    type="button"
+                                    onClick={() => setFleetTab(id)}
+                                    style={{
+                                        border: "none",
+                                        background: "none",
+                                        padding: "0 20px 10px 0",
+                                        cursor: "pointer",
+                                        fontSize: 15,
+                                        fontWeight: 800,
+                                        color: fleetTab === id ? "var(--brand-primary)" : "var(--text-dim)",
+                                        borderBottom: `2px solid ${fleetTab === id ? "var(--brand-primary)" : "transparent"}`,
+                                        transition: "all 0.2s",
+                                    }}
+                                >
+                                    {label}
+                                </button>
+                            ))}
                         </div>
                     </div>
                 }
             />
 
             <Card style={{ padding: 0, overflow: "hidden" }}>
-                <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", gap: 12 }}>
-                    <SearchIcon size={18} color="var(--text-dim)" />
+                {/* Search bar */}
+                <div
+                    style={{
+                        padding: "14px 20px",
+                        borderBottom: "1px solid var(--border-subtle)",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 10,
+                        background: "var(--surface-subtle)",
+                    }}
+                >
+                    <SearchIcon size={16} color="var(--text-dim)" strokeWidth={2.5} />
                     <input
                         type="search"
-                        placeholder={fleetTab === 'trucks' ? "Search fleet..." : "Search trailers..."}
-                        value={fleetTab === 'trucks' ? searchTermTrucks : searchTermTrailers}
-                        onChange={(e) => fleetTab === 'trucks' ? setSearchTermTrucks(e.target.value) : setSearchTermTrailers(e.target.value)}
-                        style={{ border: "none", background: "none", padding: 0, fontSize: 14, flex: 1, color: "var(--text-primary)", fontWeight: 500 }}
+                        placeholder={isTrucks ? "Search by reg, make, type…" : "Search trailers…"}
+                        value={isTrucks ? searchTermTrucks : searchTermTrailers}
+                        onChange={(e) =>
+                            isTrucks
+                                ? setSearchTermTrucks(e.target.value)
+                                : setSearchTermTrailers(e.target.value)
+                        }
+                        style={{
+                            border: "none",
+                            background: "none",
+                            padding: 0,
+                            fontSize: 13,
+                            flex: 1,
+                            color: "var(--text-primary)",
+                            fontWeight: 500,
+                            outline: "none",
+                        }}
                     />
                 </div>
-                <div className="table-container">
-                    {fleetTab === 'trucks' ? (
-                        <table className="table-modern">
-                            <SortableTableHead 
-                                requestSort={requestSortTrucks}
-                                sortConfig={sortConfigTrucks}
-                                filterState={truckFilters}
-                                onFilterChange={handleTruckFilterChange}
-                                getUniqueValues={getTruckUniqueValues}
-                                columns={[
-                                    { key: "uId", label: "Vehicle Unique No.", sortable: true },
-                                    { key: "reg", label: "Licence Plate", sortable: true },
-                                    { key: "type", label: "Vehicle Type", sortable: true },
-                                    { key: "isRigid", label: "Rigid", sortable: true },
-                                    { key: "make", label: "Manufacturer / Model", sortable: true },
-                                    { key: "_odom", label: "Odometer", sortable: true, align: "right" },
-                                    { key: "_health", label: "Health", sortable: true },
-                                    { key: "_overdue", label: "Overdue", sortable: true, align: "right" },
-                                    { key: "actions", label: "Actions", sortable: false, align: "right" }
-                                ]}
-                            />
-                            <tbody>
-                                {sortedTrucks.length === 0 ? (
-                                    <tr>
-                                        <td colSpan="7" style={{ textAlign: "center", padding: 80, color: "var(--text-dim)" }}>
-                                            <div style={{ marginBottom: 16 }}><AlertCircle size={48} opacity={0.2} /></div>
-                                            <div style={{ fontWeight: 600 }}>No vehicles found matching your filters.</div>
-                                        </td>
-                                    </tr>
-                                ) : sortedTrucks.map(t => (
-                                    <tr key={t.id} onClick={() => navigate(`/fleet/${t.id}`)} style={{ cursor: "pointer" }} className="hover-scale">
-                                        <td className="sticky-col" title={t.uId}>
-                                            <div style={{ fontWeight: 800, color: "var(--brand-primary)", fontFamily: "var(--font-mono)", fontSize: 13 }}>
-                                                {t.uId}
-                                            </div>
-                                        </td>
-                                        <td title={t.reg}>
-                                            <div style={{ fontWeight: 700, color: "var(--text-primary)" }}>{t.reg}</div>
-                                        </td>
-                                        <td title={t.type}>
-                                            <div style={{ fontSize: 13, fontWeight: 600 }}>{t.type}</div>
-                                        </td>
-                                        <td title={t.isRigid ? "Rigid" : "Articulated"}>
-                                            <Badge status={t.isRigid ? "Active" : "Inactive"}>
-                                                {t.isRigid ? "Yes" : "No"}
-                                            </Badge>
-                                        </td>
-                                        <td title={t.make}>
-                                            <div style={{ fontSize: 13, color: "var(--text-primary)", fontWeight: 500 }}>{t.make}</div>
-                                        </td>
-                                        <td style={{ textAlign: "right" }} title={`${Number(t.odom || 0).toLocaleString()} KM`}>
-                                            <div style={{ fontSize: 13, fontWeight: 700, fontFamily: "var(--font-mono)" }}>
-                                                {Number(t.odom || 0).toLocaleString()} <span style={{ fontSize: 10 }}>KM</span>
-                                            </div>
-                                        </td>
-                                        <td className="status-col" title={t._health}>
-                                            <Badge 
-                                                status={t._health === "Critical Service" ? "Overdue" : t._health === "Service Due" ? "Pending" : "Active"} 
-                                                text={t._health} 
-                                            />
-                                        </td>
-                                        <td style={{ textAlign: "right" }} title={`${t._overdue} Overdue`}>
-                                            <div style={{ display: "flex", alignItems: "center", gap: 6, justifyContent: "flex-end" }}>
-                                                <div style={{ 
-                                                    width: 24, height: 24, borderRadius: 6, 
-                                                    background: t._overdue > 0 ? "#ef444415" : "var(--surface-subtle)", 
-                                                    display: "flex", alignItems: "center", justifyContent: "center",
-                                                    color: t._overdue > 0 ? "#ef4444" : "var(--text-dim)",
-                                                    fontWeight: 800, fontSize: 12
-                                                }}>
-                                                    {t._overdue}
+
+                {/* Tables */}
+                {isMobile ? (
+                    /* Mobile card grid */
+                    <div style={{ padding: 16, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                        {isTrucks ? (
+                            sortedTrucks.length === 0 ? (
+                                <div style={{ gridColumn: "1 / -1", textAlign: "center", padding: "60px 20px", color: "var(--text-dim)" }}>
+                                    <Truck size={48} opacity={0.15} style={{ margin: "0 auto 16px" }} />
+                                    <div style={{ fontWeight: 600, fontSize: 14 }}>No vehicles found</div>
+                                </div>
+                            ) : sortedTrucks.map(t => (
+                                <div
+                                    key={t.id}
+                                    onClick={() => navigate(`/fleet/${t.id}`)}
+                                    style={{
+                                        background: "var(--bg-card)",
+                                        border: "1px solid var(--border-subtle)",
+                                        borderRadius: "var(--radius-md)",
+                                        padding: 14,
+                                        cursor: "pointer",
+                                        display: "flex",
+                                        flexDirection: "column",
+                                        gap: 8,
+                                    }}
+                                >
+                                    <div style={{ fontWeight: 800, fontSize: 15, color: "var(--text-primary)", fontFamily: "var(--font-mono)" }}>{t.reg}</div>
+                                    <div style={{ fontSize: 12, color: "var(--text-dim)", fontWeight: 500 }}>{t.make}</div>
+                                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 4 }}>
+                                        <Badge
+                                            status={t._health === "Critical Service" ? "Overdue" : t._health === "Service Due" ? "Pending" : "Active"}
+                                            text={t._health}
+                                        />
+                                        <ChevronRight size={14} color="var(--text-dim)" />
+                                    </div>
+                                </div>
+                            ))
+                        ) : (
+                            sortedTrailers.length === 0 ? (
+                                <div style={{ gridColumn: "1 / -1", textAlign: "center", padding: "60px 20px", color: "var(--text-dim)" }}>
+                                    <Truck size={48} opacity={0.15} style={{ margin: "0 auto 16px" }} />
+                                    <div style={{ fontWeight: 600, fontSize: 14 }}>No trailers found</div>
+                                </div>
+                            ) : sortedTrailers.map(t => (
+                                <div
+                                    key={t.id}
+                                    style={{
+                                        background: "var(--bg-card)",
+                                        border: "1px solid var(--border-subtle)",
+                                        borderRadius: "var(--radius-md)",
+                                        padding: 14,
+                                        display: "flex",
+                                        flexDirection: "column",
+                                        gap: 8,
+                                    }}
+                                >
+                                    <div style={{ fontWeight: 800, fontSize: 15, color: "var(--text-primary)", fontFamily: "var(--font-mono)" }}>{t.reg}</div>
+                                    <div style={{ fontSize: 12, color: "var(--text-dim)", fontWeight: 500 }}>{t.make || "N/A"}</div>
+                                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 4 }}>
+                                        <Badge
+                                            status={t.status === "Active" ? "Active" : t.status === "Maintenance" ? "Pending" : "Inactive"}
+                                            text={t.status}
+                                        />
+                                    </div>
+                                </div>
+                            ))
+                        )}
+                    </div>
+                ) : (
+                    /* Desktop table */
+                    <div className="table-container">
+                        {isTrucks ? (
+                            <table className="table-modern">
+                                <SortableTableHead
+                                    requestSort={requestSortTrucks}
+                                    sortConfig={sortConfigTrucks}
+                                    filterState={truckFilters}
+                                    onFilterChange={handleTruckFilterChange}
+                                    getUniqueValues={getTruckUniqueValues}
+                                    columns={[
+                                        { key: "uId", label: "Vehicle Unique No.", sortable: true },
+                                        { key: "reg", label: "Licence Plate", sortable: true },
+                                        { key: "type", label: "Vehicle Type", sortable: true },
+                                        { key: "isRigid", label: "Rigid", sortable: true },
+                                        { key: "make", label: "Manufacturer / Model", sortable: true },
+                                        { key: "_odom", label: "Odometer", sortable: true, align: "right" },
+                                        { key: "_health", label: "Health", sortable: true },
+                                        { key: "_overdue", label: "Overdue", sortable: true, align: "right" },
+                                        { key: "actions", label: "Actions", sortable: false, align: "right" },
+                                    ]}
+                                />
+                                <tbody>
+                                    {sortedTrucks.length === 0 ? (
+                                        <tr>
+                                            <td colSpan="9" style={{ textAlign: "center", padding: 80, color: "var(--text-dim)" }}>
+                                                <div style={{ marginBottom: 16, display: "flex", justifyContent: "center" }}>
+                                                    <Truck size={48} opacity={0.15} />
                                                 </div>
-                                                <span style={{ fontSize: 12, fontWeight: 600, color: t._overdue > 0 ? "#ef4444" : "var(--text-dim)" }}>
-                                                    Overdue
-                                                </span>
-                                            </div>
-                                        </td>
-                                        <td style={{ textAlign: "right", verticalAlign: "middle" }}>
-                                            <TableRowActions
-                                                ariaLabel={`Actions for vehicle ${t.reg}`}
-                                                items={[
-                                                    {
-                                                        id: "view",
-                                                        label: "View vehicle",
-                                                        icon: ArrowUpRight,
-                                                        onClick: (e) => {
-                                                            e.stopPropagation();
-                                                            navigate(`/fleet/${t.id}`);
+                                                <div style={{ fontWeight: 600 }}>No vehicles found matching your filters.</div>
+                                            </td>
+                                        </tr>
+                                    ) : sortedTrucks.map(t => (
+                                        <tr
+                                            key={t.id}
+                                            onClick={() => navigate(`/fleet/${t.id}`)}
+                                            style={{ cursor: "pointer" }}
+                                            className="hover-scale"
+                                        >
+                                            <td className="sticky-col" title={t.uId}>
+                                                <div style={{ fontWeight: 800, color: "var(--brand-primary)", fontFamily: "var(--font-mono)", fontSize: 13 }}>
+                                                    {t.uId}
+                                                </div>
+                                            </td>
+                                            <td title={t.reg}>
+                                                <div style={{ fontWeight: 700, color: "var(--text-primary)" }}>{t.reg}</div>
+                                            </td>
+                                            <td title={t.type}>
+                                                <div style={{ fontSize: 13, fontWeight: 600 }}>{t.type}</div>
+                                            </td>
+                                            <td title={t.isRigid ? "Rigid" : "Articulated"}>
+                                                <Badge status={t.isRigid ? "Active" : "Inactive"}>
+                                                    {t.isRigid ? "Yes" : "No"}
+                                                </Badge>
+                                            </td>
+                                            <td title={t.make}>
+                                                <div style={{ fontSize: 13, color: "var(--text-primary)", fontWeight: 500 }}>{t.make}</div>
+                                            </td>
+                                            <td style={{ textAlign: "right" }} title={`${Number(t.odom || 0).toLocaleString()} KM`}>
+                                                <div style={{ fontSize: 13, fontWeight: 700, fontFamily: "var(--font-mono)" }}>
+                                                    {Number(t.odom || 0).toLocaleString()} <span style={{ fontSize: 10, opacity: 0.6 }}>KM</span>
+                                                </div>
+                                            </td>
+                                            <td className="status-col" title={t._health}>
+                                                <Badge
+                                                    status={t._health === "Critical Service" ? "Overdue" : t._health === "Service Due" ? "Pending" : "Active"}
+                                                    text={t._health}
+                                                />
+                                            </td>
+                                            <td style={{ textAlign: "right" }} title={`${t._overdue} Overdue`}>
+                                                <div style={{ display: "flex", alignItems: "center", gap: 6, justifyContent: "flex-end" }}>
+                                                    <div
+                                                        style={{
+                                                            width: 24,
+                                                            height: 24,
+                                                            borderRadius: 6,
+                                                            background: t._overdue > 0 ? "#ef444415" : "var(--surface-subtle)",
+                                                            display: "flex",
+                                                            alignItems: "center",
+                                                            justifyContent: "center",
+                                                            color: t._overdue > 0 ? "#ef4444" : "var(--text-dim)",
+                                                            fontWeight: 800,
+                                                            fontSize: 12,
+                                                        }}
+                                                    >
+                                                        {t._overdue}
+                                                    </div>
+                                                    <span style={{ fontSize: 12, fontWeight: 600, color: t._overdue > 0 ? "#ef4444" : "var(--text-dim)" }}>
+                                                        Overdue
+                                                    </span>
+                                                </div>
+                                            </td>
+                                            <td style={{ textAlign: "right", verticalAlign: "middle" }}>
+                                                <TableRowActions
+                                                    ariaLabel={`Actions for vehicle ${t.reg}`}
+                                                    items={[
+                                                        {
+                                                            id: "view",
+                                                            label: "View vehicle",
+                                                            icon: ArrowUpRight,
+                                                            onClick: (e) => {
+                                                                e.stopPropagation();
+                                                                navigate(`/fleet/${t.id}`);
+                                                            },
                                                         },
-                                                    },
-                                                    {
-                                                        id: "edit",
-                                                        label: "Edit vehicle",
-                                                        icon: Edit2,
-                                                        onClick: (e) => {
-                                                            e.stopPropagation();
-                                                            openModal("truck", t);
+                                                        {
+                                                            id: "edit",
+                                                            label: "Edit vehicle",
+                                                            icon: Edit2,
+                                                            onClick: (e) => {
+                                                                e.stopPropagation();
+                                                                openModal("truck", t);
+                                                            },
                                                         },
-                                                    },
-                                                    {
-                                                        id: "delete",
-                                                        label: "Delete vehicle",
-                                                        icon: Trash2,
-                                                        danger: true,
-                                                        onClick: (e) => {
-                                                            e.stopPropagation();
-                                                            delItem("trucks", t.id, t.reg);
+                                                        {
+                                                            id: "delete",
+                                                            label: "Delete vehicle",
+                                                            icon: Trash2,
+                                                            danger: true,
+                                                            onClick: (e) => {
+                                                                e.stopPropagation();
+                                                                delItem("trucks", t.id, t.reg);
+                                                            },
                                                         },
-                                                    },
-                                                ]}
-                                            />
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    ) : (
-                        <table className="table-modern">
-                            <SortableTableHead 
-                                requestSort={requestSortTrailers}
-                                sortConfig={sortConfigTrailers}
-                                filterState={trailerFilters}
-                                onFilterChange={handleTrailerFilterChange}
-                                getUniqueValues={getTrailerUniqueValues}
-                                columns={[
-                                    { key: "uId", label: "Trailer Unique No.", sortable: true },
-                                    { key: "reg", label: "Licence Plate", sortable: true },
-                                    { key: "type", label: "Trailer Type", sortable: true },
-                                    { key: "make", label: "Manufacturer", sortable: true },
-                                    { key: "status", label: "Status", sortable: true },
-                                    { key: "_truck", label: "Assigned Truck", sortable: true },
-                                    { key: "actions", label: "Actions", sortable: false, align: "right" }
-                                ]}
-                            />
-                            <tbody>
-                                {sortedTrailers.length === 0 ? (
-                                    <tr>
-                                        <td colSpan="7" style={{ textAlign: "center", padding: 80, color: "var(--text-dim)" }}>
-                                            <div style={{ marginBottom: 16 }}><AlertCircle size={48} opacity={0.2} /></div>
-                                            <div style={{ fontWeight: 600 }}>No trailers found matching your filters.</div>
-                                        </td>
-                                    </tr>
-                                ) : sortedTrailers.map(t => (
-                                    <tr key={t.id} className="hover-scale">
-                                        <td className="sticky-col" title={t.uId}>
-                                            <div style={{ fontWeight: 800, color: "var(--brand-primary)", fontFamily: "var(--font-mono)", fontSize: 13 }}>
-                                                {t.uId}
-                                            </div>
-                                        </td>
-                                        <td title={t.reg}>
-                                            <div style={{ fontWeight: 700, color: "var(--text-primary)" }}>{t.reg}</div>
-                                        </td>
-                                        <td title={t.type}>
-                                            <div style={{ fontSize: 13, fontWeight: 600 }}>{t.type}</div>
-                                        </td>
-                                        <td title={t.make || "N/A"}>
-                                            <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>{t.make || "N/A"}</div>
-                                        </td>
-                                        <td className="status-col" title={t.status}>
-                                            <Badge 
-                                                status={t.status === 'Active' ? 'Active' : t.status === 'Maintenance' ? 'Pending' : 'Inactive'} 
-                                                text={t.status} 
-                                            />
-                                        </td>
-                                        <td title={truckReg(t.truck)}>
-                                            <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)" }}>
-                                                {truckReg(t.truck)}
-                                            </div>
-                                        </td>
-                                        <td style={{ textAlign: "right", verticalAlign: "middle" }}>
-                                            <TableRowActions
-                                                ariaLabel={`Actions for trailer ${t.reg}`}
-                                                items={[
-                                                    {
-                                                        id: "edit",
-                                                        label: "Edit trailer",
-                                                        icon: Edit2,
-                                                        onClick: () => openModal("trailer", t),
-                                                    },
-                                                    {
-                                                        id: "delete",
-                                                        label: "Delete trailer",
-                                                        icon: Trash2,
-                                                        danger: true,
-                                                        onClick: () => delItem("trailers", t.id, t.reg),
-                                                    },
-                                                ]}
-                                            />
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    )}
-                </div>
+                                                    ]}
+                                                />
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        ) : (
+                            <table className="table-modern">
+                                <SortableTableHead
+                                    requestSort={requestSortTrailers}
+                                    sortConfig={sortConfigTrailers}
+                                    filterState={trailerFilters}
+                                    onFilterChange={handleTrailerFilterChange}
+                                    getUniqueValues={getTrailerUniqueValues}
+                                    columns={[
+                                        { key: "uId", label: "Trailer Unique No.", sortable: true },
+                                        { key: "reg", label: "Licence Plate", sortable: true },
+                                        { key: "type", label: "Trailer Type", sortable: true },
+                                        { key: "make", label: "Manufacturer", sortable: true },
+                                        { key: "status", label: "Status", sortable: true },
+                                        { key: "_truck", label: "Assigned Truck", sortable: true },
+                                        { key: "actions", label: "Actions", sortable: false, align: "right" },
+                                    ]}
+                                />
+                                <tbody>
+                                    {sortedTrailers.length === 0 ? (
+                                        <tr>
+                                            <td colSpan="7" style={{ textAlign: "center", padding: 80, color: "var(--text-dim)" }}>
+                                                <div style={{ marginBottom: 16, display: "flex", justifyContent: "center" }}>
+                                                    <Truck size={48} opacity={0.15} />
+                                                </div>
+                                                <div style={{ fontWeight: 600 }}>No trailers found matching your filters.</div>
+                                            </td>
+                                        </tr>
+                                    ) : sortedTrailers.map(t => (
+                                        <tr key={t.id} className="hover-scale">
+                                            <td className="sticky-col" title={t.uId}>
+                                                <div style={{ fontWeight: 800, color: "var(--brand-primary)", fontFamily: "var(--font-mono)", fontSize: 13 }}>
+                                                    {t.uId}
+                                                </div>
+                                            </td>
+                                            <td title={t.reg}>
+                                                <div style={{ fontWeight: 700, color: "var(--text-primary)" }}>{t.reg}</div>
+                                            </td>
+                                            <td title={t.type}>
+                                                <div style={{ fontSize: 13, fontWeight: 600 }}>{t.type}</div>
+                                            </td>
+                                            <td title={t.make || "N/A"}>
+                                                <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>{t.make || "N/A"}</div>
+                                            </td>
+                                            <td className="status-col" title={t.status}>
+                                                <Badge
+                                                    status={t.status === "Active" ? "Active" : t.status === "Maintenance" ? "Pending" : "Inactive"}
+                                                    text={t.status}
+                                                />
+                                            </td>
+                                            <td title={truckReg(t.truck)}>
+                                                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)" }}>
+                                                    {truckReg(t.truck)}
+                                                </div>
+                                            </td>
+                                            <td style={{ textAlign: "right", verticalAlign: "middle" }}>
+                                                <TableRowActions
+                                                    ariaLabel={`Actions for trailer ${t.reg}`}
+                                                    items={[
+                                                        {
+                                                            id: "edit",
+                                                            label: "Edit trailer",
+                                                            icon: Edit2,
+                                                            onClick: () => openModal("trailer", t),
+                                                        },
+                                                        {
+                                                            id: "delete",
+                                                            label: "Delete trailer",
+                                                            icon: Trash2,
+                                                            danger: true,
+                                                            onClick: () => delItem("trailers", t.id, t.reg),
+                                                        },
+                                                    ]}
+                                                />
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        )}
+                    </div>
+                )}
             </Card>
         </div>
     );

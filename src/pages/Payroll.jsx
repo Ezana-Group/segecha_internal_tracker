@@ -1,26 +1,21 @@
 import React, { useState } from "react";
-import { 
-    Users, 
-    DollarSign, 
-    CheckCircle2, 
-    Clock, 
-    Calendar, 
-    Plus, 
-    Briefcase, 
-    TrendingUp,
-    ShieldCheck,
-    Smartphone,
-    Search as SearchIcon,
-    ChevronRight,
-    ArrowUpRight,
-    Info,
+import {
+    Users,
+    DollarSign,
+    CheckCircle2,
+    Clock,
+    Calendar,
+    Plus,
     Download,
     CreditCard,
     AlertCircle,
-    CheckCircle,
-    Filter,
+    Info,
     Edit2,
     Trash2,
+    Smartphone,
+    Search as SearchIcon,
+    ChevronLeft,
+    ChevronRight,
 } from "lucide-react";
 import { fmt, monthLabel } from "../utils/formatters";
 import { Card } from "../components/Card";
@@ -35,7 +30,7 @@ export function Payroll({ data, setData, dark, isMobile, modal, form, setForm, o
     const payrollRows = Array.isArray(data.payroll) ? data.payroll : [];
     const months = [...new Set(payrollRows.map((p) => p.month))].sort().reverse();
     const [selMonth, setSelMonth] = useState(months[0] || new Date().toISOString().slice(0, 7));
-    
+
     const monthPayroll = payrollRows.filter((p) => p.month === selMonth);
 
     // Refine payroll for sorting and filtering
@@ -61,24 +56,29 @@ export function Payroll({ data, setData, dark, isMobile, modal, form, setForm, o
         };
     });
 
-    const { 
-        filteredRows: sortedPayroll, 
-        setSort: requestSort, 
-        sortState: sortConfig, 
-        filterState: payrollFilters, 
+    const {
+        filteredRows: sortedPayroll,
+        setSort: requestSort,
+        sortState: sortConfig,
+        filterState: payrollFilters,
         applyFilter: handlePayrollFilterChange,
         getUniqueValues: getPayrollUniqueValues,
         searchTerm,
         setSearchTerm
-    } = useTableFilter(refinedPayroll, { 
-        namespace: "pay", 
+    } = useTableFilter(refinedPayroll, {
+        namespace: "pay",
         initialSort: { col: "_name", dir: "asc" },
         searchColumns: ["_name", "_mpesa"]
     });
-        
-    const filteredTotalNet = sortedPayroll.reduce((s, p) => s + p._net, 0);
-    const filteredPaidAmount = sortedPayroll.filter(p => p.status === "Paid").reduce((s, p) => s + p._net, 0);
+
+    const filteredTotalNet     = sortedPayroll.reduce((s, p) => s + p._net, 0);
+    const filteredPaidAmount   = sortedPayroll.filter(p => p.status === "Paid").reduce((s, p) => s + p._net, 0);
     const filteredPendingAmount = sortedPayroll.filter(p => p.status === "Pending").reduce((s, p) => s + p._net, 0);
+
+    // Month navigation helpers
+    const monthIdx = months.indexOf(selMonth);
+    const prevMonth = () => { if (monthIdx < months.length - 1) setSelMonth(months[monthIdx + 1]); };
+    const nextMonth = () => { if (monthIdx > 0) setSelMonth(months[monthIdx - 1]); };
 
     return (
         <div className="page-shell">
@@ -88,112 +88,121 @@ export function Payroll({ data, setData, dark, isMobile, modal, form, setForm, o
                 description="Monthly runs, disbursements, and pay status."
                 actions={
                     <>
-                        <Button variant="secondary" icon={Download}>
-                            Export paysheets
-                        </Button>
-                        <Button variant="premium" icon={Plus} onClick={() => openModal("payroll", { month: selMonth, status: "Pending" })}>
-                            Add pay record
+                        <Button variant="secondary" icon={Download}>Export paysheets</Button>
+                        <Button
+                            variant="premium"
+                            icon={Plus}
+                            onClick={() => openModal("payroll", { month: selMonth, status: "Pending" })}
+                        >
+                            Add Record
                         </Button>
                     </>
                 }
             />
 
-            {/* Financial Summary */}
-            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)", gap: 20, marginBottom: 32 }}>
-                {[
-                    { label: "Filtered Net Liability", value: fmt(filteredTotalNet), icon: DollarSign, color: "var(--brand-primary)" },
-                    { label: "Filtered Paid", value: fmt(filteredPaidAmount), icon: CheckCircle2, color: "#10b981" },
-                    { label: "Filtered Pending", value: fmt(filteredPendingAmount), icon: Clock, color: "#ef4444" }
-                ].map((kpi, idx) => (
-                    <Card key={idx} style={{ padding: 20, background: "var(--bg-card)", border: "1px solid var(--border-subtle)", borderRadius: 16 }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
-                            <div style={{ width: 40, height: 40, borderRadius: 10, background: `${kpi.color}10`, display: "flex", alignItems: "center", justifyContent: "center", color: kpi.color }}>
-                                <kpi.icon size={20} />
-                            </div>
-                            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", background: "var(--surface-subtle)", padding: "4px 8px", borderRadius: 6 }}>{monthLabel(selMonth)}</div>
-                        </div>
-                        <div style={{ fontSize: 11, color: "var(--text-dim)", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 2 }}>{kpi.label}</div>
-                        <div style={{ fontSize: 20, fontWeight: 900, color: "var(--text-primary)" }}>{kpi.value}</div>
-                    </Card>
-                ))}
-            </div>
+            {/* ── Month selector + summary row ── */}
+            <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 16, marginBottom: 24 }}>
+                {/* Month navigator */}
+                <div style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--bg-card)", border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-md)", padding: "6px 10px" }}>
+                    <button
+                        onClick={prevMonth}
+                        disabled={monthIdx >= months.length - 1}
+                        style={{ background: "none", border: "none", cursor: monthIdx >= months.length - 1 ? "default" : "pointer", color: "var(--text-dim)", display: "flex", padding: 4, borderRadius: 6, opacity: monthIdx >= months.length - 1 ? 0.3 : 1 }}
+                    >
+                        <ChevronLeft size={16} />
+                    </button>
 
-            {/* Month Selection */}
-            <div style={{ 
-                display: "flex", 
-                justifyContent: "flex-end", 
-                alignItems: "center", 
-                marginBottom: 24, 
-                flexWrap: "wrap", 
-                gap: 16,
-                background: "var(--bg-card)",
-                padding: "16px 20px",
-                borderRadius: 20,
-                border: "1px solid var(--border-subtle)",
-                backdropFilter: "blur(12px)"
-            }}>
-                <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                    <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                        <Calendar size={18} color="var(--brand-primary)" />
-                        <div style={{ fontSize: 13, fontWeight: 800, color: "var(--text-primary)" }}>Select Payroll Month:</div>
-                    </div>
-                    <div style={{ position: "relative" }}>
-                        <Calendar style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--text-dim)", pointerEvents: "none" }} size={14} />
-                        <select 
-                            className="input-premium"
-                            style={{ width: 180, fontSize: 13, height: 44, padding: "0 12px 0 34px", borderRadius: 12, background: "var(--surface-subtle)" }}
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 140, justifyContent: "center" }}>
+                        <Calendar size={15} color="var(--brand-primary)" />
+                        <select
                             value={selMonth}
                             onChange={e => setSelMonth(e.target.value)}
+                            style={{ border: "none", background: "none", fontSize: 14, fontWeight: 800, color: "var(--text-primary)", cursor: "pointer", outline: "none", appearance: "none" }}
                         >
                             {months.map(m => <option key={m} value={m}>{monthLabel(m)}</option>)}
                         </select>
                     </div>
+
+                    <button
+                        onClick={nextMonth}
+                        disabled={monthIdx <= 0}
+                        style={{ background: "none", border: "none", cursor: monthIdx <= 0 ? "default" : "pointer", color: "var(--text-dim)", display: "flex", padding: 4, borderRadius: 6, opacity: monthIdx <= 0 ? 0.3 : 1 }}
+                    >
+                        <ChevronRight size={16} />
+                    </button>
+                </div>
+
+                {/* Summary chips */}
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                    {[
+                        { label: "Total",   value: fmt(filteredTotalNet),      color: "var(--brand-primary)" },
+                        { label: "Paid",    value: fmt(filteredPaidAmount),    color: "#10b981" },
+                        { label: "Pending", value: fmt(filteredPendingAmount), color: "#ef4444" },
+                    ].map(({ label, value, color }) => (
+                        <div
+                            key={label}
+                            style={{
+                                display: "flex",
+                                flexDirection: "column",
+                                alignItems: "flex-end",
+                                padding: "8px 14px",
+                                borderRadius: "var(--radius-md)",
+                                background: "var(--bg-card)",
+                                border: "1px solid var(--border-subtle)",
+                            }}
+                        >
+                            <div style={{ fontSize: 10, fontWeight: 800, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: "0.06em" }}>{label}</div>
+                            <div style={{ fontSize: 16, fontWeight: 900, color }}>{value}</div>
+                        </div>
+                    ))}
                 </div>
             </div>
 
-            {/* Payroll Table */}
-            <Card style={{ padding: 0, overflow: "hidden", borderRadius: 24 }}>
-                <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", gap: 12 }}>
-                    <SearchIcon size={18} color="var(--text-dim)" />
+            {/* ── Payroll table ── */}
+            <Card style={{ padding: 0, overflow: "hidden", borderRadius: "var(--radius-md)" }}>
+                <div style={{ padding: "14px 20px", borderBottom: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", gap: 10 }}>
+                    <SearchIcon size={16} color="var(--text-dim)" style={{ flexShrink: 0 }} />
                     <input
                         type="search"
                         placeholder="Search payroll..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        style={{ border: "none", background: "none", padding: 0, fontSize: 14, flex: 1, color: "var(--text-primary)", fontWeight: 500 }}
+                        style={{ border: "none", background: "none", padding: 0, fontSize: 14, flex: 1, color: "var(--text-primary)", fontWeight: 500, outline: "none" }}
                     />
                 </div>
                 <div className="table-container">
                     <table className="table-modern">
-                        <SortableTableHead 
+                        <SortableTableHead
                             requestSort={requestSort}
                             sortConfig={sortConfig}
                             filterState={payrollFilters}
                             onFilterChange={handlePayrollFilterChange}
                             getUniqueValues={getPayrollUniqueValues}
                             columns={[
-                                { key: "_name", label: "Staff Member", sortable: true },
-                                { key: "_base", label: "Earnings Detail", sortable: true },
-                                { key: "_deductions", label: "Deductions", sortable: true, align: "right" },
-                                { key: "_net", label: "Net Amount", sortable: true, align: "right" },
-                                { key: "status", label: "Status", sortable: true },
-                                { key: "actions", label: "Actions", sortable: false, align: "right" }
+                                { key: "_name",       label: "Driver / Staff", sortable: true },
+                                { key: "_base",       label: "Base Salary",    sortable: true, align: "right" },
+                                { key: "_allowance",  label: "Allowance",      sortable: true, align: "right" },
+                                { key: "_deductions", label: "Deductions",     sortable: true, align: "right" },
+                                { key: "_net",        label: "Net Pay",        sortable: true, align: "right" },
+                                { key: "status",      label: "Status",         sortable: true },
+                                { key: "actions",     label: "",               sortable: false, align: "right" },
                             ]}
                         />
                         <tbody>
                             {sortedPayroll.length === 0 ? (
                                 <tr>
-                                    <td colSpan="7" style={{ textAlign: "center", padding: 80, color: "var(--text-dim)" }}>
-                                        <div style={{ marginBottom: 16 }}><AlertCircle size={48} opacity={0.2} /></div>
-                                        <div style={{ fontWeight: 600 }}>No pay records found matching your filters.</div>
+                                    <td colSpan={7} style={{ textAlign: "center", padding: "64px 20px", color: "var(--text-dim)" }}>
+                                        <AlertCircle size={40} style={{ opacity: 0.2, display: "block", margin: "0 auto 12px" }} />
+                                        <div style={{ fontWeight: 600 }}>No pay records for this period.</div>
                                     </td>
                                 </tr>
                             ) : sortedPayroll.map(p => (
                                 <tr key={p.id} className="hover-scale">
-                                    <td className="sticky-col" title={p._name}>
-                                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                                            <div style={{ width: 36, height: 36, borderRadius: 10, background: "var(--surface-subtle)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-secondary)" }}>
-                                                <Users size={18} />
+                                    {/* Driver name + role */}
+                                    <td className="sticky-col">
+                                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                            <div style={{ width: 34, height: 34, borderRadius: "var(--radius-md)", background: "var(--surface-subtle)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-secondary)", flexShrink: 0 }}>
+                                                <Users size={16} />
                                             </div>
                                             <div>
                                                 <div style={{ fontWeight: 800, color: "var(--text-primary)", fontSize: 14 }}>{p._name}</div>
@@ -201,47 +210,55 @@ export function Payroll({ data, setData, dark, isMobile, modal, form, setForm, o
                                             </div>
                                         </div>
                                     </td>
-                                    <td title={`Base: ${fmt(p._base)}, Allowance: ${fmt(p._allowance)}`}>
-                                        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-secondary)" }}>Base: {fmt(p._base)}</div>
-                                        <div style={{ fontSize: 10, color: "#10b981", fontWeight: 700 }}>+ Allowance: {fmt(p._allowance)}</div>
+
+                                    {/* Base salary */}
+                                    <td style={{ textAlign: "right", fontWeight: 700, color: "var(--text-secondary)", fontSize: 13 }}>
+                                        {fmt(p._base)}
+                                    </td>
+
+                                    {/* Allowance */}
+                                    <td style={{ textAlign: "right", fontSize: 13 }}>
+                                        <span style={{ color: "#10b981", fontWeight: 700 }}>+{fmt(p._allowance)}</span>
                                         {p._calculatedMileage > 0 && (
                                             <div style={{ fontSize: 10, color: "var(--text-dim)", fontWeight: 600 }}>
-                                                Incl. {fmt(p._calculatedMileage)} mileage
+                                                incl. {fmt(p._calculatedMileage)} mileage
                                             </div>
                                         )}
                                     </td>
-                                    <td title={fmt(p._deductions)}>
-                                        <div style={{ fontSize: 13, fontWeight: 700, color: "#ef4444", textAlign: "right" }}>{fmt(p._deductions)}</div>
+
+                                    {/* Deductions */}
+                                    <td style={{ textAlign: "right", fontWeight: 700, color: "#ef4444", fontSize: 13 }}>
+                                        {p._deductions > 0 ? `-${fmt(p._deductions)}` : "—"}
                                     </td>
-                                    <td title={fmt(p._net)}>
-                                        <div style={{ fontWeight: 900, color: "var(--text-primary)", fontSize: 15, textAlign: "right" }}>{fmt(p._net)}</div>
-                                    </td>
-                                    <td title={p._mpesa || "Not Set"}>
-                                        {p._mpesa ? (
-                                            <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--text-secondary)", fontWeight: 600 }}>
-                                                <Smartphone size={12} color="#10b981" />
+
+                                    {/* Net pay — bold */}
+                                    <td style={{ textAlign: "right" }}>
+                                        <div style={{ fontWeight: 900, color: "var(--text-primary)", fontSize: 15 }}>{fmt(p._net)}</div>
+                                        {p._mpesa && (
+                                            <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, color: "#10b981", fontWeight: 600, justifyContent: "flex-end", marginTop: 2 }}>
+                                                <Smartphone size={10} />
                                                 {p._mpesa}
                                             </div>
-                                        ) : (
-                                            <span style={{ fontSize: 11, color: "var(--text-dim)", fontStyle: "italic" }}>Not Set</span>
                                         )}
                                     </td>
-                                    <td className="status-col" title={p.status}>
-                                        <Badge status={p.status} text={p.status} />
+
+                                    {/* Status badge */}
+                                    <td className="status-col">
+                                        <Badge status={p.status}>{p.status}</Badge>
                                     </td>
+
+                                    {/* Row actions */}
                                     <td style={{ textAlign: "right", verticalAlign: "middle" }}>
                                         <TableRowActions
                                             ariaLabel={`Payroll actions for ${p._name}`}
                                             items={[
                                                 ...(p.status === "Pending"
-                                                    ? [
-                                                          {
-                                                              id: "b2c",
-                                                              label: "M-Pesa B2C pay",
-                                                              icon: Smartphone,
-                                                              onClick: () => markPayrollPaid(p.id),
-                                                          },
-                                                      ]
+                                                    ? [{
+                                                          id: "b2c",
+                                                          label: "M-Pesa B2C pay",
+                                                          icon: Smartphone,
+                                                          onClick: () => markPayrollPaid(p.id),
+                                                      }]
                                                     : []),
                                                 {
                                                     id: "edit",
@@ -266,18 +283,30 @@ export function Payroll({ data, setData, dark, isMobile, modal, form, setForm, o
                 </div>
             </Card>
 
+            {/* ── M-Pesa B2C notice if pending records exist ── */}
             {monthPayroll.some(p => p.status === "Pending") && (
-                <div style={{ marginTop: 32, padding: 24, background: "rgba(249, 115, 22, 0.05)", border: "1px dashed rgba(249, 115, 22, 0.3)", borderRadius: 16, display: "flex", gap: 16, alignItems: "flex-start" }}>
-                    <div style={{ width: 44, height: 44, borderRadius: 12, background: "rgba(249, 115, 22, 0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "#f97316", flexShrink: 0 }}>
-                        <Info size={24} />
+                <div style={{
+                    marginTop: 28,
+                    padding: "20px 24px",
+                    background: "rgba(249, 115, 22, 0.05)",
+                    border: "1px dashed rgba(249, 115, 22, 0.3)",
+                    borderRadius: "var(--radius-md)",
+                    display: "flex",
+                    gap: 14,
+                    alignItems: "flex-start",
+                }}>
+                    <div style={{ width: 40, height: 40, borderRadius: "var(--radius-md)", background: "rgba(249, 115, 22, 0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "#f97316", flexShrink: 0 }}>
+                        <Info size={20} />
                     </div>
                     <div>
-                        <h4 style={{ fontSize: 16, fontWeight: 800, color: "#f97316", marginBottom: 4 }}>M-Pesa B2C Disbursement</h4>
-                        <p style={{ fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.6 }}>
+                        <h4 style={{ fontSize: 15, fontWeight: 800, color: "#f97316", marginBottom: 4 }}>M-Pesa B2C Disbursement</h4>
+                        <p style={{ fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.6, margin: 0 }}>
                             {(() => {
                                 try {
                                     const s = JSON.parse(localStorage.getItem('segecha_settings') || '{}');
-                                    if (s.b2cShortcode) return <span>Use shortcode <b style={{ fontFamily: "var(--font-mono)", color: "var(--text-primary)" }}>{s.b2cShortcode}</b> ({s.mpesaBusinessName}) to batch-disburse these salaries. Payments will be marked as paid automatically upon M-Pesa B2C confirmation.</span>;
+                                    if (s.b2cShortcode) return (
+                                        <span>Use shortcode <b style={{ fontFamily: "var(--font-mono)", color: "var(--text-primary)" }}>{s.b2cShortcode}</b> ({s.mpesaBusinessName}) to batch-disburse these salaries. Payments will be marked as paid automatically upon M-Pesa B2C confirmation.</span>
+                                    );
                                 } catch { /* ignore */ }
                                 return <span>Configure your M-Pesa B2C credentials in <b>Settings → M-Pesa</b> to enable instant salary disbursements via the M-Pesa API.</span>;
                             })()}

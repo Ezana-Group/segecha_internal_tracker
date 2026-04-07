@@ -131,7 +131,7 @@ export default function App() {
 
         const events = ["mousedown", "mousemove", "keypress", "scroll", "touchstart"];
         events.forEach(name => document.addEventListener(name, resetTimer, true));
-        
+
         resetTimer(); // Start initial timer
 
         return () => {
@@ -157,8 +157,13 @@ export default function App() {
         T
     };
 
+    // CSS Grid layout: sidebar column | main content column
     const layoutStyle = {
-        display: "flex",
+        display: "grid",
+        gridTemplateColumns: authed && !state.previewMode && !isLogin
+            ? (isMobile ? "1fr" : "var(--sidebar-width) 1fr")
+            : "1fr",
+        gridTemplateRows: "1fr",
         minHeight: "100vh",
         background: "var(--bg-main)",
         color: "var(--text-secondary)",
@@ -166,20 +171,19 @@ export default function App() {
     };
 
     const mainStyle = {
-        flex: 1,
         padding: !authed ? "0" : (isMobile ? "16px" : "32px"),
         marginTop: !authed ? "0" : (state.previewMode ? "calc(var(--topbar-height) + 40px)" : "var(--topbar-height)"),
         minWidth: 0,
         width: "100%",
         display: "flex",
         flexDirection: "column",
+        gridColumn: "1 / -1",
     };
-
 
     if (isLogin && !authed) {
         return (
-            <div id="app-shell" style={layoutStyle}>
-                <main style={{ ...mainStyle, padding: 0, marginTop: 0 }}>
+            <div id="app-shell" style={{ minHeight: "100vh", background: "var(--bg-main)" }}>
+                <main style={{ padding: 0, marginTop: 0 }}>
                     <Routes>
                         <Route path="/login" element={<Login showToast={state.showToast} />} />
                     </Routes>
@@ -193,13 +197,18 @@ export default function App() {
         <div id="app-shell" style={layoutStyle}>
             <div id="waybill-print-root" style={{ display: "none" }} aria-hidden="true" />
             {isMobile && state.sideOpen && (
-                <div 
-                    style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", backdropFilter: "blur(4px)", zIndex: 89 }} 
-                    onClick={() => state.setSideOpen(false)} 
+                <div
+                    style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", backdropFilter: "blur(4px)", zIndex: 89 }}
+                    onClick={() => state.setSideOpen(false)}
                 />
             )}
-            
+
+            {/* Sidebar — sits in column 1 of the grid on desktop */}
+            {authed && !state.previewMode && <Sidebar {...p} />}
+
+            {/* Topbar fixed at top, spanning sidebar+main on desktop */}
             {authed && <Topbar {...p} />}
+
             <PreviewModeBanner
                 previewMode={state.previewMode}
                 label={previewLabel}
@@ -212,47 +221,44 @@ export default function App() {
                 }}
             />
 
-            <div style={{ display: "flex", flex: 1, position: "relative" }}>
-                {authed && !state.previewMode && <Sidebar {...p} />}
-                
-                <main style={mainStyle} className="animate-fade-in">
-                    <Routes>
-                        <Route path="/login" element={<Login showToast={state.showToast} />} />
-                        <Route path="*" element={
-                            authed ? (
-                                <Routes>
-                                    <Route path="/" element={<ErrorBoundary><Dashboard {...p} /></ErrorBoundary>} />
-                                    <Route path="/fleet" element={<ErrorBoundary><Fleet {...p} /></ErrorBoundary>} />
-                                    <Route path="/fleet/:id" element={<ErrorBoundary><VehicleProfile {...p} /></ErrorBoundary>} />
-                                    <Route path="/drivers" element={<ErrorBoundary><Drivers {...p} /></ErrorBoundary>} />
-                                    <Route path="/drivers/:id" element={<ErrorBoundary><DriverProfile {...p} /></ErrorBoundary>} />
-                                    <Route path="/customers" element={<ErrorBoundary><Customers {...p} /></ErrorBoundary>} />
-                                    <Route path="/customers/:id" element={<ErrorBoundary><CustomerProfile {...p} /></ErrorBoundary>} />
-                                    <Route path="/journeys" element={<ErrorBoundary><Journeys {...p} /></ErrorBoundary>} />
-                                    <Route path="/journeys/:id" element={<ErrorBoundary><JourneyProfile {...p} /></ErrorBoundary>} />
-                                    <Route path="/fuel" element={<ErrorBoundary><FuelLog {...p} /></ErrorBoundary>} />
-                                    <Route path="/expenses" element={<ErrorBoundary><Expenses {...p} /></ErrorBoundary>} />
-                                    <Route path="/incidents" element={<ErrorBoundary><Incidents {...p} /></ErrorBoundary>} />
-                                    <Route path="/invoices" element={<ErrorBoundary><Invoices {...p} /></ErrorBoundary>} />
-                                    <Route path="/payroll" element={<ErrorBoundary><Payroll {...p} /></ErrorBoundary>} />
-                                    <Route path="/maintenance" element={<ErrorBoundary><Maintenance {...p} /></ErrorBoundary>} />
-                                    <Route path="/tyres" element={<ErrorBoundary><TyreMonitor {...p} /></ErrorBoundary>} />
-                                    <Route path="/staff" element={<ErrorBoundary><Staff {...p} /></ErrorBoundary>} />
-                                    <Route path="/staff/:id" element={<ErrorBoundary><StaffProfile {...p} /></ErrorBoundary>} />
-                                    <Route path="/pnl" element={<ErrorBoundary><PnL {...p} /></ErrorBoundary>} />
-                                    <Route path="/documents" element={<ErrorBoundary><Documents {...p} /></ErrorBoundary>} />
-                                    <Route path="/settings" element={<ErrorBoundary><Settings {...p} /></ErrorBoundary>} />
-                                    <Route path="/import" element={<ErrorBoundary><ImportReview {...p} /></ErrorBoundary>} />
-                                </Routes>
-                            ) : (
-                                <ErrorBoundary>
-                                    <Login showToast={state.showToast} />
-                                </ErrorBoundary>
-                            )
-                        } />
-                    </Routes>
-                </main>
-            </div>
+            {/* Main content — sits in column 2 (or full width in preview/mobile) */}
+            <main style={mainStyle} className="animate-fade-in">
+                <Routes>
+                    <Route path="/login" element={<Login showToast={state.showToast} />} />
+                    <Route path="*" element={
+                        authed ? (
+                            <Routes>
+                                <Route path="/" element={<ErrorBoundary><Dashboard {...p} /></ErrorBoundary>} />
+                                <Route path="/fleet" element={<ErrorBoundary><Fleet {...p} /></ErrorBoundary>} />
+                                <Route path="/fleet/:id" element={<ErrorBoundary><VehicleProfile {...p} /></ErrorBoundary>} />
+                                <Route path="/drivers" element={<ErrorBoundary><Drivers {...p} /></ErrorBoundary>} />
+                                <Route path="/drivers/:id" element={<ErrorBoundary><DriverProfile {...p} /></ErrorBoundary>} />
+                                <Route path="/customers" element={<ErrorBoundary><Customers {...p} /></ErrorBoundary>} />
+                                <Route path="/customers/:id" element={<ErrorBoundary><CustomerProfile {...p} /></ErrorBoundary>} />
+                                <Route path="/journeys" element={<ErrorBoundary><Journeys {...p} /></ErrorBoundary>} />
+                                <Route path="/journeys/:id" element={<ErrorBoundary><JourneyProfile {...p} /></ErrorBoundary>} />
+                                <Route path="/fuel" element={<ErrorBoundary><FuelLog {...p} /></ErrorBoundary>} />
+                                <Route path="/expenses" element={<ErrorBoundary><Expenses {...p} /></ErrorBoundary>} />
+                                <Route path="/incidents" element={<ErrorBoundary><Incidents {...p} /></ErrorBoundary>} />
+                                <Route path="/invoices" element={<ErrorBoundary><Invoices {...p} /></ErrorBoundary>} />
+                                <Route path="/payroll" element={<ErrorBoundary><Payroll {...p} /></ErrorBoundary>} />
+                                <Route path="/maintenance" element={<ErrorBoundary><Maintenance {...p} /></ErrorBoundary>} />
+                                <Route path="/tyres" element={<ErrorBoundary><TyreMonitor {...p} /></ErrorBoundary>} />
+                                <Route path="/staff" element={<ErrorBoundary><Staff {...p} /></ErrorBoundary>} />
+                                <Route path="/staff/:id" element={<ErrorBoundary><StaffProfile {...p} /></ErrorBoundary>} />
+                                <Route path="/pnl" element={<ErrorBoundary><PnL {...p} /></ErrorBoundary>} />
+                                <Route path="/documents" element={<ErrorBoundary><Documents {...p} /></ErrorBoundary>} />
+                                <Route path="/settings" element={<ErrorBoundary><Settings {...p} /></ErrorBoundary>} />
+                                <Route path="/import" element={<ErrorBoundary><ImportReview {...p} /></ErrorBoundary>} />
+                            </Routes>
+                        ) : (
+                            <ErrorBoundary>
+                                <Login showToast={state.showToast} />
+                            </ErrorBoundary>
+                        )
+                    } />
+                </Routes>
+            </main>
 
             <ToastContainer toasts={state.toasts} />
             <GlobalModals {...p} />
@@ -267,7 +273,7 @@ export default function App() {
                 T={T}
             />
             {state.verifyModal && (
-                <VerificationModal 
+                <VerificationModal
                     {...p}
                     journey={state.verifyModal}
                 />

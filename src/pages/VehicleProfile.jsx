@@ -1,15 +1,15 @@
 import React, { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { 
-    Truck, 
-    Calendar, 
-    ArrowLeft, 
-    Edit2, 
-    Fuel, 
-    Navigation, 
-    Wrench, 
-    FileText, 
-    PieChart, 
+import {
+    Truck,
+    Calendar,
+    ArrowLeft,
+    Edit2,
+    Fuel,
+    Navigation,
+    Wrench,
+    FileText,
+    PieChart,
     ArrowUpRight,
     Search,
     Wallet,
@@ -37,24 +37,27 @@ export function VehicleProfile({ data, setData, dark, isMobile, openModal, maint
 
     if (!truck) return (
         <div style={{ padding: 80, textAlign: 'center' }}>
-            <h2 style={{ color: "var(--text-primary)", fontSize: 24, fontWeight: 800 }}>Vehicle Profile Not Found</h2>
+            <div style={{ marginBottom: 16, display: "flex", justifyContent: "center" }}>
+                <Truck size={56} opacity={0.12} />
+            </div>
+            <h2 style={{ color: "var(--text-primary)", fontSize: 24, fontWeight: 800, marginBottom: 8 }}>Vehicle Not Found</h2>
             <p style={{ color: "var(--text-muted)", marginBottom: 24 }}>The requested vehicle does not exist in the active registry.</p>
             <Button variant="secondary" onClick={() => navigate('/fleet')}>Return to Fleet</Button>
         </div>
     );
 
     const tabs = [
-        { id: 'overview',   label: 'Overview' },
-        { id: 'fuel',       label: 'Fuel Log' },
-        { id: 'journeys',   label: 'Journeys' },
+        { id: 'overview',    label: 'Overview' },
+        { id: 'fuel',        label: 'Fuel Log' },
+        { id: 'journeys',    label: 'Journeys' },
         { id: 'maintenance', label: 'Maintenance' },
-        { id: 'documents',  label: 'Documents' },
-        { id: 'pnl',        label: 'P&L' },
+        { id: 'documents',   label: 'Documents' },
+        { id: 'pnl',         label: 'P&L' },
     ];
 
-    // ── Per-truck data
-    const truckJourneys  = data.journeys.filter(j => j.truck === truck.id).sort((a,b) => b.date.localeCompare(a.date));
-    const truckFuel      = data.fuel.filter(f => f.truck === truck.id).sort((a,b) => b.date.localeCompare(a.date));
+    // Per-truck data
+    const truckJourneys  = data.journeys.filter(j => j.truck === truck.id).sort((a, b) => b.date.localeCompare(a.date));
+    const truckFuel      = data.fuel.filter(f => f.truck === truck.id).sort((a, b) => b.date.localeCompare(a.date));
     const truckExpenses  = data.expenses.filter(e => e.truck === truck.id);
     const truckRevenue   = truckJourneys.reduce((s, j) => s + +j.revenue, 0);
     const truckFuelCost  = truckFuel.reduce((s, f) => s + (f.litres * f.pricePerL), 0);
@@ -78,33 +81,289 @@ export function VehicleProfile({ data, setData, dark, isMobile, openModal, maint
         { task: 'Transmission Fluid Change',   intervalKm: 40000 },
     ];
 
+    // Maintenance health summary
+    const maintSummary = DEFAULT_SCHEDULE.map(s => {
+        const odom = +truck.odom || 0;
+        const history = data.expenses.filter(e => e.truck === truck.id && e.cat === 'Maintenance' && e.desc?.toLowerCase().includes(s.task.toLowerCase())).sort((a, b) => b.date.localeCompare(a.date));
+        const lastOdom = history.length > 0 ? +(history[0].odom || 0) : 0;
+        const kmSince = odom - lastOdom;
+        const remaining = s.intervalKm - kmSince;
+        const status = remaining <= 0 ? 'Overdue' : remaining <= s.intervalKm * 0.1 ? 'Due Soon' : 'OK';
+        return { ...s, status };
+    });
+    const overdueCount = maintSummary.filter(s => s.status === 'Overdue').length;
+    const dueSoonCount = maintSummary.filter(s => s.status === 'Due Soon').length;
+    const healthLabel = overdueCount > 0 ? 'Critical Service' : dueSoonCount > 0 ? 'Service Due' : 'Healthy';
+    const healthBadgeStatus = overdueCount > 0 ? 'Overdue' : dueSoonCount > 0 ? 'Pending' : 'Active';
+
     return (
         <div className="page-shell">
-            {/* Header / Banner */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 20, marginBottom: 32, flexWrap: 'wrap' }}>
-                <Button variant="secondary" icon={ArrowLeft} onClick={() => navigate('/fleet')}>Back</Button>
-                <div style={{ width: 56, height: 56, borderRadius: 16, background: "var(--brand-primary)15", display: 'flex', alignItems: 'center', justifyContent: 'center', color: "var(--brand-primary)" }}>
-                    <Truck size={32} />
+            {/* Back + Header */}
+            <div style={{ marginBottom: 28 }}>
+                {/* Back button */}
+                <button
+                    type="button"
+                    onClick={() => navigate('/fleet')}
+                    style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 6,
+                        marginBottom: 20,
+                        background: "none",
+                        border: "none",
+                        color: "var(--text-dim)",
+                        fontSize: 13,
+                        fontWeight: 600,
+                        cursor: "pointer",
+                        padding: "4px 0",
+                    }}
+                >
+                    <ArrowLeft size={14} />
+                    Fleet
+                </button>
+
+                {/* Truck identity header */}
+                <div
+                    style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 20,
+                        flexWrap: "wrap",
+                        background: "var(--bg-card)",
+                        border: "1px solid var(--border-subtle)",
+                        borderRadius: "var(--radius-md)",
+                        padding: isMobile ? "20px 16px" : "24px 28px",
+                    }}
+                >
+                    {/* Truck icon */}
+                    <div
+                        style={{
+                            width: 56,
+                            height: 56,
+                            borderRadius: 16,
+                            background: "var(--brand-primary)18",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            color: "var(--brand-primary)",
+                            flexShrink: 0,
+                        }}
+                    >
+                        <Truck size={28} />
+                    </div>
+
+                    {/* Title + subtitle */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                        <div
+                            style={{
+                                fontSize: isMobile ? 24 : 32,
+                                fontWeight: 900,
+                                color: "var(--text-primary)",
+                                lineHeight: 1.1,
+                                letterSpacing: "-0.03em",
+                                fontFamily: "var(--font-mono)",
+                                marginBottom: 6,
+                            }}
+                        >
+                            {truck.reg}
+                        </div>
+                        <div
+                            style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 10,
+                                flexWrap: "wrap",
+                                fontSize: 13,
+                                color: "var(--text-dim)",
+                                fontWeight: 500,
+                            }}
+                        >
+                            <span>{truck.make}</span>
+                            <span style={{ opacity: 0.3 }}>·</span>
+                            <span>{truck.type}</span>
+                            {truck.year && (
+                                <>
+                                    <span style={{ opacity: 0.3 }}>·</span>
+                                    <span>{truck.year}</span>
+                                </>
+                            )}
+                            <Badge status={truck.status} />
+                        </div>
+                    </div>
+
+                    {/* Edit button */}
+                    <Button
+                        variant="premium"
+                        icon={Edit2}
+                        onClick={() => openModal('truck', truck)}
+                    >
+                        Edit Profile
+                    </Button>
                 </div>
-                <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 32, fontWeight: 900, color: "var(--text-primary)", lineHeight: 1.1, letterSpacing: "-0.04em" }}>{truck.reg}</div>
-                    <div style={{ fontSize: 14, color: "var(--text-muted)", marginTop: 4, display: "flex", alignItems: "center", gap: 10, fontWeight: 500 }}>
-                        {truck.make} · {truck.type} · {truck.year} · <Badge status={truck.status} />
+            </div>
+
+            {/* 3-card info row */}
+            <div
+                style={{
+                    display: "grid",
+                    gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)",
+                    gap: 16,
+                    marginBottom: 28,
+                }}
+            >
+                {/* Vehicle Info */}
+                <div
+                    style={{
+                        background: "var(--bg-card)",
+                        border: "1px solid var(--border-subtle)",
+                        borderRadius: "var(--radius-md)",
+                        padding: "20px 22px",
+                    }}
+                >
+                    <div
+                        style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 8,
+                            marginBottom: 16,
+                        }}
+                    >
+                        <Shield size={15} color="var(--brand-primary)" />
+                        <span style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-dim)" }}>
+                            Vehicle Info
+                        </span>
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px 16px" }}>
+                        {[
+                            ["Reg", truck.reg],
+                            ["Make", truck.make],
+                            ["Type", truck.type],
+                            ["Year", truck.year || "—"],
+                            ["Engine", truck.engine || "—"],
+                        ].map(([label, value]) => (
+                            <div key={label}>
+                                <div style={{ fontSize: 10, color: "var(--text-dim)", fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>{label}</div>
+                                <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>{value}</div>
+                            </div>
+                        ))}
                     </div>
                 </div>
-                <Button variant="premium" icon={Edit2} onClick={() => openModal('truck', truck)}>Edit Profile</Button>
+
+                {/* Financial Summary */}
+                <div
+                    style={{
+                        background: "var(--bg-card)",
+                        border: "1px solid var(--border-subtle)",
+                        borderRadius: "var(--radius-md)",
+                        padding: "20px 22px",
+                    }}
+                >
+                    <div
+                        style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 8,
+                            marginBottom: 16,
+                        }}
+                    >
+                        <Wallet size={15} color="#10b981" />
+                        <span style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-dim)" }}>
+                            Financial Summary
+                        </span>
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                        {[
+                            ["Total Revenue", fmt(truckRevenue), "#10b981"],
+                            ["Total Expenses", fmt(truckTotalCost), "#ef4444"],
+                            ["Net Profit", fmt(truckProfit), truckProfit >= 0 ? "var(--brand-primary)" : "#ef4444"],
+                        ].map(([label, value, color]) => (
+                            <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                <span style={{ fontSize: 12, color: "var(--text-dim)", fontWeight: 600 }}>{label}</span>
+                                <span style={{ fontSize: 14, fontWeight: 800, color }}>{value}</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Maintenance Status */}
+                <div
+                    style={{
+                        background: "var(--bg-card)",
+                        border: "1px solid var(--border-subtle)",
+                        borderRadius: "var(--radius-md)",
+                        padding: "20px 22px",
+                    }}
+                >
+                    <div
+                        style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 8,
+                            marginBottom: 16,
+                        }}
+                    >
+                        <Wrench size={15} color="#8b5cf6" />
+                        <span style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-dim)" }}>
+                            Maintenance Status
+                        </span>
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <span style={{ fontSize: 12, color: "var(--text-dim)", fontWeight: 600 }}>Odometer</span>
+                            <span style={{ fontSize: 14, fontWeight: 800, color: "var(--text-primary)", fontFamily: "var(--font-mono)" }}>
+                                {Number(truck.odom || 0).toLocaleString()} km
+                            </span>
+                        </div>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <span style={{ fontSize: 12, color: "var(--text-dim)", fontWeight: 600 }}>Health</span>
+                            <Badge status={healthBadgeStatus} text={healthLabel} />
+                        </div>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <span style={{ fontSize: 12, color: "var(--text-dim)", fontWeight: 600 }}>Overdue items</span>
+                            <span style={{ fontSize: 14, fontWeight: 800, color: overdueCount > 0 ? "#ef4444" : "var(--text-primary)" }}>
+                                {overdueCount}
+                            </span>
+                        </div>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <span style={{ fontSize: 12, color: "var(--text-dim)", fontWeight: 600 }}>Due soon</span>
+                            <span style={{ fontSize: 14, fontWeight: 800, color: dueSoonCount > 0 ? "#f59e0b" : "var(--text-primary)" }}>
+                                {dueSoonCount}
+                            </span>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             {/* Navigation Tabs */}
-            <div style={{ display: 'flex', background: "var(--bg-card)", border: "1px solid var(--border-subtle)", borderRadius: 16, padding: 6, gap: 4, marginBottom: 32, overflowX: "auto" }} className="hide-scrollbar">
+            <div
+                style={{
+                    display: "flex",
+                    background: "var(--bg-card)",
+                    border: "1px solid var(--border-subtle)",
+                    borderRadius: 16,
+                    padding: 6,
+                    gap: 4,
+                    marginBottom: 24,
+                    overflowX: "auto",
+                }}
+                className="hide-scrollbar"
+            >
                 {tabs.map(t => (
                     <button
                         key={t.id}
                         onClick={() => setTab(t.id)}
                         style={{
-                            flex: 1, padding: "10px 20px", borderRadius: 10, border: "none", fontSize: 13, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap", transition: "all 0.2s ease",
+                            flex: 1,
+                            padding: "9px 16px",
+                            borderRadius: 10,
+                            border: "none",
+                            fontSize: 13,
+                            fontWeight: 700,
+                            cursor: "pointer",
+                            whiteSpace: "nowrap",
+                            transition: "all 0.2s ease",
                             background: tab === t.id ? "var(--brand-primary)" : "transparent",
-                            color: tab === t.id ? "white" : "var(--text-dim)"
+                            color: tab === t.id ? "white" : "var(--text-dim)",
                         }}
                     >
                         {t.label}
@@ -112,58 +371,88 @@ export function VehicleProfile({ data, setData, dark, isMobile, openModal, maint
                 ))}
             </div>
 
-            {/* Main Content Card */}
+            {/* Tab content */}
             <Card style={{ padding: 0, overflow: "hidden" }} className="animate-fade-in">
                 {/* OVERVIEW */}
                 {tab === 'overview' && (
-                    <div style={{ padding: 32 }}>
-                        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4,1fr)', gap: 20, marginBottom: 40 }}>
+                    <div style={{ padding: isMobile ? 20 : 32 }}>
+                        {/* Stat tiles */}
+                        <div
+                            style={{
+                                display: "grid",
+                                gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, 1fr)",
+                                gap: 16,
+                                marginBottom: 36,
+                            }}
+                        >
                             {[
-                                { l: 'Revenue',        v: fmt(truckRevenue),  c: '#10b981', i: Navigation },
-                                { l: 'Total Costs',    v: fmt(truckTotalCost), c: '#f59e0b', i: Wallet },
-                                { l: 'Net Profit',     v: fmt(truckProfit),   c: truckProfit >= 0 ? 'var(--brand-primary)' : '#ef4444', i: PieChart },
-                                { l: 'Trips',          v: truckJourneys.length, c: '#3b82f6', i: Clock },
-                                { l: 'Distance',       v: `${totalKm.toLocaleString()} km`, c: "var(--text-primary)", i: Navigation },
-                                { l: 'Fuel Used',      v: `${totalLitres.toLocaleString()} L`, c: "var(--text-primary)", i: Fuel },
-                                { l: 'Efficiency',     v: `${avgKmPerL} km/L`, c: '#a78bfa', i: ArrowUpRight },
-                                { l: 'Max Payload',    v: `${truck.capacity} T`, c: "var(--text-primary)", i: Truck },
+                                { l: 'Revenue',     v: fmt(truckRevenue),                      c: '#10b981',               i: Navigation },
+                                { l: 'Total Costs', v: fmt(truckTotalCost),                    c: '#f59e0b',               i: Wallet },
+                                { l: 'Net Profit',  v: fmt(truckProfit),                       c: truckProfit >= 0 ? 'var(--brand-primary)' : '#ef4444', i: PieChart },
+                                { l: 'Trips',       v: truckJourneys.length,                   c: '#3b82f6',               i: Clock },
+                                { l: 'Distance',    v: `${totalKm.toLocaleString()} km`,       c: "var(--text-primary)",   i: Navigation },
+                                { l: 'Fuel Used',   v: `${totalLitres.toLocaleString()} L`,    c: "var(--text-primary)",   i: Fuel },
+                                { l: 'Efficiency',  v: `${avgKmPerL} km/L`,                    c: '#a78bfa',               i: ArrowUpRight },
+                                { l: 'Max Payload', v: `${truck.capacity} T`,                  c: "var(--text-primary)",   i: Truck },
                             ].map(k => (
-                                <div key={k.l} style={{ background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: 16, padding: 20 }}>
-                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                                        <div style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>{k.l}</div>
-                                        <k.i size={16} color="var(--text-dim)" />
+                                <div
+                                    key={k.l}
+                                    style={{
+                                        background: "var(--bg-surface)",
+                                        border: "1px solid var(--border-subtle)",
+                                        borderRadius: 14,
+                                        padding: "16px 18px",
+                                    }}
+                                >
+                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                                        <div style={{ fontSize: 10, color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                                            {k.l}
+                                        </div>
+                                        <k.i size={14} color="var(--text-dim)" />
                                     </div>
-                                    <div style={{ fontSize: 22, fontWeight: 900, color: k.c }}>{k.v}</div>
+                                    <div style={{ fontSize: 20, fontWeight: 900, color: k.c }}>{k.v}</div>
                                 </div>
                             ))}
                         </div>
 
-                        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1.5fr 1fr', gap: 32 }}>
+                        {/* Technical info + quick actions */}
+                        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1.5fr 1fr", gap: 28 }}>
                             <div>
-                                <h3 style={{ fontSize: 18, fontWeight: 800, color: "var(--text-primary)", marginBottom: 20, display: "flex", alignItems: "center", gap: 10 }}>
-                                    <Shield size={20} color="var(--brand-primary)" />
+                                <h3 style={{ fontSize: 16, fontWeight: 800, color: "var(--text-primary)", marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
+                                    <Shield size={17} color="var(--brand-primary)" />
                                     Technical Information
                                 </h3>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, background: "var(--bg-surface)", padding: 24, borderRadius: 20, border: "1px solid var(--border-subtle)" }}>
+                                <div
+                                    style={{
+                                        display: "grid",
+                                        gridTemplateColumns: "1fr 1fr",
+                                        gap: "20px 24px",
+                                        background: "var(--bg-surface)",
+                                        padding: "22px 24px",
+                                        borderRadius: 18,
+                                        border: "1px solid var(--border-subtle)",
+                                    }}
+                                >
                                     {[
-                                        ['Make / Model', truck.make],
-                                        ['Year of Manufacture', truck.year],
-                                        ['Body Type', truck.type],
-                                        ['Payload Capacity', `${truck.capacity} T`],
-                                        ['Live Odometer', `${Number(truck.odom || 0).toLocaleString()} km`],
-                                        ['Assigned Operator', driverName(truck.driver)],
-                                        ['KRA PIN Ref', truck.kraPin || 'Unset'],
-                                        ['Insurance ID', truck.insurancePolicy || 'Unset'],
+                                        ['Make / Model',         truck.make],
+                                        ['Year of Manufacture',  truck.year],
+                                        ['Body Type',            truck.type],
+                                        ['Payload Capacity',     `${truck.capacity} T`],
+                                        ['Live Odometer',        `${Number(truck.odom || 0).toLocaleString()} km`],
+                                        ['Assigned Operator',    driverName(truck.driver)],
+                                        ['KRA PIN Ref',          truck.kraPin || 'Unset'],
+                                        ['Insurance ID',         truck.insurancePolicy || 'Unset'],
                                     ].map(([l, v]) => (
                                         <div key={l}>
-                                            <div style={{ fontSize: 11, color: "var(--text-dim)", fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>{l}</div>
-                                            <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)" }}>{v}</div>
+                                            <div style={{ fontSize: 10, color: "var(--text-dim)", fontWeight: 700, textTransform: "uppercase", marginBottom: 4 }}>{l}</div>
+                                            <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>{v}</div>
                                         </div>
                                     ))}
                                 </div>
                             </div>
+
                             <div>
-                                <h3 style={{ fontSize: 18, fontWeight: 800, color: "var(--text-primary)", marginBottom: 20 }}>Quick Actions</h3>
+                                <h3 style={{ fontSize: 16, fontWeight: 800, color: "var(--text-primary)", marginBottom: 16 }}>Quick Actions</h3>
                                 <div className="profile-quick-actions">
                                     <ProfileQuickActionTile
                                         icon={Fuel}
@@ -202,12 +491,22 @@ export function VehicleProfile({ data, setData, dark, isMobile, openModal, maint
                 {/* FUEL LOG */}
                 {tab === 'fuel' && (
                     <div>
-                        <div style={{ padding: "24px 32px", borderBottom: "1px solid var(--border-subtle)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                            <h3 style={{ fontSize: 18, fontWeight: 800, color: "var(--text-primary)" }}>Fuel Consumption Logs</h3>
-                            <Button size="sm" icon={Plus} onClick={() => openModal('fuel', { truck: truck.id, date: today() })}>Add Entry</Button>
+                        <div
+                            style={{
+                                padding: "20px 28px",
+                                borderBottom: "1px solid var(--border-subtle)",
+                                display: "flex",
+                                justifyContent: "space-between",
+                                alignItems: "center",
+                            }}
+                        >
+                            <h3 style={{ fontSize: 16, fontWeight: 800, color: "var(--text-primary)" }}>Fuel Consumption Logs</h3>
+                            <Button size="sm" icon={Plus} onClick={() => openModal('fuel', { truck: truck.id, date: today() })}>
+                                Add Entry
+                            </Button>
                         </div>
-                        <div style={{ padding: 32 }}>
-                                <div className="table-container">
+                        <div style={{ padding: isMobile ? 16 : 28 }}>
+                            <div className="table-container">
                                 <table className="table-modern">
                                     <thead>
                                         <tr>
@@ -229,7 +528,9 @@ export function VehicleProfile({ data, setData, dark, isMobile, openModal, maint
                                                 <td style={{ fontWeight: 600 }} title={`${f.litres} L`}>{f.litres} L</td>
                                                 <td style={{ color: "var(--text-muted)" }} title={String(f.pricePerL)}>{f.pricePerL}</td>
                                                 <td style={{ color: "#f97316", fontWeight: 800 }} title={fmt(f.litres * f.pricePerL)}>{fmt(f.litres * f.pricePerL)}</td>
-                                                <td style={{ color: "var(--text-dim)", fontFamily: "var(--font-mono)" }} title={f.odom ? `${Number(f.odom).toLocaleString()} km` : 'None'}>{f.odom ? `${Number(f.odom).toLocaleString()} km` : '—'}</td>
+                                                <td style={{ color: "var(--text-dim)", fontFamily: "var(--font-mono)" }} title={f.odom ? `${Number(f.odom).toLocaleString()} km` : 'None'}>
+                                                    {f.odom ? `${Number(f.odom).toLocaleString()} km` : '—'}
+                                                </td>
                                                 <td className="status-col" title={f._pendingApproval ? 'Pending' : 'Approved'}>
                                                     {f._pendingApproval ? <Badge status="Pending" /> : <Badge status="Approved" />}
                                                 </td>
@@ -256,7 +557,7 @@ export function VehicleProfile({ data, setData, dark, isMobile, openModal, maint
                                         ))}
                                     </tbody>
                                 </table>
-                                </div>
+                            </div>
                         </div>
                     </div>
                 )}
@@ -264,17 +565,27 @@ export function VehicleProfile({ data, setData, dark, isMobile, openModal, maint
                 {/* JOURNEYS */}
                 {tab === 'journeys' && (
                     <div>
-                        <div style={{ padding: "24px 32px", borderBottom: "1px solid var(--border-subtle)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                            <h3 style={{ fontSize: 18, fontWeight: 800, color: "var(--text-primary)" }}>Historical Missions</h3>
-                            <Button size="sm" icon={Plus} onClick={() => openModal('journey', { truck: truck.id, date: today(), status: 'Loading' })}>Log Journey</Button>
+                        <div
+                            style={{
+                                padding: "20px 28px",
+                                borderBottom: "1px solid var(--border-subtle)",
+                                display: "flex",
+                                justifyContent: "space-between",
+                                alignItems: "center",
+                            }}
+                        >
+                            <h3 style={{ fontSize: 16, fontWeight: 800, color: "var(--text-primary)" }}>Journey History</h3>
+                            <Button size="sm" icon={Plus} onClick={() => openModal('journey', { truck: truck.id, date: today(), status: 'Loading' })}>
+                                Log Journey
+                            </Button>
                         </div>
-                        <div style={{ padding: 32 }}>
-                                <div className="table-container">
+                        <div style={{ padding: isMobile ? 16 : 28 }}>
+                            <div className="table-container">
                                 <table className="table-modern">
                                     <thead>
                                         <tr>
                                             <th className="sticky-col" title="Date">Date</th>
-                                            <th title="Strategic Route">Strategic Route</th>
+                                            <th title="Route">Route</th>
                                             <th title="Distance">Distance</th>
                                             <th title="Revenue">Revenue</th>
                                             <th className="status-col" title="Status">Status</th>
@@ -282,10 +593,19 @@ export function VehicleProfile({ data, setData, dark, isMobile, openModal, maint
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {truckJourneys.map(j => (
+                                        {truckJourneys.length === 0 ? (
+                                            <tr>
+                                                <td colSpan="6" style={{ textAlign: "center", padding: 60, color: "var(--text-dim)" }}>
+                                                    <Navigation size={40} opacity={0.12} style={{ margin: "0 auto 12px" }} />
+                                                    <div style={{ fontWeight: 600 }}>No journeys recorded yet.</div>
+                                                </td>
+                                            </tr>
+                                        ) : truckJourneys.map(j => (
                                             <tr key={j.id}>
                                                 <td className="sticky-col" title={fmtDate(j.date)}>{fmtDate(j.date)}</td>
-                                                <td style={{ fontWeight: 800, color: "var(--text-primary)" }} title={`${j.origin} → ${j.dest}`}>{j.origin} → {j.dest}</td>
+                                                <td style={{ fontWeight: 800, color: "var(--text-primary)" }} title={`${j.origin} → ${j.dest}`}>
+                                                    {j.origin} → {j.dest}
+                                                </td>
                                                 <td style={{ fontWeight: 600 }} title={`${j.distance} km`}>{j.distance} km</td>
                                                 <td style={{ color: "#10b981", fontWeight: 800 }} title={fmt(j.revenue)}>{fmt(j.revenue)}</td>
                                                 <td className="status-col" title={j.status}><Badge status={j.status} /></td>
@@ -306,7 +626,7 @@ export function VehicleProfile({ data, setData, dark, isMobile, openModal, maint
                                         ))}
                                     </tbody>
                                 </table>
-                                </div>
+                            </div>
                         </div>
                     </div>
                 )}
@@ -314,64 +634,90 @@ export function VehicleProfile({ data, setData, dark, isMobile, openModal, maint
                 {/* MAINTENANCE */}
                 {tab === 'maintenance' && (
                     <div>
-                        <div style={{ padding: "24px 32px", borderBottom: "1px solid var(--border-subtle)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                            <h3 style={{ fontSize: 18, fontWeight: 800, color: "var(--text-primary)" }}>Preventive Maintenance Schedule</h3>
-                            <Button size="sm" icon={Wrench} onClick={() => openModal('maintenance', { truck: truck.id, task: 'Oil Change', date: today(), odom: truck.odom })}>Log Service</Button>
+                        <div
+                            style={{
+                                padding: "20px 28px",
+                                borderBottom: "1px solid var(--border-subtle)",
+                                display: "flex",
+                                justifyContent: "space-between",
+                                alignItems: "center",
+                            }}
+                        >
+                            <h3 style={{ fontSize: 16, fontWeight: 800, color: "var(--text-primary)" }}>Preventive Maintenance Schedule</h3>
+                            <Button
+                                size="sm"
+                                icon={Wrench}
+                                onClick={() => openModal('maintenance', { truck: truck.id, task: 'Oil Change', date: today(), odom: truck.odom })}
+                            >
+                                Log Service
+                            </Button>
                         </div>
-                        <div style={{ padding: 32 }}>
+                        <div style={{ padding: isMobile ? 16 : 28 }}>
                             <div className="table-container">
-                            <table className="table-modern">
-                                <thead>
-                                    <tr>
-                                        <th className="sticky-col" title="System Task">System Task</th>
-                                        <th title="Interval">Interval</th>
-                                        <th title="Metric Since Last">Metric Since Last</th>
-                                        <th title="Last Service">Last Service</th>
-                                        <th className="status-col" title="Health Status">Health Status</th>
-                                        <th style={{ textAlign: "right" }} title="Action">Action</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {DEFAULT_SCHEDULE.map(s => {
-                                        const odom = +truck.odom || 0;
-                                        const history = data.expenses.filter(e => e.truck === truck.id && e.cat === 'Maintenance' && e.desc?.toLowerCase().includes(s.task.toLowerCase())).sort((a,b)=>b.date.localeCompare(a.date));
-                                        const lastDate = history.length > 0 ? history[0].date : null;
-                                        const lastOdom = history.length > 0 ? +(history[0].odom || 0) : 0;
-                                        const kmSince = odom - lastOdom;
-                                        const remaining = s.intervalKm - kmSince;
-                                        const status = remaining <= 0 ? 'Overdue' : remaining <= s.intervalKm * 0.1 ? 'Due Soon' : 'OK';
-                                        
-                                        return (
-                                            <tr key={s.task}>
-                                                <td className="sticky-col" style={{ fontWeight: 800, color: "var(--text-primary)" }} title={s.task}>{s.task}</td>
-                                                <td style={{ color: "var(--text-dim)", fontSize: 12 }} title={`Every ${s.intervalKm.toLocaleString()} km`}>Every {s.intervalKm.toLocaleString()} km</td>
-                                                <td style={{ fontWeight: 600 }} title={`${kmSince.toLocaleString()} km ago`}>{kmSince.toLocaleString()} km <small style={{ color: "var(--text-dim)", fontWeight: 500 }}>ago</small></td>
-                                                <td style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }} title={fmtDate(lastDate)}>{fmtDate(lastDate)}</td>
-                                                <td className="status-col" title={status}><Badge status={status} /></td>
-                                                <td style={{ textAlign: "right", verticalAlign: "middle" }}>
-                                                    <TableRowActions
-                                                        ariaLabel={`Service ${s.task}`}
-                                                        items={[
-                                                            {
-                                                                id: "log",
-                                                                label: "Log service",
-                                                                icon: Wrench,
-                                                                onClick: () =>
-                                                                    openModal("maintenance", {
-                                                                        truck: truck.id,
-                                                                        task: s.task,
-                                                                        date: today(),
-                                                                        odom: truck.odom,
-                                                                    }),
-                                                            },
-                                                        ]}
-                                                    />
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
+                                <table className="table-modern">
+                                    <thead>
+                                        <tr>
+                                            <th className="sticky-col" title="System Task">System Task</th>
+                                            <th title="Interval">Interval</th>
+                                            <th title="Metric Since Last">Metric Since Last</th>
+                                            <th title="Last Service">Last Service</th>
+                                            <th className="status-col" title="Health Status">Health Status</th>
+                                            <th style={{ textAlign: "right" }} title="Action">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {DEFAULT_SCHEDULE.map(s => {
+                                            const odom = +truck.odom || 0;
+                                            const history = data.expenses.filter(e =>
+                                                e.truck === truck.id &&
+                                                e.cat === 'Maintenance' &&
+                                                e.desc?.toLowerCase().includes(s.task.toLowerCase())
+                                            ).sort((a, b) => b.date.localeCompare(a.date));
+                                            const lastDate = history.length > 0 ? history[0].date : null;
+                                            const lastOdom = history.length > 0 ? +(history[0].odom || 0) : 0;
+                                            const kmSince = odom - lastOdom;
+                                            const remaining = s.intervalKm - kmSince;
+                                            const status = remaining <= 0 ? 'Overdue' : remaining <= s.intervalKm * 0.1 ? 'Due Soon' : 'OK';
+
+                                            return (
+                                                <tr key={s.task}>
+                                                    <td className="sticky-col" style={{ fontWeight: 800, color: "var(--text-primary)" }} title={s.task}>
+                                                        {s.task}
+                                                    </td>
+                                                    <td style={{ color: "var(--text-dim)", fontSize: 12 }} title={`Every ${s.intervalKm.toLocaleString()} km`}>
+                                                        Every {s.intervalKm.toLocaleString()} km
+                                                    </td>
+                                                    <td style={{ fontWeight: 600 }} title={`${kmSince.toLocaleString()} km ago`}>
+                                                        {kmSince.toLocaleString()} km <small style={{ color: "var(--text-dim)", fontWeight: 500 }}>ago</small>
+                                                    </td>
+                                                    <td style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }} title={fmtDate(lastDate)}>
+                                                        {fmtDate(lastDate)}
+                                                    </td>
+                                                    <td className="status-col" title={status}><Badge status={status} /></td>
+                                                    <td style={{ textAlign: "right", verticalAlign: "middle" }}>
+                                                        <TableRowActions
+                                                            ariaLabel={`Service ${s.task}`}
+                                                            items={[
+                                                                {
+                                                                    id: "log",
+                                                                    label: "Log service",
+                                                                    icon: Wrench,
+                                                                    onClick: () =>
+                                                                        openModal("maintenance", {
+                                                                            truck: truck.id,
+                                                                            task: s.task,
+                                                                            date: today(),
+                                                                            odom: truck.odom,
+                                                                        }),
+                                                                },
+                                                            ]}
+                                                        />
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
                     </div>
@@ -379,12 +725,12 @@ export function VehicleProfile({ data, setData, dark, isMobile, openModal, maint
 
                 {/* DOCUMENTS */}
                 {tab === 'documents' && (
-                    <div style={{ padding: 32 }}>
-                        <DocumentPanel 
-                            entityType="truck" 
-                            entityId={truck.id} 
-                            entityLabel={truck.reg} 
-                            docTypes={DOC_TYPES_TRUCK} 
+                    <div style={{ padding: isMobile ? 16 : 32 }}>
+                        <DocumentPanel
+                            entityType="truck"
+                            entityId={truck.id}
+                            entityLabel={truck.reg}
+                            docTypes={DOC_TYPES_TRUCK}
                             documents={data.documents}
                             setDocuments={(docs) => setData(d => ({ ...d, documents: typeof docs === 'function' ? docs(d.documents) : docs }))}
                             dark={dark}
@@ -394,61 +740,88 @@ export function VehicleProfile({ data, setData, dark, isMobile, openModal, maint
 
                 {/* P&L */}
                 {tab === 'pnl' && (
-                    <div style={{ padding: 32 }}>
-                        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: 24, marginBottom: 40 }}>
+                    <div style={{ padding: isMobile ? 16 : 32 }}>
+                        <div
+                            style={{
+                                display: "grid",
+                                gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)",
+                                gap: 20,
+                                marginBottom: 36,
+                            }}
+                        >
                             {[
-                                ['Operational Revenue', truckRevenue, '#10b981'], 
-                                ['Total Direct Costs', truckTotalCost, '#ef4444'], 
-                                ['Net Performance', truckProfit, truckProfit >= 0 ? '#3b82f6' : '#ef4444'], 
-                                ['Fuel Expenditure', truckFuelCost, '#f97316'], 
-                                ['Repair & Maintenance', truckMaintCost, '#f59e0b'], 
-                                ['Profit Margin', truckRevenue > 0 ? ((truckProfit / truckRevenue) * 100).toFixed(1) + '%' : '—', truckProfit >= 0 ? '#10b981' : '#ef4444']
+                                ['Operational Revenue',  truckRevenue,   '#10b981'],
+                                ['Total Direct Costs',   truckTotalCost, '#ef4444'],
+                                ['Net Performance',      truckProfit,    truckProfit >= 0 ? '#3b82f6' : '#ef4444'],
+                                ['Fuel Expenditure',     truckFuelCost,  '#f97316'],
+                                ['Repair & Maintenance', truckMaintCost, '#f59e0b'],
+                                ['Profit Margin',        truckRevenue > 0 ? ((truckProfit / truckRevenue) * 100).toFixed(1) + '%' : '—', truckProfit >= 0 ? '#10b981' : '#ef4444'],
                             ].map(([l, v, c]) => (
-                                <div key={l} style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)", borderRadius: 16, padding: 24, boxShadow: "var(--glass-shadow)" }}>
-                                    <div style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 12 }}>{l}</div>
-                                    <div style={{ fontSize: 24, fontWeight: 900, color: c }}>{typeof v === 'number' ? fmt(v) : v}</div>
+                                <div
+                                    key={l}
+                                    style={{
+                                        background: "var(--bg-card)",
+                                        border: "1px solid var(--border-subtle)",
+                                        borderRadius: 16,
+                                        padding: "20px 22px",
+                                        boxShadow: "var(--glass-shadow)",
+                                    }}
+                                >
+                                    <div style={{ fontSize: 10, color: "var(--text-muted)", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 10 }}>
+                                        {l}
+                                    </div>
+                                    <div style={{ fontSize: 22, fontWeight: 900, color: c }}>
+                                        {typeof v === 'number' ? fmt(v) : v}
+                                    </div>
                                 </div>
                             ))}
                         </div>
-                        <h3 style={{ fontSize: 18, fontWeight: 800, color: "var(--text-primary)", marginBottom: 20 }}>Detailed Expense Ledger</h3>
-                        {truckExpenses.length === 0 ? <div style={{ color: "var(--text-dim)", padding: 60, textAlign: 'center' }}>No expenses recorded for this vehicle.</div> : (
-                        <div className="table-container">
-                            <table className="table-modern">
-                                <thead><tr>{['Date', 'Classification', 'Description', 'Amount', 'Status', 'Actions'].map(h => <th key={h}>{h}</th>)}</tr></thead>
-                                <tbody>
-                                    {truckExpenses.sort((a,b)=>b.date.localeCompare(a.date)).map(e => (
-                                        <tr key={e.id}>
-                                            <td>{fmtDate(e.date)}</td>
-                                            <td><Badge status={e.cat} /></td>
-                                            <td style={{ fontSize: 13, color: "var(--text-secondary)" }}>{e.desc}</td>
-                                            <td style={{ color: "#ef4444", fontWeight: 800 }}>{fmt(e.amount)}</td>
-                                            <td>
-                                                {e._pendingApproval ? <Badge status="Pending" /> : <Badge status="Approved" />}
-                                            </td>
-                                            <td style={{ textAlign: "right", verticalAlign: "middle" }}>
-                                                <TableRowActions
-                                                    ariaLabel={`Expense entry ${e.id}`}
-                                                    items={[
-                                                        {
-                                                            id: "edit",
-                                                            label: "Edit entry",
-                                                            icon: Pencil,
-                                                            onClick: () => openModal("expenses", e),
-                                                        },
-                                                        ...(e._pendingApproval ? [{
-                                                            id: "verify",
-                                                            label: "Verify entry",
-                                                            icon: CheckCircle2,
-                                                            onClick: () => setVerifyModal({ ...e, _itemType: 'expense' }),
-                                                        }] : []),
-                                                    ]}
-                                                />
-                                            </td>
+
+                        <h3 style={{ fontSize: 16, fontWeight: 800, color: "var(--text-primary)", marginBottom: 18 }}>Detailed Expense Ledger</h3>
+                        {truckExpenses.length === 0 ? (
+                            <div style={{ color: "var(--text-dim)", padding: 60, textAlign: "center" }}>No expenses recorded for this vehicle.</div>
+                        ) : (
+                            <div className="table-container">
+                                <table className="table-modern">
+                                    <thead>
+                                        <tr>
+                                            {['Date', 'Classification', 'Description', 'Amount', 'Status', 'Actions'].map(h => (
+                                                <th key={h}>{h}</th>
+                                            ))}
                                         </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
+                                    </thead>
+                                    <tbody>
+                                        {truckExpenses.sort((a, b) => b.date.localeCompare(a.date)).map(e => (
+                                            <tr key={e.id}>
+                                                <td>{fmtDate(e.date)}</td>
+                                                <td><Badge status={e.cat} /></td>
+                                                <td style={{ fontSize: 13, color: "var(--text-secondary)" }}>{e.desc}</td>
+                                                <td style={{ color: "#ef4444", fontWeight: 800 }}>{fmt(e.amount)}</td>
+                                                <td>{e._pendingApproval ? <Badge status="Pending" /> : <Badge status="Approved" />}</td>
+                                                <td style={{ textAlign: "right", verticalAlign: "middle" }}>
+                                                    <TableRowActions
+                                                        ariaLabel={`Expense entry ${e.id}`}
+                                                        items={[
+                                                            {
+                                                                id: "edit",
+                                                                label: "Edit entry",
+                                                                icon: Pencil,
+                                                                onClick: () => openModal("expenses", e),
+                                                            },
+                                                            ...(e._pendingApproval ? [{
+                                                                id: "verify",
+                                                                label: "Verify entry",
+                                                                icon: CheckCircle2,
+                                                                onClick: () => setVerifyModal({ ...e, _itemType: 'expense' }),
+                                                            }] : []),
+                                                        ]}
+                                                    />
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
                         )}
                     </div>
                 )}

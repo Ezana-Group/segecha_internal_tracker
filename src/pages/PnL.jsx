@@ -1,17 +1,17 @@
 import React, { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import DOMPurify from "dompurify";
-import { 
-    FileText, 
-    Printer, 
-    TrendingUp, 
-    TrendingDown, 
-    DollarSign, 
-    PieChart, 
-    Truck, 
-    Fuel, 
-    Users, 
-    ArrowUpRight, 
+import {
+    FileText,
+    Printer,
+    TrendingUp,
+    TrendingDown,
+    DollarSign,
+    PieChart,
+    Truck,
+    Fuel,
+    Users,
+    ArrowUpRight,
     Calendar,
     ArrowDownRight,
     Briefcase,
@@ -60,17 +60,17 @@ export function PnL({ data, dark, isMobile, truckStats, truckReg, customerName, 
         };
     });
 
-    const { 
-        filteredRows: sortedMatrix, 
-        setSort: requestSort, 
+    const {
+        filteredRows: sortedMatrix,
+        setSort: requestSort,
         sortState: sortConfig,
         filterState: matrixFilters,
         applyFilter: handleMatrixFilterChange,
         getUniqueValues: getMatrixUniqueValues,
         searchTerm,
         setSearchTerm
-    } = useTableFilter(refinedMatrix, { 
-        namespace: "pnl", 
+    } = useTableFilter(refinedMatrix, {
+        namespace: "pnl",
         initialSort: { col: "_rev", dir: "desc" },
         searchColumns: ["reg", "type", "make"]
     });
@@ -141,34 +141,51 @@ export function PnL({ data, dark, isMobile, truckStats, truckReg, customerName, 
         total: data.expenses.filter(e => e.cat === c).reduce((s, e) => s + +e.amount, 0)
     })).filter(x => x.total > 0);
 
+    const isProfit = netProfitFiltered >= 0;
+    const isStmtProfit = stmtNetProfit >= 0;
+    const stmtMargin = stmtFreightRevenue > 0 ? (stmtNetProfit / stmtFreightRevenue * 100).toFixed(1) : 0;
+
     return (
-        <div className="page-shell pnl-shell">
+        <div className="page-shell">
             <PageHeader
                 icon={BarChart3}
-                title="Profit and loss"
-                description="Fleet performance analytics and a printable P&amp;L statement."
+                title="Profit & Loss"
+                description="Fleet performance analytics and a printable P&L statement."
                 actions={
-                    <div className="pnl-toolbar">
+                    <div style={{ display: "flex", gap: 8 }}>
                         <Button variant="secondary" icon={Download} onClick={handleExportCSV}>
                             Export CSV
                         </Button>
                         <Button variant="primary" icon={Printer} onClick={handlePrint}>
-                            Print now
+                            Print
                         </Button>
                     </div>
                 }
                 belowTitle={
-                    <div className="pnl-tab-row" role="tablist" aria-label="P&amp;L views">
+                    <div style={{ display: "flex", gap: 4 }} role="tablist" aria-label="P&L views">
                         {tabs.map((tab) => (
                             <button
                                 key={tab.id}
                                 type="button"
                                 role="tab"
                                 aria-selected={activeTab === tab.id}
-                                className={`pnl-tab ${activeTab === tab.id ? "is-active" : ""}`}
                                 onClick={() => setActiveTab(tab.id)}
+                                style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 7,
+                                    padding: "7px 16px",
+                                    borderRadius: "var(--radius-md)",
+                                    border: "none",
+                                    cursor: "pointer",
+                                    fontSize: 13,
+                                    fontWeight: 700,
+                                    background: activeTab === tab.id ? "var(--brand-muted)" : "transparent",
+                                    color: activeTab === tab.id ? "var(--brand-primary)" : "var(--text-muted)",
+                                    transition: "all 0.15s",
+                                }}
                             >
-                                <tab.icon size={17} strokeWidth={2} aria-hidden />
+                                <tab.icon size={15} strokeWidth={2} aria-hidden />
                                 {tab.label}
                             </button>
                         ))}
@@ -178,77 +195,107 @@ export function PnL({ data, dark, isMobile, truckStats, truckReg, customerName, 
 
             {activeTab === 'analytics' ? (
                 <>
-                    <div className="pnl-kpi-grid">
-                        <div className="pnl-kpi-card">
-                            <div className="pnl-kpi-top">
-                                <div className="pnl-kpi-icon" style={{ background: "rgba(16, 185, 129, 0.12)", color: "#34d399" }}>
-                                    <TrendingUp size={22} strokeWidth={2} />
+                    {/* ── KPI Row ── */}
+                    <div style={{
+                        display: "grid",
+                        gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, 1fr)",
+                        gap: 16,
+                        marginBottom: 24,
+                    }}>
+                        {/* Freight Revenue */}
+                        <Card accent="#f97316" style={{ padding: 20 }}>
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                                <div style={{ width: 36, height: 36, borderRadius: "var(--radius-md)", background: "rgba(249,115,22,0.12)", display: "flex", alignItems: "center", justifyContent: "center", color: "#f97316" }}>
+                                    <TrendingUp size={18} strokeWidth={2} />
                                 </div>
                                 <Badge status="Active" text="Revenue" />
                             </div>
-                            <div className="pnl-kpi-label">Filtered gross revenue</div>
-                            <div className="pnl-kpi-value">{fmt(totalRevenueFiltered)}</div>
-                            <div className="pnl-kpi-bar">
-                                <div className="pnl-kpi-bar-fill" style={{ width: "100%", background: "linear-gradient(90deg, #10b981, #34d399)" }} />
+                            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>
+                                Freight Revenue
                             </div>
-                        </div>
+                            <div style={{ fontSize: 22, fontWeight: 900, color: "var(--text-primary)", fontVariantNumeric: "tabular-nums", letterSpacing: "-0.02em" }}>
+                                {fmt(totalRevenueFiltered)}
+                            </div>
+                            <div style={{ marginTop: 10, height: 3, borderRadius: 2, background: "var(--border-subtle)", overflow: "hidden" }}>
+                                <div style={{ height: "100%", width: "100%", background: "linear-gradient(90deg, #f97316, #fb923c)", borderRadius: 2 }} />
+                            </div>
+                        </Card>
 
-                        <div className="pnl-kpi-card">
-                            <div className="pnl-kpi-top">
-                                <div className="pnl-kpi-icon" style={{ background: "rgba(245, 158, 11, 0.12)", color: "#fbbf24" }}>
-                                    <Activity size={22} strokeWidth={2} />
+                        {/* Total Expenses */}
+                        <Card accent="#ef4444" style={{ padding: 20 }}>
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                                <div style={{ width: 36, height: 36, borderRadius: "var(--radius-md)", background: "rgba(239,68,68,0.12)", display: "flex", alignItems: "center", justifyContent: "center", color: "#ef4444" }}>
+                                    <Activity size={18} strokeWidth={2} />
                                 </div>
                                 <Badge status="Warning" text="Cost base" />
                             </div>
-                            <div className="pnl-kpi-label">Filtered op costs</div>
-                            <div className="pnl-kpi-value">{fmt(totalExpensesFiltered)}</div>
-                            <div className="pnl-kpi-bar">
-                                <div
-                                    className="pnl-kpi-bar-fill"
-                                    style={{
-                                        width: `${Math.min(100, (totalExpensesFiltered / (totalRevenueFiltered || 1)) * 100).toFixed(0)}%`,
-                                        background: "linear-gradient(90deg, #d97706, #f59e0b)",
-                                    }}
-                                />
+                            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>
+                                Total Expenses
                             </div>
-                        </div>
+                            <div style={{ fontSize: 22, fontWeight: 900, color: "var(--text-primary)", fontVariantNumeric: "tabular-nums", letterSpacing: "-0.02em" }}>
+                                {fmt(totalExpensesFiltered)}
+                            </div>
+                            <div style={{ marginTop: 10, height: 3, borderRadius: 2, background: "var(--border-subtle)", overflow: "hidden" }}>
+                                <div style={{ height: "100%", width: `${Math.min(100, totalRevenueFiltered > 0 ? (totalExpensesFiltered / totalRevenueFiltered) * 100 : 0).toFixed(0)}%`, background: "linear-gradient(90deg, #ef4444, #f87171)", borderRadius: 2 }} />
+                            </div>
+                        </Card>
 
-                        <div className="pnl-kpi-card">
-                            <div className="pnl-kpi-top">
-                                <div
-                                    className="pnl-kpi-icon"
-                                    style={{
-                                        background: netProfitFiltered >= 0 ? "rgba(16, 185, 129, 0.12)" : "rgba(239, 68, 68, 0.12)",
-                                        color: netProfitFiltered >= 0 ? "#34d399" : "#f87171",
-                                    }}
-                                >
-                                    {netProfitFiltered >= 0 ? <Target size={22} strokeWidth={2} /> : <TrendingDown size={22} strokeWidth={2} />}
+                        {/* Net Profit */}
+                        <Card accent={isProfit ? "#10b981" : "#ef4444"} style={{ padding: 20 }}>
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                                <div style={{ width: 36, height: 36, borderRadius: "var(--radius-md)", background: isProfit ? "rgba(16,185,129,0.12)" : "rgba(239,68,68,0.12)", display: "flex", alignItems: "center", justifyContent: "center", color: isProfit ? "#10b981" : "#ef4444" }}>
+                                    {isProfit ? <Target size={18} strokeWidth={2} /> : <TrendingDown size={18} strokeWidth={2} />}
                                 </div>
-                                <span style={{ fontSize: 13, fontWeight: 800, color: netProfitFiltered >= 0 ? "#34d399" : "#f87171" }}>{marginFiltered}% margin</span>
+                                <span style={{ fontSize: 12, fontWeight: 800, color: isProfit ? "#10b981" : "#ef4444" }}>{marginFiltered}% margin</span>
                             </div>
-                            <div className="pnl-kpi-label">Filtered net profit / loss</div>
-                            <div className="pnl-kpi-value" style={{ color: netProfitFiltered >= 0 ? "#34d399" : "#f87171" }}>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>
+                                Net Profit / Loss
+                            </div>
+                            <div style={{ fontSize: 22, fontWeight: 900, color: isProfit ? "#10b981" : "#ef4444", fontVariantNumeric: "tabular-nums", letterSpacing: "-0.02em" }}>
                                 {fmt(netProfitFiltered)}
                             </div>
-                        </div>
+                        </Card>
+
+                        {/* Margin % */}
+                        <Card accent="#a78bfa" style={{ padding: 20 }}>
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                                <div style={{ width: 36, height: 36, borderRadius: "var(--radius-md)", background: "rgba(167,139,250,0.12)", display: "flex", alignItems: "center", justifyContent: "center", color: "#a78bfa" }}>
+                                    <PieChart size={18} strokeWidth={2} />
+                                </div>
+                                <Badge status={marginNum >= 15 ? "Active" : marginNum >= 0 ? "Warning" : "Overdue"} text={marginNum >= 15 ? "Healthy" : marginNum >= 0 ? "Watch" : "Loss"} />
+                            </div>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>
+                                Operating Margin
+                            </div>
+                            <div style={{ fontSize: 22, fontWeight: 900, color: "#a78bfa", fontVariantNumeric: "tabular-nums", letterSpacing: "-0.02em" }}>
+                                {marginFiltered}%
+                            </div>
+                            <div style={{ marginTop: 10, height: 3, borderRadius: 2, background: "var(--border-subtle)", overflow: "hidden" }}>
+                                <div style={{ height: "100%", width: `${Math.max(0, Math.min(100, marginNum))}%`, background: "linear-gradient(90deg, #7c3aed, #a78bfa)", borderRadius: 2 }} />
+                            </div>
+                        </Card>
                     </div>
 
-                    <div className="pnl-split">
-                        <div className="pnl-matrix-card" id="pnl-analytics-print">
-                            <div className="pnl-matrix-head">
-                                <div className="pnl-matrix-title">
-                                    <Truck size={20} color="var(--brand-primary)" strokeWidth={2} aria-hidden />
-                                    Fleet performance matrix
+                    {/* ── Main split: matrix + sidebar ── */}
+                    <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 340px", gap: 20, alignItems: "start" }}>
+                        {/* Fleet performance matrix */}
+                        <Card style={{ padding: 0, overflow: "hidden" }} id="pnl-analytics-print">
+                            {/* Matrix header */}
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: "1px solid var(--border-subtle)" }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                    <Truck size={18} color="var(--brand-primary)" strokeWidth={2} aria-hidden />
+                                    <span style={{ fontWeight: 800, fontSize: 14, color: "var(--text-primary)" }}>Fleet Performance Matrix</span>
                                 </div>
                             </div>
-                            <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", gap: 12 }}>
-                                <SearchIcon size={18} color="var(--text-dim)" />
+                            {/* Search */}
+                            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 20px", borderBottom: "1px solid var(--border-subtle)", background: "var(--bg-surface)" }}>
+                                <SearchIcon size={16} color="var(--text-muted)" />
                                 <input
                                     type="search"
                                     placeholder="Search vehicles..."
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
-                                    style={{ border: "none", background: "none", padding: 0, fontSize: 14, flex: 1, color: "var(--text-primary)", fontWeight: 500 }}
+                                    style={{ border: "none", background: "none", padding: 0, fontSize: 13, flex: 1, color: "var(--text-primary)", fontWeight: 600, outline: "none" }}
                                 />
                             </div>
                             <div className="table-container">
@@ -283,36 +330,40 @@ export function PnL({ data, dark, isMobile, truckStats, truckReg, customerName, 
                                                         <div style={{ fontWeight: 700, color: "#34d399", fontVariantNumeric: "tabular-nums", textAlign: "right" }}>{fmt(t._rev)}</div>
                                                     </td>
                                                     <td title={fmt(t._fuel)}>
-                                                        <div style={{ color: "var(--brand-primary)", fontWeight: 600, fontVariantNumeric: "tabular-nums", textAlign: "right" }}>{fmt(t._fuel)}</div>
+                                                        <div style={{ color: "#f97316", fontWeight: 600, fontVariantNumeric: "tabular-nums", textAlign: "right" }}>{fmt(t._fuel)}</div>
                                                     </td>
                                                     <td title={fmt(t._other)}>
                                                         <div style={{ color: "#f59e0b", fontWeight: 600, fontVariantNumeric: "tabular-nums", textAlign: "right" }}>{fmt(t._other)}</div>
                                                     </td>
                                                     <td title={fmt(t._profit)}>
-                                                        <div style={{ fontWeight: 800, color: t._profit >= 0 ? "var(--brand-primary)" : "#f87171", fontVariantNumeric: "tabular-nums", textAlign: "right" }}>{fmt(t._profit)}</div>
+                                                        <div style={{ fontWeight: 800, color: t._profit >= 0 ? "#34d399" : "#f87171", fontVariantNumeric: "tabular-nums", textAlign: "right" }}>{fmt(t._profit)}</div>
                                                     </td>
                                                     <td className="status-col" style={{ textAlign: "right" }} title={`${m}% efficiency`}>
-                                                        <span
-                                                            className="pnl-eff-pill"
-                                                            style={{
-                                                                background: good ? "rgba(16, 185, 129, 0.12)" : "rgba(245, 158, 11, 0.12)",
-                                                                color: good ? "#34d399" : "#fbbf24",
-                                                            }}
-                                                        >
+                                                        <span style={{
+                                                            display: "inline-flex",
+                                                            alignItems: "center",
+                                                            gap: 4,
+                                                            padding: "3px 10px",
+                                                            borderRadius: 20,
+                                                            fontSize: 12,
+                                                            fontWeight: 800,
+                                                            background: good ? "rgba(16,185,129,0.12)" : "rgba(245,158,11,0.12)",
+                                                            color: good ? "#34d399" : "#fbbf24",
+                                                        }}>
                                                             {m}%
-                                                            {good ? <TrendingUp size={13} strokeWidth={2} /> : <TrendingDown size={13} strokeWidth={2} />}
+                                                            {good ? <TrendingUp size={12} strokeWidth={2} /> : <TrendingDown size={12} strokeWidth={2} />}
                                                         </span>
                                                     </td>
                                                     <td style={{ textAlign: "right", verticalAlign: "middle" }}>
                                                         <TableRowActions
                                                             ariaLabel={`Actions for ${t.reg}`}
                                                             items={[
-                                                                  {
-                                                                      id: "view",
-                                                                      label: "View vehicle",
-                                                                      icon: ArrowUpRight,
-                                                                      onClick: () => navigate(`/fleet/${t.id}`),
-                                                                  },
+                                                                {
+                                                                    id: "view",
+                                                                    label: "View vehicle",
+                                                                    icon: ArrowUpRight,
+                                                                    onClick: () => navigate(`/fleet/${t.id}`),
+                                                                },
                                                             ]}
                                                         />
                                                     </td>
@@ -322,15 +373,17 @@ export function PnL({ data, dark, isMobile, truckStats, truckReg, customerName, 
                                     </tbody>
                                 </table>
                             </div>
-                        </div>
+                        </Card>
 
-                        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-                            <div className="pnl-expense-card">
-                                <div className="pnl-expense-title">
-                                    <PieChart size={20} color="var(--brand-primary)" strokeWidth={2} aria-hidden />
-                                    Expense breakdown (Total)
+                        {/* Sidebar: expense breakdown + insight */}
+                        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                            {/* Expense Breakdown */}
+                            <Card style={{ padding: 20 }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 18 }}>
+                                    <PieChart size={17} color="var(--brand-primary)" strokeWidth={2} aria-hidden />
+                                    <span style={{ fontWeight: 800, fontSize: 14, color: "var(--text-primary)" }}>Expense Breakdown</span>
                                 </div>
-                                <div>
+                                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                                     {[
                                         { label: "Fuel consumption", value: totalFuelCostFiltered, color: "#f97316", icon: Fuel },
                                         { label: "Staff payroll", value: totalSalaries, color: "#a78bfa", icon: Users },
@@ -341,131 +394,162 @@ export function PnL({ data, dark, isMobile, truckStats, truckReg, customerName, 
                                             icon: Briefcase,
                                         })),
                                     ].map((item, idx) => {
-                                        const globalExp = totalFuelCostFiltered + totalSalaries + catBreakdown.reduce((s,c) => s + c.total, 0);
+                                        const globalExp = totalFuelCostFiltered + totalSalaries + catBreakdown.reduce((s, c) => s + c.total, 0);
+                                        const pct = globalExp > 0 ? ((item.value / globalExp) * 100).toFixed(1) : 0;
                                         return (
-                                            <div key={idx} className="pnl-expense-row">
-                                                <div className="pnl-expense-row-head">
-                                                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                                        <item.icon size={15} color={item.color} strokeWidth={2} />
-                                                        <span style={{ color: "var(--text-secondary)", fontWeight: 600 }}>{item.label}</span>
+                                            <div key={idx}>
+                                                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                                                    <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                                                        <div style={{ width: 8, height: 8, borderRadius: "50%", background: item.color, flexShrink: 0 }} />
+                                                        <item.icon size={13} color={item.color} strokeWidth={2} />
+                                                        <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)" }}>{item.label}</span>
                                                     </div>
-                                                    <span style={{ color: "var(--text-primary)", fontWeight: 800, fontVariantNumeric: "tabular-nums" }}>
-                                                        {globalExp > 0 ? ((item.value / globalExp) * 100).toFixed(1) : 0}%
-                                                    </span>
+                                                    <span style={{ fontSize: 12, fontWeight: 800, color: "var(--text-primary)", fontVariantNumeric: "tabular-nums" }}>{pct}%</span>
                                                 </div>
-                                                <div className="pnl-expense-bar">
-                                                    <div
-                                                        className="pnl-expense-bar-fill"
-                                                        style={{
-                                                            width: `${globalExp > 0 ? (item.value / globalExp) * 100 : 0}%`,
-                                                            background: item.color,
-                                                        }}
-                                                    />
+                                                <div style={{ height: 4, borderRadius: 2, background: "var(--border-subtle)", overflow: "hidden", marginBottom: 4 }}>
+                                                    <div style={{ height: "100%", width: `${pct}%`, background: item.color, borderRadius: 2 }} />
                                                 </div>
-                                                <div className="pnl-expense-amt">{fmt(item.value)}</div>
+                                                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+                                                    {fmt(item.value)}
+                                                </div>
                                             </div>
                                         );
                                     })}
                                 </div>
-                            </div>
+                            </Card>
 
-                            <div className="pnl-insight">
-                                <div className="pnl-insight-label">Filtered Insight</div>
-                                <div className="pnl-insight-title">{insightHeadline}</div>
-                                <p className="pnl-insight-body">{insightCopy}</p>
-                            </div>
+                            {/* Insight card */}
+                            <Card style={{ padding: 20, background: isProfit ? "rgba(16,185,129,0.05)" : "rgba(239,68,68,0.05)", borderColor: isProfit ? "rgba(16,185,129,0.2)" : "rgba(239,68,68,0.2)" }}>
+                                <div style={{ fontSize: 10, fontWeight: 800, color: isProfit ? "#10b981" : "#ef4444", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>
+                                    Filtered Insight
+                                </div>
+                                <div style={{ fontSize: 15, fontWeight: 800, color: "var(--text-primary)", marginBottom: 8 }}>
+                                    {insightHeadline}
+                                </div>
+                                <p style={{ fontSize: 12, color: "var(--text-secondary)", lineHeight: 1.6, margin: 0 }}>
+                                    {insightCopy}
+                                </p>
+                            </Card>
                         </div>
                     </div>
                 </>
             ) : (
+                /* ── P&L Statement view ── */
                 <div id="pnl-statement-view">
-                    <Card style={{ padding: 40, border: "2px solid #edeff2", borderRadius: 24, background: "var(--bg-card)" }}>
-                        <div style={{ border: "2px solid #10b981", borderRadius: 16, padding: "40px", position: "relative" }}>
-                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 40 }}>
-                                <div>
-                                    <h2 className="pnl-statement-title">
-                                        <FileText size={28} strokeWidth={2} aria-hidden />
-                                        Segecha Group — Profit &amp; Loss statement
+                    <Card style={{ padding: isMobile ? 20 : 36 }}>
+                        {/* Statement header */}
+                        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, marginBottom: 32, paddingBottom: 24, borderBottom: "1px solid var(--border-subtle)" }}>
+                            <div>
+                                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+                                    <FileText size={22} color="var(--brand-primary)" strokeWidth={2} />
+                                    <h2 style={{ fontSize: 18, fontWeight: 900, color: "var(--text-primary)", margin: 0, letterSpacing: "-0.02em" }}>
+                                        Segecha Group — Profit &amp; Loss Statement
                                     </h2>
-                                    <div style={{ color: "var(--text-muted)", fontSize: 14, marginTop: 8, fontWeight: 600 }}>
-                                        Generated: {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-                                    </div>
                                 </div>
-                                <div style={{ width: 60, height: 60, borderRadius: 15, background: "#10b98115", display: "flex", alignItems: "center", justifyContent: "center", color: "#10b981" }}>
-                                    <FileText size={32} />
+                                <div style={{ fontSize: 13, color: "var(--text-muted)", fontWeight: 600 }}>
+                                    Generated: {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                                </div>
+                            </div>
+                            <div style={{ flexShrink: 0, padding: "4px 12px", borderRadius: "var(--radius-md)", background: "var(--brand-muted)", border: "1px solid var(--brand-border)", fontSize: 11, fontWeight: 800, color: "var(--brand-primary)", textTransform: "uppercase", letterSpacing: "0.06em", whiteSpace: "nowrap" }}>
+                                Internal Audit
+                            </div>
+                        </div>
+
+                        {/* Income + Expense columns */}
+                        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: isMobile ? 32 : 48, marginBottom: 28 }}>
+                            {/* Income column */}
+                            <div>
+                                <div style={{ fontSize: 11, fontWeight: 800, color: "#10b981", textTransform: "uppercase", letterSpacing: "0.08em", paddingBottom: 10, borderBottom: "2px solid rgba(16,185,129,0.2)", marginBottom: 18 }}>
+                                    Income / Revenue
+                                </div>
+                                <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+                                    {/* Row: Freight Revenue */}
+                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "11px 0", borderBottom: "1px solid var(--border-subtle)" }}>
+                                        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)" }}>Freight Revenue (Active trips)</span>
+                                        <span style={{ fontSize: 13, fontWeight: 800, color: "#10b981", fontVariantNumeric: "tabular-nums" }}>{fmt(stmtFreightRevenue)}</span>
+                                    </div>
+                                    {/* Row: Cash Collected */}
+                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "11px 0", borderBottom: "1px solid var(--border-subtle)" }}>
+                                        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)" }}>Cash Collected (Invoices paid)</span>
+                                        <span style={{ fontSize: 13, fontWeight: 800, color: "#10b981", fontVariantNumeric: "tabular-nums" }}>{fmt(invoicesPaid)}</span>
+                                    </div>
+                                    {/* Total */}
+                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 0 4px" }}>
+                                        <span style={{ fontSize: 13, fontWeight: 900, color: "var(--text-primary)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Total Income</span>
+                                        <span style={{ fontSize: 17, fontWeight: 900, color: "#10b981", fontVariantNumeric: "tabular-nums" }}>{fmt(stmtFreightRevenue)}</span>
+                                    </div>
                                 </div>
                             </div>
 
-                            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 60, marginBottom: 40 }}>
-                                {/* Income Column */}
-                                <div>
-                                    <div style={{ fontSize: 14, fontWeight: 800, color: "#10b981", textTransform: "uppercase", letterSpacing: "0.1em", borderBottom: "2px solid #10b98115", paddingBottom: 12, marginBottom: 20 }}>
-                                        Income / Revenue
-                                    </div>
-                                    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                            <span style={{ fontWeight: 600, color: "var(--text-secondary)" }}>Freight Revenue (Completed trips)</span>
-                                            <span style={{ fontWeight: 800, color: "#10b981" }}>{fmt(stmtFreightRevenue)}</span>
-                                        </div>
-                                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                            <span style={{ fontWeight: 600, color: "var(--text-secondary)" }}>Cash Collected (Invoices paid)</span>
-                                            <span style={{ fontWeight: 800, color: "#10b981" }}>{fmt(invoicesPaid)}</span>
-                                        </div>
-                                        <div style={{ borderTop: "2px solid var(--border-subtle)", paddingTop: 16, marginTop: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                            <span style={{ fontWeight: 900, color: "var(--text-primary)" }}>TOTAL INCOME</span>
-                                            <span style={{ fontWeight: 900, color: "#10b981", fontSize: 18 }}>{fmt(stmtFreightRevenue)}</span>
-                                        </div>
-                                    </div>
+                            {/* Expenditure column */}
+                            <div>
+                                <div style={{ fontSize: 11, fontWeight: 800, color: "#f97316", textTransform: "uppercase", letterSpacing: "0.08em", paddingBottom: 10, borderBottom: "2px solid rgba(249,115,22,0.2)", marginBottom: 18 }}>
+                                    Operating Expenditure
                                 </div>
-
-                                {/* Expenditure Column */}
-                                <div>
-                                    <div style={{ fontSize: 14, fontWeight: 800, color: "#f97316", textTransform: "uppercase", letterSpacing: "0.1em", borderBottom: "2px solid #f9731615", paddingBottom: 12, marginBottom: 20 }}>
-                                        Operating Expenditure (All)
-                                    </div>
-                                    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                            <span style={{ fontWeight: 600, color: "var(--text-secondary)" }}>Fuel Consumption</span>
-                                            <span style={{ fontWeight: 700, color: "var(--text-primary)" }}>{fmt(stmtFuelCost)}</span>
+                                <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+                                    {/* Fuel */}
+                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "11px 0", borderBottom: "1px solid var(--border-subtle)" }}>
+                                        <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                                            <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#f97316" }} />
+                                            <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)" }}>Fuel Consumption</span>
                                         </div>
-                                        {catBreakdown.map(c => (
-                                            <div key={c.cat} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                                <span style={{ fontWeight: 600, color: "var(--text-secondary)" }}>{c.cat}</span>
-                                                <span style={{ fontWeight: 700, color: "var(--text-primary)" }}>{fmt(c.total)}</span>
+                                        <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)", fontVariantNumeric: "tabular-nums" }}>{fmt(stmtFuelCost)}</span>
+                                    </div>
+                                    {/* Dynamic expense categories */}
+                                    {catBreakdown.map((c, i) => (
+                                        <div key={c.cat} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "11px 0", borderBottom: "1px solid var(--border-subtle)" }}>
+                                            <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                                                <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#f59e0b" }} />
+                                                <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)" }}>{c.cat}</span>
                                             </div>
-                                        ))}
-                                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                            <span style={{ fontWeight: 600, color: "var(--text-secondary)" }}>Payroll (Paid Salaries)</span>
-                                            <span style={{ fontWeight: 700, color: "var(--text-primary)" }}>{fmt(totalSalaries)}</span>
+                                            <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)", fontVariantNumeric: "tabular-nums" }}>{fmt(c.total)}</span>
                                         </div>
-
-                                        <div style={{ borderTop: "2px solid var(--border-subtle)", paddingTop: 16, marginTop: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                            <span style={{ fontWeight: 900, color: "var(--text-primary)" }}>TOTAL EXPENSES</span>
-                                            <span style={{ fontWeight: 900, color: "#f97316", fontSize: 18 }}>{fmt(stmtTotalExp)}</span>
+                                    ))}
+                                    {/* Payroll */}
+                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "11px 0", borderBottom: "1px solid var(--border-subtle)" }}>
+                                        <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                                            <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#a78bfa" }} />
+                                            <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)" }}>Payroll (Paid Salaries)</span>
                                         </div>
+                                        <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)", fontVariantNumeric: "tabular-nums" }}>{fmt(totalSalaries)}</span>
+                                    </div>
+                                    {/* Total expenses */}
+                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 0 4px" }}>
+                                        <span style={{ fontSize: 13, fontWeight: 900, color: "var(--text-primary)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Total Expenses</span>
+                                        <span style={{ fontSize: 17, fontWeight: 900, color: "#f97316", fontVariantNumeric: "tabular-nums" }}>{fmt(stmtTotalExp)}</span>
                                     </div>
                                 </div>
                             </div>
+                        </div>
 
-                            <div style={{ background: stmtNetProfit >= 0 ? "#10b98108" : "#ef444408", borderRadius: 16, padding: "24px 32px", border: `1px solid ${stmtNetProfit >= 0 ? "#10b98120" : "#ef444420"}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                <div>
-                                    <div style={{ fontSize: 12, fontWeight: 800, color: stmtNetProfit >= 0 ? "#10b981" : "#ef4444", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 4 }}>
-                                        Net Operating {stmtNetProfit >= 0 ? "Profit" : "Loss"}
-                                    </div>
-                                    <div style={{ fontSize: 32, fontWeight: 900, color: stmtNetProfit >= 0 ? "#10b981" : "#ef4444" }}>
-                                        {fmt(stmtNetProfit)}
-                                    </div>
+                        {/* Net result summary */}
+                        <div style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            flexWrap: "wrap",
+                            gap: 16,
+                            padding: "24px 28px",
+                            borderRadius: "var(--radius-lg)",
+                            background: isStmtProfit ? "rgba(16,185,129,0.07)" : "rgba(239,68,68,0.07)",
+                            border: `1.5px solid ${isStmtProfit ? "rgba(16,185,129,0.25)" : "rgba(239,68,68,0.25)"}`,
+                        }}>
+                            <div>
+                                <div style={{ fontSize: 11, fontWeight: 800, color: isStmtProfit ? "#10b981" : "#ef4444", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>
+                                    Net Operating {isStmtProfit ? "Profit" : "Loss"}
                                 </div>
-                                <div style={{ textAlign: "right", color: "var(--text-dim)", fontSize: 12, fontWeight: 600 }}>
-                                    Operating Margin: {stmtFreightRevenue > 0 ? (stmtNetProfit / stmtFreightRevenue * 100).toFixed(1) : 0}% <br />
-                                    Report Type: Internal Audit
+                                <div style={{ fontSize: 36, fontWeight: 900, color: isStmtProfit ? "#10b981" : "#ef4444", fontVariantNumeric: "tabular-nums", letterSpacing: "-0.03em", lineHeight: 1 }}>
+                                    {fmt(stmtNetProfit)}
                                 </div>
+                            </div>
+                            <div style={{ textAlign: "right" }}>
+                                <div style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 700, marginBottom: 4 }}>Operating Margin</div>
+                                <div style={{ fontSize: 24, fontWeight: 900, color: isStmtProfit ? "#10b981" : "#ef4444" }}>{stmtMargin}%</div>
                             </div>
                         </div>
                     </Card>
                 </div>
             )}
-
         </div>
     );
 }

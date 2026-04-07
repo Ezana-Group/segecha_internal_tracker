@@ -40,104 +40,100 @@ export function CustomerProfile({ data, isMobile, truckReg, customerName }) {
 
     return (
         <div className="page-shell">
-            {/* Back Button */}
-            <button 
+            {/* Back Link */}
+            <button
+                type="button"
                 onClick={() => navigate("/customers")}
-                style={{ background: "none", border: "none", color: "var(--brand-primary)", fontWeight: 700, display: "flex", alignItems: "center", gap: 8, marginBottom: 24, cursor: "pointer", fontSize: 14 }}
+                style={{ background: "none", border: "none", color: "var(--brand-primary)", fontWeight: 700, display: "flex", alignItems: "center", gap: 8, marginBottom: 24, cursor: "pointer", fontSize: 14, padding: 0 }}
             >
-                <ArrowLeft size={16} /> Back to Directory
+                <ArrowLeft size={16} /> Customers
             </button>
 
             {/* Profile Header */}
-            <Card style={{ marginBottom: 32, padding: 32 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 24, flexWrap: "wrap" }}>
-                    <div style={{ display: "flex", gap: 24, alignItems: "center" }}>
-                        <div style={{ width: 80, height: 80, borderRadius: 20, background: "var(--brand-primary)", display: "flex", alignItems: "center", justifyContent: "center", color: "white", boxShadow: "0 10px 20px rgba(59, 130, 246, 0.2)" }}>
-                            {customer.type === "Company" ? <Building2 size={40} /> : <User size={40} />}
-                        </div>
-                        <div>
-                            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 4 }}>
-                                <h1 style={{ fontSize: 32, fontWeight: 900, color: "var(--text-primary)", margin: 0 }}>{customer.name}</h1>
-                                <Badge status={customer.type === "Company" ? "Pending" : "Paid"} text={customer.type} />
-                            </div>
-                            <div style={{ fontSize: 13, color: "var(--text-dim)", fontWeight: 600, fontFamily: "var(--font-mono)" }}>
-                                System ID: {customer.uId}
-                            </div>
-                        </div>
+            <Card style={{ marginBottom: 28, padding: 28 }}>
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 20, flexWrap: "wrap" }}>
+                    {/* Avatar icon */}
+                    <div style={{
+                        width: 72, height: 72, borderRadius: 18,
+                        background: customer.type === "Company" ? "var(--brand-primary)" : "#10b981",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        color: "white", flexShrink: 0,
+                    }}>
+                        {customer.type === "Company" ? <Building2 size={36} /> : <User size={36} />}
                     </div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 10, color: "var(--text-secondary)", fontSize: 14 }}>
-                            <Mail size={16} color="var(--brand-primary)" /> {customer.email || "No email provided"}
+                    <div style={{ flex: 1 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 6 }}>
+                            <h1 style={{ fontSize: 26, fontWeight: 900, color: "var(--text-primary)", margin: 0, letterSpacing: "-0.03em" }}>{customer.name}</h1>
+                            <Badge status={customer.type === "Company" ? "Active" : "Paid"} text={customer.type} />
                         </div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 10, color: "var(--text-secondary)", fontSize: 14 }}>
-                            <Phone size={16} color="var(--brand-primary)" /> {customer.phone}
+                        {customer.uId && (
+                            <div style={{ fontSize: 12, color: "var(--text-dim)", fontFamily: "var(--font-mono)", fontWeight: 600, marginBottom: 10 }}>ID: {customer.uId}</div>
+                        )}
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 16 }}>
+                            <span style={{ fontSize: 13, color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: 6 }}>
+                                <Phone size={13} color="var(--brand-primary)" /> {customer.phone}
+                            </span>
+                            {customer.email && (
+                                <span style={{ fontSize: 13, color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: 6 }}>
+                                    <Mail size={13} color="var(--brand-primary)" /> {customer.email}
+                                </span>
+                            )}
+                            {customer.address && (
+                                <span style={{ fontSize: 13, color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: 6 }}>
+                                    <MapPin size={13} color="var(--brand-primary)" /> {customer.address}
+                                </span>
+                            )}
                         </div>
-                        {customer.address && (
-                            <div style={{ display: "flex", alignItems: "center", gap: 10, color: "var(--text-secondary)", fontSize: 14 }}>
-                                <MapPin size={16} color="var(--brand-primary)" /> {customer.address}
+                        {customer.type === "Company" && customer.contactPerson && (
+                            <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", gap: 8 }}>
+                                <span style={{ fontSize: 11, fontWeight: 800, color: "var(--brand-primary)", textTransform: "uppercase" }}>Contact:</span>
+                                <span style={{ fontWeight: 700, color: "var(--text-primary)", fontSize: 14 }}>{customer.contactPerson}</span>
                             </div>
                         )}
                     </div>
                 </div>
-
-                {customer.type === "Company" && customer.contactPerson && (
-                    <div style={{ marginTop: 24, paddingTop: 24, borderTop: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", gap: 12 }}>
-                        <div style={{ fontSize: 12, fontWeight: 800, color: "var(--brand-primary)", textTransform: "uppercase" }}>Primary Contact:</div>
-                        <div style={{ fontWeight: 700, color: "var(--text-primary)" }}>{customer.contactPerson}</div>
-                    </div>
-                )}
             </Card>
 
-            {/* Stats Bar */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 24, marginBottom: 40 }}>
-                <div style={{ background: "var(--card-bg)", padding: 24, borderRadius: 20, border: "1px solid var(--border-subtle)" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
-                        <div style={{ fontSize: 11, fontWeight: 800, color: "var(--text-dim)", letterSpacing: "0.05em" }}>LIFETIME BOOKINGS</div>
-                        <TrendingUp size={16} color="var(--brand-primary)" />
-                    </div>
-                    <div style={{ fontSize: 28, fontWeight: 900, color: "var(--brand-primary)" }}>{journeys.length}</div>
-                    <div style={{ fontSize: 12, color: "var(--text-dim)", marginTop: 4 }}>Completed missions</div>
-                </div>
-                <div style={{ background: "var(--card-bg)", padding: 24, borderRadius: 20, border: "1px solid var(--border-subtle)" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
-                        <div style={{ fontSize: 11, fontWeight: 800, color: "var(--text-dim)", letterSpacing: "0.05em" }}>TOTAL INVOICED</div>
-                        <FileText size={16} color="#3b82f6" />
-                    </div>
-                    <div style={{ fontSize: 28, fontWeight: 900, color: "var(--text-primary)" }}>{fmt(totalInvoiced)}</div>
-                </div>
-                <div style={{ background: "var(--card-bg)", padding: 24, borderRadius: 20, border: "1px solid var(--border-subtle)" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
-                        <div style={{ fontSize: 11, fontWeight: 800, color: "var(--text-dim)", letterSpacing: "0.05em" }}>PAYMENTS RECEIVED</div>
-                        <CheckCircle2 size={16} color="#10b981" />
-                    </div>
-                    <div style={{ fontSize: 28, fontWeight: 900, color: "#10b981" }}>{fmt(totalPaid)}</div>
-                </div>
-                <div style={{ background: "var(--card-bg)", padding: 24, borderRadius: 20, border: "1px solid var(--border-subtle)" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
-                        <div style={{ fontSize: 11, fontWeight: 800, color: "var(--text-dim)", letterSpacing: "0.05em" }}>BALANCE OVERDUE</div>
-                        <AlertCircle size={16} color="#ef4444" />
-                    </div>
-                    <div style={{ fontSize: 28, fontWeight: 900, color: totalOverdue > 0 ? "#ef4444" : "var(--text-primary)" }}>{fmt(totalOverdue)}</div>
-                </div>
+            {/* Stats Row */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 16, marginBottom: 32 }}>
+                {[
+                    { label: "Lifetime Journeys", value: journeys.length, color: "var(--brand-primary)", icon: TrendingUp },
+                    { label: "Total Invoiced", value: fmt(totalInvoiced), color: "var(--text-primary)", icon: FileText },
+                    { label: "Payments Received", value: fmt(totalPaid), color: "#10b981", icon: CheckCircle2 },
+                    { label: "Balance Overdue", value: fmt(totalOverdue), color: totalOverdue > 0 ? "#ef4444" : "var(--text-primary)", icon: AlertCircle },
+                ].map(stat => {
+                    const Ic = stat.icon;
+                    return (
+                        <div key={stat.label} style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-md, 12px)", padding: "20px 20px" }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                                <div style={{ fontSize: 10, fontWeight: 800, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: "0.05em" }}>{stat.label}</div>
+                                <Ic size={15} color={stat.color} />
+                            </div>
+                            <div style={{ fontSize: 22, fontWeight: 900, color: stat.color }}>{stat.value}</div>
+                        </div>
+                    );
+                })}
             </div>
 
-            {/* Tabs Navigation */}
-            <div style={{ display: "flex", gap: 40, borderBottom: "1px solid var(--border-subtle)", marginBottom: 32, overflowX: "auto" }}>
+            {/* Tab Navigation */}
+            <div style={{ display: "flex", background: "var(--bg-card)", border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-md, 12px)", padding: 5, gap: 4, marginBottom: 28, overflowX: "auto" }} className="hide-scrollbar">
                 {["Overview", "Missions", "Invoices", "Documents & SLA"].map(tab => (
                     <button
                         key={tab}
+                        type="button"
                         onClick={() => setActiveTab(tab)}
                         style={{
-                            background: "none",
+                            flex: 1,
+                            padding: "9px 18px",
+                            borderRadius: 8,
                             border: "none",
-                            padding: "0 0 16px 0",
-                            fontSize: 14,
-                            fontWeight: activeTab === tab ? 800 : 700,
-                            color: activeTab === tab ? "var(--brand-primary)" : "var(--text-dim)",
-                            borderBottom: activeTab === tab ? "3px solid var(--brand-primary)" : "3px solid transparent",
+                            fontSize: 13,
+                            fontWeight: 700,
                             cursor: "pointer",
-                            transition: "all 0.2s ease",
-                            whiteSpace: "nowrap"
+                            whiteSpace: "nowrap",
+                            transition: "all 0.15s ease",
+                            background: activeTab === tab ? "var(--brand-primary)" : "transparent",
+                            color: activeTab === tab ? "white" : "var(--text-dim)",
                         }}
                     >
                         {tab}

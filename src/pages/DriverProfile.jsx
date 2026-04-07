@@ -248,18 +248,47 @@ export function DriverProfile({ data, setData, dark, isMobile, truckReg, openMod
         }
     };
 
+    const driverInitials = driver.name
+        ? driver.name.trim().split(/\s+/).map(p => p[0]).filter(Boolean).slice(0, 2).join("").toUpperCase()
+        : "?";
+
     return (
         <div className="page-shell">
-            {/* Header / Banner */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 12 : 20, marginBottom: isMobile ? 20 : 32, flexWrap: 'wrap' }}>
-                <Button variant="secondary" icon={ArrowLeft} onClick={() => navigate('/drivers')}>Back</Button>
-                <div style={{ width: 64, height: 64, borderRadius: "50%", background: "var(--brand-primary)15", display: 'flex', alignItems: 'center', justifyContent: 'center', color: "var(--brand-primary)", border: "2px solid var(--brand-primary)30" }}>
-                    <User size={32} />
+            {/* Back Link */}
+            <button
+                type="button"
+                onClick={() => navigate('/drivers')}
+                style={{ background: "none", border: "none", color: "var(--brand-primary)", fontWeight: 700, display: "flex", alignItems: "center", gap: 8, marginBottom: 24, cursor: "pointer", fontSize: 14, padding: 0 }}
+            >
+                <ArrowLeft size={16} /> Drivers
+            </button>
+
+            {/* Profile Header */}
+            <div style={{ display: "flex", alignItems: isMobile ? "flex-start" : "center", gap: isMobile ? 16 : 24, marginBottom: isMobile ? 20 : 32, flexWrap: "wrap" }}>
+                {/* Avatar */}
+                <div style={{
+                    width: isMobile ? 60 : 80, height: isMobile ? 60 : 80, borderRadius: "50%",
+                    background: "var(--brand-primary)",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    color: "white", fontWeight: 900, fontSize: isMobile ? 22 : 30,
+                    flexShrink: 0, boxShadow: "0 4px 16px rgba(0,0,0,0.15)",
+                }}>
+                    {driverInitials}
                 </div>
                 <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: isMobile ? 22 : 32, fontWeight: 900, color: "var(--text-primary)", lineHeight: 1.1, letterSpacing: "-0.04em" }}>{driver.name}</div>
-                    <div style={{ fontSize: 14, color: "var(--text-muted)", marginTop: 4, display: "flex", alignItems: "center", gap: 10, fontWeight: 500 }}>
-                        ID: {driver.id.split('-')[0].toUpperCase()} · Joined {fmtDate(driver.joined)} · <Badge status={driver.status} />
+                    <h1 style={{ fontSize: isMobile ? 22 : 30, fontWeight: 900, color: "var(--text-primary)", margin: "0 0 6px", lineHeight: 1.1, letterSpacing: "-0.03em" }}>{driver.name}</h1>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                        <Badge status={driver.status} />
+                        {driver.phone && (
+                            <span style={{ fontSize: 13, color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: 5 }}>
+                                <Phone size={12} color="var(--text-dim)" /> {driver.phone}
+                            </span>
+                        )}
+                        {driver.email && (
+                            <span style={{ fontSize: 13, color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: 5 }}>
+                                <Mail size={12} color="var(--text-dim)" /> {driver.email}
+                            </span>
+                        )}
                     </div>
                 </div>
                 <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>

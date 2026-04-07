@@ -1,25 +1,28 @@
 import { useState, useEffect } from "react";
-import { 
-    FileText, 
-    Upload, 
-    Trash2, 
-    Download, 
-    Eye, 
-    Search, 
-    Filter, 
-    Clock, 
-    AlertCircle, 
-    CheckCircle2, 
-    ShieldCheck, 
-    Truck, 
-    User, 
-    FileCheck, 
+import {
+    FileText,
+    Upload,
+    Trash2,
+    Download,
+    Eye,
+    Search,
+    Filter,
+    Clock,
+    AlertCircle,
+    CheckCircle2,
+    ShieldCheck,
+    Truck,
+    User,
+    FileCheck,
     X,
     ExternalLink,
     ChevronRight,
     SearchIcon,
     Calendar,
-    Cloud
+    Cloud,
+    Files,
+    FileImage,
+    FileArchive,
 } from "lucide-react";
 import { PAYMENT_API } from "../utils/env";
 import { fetchWithAuth } from "../utils/api";
@@ -111,6 +114,15 @@ export function Documents({ data, setData, dark, isMobile }) {
         vehicles: { label: 'Operations', icon: Truck, color: '#f59e0b' },
     }[cat] || { label: 'Other', icon: FileText, color: 'var(--text-dim)' });
 
+    // File-type icon helper
+    const fileTypeIcon = (filename) => {
+        if (!filename) return FileText;
+        const ext = filename.split('.').pop()?.toLowerCase();
+        if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext)) return FileImage;
+        if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) return FileArchive;
+        return FileText;
+    };
+
     // Enrich documents
     const enriched = documents.map(doc => ({
         ...doc,
@@ -179,77 +191,104 @@ export function Documents({ data, setData, dark, isMobile }) {
     const expiredCount = enriched.filter(d => d.status === 'expired').length;
     const expiringCount = enriched.filter(d => d.status === 'expiring').length;
 
+    const docTabConfig = [
+        { id: 'all',       label: 'All Documents' },
+        { id: 'vehicles',  label: 'Vehicles' },
+        { id: 'drivers',   label: 'Personnel' },
+        { id: 'insurance', label: 'Insurance' },
+        { id: 'legal',     label: 'Legal' },
+    ];
+
+    const statusFilterConfig = [
+        { id: 'all',      label: 'All',      color: 'var(--text-muted)' },
+        { id: 'expired',  label: 'Expired',  color: '#ef4444' },
+        { id: 'expiring', label: 'Expiring', color: '#f97316' },
+        { id: 'valid',    label: 'Valid',    color: '#10b981' },
+    ];
+
     return (
         <div className="page-shell">
             <PageHeader
-                icon={ShieldCheck}
+                icon={Files}
                 title="Documents"
-                description="Compliance files, expiry tracking, and secure storage."
+                description="Compliance files, expiry tracking, and secure cloud storage."
                 actions={
                     <Button
-                        variant={showUpload ? "secondary" : "premium"}
+                        variant={showUpload ? "secondary" : "primary"}
                         icon={showUpload ? X : Upload}
                         onClick={() => setShowUpload(!showUpload)}
                     >
-                        {showUpload ? "Cancel upload" : "Upload document"}
+                        {showUpload ? "Cancel" : "Upload Document"}
                     </Button>
                 }
             />
 
-            {/* KPI Section */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 24, marginBottom: 32 }}>
-                <Card 
-                    style={{ padding: 24, cursor: "pointer", border: statusFilter === 'all' ? "2px solid var(--brand-primary)" : "1px solid var(--border-subtle)" }}
+            {/* ── KPI Summary Cards ── */}
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)", gap: 16, marginBottom: 24 }}>
+                {/* Total */}
+                <Card
+                    accent="#38bdf8"
+                    style={{ padding: 20, cursor: "pointer", borderColor: statusFilter === 'all' ? "#38bdf8" : undefined }}
                     onClick={() => setStatusFilter('all')}
                 >
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-                        <div style={{ width: 40, height: 40, borderRadius: 10, background: "rgba(56, 189, 248, 0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "#38bdf8" }}>
-                            <FileText size={20} />
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                        <div style={{ width: 36, height: 36, borderRadius: "var(--radius-md)", background: "rgba(56,189,248,0.12)", display: "flex", alignItems: "center", justifyContent: "center", color: "#38bdf8" }}>
+                            <FileText size={18} strokeWidth={2} />
                         </div>
-                        <div style={{ fontSize: 24, fontWeight: 900 }}>{enriched.length}</div>
+                        <span style={{ fontSize: 28, fontWeight: 900, color: "var(--text-primary)", fontVariantNumeric: "tabular-nums" }}>{enriched.length}</span>
                     </div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>Total Assets</div>
-                    <div style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 4 }}>Managed in Cloudflare R2</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>Total Documents</div>
+                    <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 3 }}>Stored in Cloudflare R2</div>
                 </Card>
 
-                <Card 
-                    style={{ padding: 24, cursor: "pointer", border: statusFilter === 'expired' ? "2px solid #ef4444" : "1px solid var(--border-subtle)" }}
+                {/* Expired */}
+                <Card
+                    accent="#ef4444"
+                    style={{ padding: 20, cursor: "pointer", borderColor: statusFilter === 'expired' ? "#ef4444" : undefined }}
                     onClick={() => setStatusFilter('expired')}
                 >
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-                        <div style={{ width: 40, height: 40, borderRadius: 10, background: "rgba(239, 68, 68, 0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "#ef4444" }}>
-                            <AlertCircle size={20} />
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                        <div style={{ width: 36, height: 36, borderRadius: "var(--radius-md)", background: "rgba(239,68,68,0.12)", display: "flex", alignItems: "center", justifyContent: "center", color: "#ef4444" }}>
+                            <AlertCircle size={18} strokeWidth={2} />
                         </div>
-                        <div style={{ fontSize: 24, fontWeight: 900, color: "#ef4444" }}>{expiredCount}</div>
+                        <span style={{ fontSize: 28, fontWeight: 900, color: expiredCount > 0 ? "#ef4444" : "var(--text-primary)", fontVariantNumeric: "tabular-nums" }}>{expiredCount}</span>
                     </div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>Expired Items</div>
-                    <div style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 4 }}>Requires immediate attention</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>Expired</div>
+                    <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 3 }}>Requires immediate attention</div>
                 </Card>
 
-                <Card 
-                    style={{ padding: 24, cursor: "pointer", border: statusFilter === 'expiring' ? "2px solid #f97316" : "1px solid var(--border-subtle)" }}
+                {/* Expiring soon */}
+                <Card
+                    accent="#f97316"
+                    style={{ padding: 20, cursor: "pointer", borderColor: statusFilter === 'expiring' ? "#f97316" : undefined }}
                     onClick={() => setStatusFilter('expiring')}
                 >
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-                        <div style={{ width: 40, height: 40, borderRadius: 10, background: "rgba(249, 115, 22, 0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "#f97316" }}>
-                            <Clock size={20} />
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                        <div style={{ width: 36, height: 36, borderRadius: "var(--radius-md)", background: "rgba(249,115,22,0.12)", display: "flex", alignItems: "center", justifyContent: "center", color: "#f97316" }}>
+                            <Clock size={18} strokeWidth={2} />
                         </div>
-                        <div style={{ fontSize: 24, fontWeight: 900, color: "#f97316" }}>{expiringCount}</div>
+                        <span style={{ fontSize: 28, fontWeight: 900, color: expiringCount > 0 ? "#f97316" : "var(--text-primary)", fontVariantNumeric: "tabular-nums" }}>{expiringCount}</span>
                     </div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>Expiring ≤ 30d</div>
-                    <div style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 4 }}>Preventive renewal recommended</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>Expiring within 30 days</div>
+                    <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 3 }}>Preventive renewal recommended</div>
                 </Card>
             </div>
 
-            {/* Upload Area */}
+            {/* ── Upload Form Panel ── */}
             {showUpload && (
-                <Card style={{ padding: 32, marginBottom: 32, background: "var(--bg-card)", border: "2px dashed var(--brand-primary)" }}>
-                    <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr 1fr", gap: 24, marginBottom: 24 }}>
+                <Card style={{ padding: 24, marginBottom: 24, border: "2px dashed var(--brand-primary)" }}>
+                    <div style={{ fontSize: 13, fontWeight: 800, color: "var(--text-primary)", marginBottom: 18, display: "flex", alignItems: "center", gap: 8 }}>
+                        <Cloud size={16} color="var(--brand-primary)" />
+                        Upload New Document
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr 1fr", gap: 16, marginBottom: 20 }}>
+                        {/* Entity type */}
                         <div>
-                            <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "var(--text-dim)", textTransform: "uppercase", marginBottom: 8 }}>Target Entity Type</label>
-                            <select 
-                                className="input-premium" 
-                                style={{ width: "100%", height: 42, background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: 10, padding: "0 12px", color: "var(--text-primary)", fontWeight: 600 }}
+                            <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>
+                                Entity Type
+                            </label>
+                            <select
+                                style={{ width: "100%", height: 40, background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-md)", padding: "0 12px", color: "var(--text-primary)", fontWeight: 600, fontSize: 13 }}
                                 value={uploadForm.entityType}
                                 onChange={e => setUploadForm({ ...uploadForm, entityType: e.target.value, entityId: '', docType: '' })}
                             >
@@ -258,11 +297,13 @@ export function Documents({ data, setData, dark, isMobile }) {
                                 <option value="driver">Personnel / Driver</option>
                             </select>
                         </div>
+                        {/* Specific asset */}
                         <div>
-                            <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "var(--text-dim)", textTransform: "uppercase", marginBottom: 8 }}>Specific Asset</label>
-                            <select 
-                                className="input-premium" 
-                                style={{ width: "100%", height: 42, background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: 10, padding: "0 12px", color: "var(--text-primary)", fontWeight: 600 }}
+                            <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>
+                                Specific Asset
+                            </label>
+                            <select
+                                style={{ width: "100%", height: 40, background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-md)", padding: "0 12px", color: "var(--text-primary)", fontWeight: 600, fontSize: 13 }}
                                 value={uploadForm.entityId}
                                 onChange={e => setUploadForm({ ...uploadForm, entityId: e.target.value })}
                                 disabled={!uploadForm.entityType}
@@ -273,11 +314,13 @@ export function Documents({ data, setData, dark, isMobile }) {
                                 ))}
                             </select>
                         </div>
+                        {/* Document type */}
                         <div>
-                            <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "var(--text-dim)", textTransform: "uppercase", marginBottom: 8 }}>Document Schema</label>
-                            <select 
-                                className="input-premium" 
-                                style={{ width: "100%", height: 42, background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: 10, padding: "0 12px", color: "var(--text-primary)", fontWeight: 600 }}
+                            <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>
+                                Document Type
+                            </label>
+                            <select
+                                style={{ width: "100%", height: 40, background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-md)", padding: "0 12px", color: "var(--text-primary)", fontWeight: 600, fontSize: 13 }}
                                 value={uploadForm.docType}
                                 onChange={e => setUploadForm({ ...uploadForm, docType: e.target.value })}
                                 disabled={!uploadForm.entityId}
@@ -288,76 +331,84 @@ export function Documents({ data, setData, dark, isMobile }) {
                                 ))}
                             </select>
                         </div>
+                        {/* Label */}
                         <div>
-                            <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "var(--text-dim)", textTransform: "uppercase", marginBottom: 8 }}>Document Label</label>
-                            <input 
-                                className="input-premium" 
-                                style={{ width: "100%", height: 42, background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: 10, padding: "0 12px", color: "var(--text-primary)", fontWeight: 600 }}
+                            <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>
+                                Document Label
+                            </label>
+                            <input
+                                style={{ width: "100%", height: 40, background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-md)", padding: "0 12px", color: "var(--text-primary)", fontWeight: 600, fontSize: 13, boxSizing: "border-box" }}
                                 placeholder="e.g. Comprehensive Policy 2024"
                                 value={uploadForm.label}
                                 onChange={e => setUploadForm({ ...uploadForm, label: e.target.value })}
                             />
                         </div>
+                        {/* Expiry date */}
                         <div>
-                            <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "var(--text-dim)", textTransform: "uppercase", marginBottom: 8 }}>Regulatory Expiry</label>
-                            <input 
+                            <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>
+                                Expiry Date
+                            </label>
+                            <input
                                 type="date"
-                                className="input-premium" 
-                                style={{ width: "100%", height: 42, background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: 10, padding: "0 12px", color: "var(--text-primary)", fontWeight: 600 }}
+                                style={{ width: "100%", height: 40, background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-md)", padding: "0 12px", color: "var(--text-primary)", fontWeight: 600, fontSize: 13, boxSizing: "border-box" }}
                                 value={uploadForm.expiryDate}
                                 onChange={e => setUploadForm({ ...uploadForm, expiryDate: e.target.value })}
                             />
                         </div>
+                        {/* File picker */}
                         <div>
-                            <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "var(--text-dim)", textTransform: "uppercase", marginBottom: 8 }}>Binary Asset</label>
+                            <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>
+                                File
+                            </label>
                             <div style={{ position: "relative" }}>
-                                <input 
-                                    type="file" 
-                                    style={{ position: "absolute", inset: 0, opacity: 0, cursor: "pointer" }}
+                                <input
+                                    type="file"
+                                    style={{ position: "absolute", inset: 0, opacity: 0, cursor: "pointer", width: "100%", height: "100%" }}
                                     onChange={e => setSelectedFile(e.target.files[0])}
                                 />
-                                <div style={{ width: "100%", height: 42, background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: 10, display: "flex", alignItems: "center", padding: "0 12px", color: selectedFile ? "var(--text-primary)" : "var(--text-dim)", fontWeight: 600, fontSize: 13, gap: 8 }}>
-                                    <Cloud size={16} color="var(--brand-primary)" />
-                                    {selectedFile ? selectedFile.name : "Select File..."}
+                                <div style={{ height: 40, background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-md)", display: "flex", alignItems: "center", padding: "0 12px", gap: 8, color: selectedFile ? "var(--text-primary)" : "var(--text-muted)", fontWeight: 600, fontSize: 13 }}>
+                                    <Cloud size={15} color="var(--brand-primary)" />
+                                    {selectedFile ? selectedFile.name : "Choose file..."}
                                 </div>
                             </div>
                         </div>
                     </div>
 
                     {uploadMsg && (
-                        <div style={{ marginBottom: 20, padding: 12, borderRadius: 'var(--radius-md)', background: uploadMsg.includes('OK:') ? 'rgba(22, 163, 74, 0.08)' : 'rgba(220, 38, 38, 0.08)', color: uploadMsg.includes('OK:') ? '#4ade80' : '#f87171', fontWeight: 600, fontSize: 13 }}>
+                        <div style={{ marginBottom: 16, padding: "10px 14px", borderRadius: "var(--radius-md)", background: uploadMsg.includes('OK:') ? "rgba(22,163,74,0.08)" : "rgba(220,38,38,0.08)", color: uploadMsg.includes('OK:') ? "#4ade80" : "#f87171", fontWeight: 600, fontSize: 13 }}>
                             {uploadMsg}
                         </div>
                     )}
 
-                    <div style={{ display: "flex", gap: 12 }}>
-                        <Button variant="premium" icon={Cloud} onClick={handleUpload} disabled={uploading}>
-                            {uploading ? "Verifying..." : "Propagate to Registry"}
+                    <div style={{ display: "flex", gap: 10 }}>
+                        <Button variant="primary" icon={Cloud} onClick={handleUpload} disabled={uploading}>
+                            {uploading ? "Uploading..." : "Upload Document"}
                         </Button>
                         <Button variant="ghost" onClick={() => setShowUpload(false)}>Cancel</Button>
                     </div>
                 </Card>
             )}
 
-            {/* Filter Hub */}
-            <Card style={{ padding: "0 24px", marginBottom: 24 }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", height: 72, gap: 20, overflowX: "auto" }}>
-                    <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
-                        {[
-                            { id: 'all', label: 'All Library' },
-                            { id: 'vehicles', label: 'Vehicles' },
-                            { id: 'drivers', label: 'Personnel' },
-                            { id: 'insurance', label: 'Insurance' },
-                            { id: 'legal', label: 'Legal' }
-                        ].map(t => (
-                            <button 
+            {/* ── Filter bar ── */}
+            <Card style={{ padding: "0 20px", marginBottom: 20, overflow: "hidden" }}>
+                <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8, minHeight: 60 }}>
+                    {/* Document type tabs */}
+                    <div style={{ display: "flex", gap: 2, flexShrink: 0 }}>
+                        {docTabConfig.map(t => (
+                            <button
                                 key={t.id}
                                 onClick={() => setDocTab(t.id)}
-                                style={{ 
-                                    padding: "8px 16px", borderRadius: 20, fontSize: 13, fontWeight: 700, border: "none", cursor: "pointer",
-                                    background: docTab === t.id ? "var(--brand-primary)15" : "transparent",
-                                    color: docTab === t.id ? "var(--brand-primary)" : "var(--text-dim)",
-                                    transition: "all 0.2s"
+                                style={{
+                                    padding: "6px 14px",
+                                    borderRadius: "var(--radius-md)",
+                                    fontSize: 12,
+                                    fontWeight: 700,
+                                    border: "none",
+                                    cursor: "pointer",
+                                    background: docTab === t.id ? "var(--brand-muted)" : "transparent",
+                                    color: docTab === t.id ? "var(--brand-primary)" : "var(--text-muted)",
+                                    transition: "all 0.15s",
+                                    whiteSpace: "nowrap",
                                 }}
                             >
                                 {t.label}
@@ -365,20 +416,25 @@ export function Documents({ data, setData, dark, isMobile }) {
                         ))}
                     </div>
 
-                    <div style={{ height: 24, width: 1, background: "var(--border-subtle)" }} />
+                    {/* Separator */}
+                    <div style={{ width: 1, height: 22, background: "var(--border-subtle)", flexShrink: 0 }} />
 
-                    <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
-                        {[
-                            { id: 'all', label: 'Status: All', color: 'var(--text-dim)' },
-                            { id: 'expired', label: 'Expired', color: '#ef4444' },
-                            { id: 'expiring', label: 'Expiring', color: '#f97316' },
-                            { id: 'valid', label: 'Healthy', color: '#10b981' }
-                        ].map(s => (
-                            <button 
+                    {/* Status filters */}
+                    <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                        {statusFilterConfig.map(s => (
+                            <button
                                 key={s.id}
                                 onClick={() => setStatusFilter(s.id)}
-                                style={{ 
-                                    padding: "4px 12px", fontSize: 11, fontWeight: 700, borderRadius: 12, border: `1px solid ${statusFilter === s.id ? s.color : 'transparent'}`, background: statusFilter === s.id ? `${s.color}15` : 'transparent', color: statusFilter === s.id ? s.color : 'var(--text-dim)', cursor: "pointer"
+                                style={{
+                                    padding: "4px 11px",
+                                    fontSize: 11,
+                                    fontWeight: 700,
+                                    borderRadius: 20,
+                                    border: `1px solid ${statusFilter === s.id ? s.color : "transparent"}`,
+                                    background: statusFilter === s.id ? `${s.color}18` : "transparent",
+                                    color: statusFilter === s.id ? s.color : "var(--text-muted)",
+                                    cursor: "pointer",
+                                    transition: "all 0.15s",
                                 }}
                             >
                                 {s.label}
@@ -386,88 +442,125 @@ export function Documents({ data, setData, dark, isMobile }) {
                         ))}
                     </div>
 
-                    <div style={{ flex: 1, position: "relative", minWidth: 200 }}>
-                        <SearchIcon size={16} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "var(--text-dim)" }} />
-                        <input 
+                    {/* Search */}
+                    <div style={{ flex: 1, minWidth: 180, position: "relative" }}>
+                        <SearchIcon size={14} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)", pointerEvents: "none" }} />
+                        <input
                             value={searchQ}
                             onChange={e => setSearchQ(e.target.value)}
-                            placeholder="Search indexed assets..."
-                            style={{ width: "100%", height: 42, background: "var(--surface-subtle)", border: "1px solid var(--border-subtle)", borderRadius: 12, padding: "0 12px 0 40px", fontSize: 13, color: "var(--text-primary)", fontWeight: 600 }}
+                            placeholder="Search documents..."
+                            style={{ width: "100%", height: 36, background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-md)", padding: "0 12px 0 34px", fontSize: 12, color: "var(--text-primary)", fontWeight: 600, boxSizing: "border-box" }}
                         />
                     </div>
                 </div>
             </Card>
 
-            {/* Asset Ledger */}
+            {/* ── Document list ── */}
             <Card style={{ padding: 0, overflow: "hidden" }}>
                 {docsLoading ? (
-                    <div style={{ padding: 80, textAlign: "center", color: "var(--text-dim)" }}>
-                        <div className="spinner" style={{ marginBottom: 16 }} />
-                        <div style={{ fontWeight: 700 }}>Synchronizing Vault...</div>
+                    <div style={{ padding: 80, textAlign: "center" }}>
+                        <div className="spinner" style={{ margin: "0 auto 16px" }} />
+                        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-muted)" }}>Loading documents...</div>
+                    </div>
+                ) : visible.length === 0 ? (
+                    <div style={{ padding: "80px 24px", textAlign: "center" }}>
+                        <div style={{ width: 56, height: 56, borderRadius: "var(--radius-lg)", background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", color: "var(--text-muted)" }}>
+                            <Files size={26} strokeWidth={1.5} />
+                        </div>
+                        <div style={{ fontSize: 15, fontWeight: 800, color: "var(--text-primary)", marginBottom: 6 }}>
+                            {searchQ || docTab !== 'all' || statusFilter !== 'all' ? "No documents match your filters" : "No documents uploaded yet"}
+                        </div>
+                        <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
+                            {searchQ || docTab !== 'all' || statusFilter !== 'all'
+                                ? "Try adjusting your search or filters."
+                                : "Upload compliance files using the button above."}
+                        </div>
                     </div>
                 ) : (
                     <div style={{ overflowX: "auto" }}>
                         <table className="table-modern">
                             <thead>
                                 <tr>
-                                    <th className="sticky-col" onClick={() => setSortCol('name')} style={{ cursor: "pointer" }} title="Document Name">Document Name {sortCol === 'name' && (sortAsc ? "↑" : "↓")}</th>
-                                    <th title="Schema">Schema</th>
-                                    <th onClick={() => setSortCol('entity')} style={{ cursor: "pointer" }} title="Linked Asset">Linked Asset {sortCol === 'entity' && (sortAsc ? "↑" : "↓")}</th>
-                                    <th onClick={() => setSortCol('expiry')} style={{ cursor: "pointer" }} title="Expiry Map">Expiry Map {sortCol === 'expiry' && (sortAsc ? "↑" : "↓")}</th>
-                                    <th className="status-col" title="Status">Status</th>
-                                    <th style={{ textAlign: "right" }} title="Actions">Actions</th>
+                                    <th
+                                        className="sticky-col"
+                                        onClick={() => { setSortCol('name'); setSortAsc(s => sortCol === 'name' ? !s : true); }}
+                                        style={{ cursor: "pointer", userSelect: "none" }}
+                                    >
+                                        Document {sortCol === 'name' && (sortAsc ? "↑" : "↓")}
+                                    </th>
+                                    <th>Category</th>
+                                    <th
+                                        onClick={() => { setSortCol('entity'); setSortAsc(s => sortCol === 'entity' ? !s : true); }}
+                                        style={{ cursor: "pointer", userSelect: "none" }}
+                                    >
+                                        Linked Asset {sortCol === 'entity' && (sortAsc ? "↑" : "↓")}
+                                    </th>
+                                    <th
+                                        onClick={() => { setSortCol('expiry'); setSortAsc(s => sortCol === 'expiry' ? !s : true); }}
+                                        style={{ cursor: "pointer", userSelect: "none" }}
+                                    >
+                                        Expiry {sortCol === 'expiry' && (sortAsc ? "↑" : "↓")}
+                                    </th>
+                                    <th className="status-col">Status</th>
+                                    <th style={{ textAlign: "right" }}>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {visible.length === 0 ? (
-                                    <tr>
-                                        <td colSpan={6} style={{ padding: 100, textAlign: "center" }}>
-                                            <div style={{ color: "var(--text-dim)", fontWeight: 600 }}>No documents found matching the current perspective.</div>
-                                        </td>
-                                    </tr>
-                                ) : visible.map(doc => {
+                                {visible.map(doc => {
                                     const cat = categoryLabel(doc.category);
+                                    const FileIcon = fileTypeIcon(doc.filename);
                                     return (
                                         <tr key={doc.id}>
+                                            {/* Document name + filename */}
                                             <td className="sticky-col" title={`${doc.label} (${doc.filename})`}>
                                                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                                                    <div style={{ width: 40, height: 40, borderRadius: 10, background: "var(--surface-subtle)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--brand-primary)" }}>
-                                                        <FileText size={20} />
+                                                    <div style={{ width: 38, height: 38, borderRadius: "var(--radius-md)", background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--brand-primary)", flexShrink: 0 }}>
+                                                        <FileIcon size={18} strokeWidth={1.5} />
                                                     </div>
-                                                    <div>
-                                                        <div style={{ fontWeight: 800, color: "var(--text-primary)", fontSize: 14 }}>{doc.label}</div>
-                                                        <div style={{ fontSize: 11, color: "var(--text-dim)", fontWeight: 500 }}>{doc.filename}</div>
+                                                    <div style={{ minWidth: 0 }}>
+                                                        <div style={{ fontWeight: 800, color: "var(--text-primary)", fontSize: 13, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 220 }}>{doc.label}</div>
+                                                        <div style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 220 }}>{doc.filename}</div>
                                                     </div>
                                                 </div>
                                             </td>
+
+                                            {/* Category */}
                                             <td title={cat.label}>
-                                                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                                    <div style={{ width: 28, height: 28, borderRadius: 6, background: `${cat.color}15`, display: "flex", alignItems: "center", justifyContent: "center", color: cat.color }}>
-                                                        <cat.icon size={14} />
-                                                    </div>
-                                                    <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-secondary)" }}>{cat.label}</div>
+                                                <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 10px", borderRadius: "var(--radius-md)", background: `${cat.color}12`, border: `1px solid ${cat.color}20` }}>
+                                                    <cat.icon size={13} color={cat.color} strokeWidth={2} />
+                                                    <span style={{ fontSize: 11, fontWeight: 700, color: cat.color }}>{cat.label}</span>
                                                 </div>
                                             </td>
+
+                                            {/* Linked asset */}
                                             <td title={`${doc.entityType}: ${doc.entityName}`}>
-                                                <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 10px", borderRadius: 8, background: "var(--surface-subtle)", fontSize: 12, fontWeight: 700, color: "var(--text-primary)" }}>
-                                                    {doc.entityType === 'truck' ? <Truck size={12} /> : <User size={12} />}
+                                                <div style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 10px", borderRadius: "var(--radius-md)", background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", fontSize: 12, fontWeight: 700, color: "var(--text-secondary)", whiteSpace: "nowrap" }}>
+                                                    {doc.entityType === 'truck' ? <Truck size={12} strokeWidth={2} /> : <User size={12} strokeWidth={2} />}
                                                     {doc.entityName}
                                                 </div>
                                             </td>
-                                            <td title={doc.expiryDate ? `Expires on ${fmtDate(doc.expiryDate)}` : "Lifetime document"}>
+
+                                            {/* Expiry */}
+                                            <td title={doc.expiryDate ? `Expires ${fmtDate(doc.expiryDate)}` : "Lifetime document"}>
                                                 {doc.expiryDate ? (
                                                     <div>
-                                                        <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: 6 }}>
-                                                            <Calendar size={14} />
+                                                        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: 5 }}>
+                                                            <Calendar size={13} strokeWidth={2} color="var(--text-muted)" />
                                                             {fmtDate(doc.expiryDate)}
                                                         </div>
-                                                        <div style={{ width: 100, height: 4, background: "var(--surface-subtle)", borderRadius: 2, marginTop: 6, overflow: "hidden" }}>
-                                                            <div style={{ height: "100%", width: `${Math.max(0, Math.min(100, ((365 - (daysUntil(doc.expiryDate) || 0)) / 365) * 100))}%`, background: doc.status === 'expired' ? "#ef4444" : doc.status === 'expiring' ? "#f97316" : "#10b981" }} />
+                                                        <div style={{ width: 80, height: 3, background: "var(--border-subtle)", borderRadius: 2, marginTop: 5, overflow: "hidden" }}>
+                                                            <div style={{ height: "100%", width: `${Math.max(0, Math.min(100, ((365 - (daysUntil(doc.expiryDate) || 0)) / 365) * 100))}%`, background: doc.status === 'expired' ? "#ef4444" : doc.status === 'expiring' ? "#f97316" : "#10b981", borderRadius: 2 }} />
                                                         </div>
                                                     </div>
-                                                ) : <span style={{ color: "var(--text-dim)", fontSize: 12 }}>Lifetime</span>}
+                                                ) : (
+                                                    <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 600 }}>Lifetime</span>
+                                                )}
                                             </td>
-                                            <td className="status-col" title={docStatus(doc)}>{statusBadge(doc)}</td>
+
+                                            {/* Status badge */}
+                                            <td className="status-col">{statusBadge(doc)}</td>
+
+                                            {/* Actions */}
                                             <td style={{ textAlign: "right", verticalAlign: "middle" }}>
                                                 <TableRowActions
                                                     ariaLabel={`Actions for ${doc.label || doc.filename}`}
@@ -505,5 +598,3 @@ export function Documents({ data, setData, dark, isMobile }) {
         </div>
     );
 }
-
-function ArrowUpIcon({ size, color }) { return <ChevronRight size={size} style={{ transform: 'rotate(-90deg)' }} color={color || "currentColor"} />; }
