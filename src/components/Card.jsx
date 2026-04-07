@@ -23,7 +23,7 @@ export function Card({
         background: "var(--bg-card)",
         border: "1px solid var(--border-subtle)",
         borderRadius: "var(--radius-lg)",
-        padding: "20px",
+        padding: "16px",
         boxShadow: "var(--shadow-sm)",
         cursor: onClick ? "pointer" : "default",
         transition: onClick

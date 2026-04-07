@@ -163,29 +163,22 @@ button, input, select, textarea {
 }
 
 /* ── 3. LAYOUT SHELL ─────────────────────────────────────────── */
-.page-shell {
-  max-width: 1640px;
-  margin: 0 auto;
+.page-shell,
+.page-shell-wide {
   width: 100%;
   box-sizing: border-box;
   overflow-x: clip;
-  padding: 32px 32px 64px;
-}
-
-.page-shell-wide {
-  max-width: 100%;
-  padding: 32px 32px 64px;
-  box-sizing: border-box;
+  padding: 24px 28px 40px;
 }
 
 @media (max-width: 1024px) {
-  .page-shell, .page-shell-wide { padding: 24px 24px 48px; }
+  .page-shell, .page-shell-wide { padding: 20px 20px 32px; }
 }
 @media (max-width: 768px) {
-  .page-shell, .page-shell-wide { padding: 20px 16px 40px; }
+  .page-shell, .page-shell-wide { padding: 16px 14px 28px; }
 }
 @media (max-width: 480px) {
-  .page-shell, .page-shell-wide { padding: 16px 12px 32px; }
+  .page-shell, .page-shell-wide { padding: 12px 12px 24px; }
 }
 
 /* ── 4. SIDEBAR ──────────────────────────────────────────────── */
@@ -556,7 +549,7 @@ button, input, select, textarea {
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
-  padding: 20px;
+  padding: 16px;
   box-shadow: var(--shadow-xs);
   position: relative;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;

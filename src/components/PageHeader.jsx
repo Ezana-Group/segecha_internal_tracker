@@ -14,7 +14,7 @@ export function PageHeader({
     actions,
     belowTitle,
     className = "",
-    marginBottom = 28,
+    marginBottom = 20,
 }) {
     return (
         <header
@@ -29,7 +29,7 @@ export function PageHeader({
                     justifyContent: "space-between",
                     flexWrap: "wrap",
                     gap: "12px 20px",
-                    paddingBottom: 16,
+                    paddingBottom: 12,
                 }}
             >
                 {/* Left: icon + text */}

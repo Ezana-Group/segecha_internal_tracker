@@ -216,7 +216,6 @@ export default function App() {
                         marginTop: authed
                             ? (state.previewMode ? "calc(var(--topbar-height) + 40px)" : "var(--topbar-height)")
                             : 0,
-                        padding: isMobile ? "16px" : "32px",
                         minWidth: 0,
                         display: "flex",
                         flexDirection: "column",
