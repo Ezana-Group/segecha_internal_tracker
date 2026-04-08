@@ -25,6 +25,12 @@ const STORAGE_KEY = "segecha_tracker_v2";
  */
 function transformDBTables(tables = {}) {
     const m = (row) => (row && row.metadata) ? row.metadata : {};
+    /**
+     * Strip the time component from any DB date/timestamp so HTML <input type="date">
+     * always receives a clean "YYYY-MM-DD" string (not "2026-03-30T00:00:00.000Z").
+     * PostgreSQL DATE columns arrive as ISO strings after JSON serialisation.
+     */
+    const d = (v) => v ? String(v).split('T')[0] : '';
 
     const trucks = (tables.trucks || []).map(row => ({
         ...m(row),
@@ -65,7 +71,7 @@ function transformDBTables(tables = {}) {
         class:   m(row).class   || '',
         status:  row.status     || 'Active',
         truck:   row.truck_id   || m(row).truck || '',
-        joined:  m(row).joined  || '',
+        joined:  d(m(row).joined),
         salary:  m(row).salary  || 0,
         mpesa:   m(row).mpesa   || '',
         email:   m(row).email   || row.email || '',
@@ -93,7 +99,7 @@ function transformDBTables(tables = {}) {
         role:       row.role   || '',
         status:     row.status || 'Active',
         salary:     m(row).salary || 0,
-        joined:     m(row).joined || '',
+        joined:     d(m(row).joined),
         firstLogin: m(row).firstLogin ?? true,
     }));
 
@@ -135,7 +141,7 @@ function transformDBTables(tables = {}) {
         uId:          m(row).uId || m(row).uid || row.id,
         truck:        row.truck_id   || m(row).truck   || '',
         journey:      row.journey_id || m(row).journey || '',
-        date:         row.date || '',
+        date:         d(row.date),
         litres:       Number(row.litres) || 0,
         pricePerL:    m(row).pricePerL || (row.amount && row.litres ? row.amount / row.litres : 0),
         station:      row.station  || '',
@@ -156,7 +162,7 @@ function transformDBTables(tables = {}) {
         cat:         row.category   || m(row).cat     || '',
         subCat:      m(row).subCat  || '',
         amount:      Number(row.amount) || 0,
-        date:        row.date    || '',
+        date:        d(row.date),
         desc:        row.description || m(row).desc || '',
         description: row.description || m(row).desc || '', // alias
         odom:        m(row).odom || 0,
@@ -173,13 +179,13 @@ function transformDBTables(tables = {}) {
         phone:        m(row).phone    || '',
         email:        m(row).email    || '',
         amount:       Number(row.amount) || 0,
-        issued:       m(row).issued   || row.created_at || '',
-        date:         m(row).issued   || row.created_at || '', // alias
-        due:          row.due_date    || m(row).due     || '',
-        dueDate:      row.due_date    || m(row).due     || '', // alias
+        issued:       d(m(row).issued   || row.created_at),
+        date:         d(m(row).issued   || row.created_at), // alias
+        due:          d(row.due_date    || m(row).due),
+        dueDate:      d(row.due_date    || m(row).due),     // alias
         status:       row.status      || '',
         mpesaRef:     m(row).mpesaRef  || '',
-        paidDate:     m(row).paidDate  || '',
+        paidDate:     d(m(row).paidDate),
         paidAmount:   m(row).paidAmount || 0,
         payments:     m(row).payments  || [],
         notes:        m(row).notes     || '',
@@ -197,7 +203,7 @@ function transformDBTables(tables = {}) {
         amount:              Number(row.amount) || 0,
         status:              row.status     || '',
         mpesaRef:            m(row).mpesaRef || '',
-        paidDate:            m(row).paidDate || '',
+        paidDate:            d(m(row).paidDate),
         _calculatedMileage:  m(row)._calculatedMileage || 0,
     }));
 
@@ -210,8 +216,8 @@ function transformDBTables(tables = {}) {
         severity:     row.severity   || m(row).severity  || '',
         description:  row.description || '',
         status:       row.status     || '',
-        date:         m(row).date    || row.created_at   || '',
-        createdAt:    row.created_at || '',
+        date:         d(m(row).date  || row.created_at),
+        createdAt:    d(row.created_at),
         driverId:     m(row).driverId || '',
         driver:       m(row).driverId || m(row).driver   || '', // alias
         truck:        m(row).truck   || '',
@@ -225,13 +231,31 @@ function transformDBTables(tables = {}) {
         position:     row.position     || m(row).position || '',
         serialNumber: row.serial_number || m(row).serialNumber || '',
         status:       row.status       || '',
-        date:         m(row).date      || row.created_at  || '',
+        date:         d(m(row).date    || row.created_at),
         odom:         m(row).odom      || 0,
         brand:        m(row).brand     || '',
         size:         m(row).size      || '',
         cost:         m(row).cost      || 0,
         notes:        m(row).notes     || '',
         action:       m(row).action    || 'Replacement',
+    }));
+
+    // maintenance_logs was fetched by backupEverything() but was never transformed —
+    // the collection was silently missing from the frontend state after every page load.
+    const maintenanceLogs = (tables.maintenance_logs || []).map(row => ({
+        ...m(row),
+        id:          row.id,
+        uId:         m(row).uId || m(row).uid || row.id,
+        truck:       row.truck_id || m(row).truck || '',
+        type:        m(row).type  || '',
+        date:        d(row.date   || m(row).date  || row.created_at),
+        odom:        Number(row.next_service_mileage || m(row).odom || 0),
+        cost:        Number(row.cost || m(row).cost || m(row).amount || 0),
+        amount:      Number(row.cost || m(row).cost || m(row).amount || 0), // alias
+        desc:        row.description || m(row).desc || '',
+        description: row.description || m(row).desc || '', // alias
+        status:      row.status  || m(row).status || '',
+        notes:       m(row).notes || '',
     }));
 
     return {
@@ -247,6 +271,7 @@ function transformDBTables(tables = {}) {
         payroll,
         incidents,
         tyreLogs,
+        maintenanceLogs,
         documents: tables.documents || [],
     };
 }
@@ -273,7 +298,7 @@ export function useAppState() {
         trucks: [], drivers: [], trailers: [], customers: [],
         journeys: [], fuel: [], expenses: [], incidents: [],
         staff: [], payroll: [], invoices: [], documents: [],
-        tyreLogs: [],
+        tyreLogs: [], maintenanceLogs: [],
     };
     const [data, setData] = useState(() => {
         try {
