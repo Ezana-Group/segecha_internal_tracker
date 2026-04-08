@@ -141,86 +141,115 @@ async function enrichJourneys(journeys) {
 
 // ─── getDriverData ────────────────────────────────────────────────────────────
 
+/** Safe wrapper — logs the error and returns a fallback value instead of crashing the whole request */
+async function safeQuery(label, fallback, fn) {
+    try {
+        return await fn();
+    } catch (e) {
+        console.error(`[PORTAL_DATA/${label}]`, e.message);
+        return fallback;
+    }
+}
+
 async function getDriverData(driverId) {
-    // 1. Driver record
+    // 1. Driver record — this one must succeed; return null to trigger 404
     const driverRes = await db.query('SELECT * FROM drivers WHERE id = $1', [driverId]);
     if (!driverRes.rows[0]) return null;
     const driver = flattenDriverRow(driverRes.rows[0]);
 
     // 2. Assigned truck
     const truckId = driver.truck_id || driver.truck || driver.metadata?.truck || null;
-    let truck = null;
-    if (truckId) {
-        const truckRes = await db.query('SELECT * FROM trucks WHERE id = $1', [truckId]);
-        if (truckRes.rows[0]) truck = flattenTruckRow(truckRes.rows[0]);
-    }
+    const truck = await safeQuery('truck', null, async () => {
+        if (!truckId) return null;
+        const r = await db.query('SELECT * FROM trucks WHERE id = $1', [truckId]);
+        return r.rows[0] ? flattenTruckRow(r.rows[0]) : null;
+    });
 
     // 3. All journeys for this driver
-    const journeysRes = await db.query(
-        'SELECT * FROM journeys WHERE driver_id = $1 ORDER BY created_at DESC',
-        [driverId]
-    );
-    const allJourneys = journeysRes.rows.map(flattenJourneyRow);
+    const allJourneys = await safeQuery('journeys', [], async () => {
+        const r = await db.query(
+            'SELECT * FROM journeys WHERE driver_id = $1 ORDER BY created_at DESC',
+            [driverId]
+        );
+        return r.rows.map(flattenJourneyRow);
+    });
 
-    const activeJourneys    = await enrichJourneys(allJourneys.filter(j => ACTIVE_JOURNEY_STATUSES.includes(j.status)));
-    const completedJourneys = await enrichJourneys(allJourneys.filter(j => j.status === 'Completed'));
+    const [activeJourneys, completedJourneys] = await safeQuery('journeys_enrich', [[], []], async () => {
+        const active    = await enrichJourneys(allJourneys.filter(j => ACTIVE_JOURNEY_STATUSES.includes(j.status)));
+        const completed = await enrichJourneys(allJourneys.filter(j => j.status === 'Completed'));
+        return [active, completed];
+    });
 
-    // 4. Fuel entries (submitted by this driver OR on their truck)
-    const fuelRes = await db.query(
-        `SELECT * FROM fuel_logs
-         WHERE metadata->>'_submittedBy' = $1
-            OR (truck_id = $2 AND $2 IS NOT NULL)
-         ORDER BY date DESC, created_at DESC
-         LIMIT 20`,
-        [driverId, truckId || null]
-    );
-    const fuelEntries = fuelRes.rows.map(flattenRow);
+    // 4. Fuel entries — use COALESCE so missing metadata column doesn't crash
+    const fuelEntries = await safeQuery('fuel', [], async () => {
+        const r = await db.query(
+            `SELECT * FROM fuel_logs
+             WHERE COALESCE(metadata->>'_submittedBy', '') = $1
+                OR (truck_id = $2 AND $2 IS NOT NULL)
+             ORDER BY date DESC, created_at DESC
+             LIMIT 20`,
+            [driverId, truckId || null]
+        );
+        return r.rows.map(flattenRow);
+    });
 
     // 5. Expenses
-    const expenseRes = await db.query(
-        `SELECT * FROM expenses
-         WHERE metadata->>'_submittedBy' = $1
-            OR journey_id IN (SELECT id FROM journeys WHERE driver_id = $1)
-         ORDER BY date DESC, created_at DESC
-         LIMIT 20`,
-        [driverId]
-    );
-    const expenseEntries = expenseRes.rows.map(flattenRow);
+    const expenseEntries = await safeQuery('expenses', [], async () => {
+        const r = await db.query(
+            `SELECT * FROM expenses
+             WHERE COALESCE(metadata->>'_submittedBy', '') = $1
+                OR journey_id IN (SELECT id FROM journeys WHERE driver_id = $1)
+             ORDER BY date DESC, created_at DESC
+             LIMIT 20`,
+            [driverId]
+        );
+        return r.rows.map(flattenRow);
+    });
 
     // 6. Incidents
-    const incidentRes = await db.query(
-        `SELECT * FROM incidents
-         WHERE metadata->>'driverId' = $1
-            OR metadata->>'driver' = $1
-         ORDER BY created_at DESC
-         LIMIT 20`,
-        [driverId]
-    );
-    const incidentEntries = incidentRes.rows.map(flattenRow);
+    const incidentEntries = await safeQuery('incidents', [], async () => {
+        const r = await db.query(
+            `SELECT * FROM incidents
+             WHERE COALESCE(metadata->>'driverId', '') = $1
+                OR COALESCE(metadata->>'driver', '')   = $1
+             ORDER BY created_at DESC
+             LIMIT 20`,
+            [driverId]
+        );
+        return r.rows.map(flattenRow);
+    });
 
     // 7. Payroll / payslips
-    const payrollRes = await db.query(
-        `SELECT * FROM payroll
-         WHERE entity_id = $1 AND entity_type = 'driver'
-         ORDER BY month DESC`,
-        [driverId]
-    );
-    const payslips = payrollRes.rows.map(flattenRow);
+    const payslips = await safeQuery('payroll', [], async () => {
+        const r = await db.query(
+            `SELECT * FROM payroll
+             WHERE entity_id = $1 AND entity_type = 'driver'
+             ORDER BY month DESC`,
+            [driverId]
+        );
+        return r.rows.map(flattenRow);
+    });
 
-    // 8. Customers list (id + name + phone + email + type)
-    const custRes = await db.query(
-        'SELECT id, name, phone, email, metadata FROM customers WHERE status = $1 OR status IS NULL ORDER BY name',
-        ['Active']
-    );
-    const customers = custRes.rows.map(r => ({
-        id:    r.id,
-        name:  r.name,
-        phone: r.phone  || '',
-        email: r.email  || '',
-        type:  r.metadata?.type || 'Individual',
-    }));
+    // 8. Customers list
+    const customers = await safeQuery('customers', [], async () => {
+        const r = await db.query(
+            `SELECT id, name, phone, email,
+                    CASE WHEN metadata IS NOT NULL THEN metadata ELSE '{}'::jsonb END AS metadata
+             FROM customers
+             WHERE status = $1 OR status IS NULL
+             ORDER BY name`,
+            ['Active']
+        );
+        return r.rows.map(r => ({
+            id:    r.id,
+            name:  r.name,
+            phone: r.phone || '',
+            email: r.email || '',
+            type:  r.metadata?.type || 'Individual',
+        }));
+    });
 
-    // 9. Tyre info
+    // 9. Tyre info (computed from truck, no DB call needed)
     let tyreInfo = null;
     if (truck) {
         const odom      = truck.odom      || truck.current_mileage || 0;
@@ -237,18 +266,19 @@ async function getDriverData(driverId) {
     }
 
     // 10. Profile permissions from settings
-    const ppRes = await db.query(
-        "SELECT value FROM system_settings WHERE key = 'profilePermissions'",
-        []
-    );
-    const profilePermissions = ppRes.rows[0]?.value || null;
+    const profilePermissions = await safeQuery('settings', null, async () => {
+        const r = await db.query(
+            "SELECT value FROM system_settings WHERE key = 'profilePermissions'"
+        );
+        return r.rows[0]?.value || null;
+    });
 
     return {
         driver,
         truck,
         tyreInfo,
-        activeJourneys,
-        completedJourneys,
+        activeJourneys:   activeJourneys   || [],
+        completedJourneys: completedJourneys || [],
         fuelEntries,
         expenseEntries,
         incidentEntries,

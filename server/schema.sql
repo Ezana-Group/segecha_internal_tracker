@@ -380,4 +380,48 @@ BEGIN
         ALTER TABLE staff_auth  ADD COLUMN failed_attempts INTEGER DEFAULT 0;
         ALTER TABLE staff_auth  ADD COLUMN locked_until TIMESTAMP WITH TIME ZONE;
     END IF;
+
+    -- metadata JSONB column on all tables that need it (for older DBs created before this column existed)
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='fuel_logs'         AND column_name='metadata') THEN
+        ALTER TABLE fuel_logs         ADD COLUMN metadata JSONB DEFAULT '{}';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='expenses'          AND column_name='metadata') THEN
+        ALTER TABLE expenses          ADD COLUMN metadata JSONB DEFAULT '{}';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='incidents'         AND column_name='metadata') THEN
+        ALTER TABLE incidents         ADD COLUMN metadata JSONB DEFAULT '{}';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='payroll'           AND column_name='metadata') THEN
+        ALTER TABLE payroll           ADD COLUMN metadata JSONB DEFAULT '{}';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='customers'         AND column_name='metadata') THEN
+        ALTER TABLE customers         ADD COLUMN metadata JSONB DEFAULT '{}';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='maintenance_logs'  AND column_name='metadata') THEN
+        ALTER TABLE maintenance_logs  ADD COLUMN metadata JSONB DEFAULT '{}';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='tyre_logs'         AND column_name='metadata') THEN
+        ALTER TABLE tyre_logs         ADD COLUMN metadata JSONB DEFAULT '{}';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='invoices'          AND column_name='metadata') THEN
+        ALTER TABLE invoices          ADD COLUMN metadata JSONB DEFAULT '{}';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='documents'         AND column_name='metadata') THEN
+        ALTER TABLE documents         ADD COLUMN metadata JSONB DEFAULT '{}';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='journeys'          AND column_name='metadata') THEN
+        ALTER TABLE journeys          ADD COLUMN metadata JSONB DEFAULT '{}';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='drivers'           AND column_name='metadata') THEN
+        ALTER TABLE drivers           ADD COLUMN metadata JSONB DEFAULT '{}';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='trucks'            AND column_name='metadata') THEN
+        ALTER TABLE trucks            ADD COLUMN metadata JSONB DEFAULT '{}';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='staff'             AND column_name='metadata') THEN
+        ALTER TABLE staff             ADD COLUMN metadata JSONB DEFAULT '{}';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='customers'         AND column_name='status') THEN
+        ALTER TABLE customers         ADD COLUMN status TEXT DEFAULT 'Active';
+    END IF;
 END $$;
