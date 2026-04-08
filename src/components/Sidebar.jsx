@@ -52,7 +52,7 @@ const FINANCE_IDS = new Set(["fuel", "expenses", "invoices", "payroll", "pnl"]);
 // Nav items belonging to the Core group
 const CORE_IDS = new Set(["dashboard", "trucks", "fleet", "drivers", "staff", "customers", "journeys"]);
 
-export function Sidebar({ sideOpen, setSideOpen, isMobile, tyreAlertCount, verifyAlertCount, resetData, data, importSession, previewMode }) {
+export function Sidebar({ sideOpen, setSideOpen, isMobile, tyreAlertCount, verifyAlertCount, data, importSession, previewMode }) {
     const activeCount = data?.trucks?.filter((t) => t.status === "Active").length || 0;
     const inTransitCount = data?.journeys?.filter((j) => ["In Transit", "Awaiting Start Verification"].includes(j.status)).length || 0;
     const navItems = previewMode ? getPreviewNavItems(previewMode, data) : NAV;
@@ -204,11 +204,6 @@ export function Sidebar({ sideOpen, setSideOpen, isMobile, tyreAlertCount, verif
                     </div>
                 </div>
 
-                {!previewMode ? (
-                    <button type="button" className="sidebar-meta-btn" onClick={resetData}>
-                        Reset demo data
-                    </button>
-                ) : null}
             </div>
         </aside>
     );

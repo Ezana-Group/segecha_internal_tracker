@@ -812,13 +812,6 @@ export function useAppState() {
         showToast("Invoice marked as paid", "success");
     };
 
-    const resetData = () => {
-        if (window.confirm("Reset all local data to demo data? This cannot be undone.")) {
-            localStorage.removeItem(STORAGE_KEY);
-            window.location.reload();
-        }
-    };
-
     const hardResetSystem = async () => {
         if (!window.confirm("CRITICAL: This will permanently delete ALL data from BOTH this browser and the production server. This cannot be undone. Continue?")) {
             return;
@@ -1778,7 +1771,7 @@ export function useAppState() {
         invoicePreview, setInvoicePreview,
         sideOpen, setSideOpen,
         dark, setDark,
-        saveItem, delItem, markPayrollPaid, markInvoicePaid, resetData, hardResetSystem,
+        saveItem, delItem, markPayrollPaid, markInvoicePaid, hardResetSystem,
         verifyJourney, fetchPendingVerifications, syncToServer,
         verifySubmission,
         driverName, driverPhone, staffName, truckReg, customerName, truckStats, tyreStatus, maintenanceStatus, logMaintenance, logTyreChange,
