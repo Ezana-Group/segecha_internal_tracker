@@ -200,9 +200,9 @@ export function DriverProfile({ data, setData, dark, isMobile, truckReg, openMod
             body: JSON.stringify({ driverId: driver.id }),
         })
             .then(r => r.json())
-            .then(data => {
-                if (data.token) setPreviewIframeToken(data.token);
-                else setPreviewIframeError(data.error || 'Could not generate preview token');
+            .then(result => {
+                if (result.token) setPreviewIframeToken(result.token);
+                else setPreviewIframeError(result.error || 'Could not generate preview token');
             })
             .catch(() => setPreviewIframeError('Server error generating preview'))
             .finally(() => setPreviewIframeLoading(false));
@@ -373,7 +373,7 @@ export function DriverProfile({ data, setData, dark, isMobile, truckReg, openMod
                                                     body: JSON.stringify({ driverId: driver.id }),
                                                 })
                                                     .then(r => r.json())
-                                                    .then(data => { if (data.token) setPreviewIframeToken(data.token); else setPreviewIframeError(data.error || 'Error'); })
+                                                    .then(result => { if (result.token) setPreviewIframeToken(result.token); else setPreviewIframeError(result.error || 'Error'); })
                                                     .catch(() => setPreviewIframeError('Server error'))
                                                     .finally(() => setPreviewIframeLoading(false));
                                             }}
