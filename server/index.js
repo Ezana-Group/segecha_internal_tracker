@@ -171,6 +171,29 @@ const PUBLIC_ROUTES = [
     '/staff/login',  '/staff/forgot-password',  '/staff/set-password',
 ];
 
+// Driver/staff portal routes — protected by driverAuth.authMiddleware / staffAuth.authMiddleware,
+// NOT by adminAuth. These prefixes bypass adminAuth so the JWT middleware on each route can run.
+// NOTE: admin-managed account routes (/driver/create-account, /driver/account-status, etc.)
+// are NOT listed here and remain admin-protected.
+const DRIVER_PORTAL_PREFIXES = [
+    '/driver/me',
+    '/driver/portal-data',
+    '/driver/journey/',
+    '/driver/journeys/',
+    '/driver/fuel',
+    '/driver/expense',
+    '/driver/incident',
+    '/driver/maintenance',
+    '/driver/upload',
+    '/documents/mine',
+    '/documents/driver-upload',
+];
+
+const STAFF_PORTAL_PREFIXES = [
+    '/staff/me',
+    '/staff/portal-data',
+];
+
 const adminAuth = async (req, res, next) => {
     // 0. Skip for preflight
     if (req.method === 'OPTIONS') return next();
@@ -178,6 +201,14 @@ const adminAuth = async (req, res, next) => {
     // 1. Whitelist public routes (relative to /api mount point)
     const path = req.path.replace(/\/$/, '');
     if (PUBLIC_ROUTES.includes(path)) {
+        return next();
+    }
+
+    // 2. Pass through driver/staff portal routes — they have their own JWT middleware
+    if (
+        DRIVER_PORTAL_PREFIXES.some(p => path === p || path.startsWith(p)) ||
+        STAFF_PORTAL_PREFIXES.some(p => path === p || path.startsWith(p))
+    ) {
         return next();
     }
 

@@ -12,7 +12,7 @@ const getApiUrl = () => {
 };
 
 export const PAYMENT_API = getApiUrl();
-export const PORTAL_URL  = import.meta.env.VITE_PAYMENT_URL;
+export const PORTAL_URL  = import.meta.env.VITE_PAYMENT_URL || '';
 // Read VITE_DRIVER_PORTAL_URL (canonical name matching .env.example.local).
 // Also fall back to the legacy VITE_DRIVER_URL key so old deployments keep working.
 export const DRIVER_PORTAL_URL =
