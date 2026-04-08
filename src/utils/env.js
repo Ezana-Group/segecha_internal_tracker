@@ -15,10 +15,12 @@ export const PAYMENT_API = getApiUrl();
 export const PORTAL_URL  = import.meta.env.VITE_PAYMENT_URL || '';
 // Read VITE_DRIVER_PORTAL_URL (canonical name matching .env.example.local).
 // Also fall back to the legacy VITE_DRIVER_URL key so old deployments keep working.
+// Final fallback: known production driver portal URL so the preview iframe always
+// renders even when the env var isn't configured in the hosting platform.
 export const DRIVER_PORTAL_URL =
     import.meta.env.VITE_DRIVER_PORTAL_URL ||
     import.meta.env.VITE_DRIVER_URL ||
-    '';
+    'https://driver.segecha.com';
 export const TRACK_URL   = import.meta.env.VITE_TRACK_URL || '';
 // ADMIN_KEY intentionally removed from the frontend (CRIT-02).
 // All admin API calls must use the JWT Bearer token from /api/admin/login.
