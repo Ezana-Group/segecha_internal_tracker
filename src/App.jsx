@@ -202,7 +202,7 @@ export default function App() {
                     previewMode={state.previewMode}
                     label={previewLabel}
                     driverPortalUrl={DRIVER_PORTAL_URL}
-                    className={isMobile ? "" : "with-sidebar-offset"}
+                    className=""
                     onExit={() => {
                         state.clearPreviewMode();
                         navigate("/", { replace: true });

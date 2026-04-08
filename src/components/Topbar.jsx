@@ -22,13 +22,16 @@ export function Topbar({
     const activeTrucks = data.trucks.filter((t) => t.status === "Active").length;
     const totalTrucks = data.trucks.length;
 
+    // In preview mode the sidebar is hidden — topbar must span the full width from left:0
+    const sidebarVisible = !isMobile && !previewMode;
+
     return (
         <header
-            className={`topbar-shell${isMobile ? " full-bleed" : " with-sidebar"}`}
+            className={`topbar-shell${sidebarVisible ? " with-sidebar" : " full-bleed"}`}
             style={{
                 position: "fixed",
                 top: 0,
-                left: isMobile ? 0 : "var(--sidebar-width)",
+                left: sidebarVisible ? "var(--sidebar-width)" : 0,
                 right: 0,
                 height: "var(--topbar-height)",
                 zIndex: 100,
@@ -39,10 +42,10 @@ export function Topbar({
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
-                paddingLeft: isMobile ? 16 : 24,
+                paddingLeft: sidebarVisible ? 24 : 16,
                 paddingRight: 16,
                 boxSizing: "border-box",
-                marginLeft: isMobile ? 0 : "var(--sidebar-width)",
+                marginLeft: 0,
             }}
         >
             {/* Left side */}

@@ -332,7 +332,7 @@ export function DriverProfile({ data, setData, dark, isMobile, truckReg, openMod
                         <strong>Driver app</strong> at a separate address, with the driver&apos;s email and password.
                     </p>
                     <a
-                        href={DRIVER_PORTAL_URL}
+                        href={DRIVER_PORTAL_URL || '#'}
                         target="_blank"
                         rel="noopener noreferrer"
                         style={{
@@ -346,7 +346,7 @@ export function DriverProfile({ data, setData, dark, isMobile, truckReg, openMod
                         }}
                     >
                         <ExternalLink size={16} strokeWidth={2.2} aria-hidden />
-                        Open driver app ({DRIVER_PORTAL_URL.replace(/^https?:\/\//, "")})
+                        Open driver app ({(DRIVER_PORTAL_URL || 'driver.segecha.com').replace(/^https?:\/\//, "")})
                     </a>
                 </div>
             )}

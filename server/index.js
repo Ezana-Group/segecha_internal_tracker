@@ -165,7 +165,11 @@ if (!JWT_SECRET || !ADMIN_KEY) {
     console.log(`[AUTH] ADMIN_KEY loaded (Length: ${ADMIN_KEY.length}): ${maskedKey}`);
 }
 
-const PUBLIC_ROUTES = ['/admin/login', '/admin/logout', '/driver/login', '/staff/login', '/health'];
+const PUBLIC_ROUTES = [
+    '/admin/login', '/admin/logout', '/health',
+    '/driver/login', '/driver/forgot-password', '/driver/set-password',
+    '/staff/login',  '/staff/forgot-password',  '/staff/set-password',
+];
 
 const adminAuth = async (req, res, next) => {
     // 0. Skip for preflight
@@ -337,6 +341,18 @@ async function autoSeed() {
         const initialHash = bcrypt.hashSync(process.env.INITIAL_ADMIN_PASSWORD || process.env.ADMIN_KEY, 10);
 
         console.log(`[SEED] Ensuring system tables and columns...`);
+
+        // 0a. Apply schema.sql — creates all tables (IF NOT EXISTS) so they always exist
+        const schemaPath = path.join(__dirname, 'schema.sql');
+        if (existsSync(schemaPath)) {
+            try {
+                const schemaSql = readFileSync(schemaPath, 'utf8');
+                await db.query(schemaSql);
+                console.log('[SEED] schema.sql applied successfully.');
+            } catch (schemaErr) {
+                console.warn('[SEED] schema.sql apply warning (tables may already exist):', schemaErr.message);
+            }
+        }
         
         // 0. Schema Migrations
         await db.query(`
@@ -1570,7 +1586,8 @@ app.post('/api/driver/login', authLimiter, async (req, res) => {
         if (!result.success) return res.status(401).json(result);
         res.json(result);
     } catch (e) {
-        res.status(500).json({ error: 'Login failed' });
+        console.error('[DRIVER_LOGIN_ERROR]', e.message, e.stack);
+        res.status(500).json({ error: 'Login failed', detail: e.message });
     }
 });
 
@@ -1600,7 +1617,8 @@ app.post('/api/staff/login', authLimiter, async (req, res) => {
         if (!result.success) return res.status(401).json(result);
         res.json(result);
     } catch (e) {
-        res.status(500).json({ error: 'Login failed' });
+        console.error('[STAFF_LOGIN_ERROR]', e.message, e.stack);
+        res.status(500).json({ error: 'Login failed', detail: e.message });
     }
 });
 

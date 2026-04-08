@@ -53,12 +53,14 @@ export function getPreviewNavItems(preview, data) {
         if (jp.navMyTrips !== false) {
             items.push({ id: "driver-trips", path: "/journeys", label: "My trips" });
         }
-        items.push({
-            id: "driver-portal-app",
-            href: DRIVER_PORTAL_URL,
-            external: true,
-            label: "Driver app (fuel & trips)",
-        });
+        if (DRIVER_PORTAL_URL) {
+            items.push({
+                id: "driver-portal-app",
+                href: DRIVER_PORTAL_URL,
+                external: true,
+                label: "Driver app (fuel & trips)",
+            });
+        }
         return items;
     }
     if (preview.role === "staff") {

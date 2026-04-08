@@ -663,7 +663,9 @@ export function useAppState() {
 
         if (!options?.silent) {
             if (isNew && col === 'drivers') {
-                const portalUrl = `${DRIVER_PORTAL_URL.replace(/\/$/, "")}/set-password`;
+                const portalUrl = DRIVER_PORTAL_URL
+                    ? `${DRIVER_PORTAL_URL.replace(/\/$/, "")}/set-password`
+                    : '/set-password';
                 const msg = `Welcome to Segecha, ${item.name || "Driver"}. Your account is ready. Set your password: ${portalUrl}`;
                 console.log("NOTIFY_DRIVER:", { phone: item.phone, email: item.email });
 
