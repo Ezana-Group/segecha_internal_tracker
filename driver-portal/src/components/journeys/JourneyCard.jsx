@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { COLORS, S } from '../../constants/theme';
-import { fmt } from '../../utils/formatters';
+import { fmt, fmtDate } from '../../utils/formatters';
 import { openWaybillWindow } from '../../utils/waybill';
 import { PhotoField } from '../common/PhotoField';
 
@@ -54,7 +54,7 @@ export const JourneyCard = ({
                     )}
                     <span style={S.badge(j.status)}>{j.status}</span>
                 </div>
-                {portalPerm.tripCardSummary !== false && <div style={{ fontSize: 13, color: COLORS.textFaint, marginBottom: 10 }}>{j.date || '—'} · {cargoLabel}</div>}
+                {portalPerm.tripCardSummary !== false && <div style={{ fontSize: 13, color: COLORS.textFaint, marginBottom: 10 }}>{fmtDate(j.date)} · {cargoLabel}</div>}
                 {portalPerm.tripCardTruckReg !== false && (
                     <div style={{ fontSize: 13, color: COLORS.green, fontWeight: 700, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
                         <span aria-hidden>🚛</span>
@@ -149,10 +149,10 @@ export const JourneyCard = ({
                         </button>
                     )}
 
-                    {allowUpdate && (j.status === 'Loading' || j.status === 'Approved' || j.status === 'In Transit') && (
+                    {allowUpdate && (j.status === 'Accepted' || j.status === 'Loading' || j.status === 'Approved' || j.status === 'In Transit') && (
                         !showForm ? (
                             <button style={{ ...S.btn('blue'), width: '100%', marginTop: 14 }} onClick={(e) => { e.stopPropagation(); setShowForm(true); }}>
-                                {j.status === 'Loading' ? '+ Log Trip Start' : j.status === 'Approved' ? 'Start Trip' : '+ Log Arrival / End Trip'}
+                                {j.status === 'Accepted' ? '🚀 Acknowledge & Start Trip' : j.status === 'Loading' ? '+ Log Trip Start' : j.status === 'Approved' ? 'Start Trip' : '+ Log Arrival / End Trip'}
                             </button>
                         ) : (
                         <div style={{ marginTop: 14, padding: 14, background: '#fff', borderRadius: 12, border: `1px solid ${COLORS.border}` }}>
@@ -454,6 +454,16 @@ export const JourneyCard = ({
                             <div style={{ fontWeight: 700, color: '#16a34a', fontSize: 14 }}>Trip Start Approved</div>
                             <div style={{ fontSize: 12, color: COLORS.textDim, marginTop: 4 }}>
                                 The office has approved your start details. You can now mark the trip as **In Transit** when you depart.
+                            </div>
+                        </div>
+                    )}
+
+                    {j.status === 'Accepted' && !showForm && portalPerm.tripAwaitingBanner !== false && (
+                        <div style={{ marginTop: 14, padding: 14, background: '#f0f9ff', border: '1px dashed #38bdf8', borderRadius: 10, textAlign: 'center' }}>
+                            <div style={{ fontSize: 24, marginBottom: 8 }}>📋</div>
+                            <div style={{ fontWeight: 700, color: '#0369a1', fontSize: 14 }}>Trip Assigned — Awaiting Your Start</div>
+                            <div style={{ fontSize: 12, color: COLORS.textDim, marginTop: 4 }}>
+                                The office has assigned this journey to you. Tap <b>Acknowledge &amp; Start Trip</b> above when you are ready to proceed.
                             </div>
                         </div>
                     )}

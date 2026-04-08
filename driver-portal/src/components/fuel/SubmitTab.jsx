@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { COLORS, S } from '../../constants/theme';
-import { fmt, today } from '../../utils/formatters';
+import { fmt, fmtDate, today } from '../../utils/formatters';
 import { PhotoField } from '../common/PhotoField';
 
 export const SubmitTab = ({ activeJourneys = [], apiPost, driver, truck, portalPerm, token, fuelEntries = [] }) => {
@@ -151,7 +151,7 @@ export const SubmitTab = ({ activeJourneys = [], apiPost, driver, truck, portalP
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                 <div>
                                     <div style={{ fontSize: 14, fontWeight: 700 }}>{f.station}</div>
-                                    <div style={{ fontSize: 12, color: COLORS.textDim }}>{f.date} · {f.litres}L · {fmt(+f.litres * +f.pricePerL)}</div>
+                                    <div style={{ fontSize: 12, color: COLORS.textDim }}>{fmtDate(f.date)} · {f.litres}L · {fmt(+f.litres * +f.pricePerL)}</div>
                                 </div>
                                 {f._pendingApproval ? (
                                     <span style={{ fontSize: 10, background: '#fef9c3', color: '#854d0e', padding: '2px 6px', borderRadius: 4, fontWeight: 800 }}>PENDING</span>

@@ -109,8 +109,8 @@ function transformDBTables(tables = {}) {
         trailer:              row.trailer_id  || m(row).trailer || '',
         origin:               row.origin      || '',
         dest:                 row.destination || m(row).dest    || '',
-        date:                 row.start_date  || m(row).date    || '',
-        endDate:              row.end_date    || m(row).endDate || '',
+        date:                 (row.start_date || m(row).date    || '').split('T')[0],
+        endDate:              (row.end_date   || m(row).endDate || '').split('T')[0],
         cargo:                row.cargo_type  || m(row).cargo   || '',
         cargoType:            row.cargo_type  || m(row).cargo   || '',         // alias
         status:               row.status      || '',

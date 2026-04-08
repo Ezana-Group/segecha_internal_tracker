@@ -176,7 +176,7 @@ export const JourneysTab = ({
     const monthAllowance = journeysThisMonth.reduce((s, j) => s + (+j.driverMileage || 0) + (+j.roadUserAllowance || 0), 0);
     const totalTrips = activeJourneys.length + completedJourneys.length;
     const pendingCount = activeJourneys.filter((j) => j.status === 'Awaiting Verification').length;
-    const openTrip = activeJourneys.some((j) => ['Loading', 'Approved', 'In Transit', 'Awaiting Start Verification', 'Awaiting Verification'].includes(j.status));
+    const openTrip = activeJourneys.some((j) => ['Accepted', 'Loading', 'Approved', 'In Transit', 'Awaiting Start Verification', 'Awaiting Verification'].includes(j.status));
 
     const lastCompletedDest = completedJourneys[0]?.dest || '';
 
@@ -334,7 +334,7 @@ export const JourneysTab = ({
             )}
             {activeJourneys.length > 0 && portalPerm.tripsSectionActive !== false && (
                 <>
-                    <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 12, color: COLORS.text }}>Active</div>
+                    <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 12, color: COLORS.text }}>Upcoming &amp; Active</div>
                     {activeJourneys.map(j => (
                         <JourneyCard 
                             key={j.id} 

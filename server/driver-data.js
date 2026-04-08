@@ -30,6 +30,7 @@ function uid() {
 // ─── Status sets ──────────────────────────────────────────────────────────────
 
 const ACTIVE_JOURNEY_STATUSES = [
+    'Accepted',                    // Office assigned/accepted — shows as upcoming to driver
     'Loading',
     'Approved',
     'In Transit',
@@ -62,7 +63,9 @@ function flattenJourneyRow(row) {
         deliveryCustomerId:flat.delivery_customer_id ?? flat.deliveryCustomerId,
         dest:              flat.destination      ?? flat.dest,
         cargo:             flat.cargo_type       ?? flat.cargo,
-        date:              flat.date             ? String(flat.date).split('T')[0] : '',
+        // start_date is the dedicated DB column; fall back to metadata.date; always strip time part
+        date:              (flat.start_date || flat.date) ? String(flat.start_date || flat.date).split('T')[0] : '',
+        endDate:           (flat.end_date   || flat.endDate) ? String(flat.end_date || flat.endDate).split('T')[0] : '',
     };
 }
 
