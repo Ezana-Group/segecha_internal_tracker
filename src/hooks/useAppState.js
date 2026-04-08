@@ -118,7 +118,9 @@ function transformDBTables(tables = {}) {
         date:                 (row.start_date || m(row).date    || '').split('T')[0],
         endDate:              (row.end_date   || m(row).endDate || '').split('T')[0],
         cargo:                row.cargo_type  || m(row).cargo   || '',
-        cargoType:            row.cargo_type  || m(row).cargo   || '',         // alias
+        // Prefer metadata's cargoType (preserves "Other" when user typed a custom name)
+        // over the cargo_type DB column (which stores the custom text, not "Other").
+        cargoType:            m(row).cargoType || row.cargo_type || m(row).cargo || '',
         status:               row.status      || '',
         notes:                row.notes       || '',
         startOdom:            m(row).startOdom || 0,
@@ -157,7 +159,7 @@ function transformDBTables(tables = {}) {
         ...m(row),
         id:          row.id,
         uId:         m(row).uId || m(row).uid || row.id,
-        truck:       row.truck_id   || m(row).truck   || '',
+        truck:       row.truck_id   || m(row).truck   || '',  // truck_id now written by extract
         journey:     row.journey_id || m(row).journey || '',
         cat:         row.category   || m(row).cat     || '',
         subCat:      m(row).subCat  || '',

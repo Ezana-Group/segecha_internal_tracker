@@ -987,6 +987,7 @@ const ADMIN_COLLECTIONS = {
     expenses: {
         table: 'expenses',
         extract: (item) => ({
+            truck_id:    item.truck    || item.truck_id   || null,  // enables DB-side truck filtering
             journey_id:  item.journey  || item.journey_id || null,
             category:    item.cat      || item.category   || '',
             amount:      Number(item.amount) || 0,
