@@ -459,6 +459,27 @@ autoSeed();
 
 // --- AUTHENTICATED ENDPOINTS ---
 
+// Generate a short-lived preview token for a specific driver (admin only — NOT stored in driver_auth)
+app.post('/api/admin/driver-preview-token', async (req, res) => {
+    try {
+        const { driverId } = req.body;
+        if (!driverId) return res.status(400).json({ error: 'driverId required' });
+        // Verify driver exists
+        const dr = await db.query('SELECT id FROM drivers WHERE id = $1', [driverId]);
+        if (!dr.rows[0]) return res.status(404).json({ error: 'Driver not found' });
+        // Issue 30-minute preview JWT — same shape as loginDriver() so portal-data works
+        const token = jwt.sign(
+            { driverId, email: '_preview_', _isPreview: true },
+            JWT_SECRET,
+            { expiresIn: '30m' }
+        );
+        res.json({ success: true, token });
+    } catch (e) {
+        console.error('[PREVIEW_TOKEN_ERROR]', e.message);
+        res.status(500).json({ error: e.message });
+    }
+});
+
 // Change Own Password
 app.post('/api/admin/change-password', async (req, res) => {
     const { oldPassword, newPassword, email: bodyEmail } = req.body;

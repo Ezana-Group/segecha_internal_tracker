@@ -105,6 +105,15 @@ export default function DriverPortal() {
 
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
+        // Admin preview: ?preview_token=xxx  — auto-login without password, not persisted
+        const previewTok = params.get('preview_token');
+        if (previewTok) {
+            window.history.replaceState({}, '', window.location.pathname);
+            setToken(previewTok);
+            // Don't store in localStorage — preview sessions are ephemeral
+            return;
+        }
+        // Password reset: ?token=xxx
         const tok = params.get('token');
         if (tok) {
             setResetToken(tok);

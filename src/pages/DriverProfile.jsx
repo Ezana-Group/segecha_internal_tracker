@@ -138,6 +138,11 @@ export function DriverProfile({ data, setData, dark, isMobile, truckReg, openMod
     const [accountStatus, setAccountStatus] = useState(null);
     const [lastCreds, setLastCreds] = useState(null);
     const [showCreds, setShowCreds] = useState(false);
+
+    // Driver portal iframe preview state
+    const [previewIframeToken, setPreviewIframeToken] = useState(null);
+    const [previewIframeLoading, setPreviewIframeLoading] = useState(false);
+    const [previewIframeError, setPreviewIframeError] = useState('');
     const isOfflineErr = (err) => {
         const msg = String(err?.message || "");
         return msg.includes("Failed to fetch") || msg.includes("ERR_CONNECTION_REFUSED");
@@ -183,6 +188,25 @@ export function DriverProfile({ data, setData, dark, isMobile, truckReg, openMod
             .then((j) => setAccountStatus(j))
             .catch((err) => showAccountErr(err, "Could not load account status"));
     }, [tab, driver?.id]);
+
+    useEffect(() => {
+        if (!previewMode || previewMode.role !== 'driver') return;
+        if (!DRIVER_PORTAL_URL) return; // can't iframe without a portal URL
+        setPreviewIframeLoading(true);
+        setPreviewIframeError('');
+        fetchWithAuth(`${PAYMENT_API}/api/admin/driver-preview-token`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ driverId: driver.id }),
+        })
+            .then(r => r.json())
+            .then(data => {
+                if (data.token) setPreviewIframeToken(data.token);
+                else setPreviewIframeError(data.error || 'Could not generate preview token');
+            })
+            .catch(() => setPreviewIframeError('Server error generating preview'))
+            .finally(() => setPreviewIframeLoading(false));
+    }, [previewMode, driver?.id]);
 
     const regenerateCredentials = async (forcePasswordReset = true) => {
         try {
@@ -315,39 +339,95 @@ export function DriverProfile({ data, setData, dark, isMobile, truckReg, openMod
             </div>
 
             {isDriverPreview && d.headerDriverPortalBanner !== false && (
-                <div
-                    style={{
-                        marginBottom: isMobile ? 16 : 24,
-                        padding: "16px 20px",
-                        borderRadius: 16,
-                        border: "1px solid var(--border-subtle)",
-                        background: "linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(139, 92, 246, 0.08))",
-                    }}
-                >
-                    <div style={{ fontWeight: 800, fontSize: 15, color: "var(--text-primary)", marginBottom: 8 }}>
-                        Office preview — not the driver login
-                    </div>
-                    <p style={{ fontSize: 13, color: "var(--text-muted)", margin: "0 0 14px", lineHeight: 1.55 }}>
-                        You are still signed in as an <strong>operator</strong>. Fuel logs (with photos), expenses, delivery proof, and waybills are in the{" "}
-                        <strong>Driver app</strong> at a separate address, with the driver&apos;s email and password.
-                    </p>
-                    <a
-                        href={DRIVER_PORTAL_URL || '#'}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: 8,
-                            fontSize: 13,
-                            fontWeight: 800,
-                            color: "var(--brand-primary)",
-                            textDecoration: "none",
-                        }}
-                    >
-                        <ExternalLink size={16} strokeWidth={2.2} aria-hidden />
-                        Open driver app ({(DRIVER_PORTAL_URL || 'driver.segecha.com').replace(/^https?:\/\//, "")})
-                    </a>
+                <div style={{ marginBottom: isMobile ? 16 : 24 }}>
+                    {/* Real driver portal preview in iframe */}
+                    {DRIVER_PORTAL_URL ? (
+                        <div style={{ borderRadius: 16, overflow: 'hidden', border: '1px solid var(--border-subtle)', background: 'var(--bg-card)' }}>
+                            {/* Preview topbar */}
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', background: 'linear-gradient(90deg, rgba(249,115,22,0.1), rgba(124,58,237,0.08))', borderBottom: '1px solid var(--border-subtle)' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>📱 Live driver portal preview</span>
+                                    <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 500 }}>— exactly what {driver.name} sees</span>
+                                </div>
+                                <div style={{ display: 'flex', gap: 8 }}>
+                                    {previewIframeToken && (
+                                        <a
+                                            href={`${DRIVER_PORTAL_URL}?preview_token=${previewIframeToken}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            style={{ fontSize: 12, fontWeight: 700, color: 'var(--brand-primary)', textDecoration: 'none', padding: '4px 10px', border: '1px solid var(--brand-primary)', borderRadius: 8 }}
+                                        >
+                                            ↗ Open full screen
+                                        </a>
+                                    )}
+                                    {previewIframeToken && (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setPreviewIframeToken(null);
+                                                setPreviewIframeLoading(true);
+                                                setPreviewIframeError('');
+                                                fetchWithAuth(`${PAYMENT_API}/api/admin/driver-preview-token`, {
+                                                    method: 'POST',
+                                                    headers: { 'Content-Type': 'application/json' },
+                                                    body: JSON.stringify({ driverId: driver.id }),
+                                                })
+                                                    .then(r => r.json())
+                                                    .then(data => { if (data.token) setPreviewIframeToken(data.token); else setPreviewIframeError(data.error || 'Error'); })
+                                                    .catch(() => setPreviewIframeError('Server error'))
+                                                    .finally(() => setPreviewIframeLoading(false));
+                                            }}
+                                            style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', background: 'var(--surface-subtle)', border: '1px solid var(--border-subtle)', borderRadius: 8, padding: '4px 10px', cursor: 'pointer' }}
+                                        >
+                                            ↺ Refresh
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                            {/* Iframe or loading/error state */}
+                            {previewIframeLoading && (
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 400, color: 'var(--text-muted)', fontSize: 13, gap: 8 }}>
+                                    <span style={{ animation: 'spin 1s linear infinite', display: 'inline-block' }}>⟳</span> Generating secure preview session…
+                                </div>
+                            )}
+                            {previewIframeError && !previewIframeLoading && (
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 200, color: '#ef4444', fontSize: 13 }}>
+                                    ⚠ {previewIframeError}
+                                </div>
+                            )}
+                            {previewIframeToken && !previewIframeLoading && (
+                                <iframe
+                                    key={previewIframeToken}
+                                    src={`${DRIVER_PORTAL_URL}?preview_token=${previewIframeToken}`}
+                                    title={`Driver portal — ${driver.name}`}
+                                    style={{
+                                        width: '100%',
+                                        height: isMobile ? 'calc(100dvh - 180px)' : 680,
+                                        border: 'none',
+                                        display: 'block',
+                                        background: '#f8fafc',
+                                    }}
+                                    sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+                                />
+                            )}
+                        </div>
+                    ) : (
+                        /* Fallback when DRIVER_PORTAL_URL not configured */
+                        <div style={{
+                            marginBottom: isMobile ? 16 : 24,
+                            padding: '16px 20px',
+                            borderRadius: 16,
+                            border: '1px solid var(--border-subtle)',
+                            background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(139, 92, 246, 0.08))',
+                        }}>
+                            <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--text-primary)', marginBottom: 8 }}>
+                                Driver portal URL not configured
+                            </div>
+                            <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '0 0 8px', lineHeight: 1.55 }}>
+                                Set <code style={{ background: 'var(--surface-subtle)', padding: '1px 5px', borderRadius: 4 }}>VITE_DRIVER_PORTAL_URL</code> in your <code>.env</code> file to enable live driver portal preview. The driver portal runs separately at its own URL.
+                            </p>
+                        </div>
+                    )}
                 </div>
             )}
 
