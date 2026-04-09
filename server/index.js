@@ -415,6 +415,28 @@ async function autoSeed() {
             END $$;
         `);
 
+        // Create assets table if not exists (added in ProductionV7)
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS assets (
+                id                  TEXT PRIMARY KEY,
+                name                TEXT NOT NULL,
+                category            TEXT NOT NULL,
+                purchase_date       DATE,
+                cost                DECIMAL(14,2) DEFAULT 0,
+                salvage_value       DECIMAL(14,2) DEFAULT 0,
+                useful_life_years   INTEGER DEFAULT 5,
+                depreciation_method TEXT DEFAULT 'straight-line',
+                supplier            TEXT,
+                linked_truck_id     TEXT REFERENCES trucks(id) ON DELETE SET NULL,
+                status              TEXT DEFAULT 'Active',
+                metadata            JSONB DEFAULT '{}',
+                created_at          TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                updated_at          TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+        await db.query(`
+        `);
+
         console.log(`[SEED] Ensuring superadmin exists (${initialAdminEmail})...`);
 
         // 1. Core Admin Login — only create if not already exists; never overwrite an existing
@@ -595,7 +617,7 @@ const DB_TABLES = [
     'admins', 'superadmins', 'trucks', 'trailers', 'drivers',
     'staff', 'customers', 'journeys', 'fuel_logs', 'expenses',
     'invoices', 'payroll', 'maintenance_logs', 'tyre_logs',
-    'incidents', 'documents', 'system_settings', 'staff_auth', 'driver_auth'
+    'incidents', 'documents', 'assets', 'system_settings', 'staff_auth', 'driver_auth'
 ];
 
 // Helper to get all data for a specific entity (replaces getData for JSON)
@@ -1033,6 +1055,21 @@ const ADMIN_COLLECTIONS = {
             position:      item.position     || '',
             serial_number: item.serialNumber || item.serial_number || '',
             status:        item.status       || 'Active',
+        }),
+    },
+    assets: {
+        table: 'assets',
+        extract: (item) => ({
+            name:                 item.name                 || '',
+            category:             item.category             || '',
+            purchase_date:        item.purchaseDate || item.purchase_date || null,
+            cost:                 Number(item.cost)         || 0,
+            salvage_value:        Number(item.salvageValue  || item.salvage_value) || 0,
+            useful_life_years:    Number(item.usefulLifeYears || item.useful_life_years) || 5,
+            depreciation_method:  item.depreciationMethod  || item.depreciation_method || 'straight-line',
+            supplier:             item.supplier             || '',
+            linked_truck_id:      item.linkedTruckId || item.linked_truck_id || null,
+            status:               item.status               || 'Active',
         }),
     },
 };

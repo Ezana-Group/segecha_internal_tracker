@@ -260,6 +260,22 @@ function transformDBTables(tables = {}) {
         notes:       m(row).notes || '',
     }));
 
+    const assets = (tables.assets || []).map(row => ({
+        ...m(row),
+        id:                  row.id,
+        name:                row.name                || m(row).name         || '',
+        category:            row.category            || m(row).category     || '',
+        purchaseDate:        d(row.purchase_date     || m(row).purchaseDate),
+        cost:                Number(row.cost)        || 0,
+        salvageValue:        Number(row.salvage_value || m(row).salvageValue) || 0,
+        usefulLifeYears:     Number(row.useful_life_years || m(row).usefulLifeYears) || 5,
+        depreciationMethod:  row.depreciation_method || m(row).depreciationMethod || 'straight-line',
+        supplier:            row.supplier            || m(row).supplier     || '',
+        linkedTruckId:       row.linked_truck_id     || m(row).linkedTruckId || '',
+        status:              row.status              || 'Active',
+        notes:               m(row).notes            || '',
+    }));
+
     return {
         trucks,
         trailers,
@@ -274,6 +290,7 @@ function transformDBTables(tables = {}) {
         incidents,
         tyreLogs,
         maintenanceLogs,
+        assets,
         documents: tables.documents || [],
     };
 }
@@ -300,7 +317,7 @@ export function useAppState() {
         trucks: [], drivers: [], trailers: [], customers: [],
         journeys: [], fuel: [], expenses: [], incidents: [],
         staff: [], payroll: [], invoices: [], documents: [],
-        tyreLogs: [], maintenanceLogs: [],
+        tyreLogs: [], maintenanceLogs: [], assets: [],
     };
     const [data, setData] = useState(() => {
         try {
@@ -622,7 +639,7 @@ export function useAppState() {
     // Frontend name → server collection slug (used in /api/admin/collection/:col)
     const SERVER_COLLECTIONS = new Set([
         'trucks', 'trailers', 'drivers', 'staff', 'customers',
-        'journeys', 'fuel', 'expenses', 'invoices', 'payroll', 'maintenanceLogs', 'tyreLogs',
+        'journeys', 'fuel', 'expenses', 'invoices', 'payroll', 'maintenanceLogs', 'tyreLogs', 'assets',
     ]);
 
     /**
@@ -687,6 +704,32 @@ export function useAppState() {
 
         // Persist to DB in the background (non-blocking)
         _syncItemToServer(col, finalItem);
+
+        // Fleet auto-link: Vehicle assets automatically create/update a truck entry
+        if (col === 'assets' && finalItem.category === 'Vehicle') {
+            const regFromName = finalItem.name || '';
+            // If no linked truck, create a new fleet entry
+            if (!finalItem.linkedTruckId) {
+                const newTruck = {
+                    id: uid(),
+                    reg: regFromName,
+                    make: regFromName,
+                    status: finalItem.status === 'Active' ? 'Active' : 'Off Road',
+                    odom: 0,
+                };
+                setData(d => ({ ...d, trucks: [...(d.trucks || []), newTruck] }));
+                _syncItemToServer('trucks', newTruck);
+                // Update the asset with the linked truck id
+                const updatedAsset = { ...finalItem, linkedTruckId: newTruck.id };
+                setData(d => {
+                    const arr = [...(d.assets || [])];
+                    const i = arr.findIndex(x => x.id === updatedAsset.id);
+                    if (i >= 0) arr[i] = updatedAsset;
+                    return { ...d, assets: arr };
+                });
+                _syncItemToServer('assets', updatedAsset);
+            }
+        }
 
         if (!options?.silent) {
             if (isNew && col === 'drivers') {

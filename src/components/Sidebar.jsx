@@ -18,6 +18,7 @@ import {
     Download,
     ExternalLink,
     AlertTriangle,
+    Package,
 } from "lucide-react";
 import { NAV } from "../constants/nav";
 import { getPreviewNavItems } from "../constants/previewNav.js";
@@ -32,6 +33,7 @@ const ICON_MAP = {
     journeys: RouteIcon,
     fuel: Droplet,
     expenses: Receipt,
+    assets: Package,
     invoices: FileText,
     payroll: CreditCard,
     maintenance: Wrench,

@@ -226,6 +226,23 @@ CREATE TABLE IF NOT EXISTS documents (
     updated_at  TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS assets (
+    id                  TEXT PRIMARY KEY,
+    name                TEXT NOT NULL,
+    category            TEXT NOT NULL,
+    purchase_date       DATE,
+    cost                DECIMAL(14,2) DEFAULT 0,
+    salvage_value       DECIMAL(14,2) DEFAULT 0,
+    useful_life_years   INTEGER DEFAULT 5,
+    depreciation_method TEXT DEFAULT 'straight-line',
+    supplier            TEXT,
+    linked_truck_id     TEXT REFERENCES trucks(id) ON DELETE SET NULL,
+    status              TEXT DEFAULT 'Active',
+    metadata            JSONB DEFAULT '{}',
+    created_at          TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at          TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS driver_auth (
     driver_id               TEXT PRIMARY KEY REFERENCES drivers(id) ON DELETE CASCADE,
     email                   TEXT UNIQUE NOT NULL,

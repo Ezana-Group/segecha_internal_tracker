@@ -31,6 +31,7 @@ import { StaffProfile } from "./pages/StaffProfile";
 import { Incidents } from "./pages/Incidents";
 import { ImportReview } from "./pages/ImportReview";
 import { TyreMonitor } from "./pages/TyreMonitor";
+import { Assets } from "./pages/Assets";
 import { GlobalModals } from "./components/GlobalModals";
 import { WaybillModal } from "./components/WaybillModal";
 import { VerificationModal } from "./components/VerificationModal";
@@ -238,6 +239,7 @@ export default function App() {
                                     <Route path="/journeys/:id" element={<ErrorBoundary><JourneyProfile {...p} /></ErrorBoundary>} />
                                     <Route path="/fuel" element={<ErrorBoundary><FuelLog {...p} /></ErrorBoundary>} />
                                     <Route path="/expenses" element={<ErrorBoundary><Expenses {...p} /></ErrorBoundary>} />
+                                    <Route path="/assets" element={<ErrorBoundary><Assets {...p} /></ErrorBoundary>} />
                                     <Route path="/incidents" element={<ErrorBoundary><Incidents {...p} /></ErrorBoundary>} />
                                     <Route path="/invoices" element={<ErrorBoundary><Invoices {...p} /></ErrorBoundary>} />
                                     <Route path="/payroll" element={<ErrorBoundary><Payroll {...p} /></ErrorBoundary>} />

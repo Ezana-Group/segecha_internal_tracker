@@ -1668,5 +1668,113 @@ export function GlobalModals(props) {
         );
     }
 
+    /* ═══════════════════════════════════════════════════════════════
+       ASSET
+    ═══════════════════════════════════════════════════════════════ */
+    if (modal === "asset") {
+        const errors = {};
+        errors.name     = validators.required(form.name);
+        errors.category = validators.required(form.category);
+        errors.cost     = validators.required(form.cost) || validators.positiveNumber(form.cost);
+        const hasErrors = Object.values(errors).some(Boolean);
+
+        const ASSET_CATS = [
+            "Vehicle", "Heavy Equipment", "Workshop Equipment", "Fuel Infrastructure",
+            "Technology", "Office Furniture & Fixtures", "Communication Equipment",
+            "Power Equipment", "Land & Buildings", "Other"
+        ];
+
+        const isVehicle = form.category === "Vehicle";
+
+        return (
+            <Modal title={form.id ? "Edit Asset" : "Add New Asset"} onSave={() => saveItem("assets", form)} S={S} closeModal={closeModal} saveDisabled={hasErrors}>
+                <div style={modalGrid}>
+
+                    <SectionDivider title="Asset Details" />
+
+                    <div style={{ gridColumn: "1/-1" }}>
+                        <Field label="Asset Name" k="name" form={form} setForm={setForm} S={S} error={errors.name} placeholder="e.g. Isuzu NQR 500, Hydraulic Lift, HP Server" />
+                    </div>
+
+                    <div>
+                        <FormLabel>Category</FormLabel>
+                        <select style={S.inp} value={form.category || ""}
+                            onChange={e => setForm(f => ({ ...f, category: e.target.value, linkedTruckId: "" }))}>
+                            <option value="">Select…</option>
+                            {ASSET_CATS.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
+                        {errors.category && <div style={{ color: "#ef4444", fontSize: 11, marginTop: 3 }}>{errors.category}</div>}
+                    </div>
+
+                    <div>
+                        <FormLabel>Status</FormLabel>
+                        <select style={S.inp} value={form.status || "Active"}
+                            onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
+                            {["Active", "Disposed", "Under Repair", "Sold", "Written Off"].map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                    </div>
+
+                    <Field label="Supplier / Dealer" k="supplier" form={form} setForm={setForm} S={S} placeholder="e.g. Kenya Trucks Ltd" />
+                    <Field label="Purchase Date" k="purchaseDate" type="date" form={form} setForm={setForm} S={S} />
+
+                    <SectionDivider title="Valuation" />
+
+                    <Field label="Purchase Cost (KES)" k="cost" type="number" form={form} setForm={setForm} S={S} error={errors.cost} />
+                    <Field label="Salvage Value (KES)" k="salvageValue" type="number" form={form} setForm={setForm} S={S} placeholder="0 if no residual value" />
+
+                    <div>
+                        <FormLabel>Depreciation Method</FormLabel>
+                        <select style={S.inp} value={form.depreciationMethod || "straight-line"}
+                            onChange={e => setForm(f => ({ ...f, depreciationMethod: e.target.value }))}>
+                            <option value="straight-line">Straight-line (equal amounts each year)</option>
+                            <option value="reducing-balance">Reducing Balance (% of remaining value)</option>
+                        </select>
+                    </div>
+
+                    <Field label="Useful Life (years)" k="usefulLifeYears" type="number" form={form} setForm={setForm} S={S} placeholder="e.g. 5" />
+
+                    {form.cost && form.usefulLifeYears && (
+                        <InfoBox color="var(--brand-primary)" icon="📊">
+                            {(() => {
+                                const cost = Number(form.cost) || 0;
+                                const salvage = Number(form.salvageValue) || 0;
+                                const life = Number(form.usefulLifeYears) || 5;
+                                const method = form.depreciationMethod || "straight-line";
+                                let monthly;
+                                if (method === "reducing-balance") {
+                                    const annRate = salvage > 0 ? 1 - Math.pow(salvage / cost, 1 / life) : 0.20;
+                                    monthly = (cost * annRate) / 12;
+                                } else {
+                                    monthly = (cost - salvage) / (life * 12);
+                                }
+                                return `Estimated monthly depreciation: KES ${Math.round(monthly).toLocaleString()}`;
+                            })()}
+                        </InfoBox>
+                    )}
+
+                    {isVehicle && (
+                        <>
+                            <SectionDivider title="Fleet Link" />
+                            <div style={{ gridColumn: "1/-1" }}>
+                                <Field label="Link to existing truck (or leave blank to create new)" k="linkedTruckId"
+                                    options={[{ v: "", l: "— Create new truck entry —" }, ...data.trucks.map(t => ({ v: t.id, l: t.reg }))]}
+                                    full form={form} setForm={setForm} S={S} />
+                            </div>
+                            <InfoBox color="#10b981" icon="🚛">
+                                Vehicle assets are automatically added to the Fleet section. If no existing truck is selected, a new fleet entry will be created on save.
+                            </InfoBox>
+                        </>
+                    )}
+
+                    <SectionDivider title="Notes" />
+                    <div style={{ gridColumn: "1/-1" }}>
+                        <Field label="Notes" k="notes" full form={form} setForm={setForm} S={S} placeholder="Serial number, location, warranty details…" />
+                    </div>
+
+                </div>
+            </Modal>
+        );
+    }
+
     return null;
 }

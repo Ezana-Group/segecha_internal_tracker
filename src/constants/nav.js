@@ -17,6 +17,7 @@ export const NAV = [
     { id: "journeys", path: "/journeys", label: "Journeys" },
     { id: "fuel", path: "/fuel", label: "Fuel log" },
     { id: "expenses", path: "/expenses", label: "Expenses" },
+    { id: "assets", path: "/assets", label: "Assets" },
     { id: "invoices", path: "/invoices", label: "Invoices" },
     { id: "payroll", path: "/payroll", label: "Payroll" },
     { id: "maintenance", path: "/maintenance", label: "Maintenance" },
