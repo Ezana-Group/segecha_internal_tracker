@@ -80,14 +80,23 @@ app.use(helmet({
 
 // 2. CORS — whitelist explicit origins only (CRIT-01)
 // Apply only to /api routes — static assets never need CORS headers
-const ALLOWED_ORIGINS = [
+//
+// Typical env (matches .env.example.local / SYSTEM_AUDIT):
+//   TRACKER_URL      → admin SPA (e.g. https://dash.segecha.com)
+//   PORTAL_URL       → payment / secondary portal origin (browser payment flow uses this)
+//   DRIVER_PORTAL_URL, ADMIN_PORTAL_URL → as named
+// Optional additions when those apps use their own hostname:
+//   TRACK_PORTAL_URL or TRACK_URL → public track SPA (e.g. https://track.segecha.com)
+//   PAYMENT_PORTAL_URL → only if payment origin is not the same as PORTAL_URL
+const ALLOWED_ORIGINS = [...new Set([
     process.env.TRACKER_URL,
     process.env.PORTAL_URL,
     process.env.DRIVER_PORTAL_URL,
-    process.env.ADMIN_PORTAL_URL,  // e.g. https://dash.segecha.com
-    process.env.TRACK_PORTAL_URL,  // e.g. https://track.segecha.com
-    process.env.PAYMENT_PORTAL_URL, // e.g. https://payment.segecha.com
-].filter(Boolean);
+    process.env.ADMIN_PORTAL_URL,
+    process.env.TRACK_PORTAL_URL,
+    process.env.TRACK_URL,
+    process.env.PAYMENT_PORTAL_URL,
+].filter(Boolean))];
 
 const corsOptions = {
     origin: (origin, cb) => {
