@@ -23,6 +23,7 @@ import { Settings } from "./pages/Settings";
 import { Staff } from "./pages/Staff";
 import { Documents } from "./pages/Documents";
 import { VehicleProfile } from "./pages/VehicleProfile";
+import { TrailerProfile } from "./pages/TrailerProfile";
 import { DriverProfile } from "./pages/DriverProfile";
 import { JourneyProfile } from "./pages/JourneyProfile";
 import { Customers } from "./pages/Customers";
@@ -238,6 +239,7 @@ export default function App() {
                                     <Route path="/" element={<ErrorBoundary><Dashboard {...p} /></ErrorBoundary>} />
                                     <Route path="/fleet" element={<ErrorBoundary><Fleet {...p} /></ErrorBoundary>} />
                                     <Route path="/fleet/:id" element={<ErrorBoundary><VehicleProfile {...p} /></ErrorBoundary>} />
+                                    <Route path="/trailers/:id" element={<ErrorBoundary><TrailerProfile {...p} /></ErrorBoundary>} />
                                     <Route path="/drivers" element={<ErrorBoundary><Drivers {...p} /></ErrorBoundary>} />
                                     <Route path="/drivers/:id" element={<ErrorBoundary><DriverProfile {...p} /></ErrorBoundary>} />
                                     <Route path="/customers" element={<ErrorBoundary><Customers {...p} /></ErrorBoundary>} />

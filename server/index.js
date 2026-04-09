@@ -68,7 +68,8 @@ app.use(helmet({
             scriptSrc: ["'self'", "'unsafe-inline'", 'https://cdnjs.cloudflare.com'],
             styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
             fontSrc: ["'self'", 'https://fonts.gstatic.com'],
-            imgSrc: ["'self'", 'data:', 'https://res.cloudinary.com', 'https://*.r2.dev'],
+            // Allow blob: previews created by the browser for local uploads.
+            imgSrc: ["'self'", 'data:', 'blob:', 'https://res.cloudinary.com', 'https://*.r2.dev'],
             connectSrc: ["'self'", ...(API_ORIGIN ? [API_ORIGIN] : [])],
             objectSrc: ["'none'"],
             frameSrc: ["'none'"],
@@ -965,6 +966,20 @@ app.post('/api/admin/upload', upload.any(), (req, res) => {
 // The ENTIRE frontend object is always stored in metadata (lossless).
 // Dedicated columns are ALSO extracted so transformDBTables() reads them correctly.
 
+const normalizeDateInput = (value) => {
+    if (!value) return null;
+    const raw = String(value).trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+    const slash = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (slash) {
+        const dd = slash[1].padStart(2, '0');
+        const mm = slash[2].padStart(2, '0');
+        const yyyy = slash[3];
+        return `${yyyy}-${mm}-${dd}`;
+    }
+    return null;
+};
+
 const ADMIN_COLLECTIONS = {
     trucks: {
         table: 'trucks',
@@ -984,7 +999,7 @@ const ADMIN_COLLECTIONS = {
             type:                item.type || '',
             load_capacity_kg:    Number(item.capacity || item.load_capacity_kg) || 0,
             gross_weight_kg:     Number(item.grossWeightKg || item.gross_weight_kg) || 0,
-            registration_date:   item.registeredOn || item.registration_date || null,
+            registration_date:   normalizeDateInput(item.registeredOn || item.registration_date),
             status:              item.status || 'Active',
         }),
     },

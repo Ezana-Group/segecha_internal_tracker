@@ -209,11 +209,13 @@ export function Fleet({ data, setData, dark, isMobile, modal, form, setForm, ope
                             ) : sortedTrailers.map(t => (
                                 <div
                                     key={t.id}
+                                    onClick={() => navigate(`/trailers/${t.id}`)}
                                     style={{
                                         background: "var(--bg-card)",
                                         border: "1px solid var(--border-subtle)",
                                         borderRadius: "var(--radius-md)",
                                         padding: 14,
+                                        cursor: "pointer",
                                         display: "flex",
                                         flexDirection: "column",
                                         gap: 8,
@@ -226,6 +228,7 @@ export function Fleet({ data, setData, dark, isMobile, modal, form, setForm, ope
                                             status={t.status === "Active" ? "Active" : t.status === "Maintenance" ? "Pending" : "Inactive"}
                                             text={t.status}
                                         />
+                                        <ChevronRight size={14} color="var(--text-dim)" />
                                     </div>
                                 </div>
                             ))
@@ -396,7 +399,12 @@ export function Fleet({ data, setData, dark, isMobile, modal, form, setForm, ope
                                             </td>
                                         </tr>
                                     ) : sortedTrailers.map(t => (
-                                        <tr key={t.id} className="hover-scale">
+                                        <tr
+                                            key={t.id}
+                                            onClick={() => navigate(`/trailers/${t.id}`)}
+                                            style={{ cursor: "pointer" }}
+                                            className="hover-scale"
+                                        >
                                             <td className="sticky-col" title={t.uId}>
                                                 <div style={{ fontWeight: 800, color: "var(--brand-primary)", fontFamily: "var(--font-mono)", fontSize: 13 }}>
                                                     {t.uId}
@@ -427,17 +435,32 @@ export function Fleet({ data, setData, dark, isMobile, modal, form, setForm, ope
                                                     ariaLabel={`Actions for trailer ${t.reg}`}
                                                     items={[
                                                         {
+                                                            id: "view",
+                                                            label: "View trailer",
+                                                            icon: ArrowUpRight,
+                                                            onClick: (e) => {
+                                                                e.stopPropagation();
+                                                                navigate(`/trailers/${t.id}`);
+                                                            },
+                                                        },
+                                                        {
                                                             id: "edit",
                                                             label: "Edit trailer",
                                                             icon: Edit2,
-                                                            onClick: () => openModal("trailer", t),
+                                                            onClick: (e) => {
+                                                                e.stopPropagation();
+                                                                openModal("trailer", t);
+                                                            },
                                                         },
                                                         {
                                                             id: "delete",
                                                             label: "Delete trailer",
                                                             icon: Trash2,
                                                             danger: true,
-                                                            onClick: () => delItem("trailers", t.id, t.reg),
+                                                            onClick: (e) => {
+                                                                e.stopPropagation();
+                                                                delItem("trailers", t.id, t.reg);
+                                                            },
                                                         },
                                                     ]}
                                                 />

@@ -671,13 +671,23 @@ export function GlobalModals(props) {
         const vehicleLocked  = !!selectedDriver?.lockVehicleAssignment;
         const selectedTruck = data.trucks.find((t) => t.id === form.truck);
         const selectedTrailer = (data.trailers || []).find((t) => t.id === form.trailer);
-        const combinationLegalMaxKg = Number(selectedTruck?.combinationLegalMaxKg) || 0;
         const truckPayloadKg = Number(selectedTruck?.capacity) || 0;
         const trailerPayloadKg = Number(selectedTrailer?.capacity) || 0;
-        const fallbackPayloadKg = truckPayloadKg && trailerPayloadKg
+        const truckTareKg = Number(selectedTruck?.tareWeightKg) || 0;
+        const trailerTareKg = Number(selectedTrailer?.tareWeightKg) || 0;
+        const truckAxles = Number(selectedTruck?.axleCount) || 0;
+        const trailerAxles = Number(selectedTrailer?.axleCount) || 0;
+        const totalAxles = truckAxles + trailerAxles;
+        // Kenya legal gross rule requested by user: 5 axles => 44,000kg; 6+ => 48,000kg (safety baseline).
+        const legalGrossLimitKg = totalAxles === 5 ? 44000 : totalAxles >= 6 ? 48000 : 0;
+        const totalTareKg = truckTareKg + trailerTareKg;
+        const legalPayloadFromGrossKg = legalGrossLimitKg > 0 ? Math.max(legalGrossLimitKg - totalTareKg, 0) : 0;
+        const manufacturerPayloadLimitKg = truckPayloadKg && trailerPayloadKg
             ? Math.min(truckPayloadKg, trailerPayloadKg)
             : (trailerPayloadKg || truckPayloadKg || 0);
-        const effectivePayloadKg = combinationLegalMaxKg || fallbackPayloadKg;
+        const effectivePayloadKg = legalPayloadFromGrossKg && manufacturerPayloadLimitKg
+            ? Math.min(legalPayloadFromGrossKg, manufacturerPayloadLimitKg)
+            : (legalPayloadFromGrossKg || manufacturerPayloadLimitKg || 0);
         const enteredCargoKg = Number(form.weight) || 0;
         const isOverPayload = enteredCargoKg > 0 && effectivePayloadKg > 0 && enteredCargoKg > effectivePayloadKg;
         const overPayloadByKg = isOverPayload ? (enteredCargoKg - effectivePayloadKg) : 0;
@@ -1131,9 +1141,12 @@ export function GlobalModals(props) {
                                 ? `Overload risk: ${enteredCargoKg.toLocaleString()} kg is above the configured limit (${effectivePayloadKg.toLocaleString()} kg) by ${overPayloadByKg.toLocaleString()} kg.`
                                 : `Load check: ${enteredCargoKg.toLocaleString()} kg is within configured limit (${effectivePayloadKg.toLocaleString()} kg).`}
                             <div style={{ marginTop: 4, fontWeight: 500, color: "var(--text-dim)" }}>
-                                {combinationLegalMaxKg > 0
-                                    ? "Using Combination Legal Max from tractor unit as the primary compliance limit."
-                                    : "Combination Legal Max is not set; using the lower truck/trailer payload as a safety fallback."}
+                                Legal gross limit: {legalGrossLimitKg > 0 ? `${legalGrossLimitKg.toLocaleString()} kg` : "not available (set axle counts)"} ·
+                                Total tare: {totalTareKg.toLocaleString()} kg ·
+                                Max legal payload: {legalPayloadFromGrossKg > 0 ? `${legalPayloadFromGrossKg.toLocaleString()} kg` : "—"}
+                            </div>
+                            <div style={{ marginTop: 6, fontWeight: 500, color: "var(--text-dim)" }}>
+                                Axle distribution advisory: legal checks are based on total gross limits and the lowest configured payload cap; uneven axle load distribution can still trigger fines even when total gross is compliant.
                             </div>
                         </div>
                     )}
@@ -1402,7 +1415,6 @@ export function GlobalModals(props) {
                         <Field label="Engine Rating (CC)" k="engineCC" type="number" form={form} setForm={setForm} S={S} T={T} />
                         <p style={{ fontSize: 10, color: "var(--text-dim)", marginTop: 4, lineHeight: 1.4 }}>For records &amp; compliance — fuel efficiency is calculated from actual fill-up data.</p>
                     </div>
-                    <Field label="Combination Legal Max (KGs)" k="combinationLegalMaxKg" type="number" form={form} setForm={setForm} S={S} T={T} />
                     <Field label="Date of Registration" k="registeredOn" type="date" form={form} setForm={setForm} S={S} T={T} />
 
                     <SectionDivider title="Registration &amp; Compliance" />

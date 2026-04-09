@@ -14,6 +14,20 @@ const LAST_SYNC_KEY = "segecha_last_server_sync";
 
 const STORAGE_KEY = "segecha_tracker_v2";
 
+function normalizeDateInput(value) {
+    if (!value) return '';
+    const raw = String(value).trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+    const slash = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (slash) {
+        const dd = slash[1].padStart(2, '0');
+        const mm = slash[2].padStart(2, '0');
+        const yyyy = slash[3];
+        return `${yyyy}-${mm}-${dd}`;
+    }
+    return raw;
+}
+
 /**
  * Transform raw PostgreSQL rows (snake_case columns + JSONB metadata) into the
  * camelCase/short-name shape that all frontend components expect.
@@ -679,6 +693,9 @@ export function useAppState() {
         // Ensure every new record has an id before local update and server sync.
         // This prevents null-id inserts (e.g. trucks.id NOT NULL violations).
         const preparedItem = { ...item, id: item?.id || uid() };
+        if ((col === 'trucks' || col === 'trailers') && preparedItem.registeredOn) {
+            preparedItem.registeredOn = normalizeDateInput(preparedItem.registeredOn);
+        }
         // Fuel type is locked to the selected truck.
         if (col === 'fuel' && preparedItem.truck) {
             const truck = (data.trucks || []).find(t => t.id === preparedItem.truck);
