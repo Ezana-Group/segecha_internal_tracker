@@ -3,7 +3,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const cookieParser = require('cookie-parser');
-const { readFileSync, writeFileSync, existsSync, mkdirSync } = require('fs');
+const { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, statSync } = require('fs');
 const path = require('path');
 const multer = require('multer');
 const bcrypt = require('bcryptjs');
@@ -345,6 +345,36 @@ app.use((req, res, next) => {
     if (isAsset) {
         const assetFile = path.join(distPath, req.path);
         if (existsSync(assetFile)) return res.sendFile(assetFile);
+        // Graceful fallback for stale hashed entry assets (e.g. cached index.html
+        // requesting /assets/index-OLDHASH.js after a redeploy).
+        const staleEntryMatch = req.path.match(/^\/assets\/index-[^/]+\.(js|css)$/i);
+        if (staleEntryMatch) {
+            try {
+                const ext = staleEntryMatch[1].toLowerCase();
+                const assetsDir = path.join(distPath, 'assets');
+                if (existsSync(assetsDir)) {
+                    const candidates = readdirSync(assetsDir)
+                        .filter((f) => new RegExp(`^index-[^/]+\\.${ext}$`, 'i').test(f))
+                        .map((f) => ({ name: f, full: path.join(assetsDir, f) }))
+                        .filter((f) => existsSync(f.full))
+                        .sort((a, b) => {
+                            try {
+                                const aStat = statSync(a.full).mtimeMs;
+                                const bStat = statSync(b.full).mtimeMs;
+                                return bStat - aStat;
+                            } catch {
+                                return 0;
+                            }
+                        });
+                    if (candidates.length > 0) {
+                        console.warn(`[SERVER] Missing ${req.path}; serving fallback ${candidates[0].name}`);
+                        return res.sendFile(candidates[0].full);
+                    }
+                }
+            } catch (e) {
+                console.warn('[SERVER] Asset fallback failed:', e.message);
+            }
+        }
         console.warn(`[SERVER] Asset not found: ${req.path}`);
         return res.status(404).set('Content-Type', 'text/plain').send('Asset not found');
     }
