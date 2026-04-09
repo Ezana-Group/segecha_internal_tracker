@@ -6,7 +6,7 @@ import { Badge } from "../components/Badge";
 import { Button } from "../components/Button";
 import { DocumentPanel, DOC_TYPES_TRUCK } from "../components/DocumentPanel";
 import { TableRowActions } from "../components/TableRowActions";
-import { fmtDate } from "../utils/formatters";
+import { fmtDate, fmtKgDisplay, fmtKgLabel } from "../utils/formatters";
 
 export function TrailerProfile({ data, setData, openModal, truckReg, dark }) {
     const { id } = useParams();
@@ -64,7 +64,7 @@ export function TrailerProfile({ data, setData, openModal, truckReg, dark }) {
                 <Card style={{ padding: 18 }}>
                     <div style={{ fontSize: 11, color: "var(--text-dim)", fontWeight: 800, textTransform: "uppercase", marginBottom: 10 }}>Configuration</div>
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px 14px" }}>
-                        {[["Axles", trailer.axleCount || "—"], ["Tare (kg)", trailer.tareWeightKg ? Number(trailer.tareWeightKg).toLocaleString() : "—"], ["Load (kg)", trailer.capacity ? Number(trailer.capacity).toLocaleString() : "—"], ["Gross (kg)", trailer.grossWeightKg ? Number(trailer.grossWeightKg).toLocaleString() : "—"]].map(([k, v]) => (
+                        {[["Axles", trailer.axleCount || "—"], ["Tare (kg)", fmtKgDisplay(trailer.tareWeightKg)], ["Load (kg)", fmtKgDisplay(trailer.capacity)], ["Gross (kg)", fmtKgDisplay(trailer.grossWeightKg)]].map(([k, v]) => (
                             <div key={k}>
                                 <div style={{ fontSize: 10, color: "var(--text-dim)", fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>{k}</div>
                                 <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>{v}</div>
@@ -110,7 +110,7 @@ export function TrailerProfile({ data, setData, openModal, truckReg, dark }) {
                 {tab === "overview" && (
                     <div style={{ padding: 24 }}>
                         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14 }}>
-                            {[{ l: "Load Capacity", v: trailer.capacity ? `${Number(trailer.capacity).toLocaleString()} kg` : "—", i: Weight }, { l: "Gross Weight", v: trailer.grossWeightKg ? `${Number(trailer.grossWeightKg).toLocaleString()} kg` : "—", i: Weight }, { l: "Tare Weight", v: trailer.tareWeightKg ? `${Number(trailer.tareWeightKg).toLocaleString()} kg` : "—", i: Weight }, { l: "Axles", v: trailer.axleCount || "—", i: Hash }].map((k) => (
+                            {[{ l: "Load Capacity", v: fmtKgLabel(trailer.capacity), i: Weight }, { l: "Gross Weight", v: fmtKgLabel(trailer.grossWeightKg), i: Weight }, { l: "Tare Weight", v: fmtKgLabel(trailer.tareWeightKg), i: Weight }, { l: "Axles", v: trailer.axleCount || "—", i: Hash }].map((k) => (
                                 <div key={k.l} style={{ background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: 14, padding: "14px 16px" }}>
                                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
                                         <div style={{ fontSize: 10, color: "var(--text-muted)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>{k.l}</div>

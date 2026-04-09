@@ -20,7 +20,7 @@ import {
     Pencil,
     CheckCircle2,
 } from "lucide-react";
-import { fmt, fmtN, today, fmtDate } from "../utils/formatters";
+import { fmt, fmtN, today, fmtDate, fmtKgLabel } from "../utils/formatters";
 import { Card } from "../components/Card";
 import { Badge } from "../components/Badge";
 import { Button } from "../components/Button";
@@ -399,7 +399,7 @@ export function VehicleProfile({ data, setData, dark, isMobile, openModal, maint
                                 { l: 'Distance',    v: `${totalKm.toLocaleString()} km`,       c: "var(--text-primary)",   i: Navigation },
                                 { l: 'Fuel Used',   v: `${totalLitres.toLocaleString()} L`,    c: "var(--text-primary)",   i: Fuel },
                                 { l: 'Efficiency',  v: `${avgKmPerL} km/L`,                    c: '#a78bfa',               i: ArrowUpRight },
-                                { l: 'Load Capacity', v: `${Number(truck.capacity || 0).toLocaleString()} kg`, c: "var(--text-primary)", i: Truck },
+                                { l: 'Load Capacity', v: fmtKgLabel(truck.capacity), c: "var(--text-primary)", i: Truck },
                             ].map(k => (
                                 <div
                                     key={k.l}
@@ -447,9 +447,9 @@ export function VehicleProfile({ data, setData, dark, isMobile, openModal, maint
                                         ['Fuel Type',            truck.fuelType || '—'],
                                         ['Engine Rating',        truck.engineCC ? `${truck.engineCC} CC` : '—'],
                                         ['Axles',                truck.axleCount || '—'],
-                                        ['Tare Weight',          truck.tareWeightKg ? `${Number(truck.tareWeightKg).toLocaleString()} kg` : '—'],
-                                        ['Load Capacity',        `${Number(truck.capacity || 0).toLocaleString()} kg`],
-                                        ['Gross Weight',         truck.grossWeightKg ? `${Number(truck.grossWeightKg).toLocaleString()} kg` : '—'],
+                                        ['Tare Weight',          fmtKgLabel(truck.tareWeightKg)],
+                                        ['Load Capacity',        fmtKgLabel(truck.capacity)],
+                                        ['Gross Weight',         fmtKgLabel(truck.grossWeightKg)],
                                         ['Date Registered',      truck.registeredOn || '—'],
                                         ['Live Odometer',        `${Number(truck.odom || 0).toLocaleString()} km`],
                                         ['Assigned Operator',    driverName(truck.driver)],

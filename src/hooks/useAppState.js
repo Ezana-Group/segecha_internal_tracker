@@ -28,6 +28,64 @@ function normalizeDateInput(value) {
     return raw;
 }
 
+function parseRowMetadata(row) {
+    if (!row || row.metadata == null) return {};
+    const md = row.metadata;
+    if (typeof md === 'string') {
+        try { return JSON.parse(md); } catch { return {}; }
+    }
+    return md;
+}
+
+/** Prefer dedicated DB column; fall back to metadata. Treats 0 as a real value (unlike `a || b`). */
+function pickNumeric(columnVal, metaVal) {
+    const parse = (v) => {
+        if (v === null || v === undefined || v === '') return null;
+        const n = Number(v);
+        return Number.isFinite(n) ? n : null;
+    };
+    const fromCol = parse(columnVal);
+    if (fromCol !== null) return fromCol;
+    const fromMeta = parse(metaVal);
+    if (fromMeta !== null) return fromMeta;
+    return 0;
+}
+
+/** Assign settings-based internal IDs when missing or when uId was incorrectly set to the primary id (uid()). */
+function ensurePrefixedUId(col, item, allRows) {
+    const settings = readSettings();
+    const prefixes = {
+        trucks: settings.vehicleIdPrefix || 'TRK-',
+        drivers: settings.driverIdPrefix || 'DRV-',
+        staff: settings.staffIdPrefix || 'EMP-',
+        payroll: settings.payrollIdPrefix || 'PAY-',
+        customers: settings.customerIdPrefix || 'CST-',
+        trailers: settings.trailerIdPrefix || 'TRL-',
+        fuel: settings.fuelIdPrefix || 'FUL-',
+        expenses: settings.expenseIdPrefix || 'EXP-',
+        invoices: settings.invoiceIdPrefix || 'INV-',
+        maintenanceLogs: settings.maintenanceIdPrefix || 'MNT-',
+        tyreLogs: settings.tyreLogIdPrefix || 'TYR-',
+        assets: settings.assetIdPrefix || 'AST-',
+    };
+    const raw = prefixes[col];
+    if (!raw || !item?.id) return item;
+    const p = String(raw).replace(/\s+/g, '');
+    const u = item.uId;
+    if (u && u !== item.id) return item;
+    const padLen = ['fuel', 'expenses', 'invoices'].includes(col) ? 4 : 3;
+    let max = 0;
+    for (const x of allRows || []) {
+        if (x.id === item.id) continue;
+        const uid = x.uId;
+        if (!uid || typeof uid !== 'string' || uid === x.id) continue;
+        if (!uid.startsWith(p)) continue;
+        const n = parseInt(String(uid).slice(p.length), 10);
+        if (!Number.isNaN(n)) max = Math.max(max, n);
+    }
+    return { ...item, uId: p + String(max + 1).padStart(padLen, '0') };
+}
+
 /**
  * Transform raw PostgreSQL rows (snake_case columns + JSONB metadata) into the
  * camelCase/short-name shape that all frontend components expect.
@@ -38,7 +96,7 @@ function normalizeDateInput(value) {
  *   3. Fall back to metadata equivalents where a DB column is null/empty
  */
 function transformDBTables(tables = {}) {
-    const m = (row) => (row && row.metadata) ? row.metadata : {};
+    const m = (row) => parseRowMetadata(row);
     /**
      * Strip the time component from any DB date/timestamp so HTML <input type="date">
      * always receives a clean "YYYY-MM-DD" string (not "2026-03-30T00:00:00.000Z").
@@ -82,8 +140,8 @@ function transformDBTables(tables = {}) {
         make:   m(row).make || '',
         model:  m(row).model || '',
         type:   row.type || m(row).type || '',
-        capacity: Number(row.load_capacity_kg || m(row).capacity || 0),
-        grossWeightKg: Number(row.gross_weight_kg || m(row).grossWeightKg || 0),
+        capacity: pickNumeric(row.load_capacity_kg, m(row).capacity),
+        grossWeightKg: pickNumeric(row.gross_weight_kg, m(row).grossWeightKg),
         axleCount:    Number(m(row).axleCount) || 0,
         tareWeightKg: Number(m(row).tareWeightKg) || 0,
         registeredOn: d(row.registration_date || m(row).registeredOn),
@@ -203,6 +261,7 @@ function transformDBTables(tables = {}) {
     const invoices = (tables.invoices || []).map(row => ({
         ...m(row),
         id:           row.id,
+        uId:          m(row).uId || m(row).uid || row.id,
         customerId:   row.customer_id || m(row).customerId || '',
         journey:      row.journey_id  || m(row).journey    || '',
         journeyId:    row.journey_id  || m(row).journey    || '', // alias
@@ -225,6 +284,7 @@ function transformDBTables(tables = {}) {
     const payroll = (tables.payroll || []).map(row => ({
         ...m(row),
         id:                  row.id,
+        uId:                 m(row).uId || m(row).uid || row.id,
         driver:              row.entity_id  || m(row).driver || '',
         entityType:          row.entity_type || 'driver',
         month:               row.month   || '',
@@ -241,6 +301,7 @@ function transformDBTables(tables = {}) {
     const incidents = (tables.incidents || []).map(row => ({
         ...m(row),
         id:           row.id,
+        uId:          m(row).uId || m(row).uid || row.id,
         journey:      row.journey_id || m(row).journey || '',
         type:         row.type       || '',
         incidentType: row.type       || m(row).incidentType || '', // alias
@@ -258,6 +319,7 @@ function transformDBTables(tables = {}) {
     const tyreLogs = (tables.tyre_logs || []).map(row => ({
         ...m(row),
         id:           row.id,
+        uId:          m(row).uId || m(row).uid || row.id,
         truck:        row.truck_id     || m(row).truck    || '',
         position:     row.position     || m(row).position || '',
         serialNumber: row.serial_number || m(row).serialNumber || '',
@@ -292,6 +354,7 @@ function transformDBTables(tables = {}) {
     const assets = (tables.assets || []).map(row => ({
         ...m(row),
         id:                  row.id,
+        uId:                 m(row).uId || m(row).uid || row.id,
         name:                row.name                || m(row).name         || '',
         category:            row.category            || m(row).category     || '',
         purchaseDate:        d(row.purchase_date     || m(row).purchaseDate),
@@ -687,12 +750,24 @@ export function useAppState() {
         }).catch(err => console.warn(`[SYNC] ${col} save failed:`, err.message));
     }, []);
 
+    const PREFIXED_COLLECTIONS = [
+        'trucks', 'trailers', 'drivers', 'staff', 'customers', 'payroll',
+        'fuel', 'expenses', 'invoices', 'maintenanceLogs', 'tyreLogs', 'assets',
+    ];
+
     const saveItem = (col, item, options = {}) => {
         const skipClose = options?.skipClose === true;
         let isNew = false;
+        // Merge with existing row so partial form saves never wipe fields that weren't in the modal.
+        const patch = { ...item };
+        for (const k of Object.keys(patch)) {
+            if (patch[k] === undefined) delete patch[k];
+        }
+        const existing = patch?.id ? (data[col] || []).find((x) => x.id === patch.id) : null;
+        const merged = existing ? { ...existing, ...patch } : { ...patch };
         // Ensure every new record has an id before local update and server sync.
         // This prevents null-id inserts (e.g. trucks.id NOT NULL violations).
-        const preparedItem = { ...item, id: item?.id || uid() };
+        let preparedItem = { ...merged, id: merged?.id || uid() };
         if ((col === 'trucks' || col === 'trailers') && preparedItem.registeredOn) {
             preparedItem.registeredOn = normalizeDateInput(preparedItem.registeredOn);
         }
@@ -702,6 +777,9 @@ export function useAppState() {
             if (truck?.fuelType) preparedItem.fuelType = truck.fuelType;
         }
         let finalItem = preparedItem;
+        if (PREFIXED_COLLECTIONS.includes(col)) {
+            finalItem = ensurePrefixedUId(col, preparedItem, data[col] || []);
+        }
 
         setData(d => {
             const arr = [...(d[col] || [])];
@@ -717,29 +795,6 @@ export function useAppState() {
                 arr[i] = finalItem;
             } else {
                 isNew = true;
-                // Auto-generate Internal Unique ID (uId) for specific collections
-                let uId = finalItem.uId;
-                if (!uId) {
-                    try {
-                        const settings = readSettings();
-                        const prefixes = {
-                            trucks: settings.vehicleIdPrefix || 'TRK-',
-                            drivers: settings.driverIdPrefix || 'DRV-',
-                            turnboys: settings.turnboyIdPrefix || 'TBY-',
-                            staff: settings.staffIdPrefix || 'EMP-',
-                            payroll: settings.payrollIdPrefix || 'PAY-',
-                            customers: settings.customerIdPrefix || 'CST-',
-                            trailers: settings.trailerIdPrefix || 'TRL-',
-                        };
-                        if (prefixes[col]) {
-                            const count = (d[col] || []).length + 1;
-                            uId = prefixes[col] + String(count).padStart(3, '0');
-                        }
-                    } catch (e) {
-                        console.error("Error generating uId:", e);
-                    }
-                }
-                finalItem = { ...finalItem, id: preparedItem.id, uId };
                 arr.push(finalItem);
             }
             return { ...d, [col]: arr };

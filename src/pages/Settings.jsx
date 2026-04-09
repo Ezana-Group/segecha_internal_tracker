@@ -1194,6 +1194,41 @@ export function Settings({
                                             <SettingsShellField label="Customer ID Prefix" sub="e.g. CST- (Result: CST-001)">
                                                 <SettingsShellInput value={localS.customerIdPrefix || 'CST-'} onChange={e => saveSettings({ customerIdPrefix: e.target.value })} />
                                             </SettingsShellField>
+                                            <SettingsShellField label="Trailer ID Prefix" sub="e.g. TRL- (Result: TRL-001)">
+                                                <SettingsShellInput value={localS.trailerIdPrefix || 'TRL-'} onChange={e => saveSettings({ trailerIdPrefix: e.target.value })} />
+                                            </SettingsShellField>
+                                            <SettingsShellField label="Payroll ID Prefix" sub="e.g. PAY- (Result: PAY-001)">
+                                                <SettingsShellInput value={localS.payrollIdPrefix || 'PAY-'} onChange={e => saveSettings({ payrollIdPrefix: e.target.value })} />
+                                            </SettingsShellField>
+                                            <SettingsShellField label="Journey / Mission ID Prefix" sub="e.g. JRN- (Result: JRN-0001)">
+                                                <SettingsShellInput value={localS.journeyIdPrefix || 'JRN-'} onChange={e => saveSettings({ journeyIdPrefix: e.target.value })} />
+                                            </SettingsShellField>
+                                        </div>
+                                        <h4 style={{ fontSize: 14, fontWeight: 800, color: "var(--text-primary)", margin: "20px 0 14px", gridColumn: "1/-1" }}>
+                                            Operational &amp; transaction IDs
+                                        </h4>
+                                        <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "0 0 12px", gridColumn: "1/-1", lineHeight: 1.5 }}>
+                                            Used for fuel logs, expenses, invoices, maintenance, tyres, and assets. New records get the next number in sequence (e.g. FUL-0001).
+                                        </p>
+                                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, gridColumn: "1/-1" }}>
+                                            <SettingsShellField label="Fuel log ID prefix" sub="e.g. FUL- (Result: FUL-0001)">
+                                                <SettingsShellInput value={localS.fuelIdPrefix || 'FUL-'} onChange={e => saveSettings({ fuelIdPrefix: e.target.value })} />
+                                            </SettingsShellField>
+                                            <SettingsShellField label="Expense ID prefix" sub="e.g. EXP- (Result: EXP-0001)">
+                                                <SettingsShellInput value={localS.expenseIdPrefix || 'EXP-'} onChange={e => saveSettings({ expenseIdPrefix: e.target.value })} />
+                                            </SettingsShellField>
+                                            <SettingsShellField label="Invoice internal ID prefix" sub="e.g. INV- (Result: INV-0001); separate from invoice display numbers">
+                                                <SettingsShellInput value={localS.invoiceIdPrefix || 'INV-'} onChange={e => saveSettings({ invoiceIdPrefix: e.target.value })} />
+                                            </SettingsShellField>
+                                            <SettingsShellField label="Maintenance ID prefix" sub="e.g. MNT- (Result: MNT-001)">
+                                                <SettingsShellInput value={localS.maintenanceIdPrefix || 'MNT-'} onChange={e => saveSettings({ maintenanceIdPrefix: e.target.value })} />
+                                            </SettingsShellField>
+                                            <SettingsShellField label="Tyre log ID prefix" sub="e.g. TYR- (Result: TYR-001)">
+                                                <SettingsShellInput value={localS.tyreLogIdPrefix || 'TYR-'} onChange={e => saveSettings({ tyreLogIdPrefix: e.target.value })} />
+                                            </SettingsShellField>
+                                            <SettingsShellField label="Asset ID prefix" sub="e.g. AST- (Result: AST-001)">
+                                                <SettingsShellInput value={localS.assetIdPrefix || 'AST-'} onChange={e => saveSettings({ assetIdPrefix: e.target.value })} />
+                                            </SettingsShellField>
                                         </div>
                                     </div>
                                 </div>

@@ -126,7 +126,7 @@ export function Field({
             ) : options ? (
                 <select
                     style={inputStyle}
-                    value={form[k] || ""}
+                    value={form[k] ?? ""}
                     onChange={(e) => handleChange(e.target.value)}
                     className="field-input"
                 >
@@ -144,7 +144,7 @@ export function Field({
                     style={inputStyle}
                     type={type}
                     placeholder={placeholder}
-                    value={form[k] || ""}
+                    value={form[k] ?? ""}
                     onChange={(e) => handleChange(e.target.value)}
                     className="field-input"
                 />

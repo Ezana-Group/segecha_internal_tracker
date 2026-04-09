@@ -457,3 +457,22 @@ BEGIN
         ALTER TABLE customers         ADD COLUMN status TEXT DEFAULT 'Active';
     END IF;
 END $$;
+
+-- ──────────────────────────────────────────────────────────────────────────────
+-- Error logs (client portals + admin dashboard; POST /api/client-error, GET /api/admin/error-logs)
+-- ──────────────────────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS error_logs (
+    id           BIGSERIAL PRIMARY KEY,
+    created_at   TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    source       TEXT NOT NULL,
+    level        TEXT NOT NULL DEFAULT 'error',
+    message      TEXT NOT NULL,
+    stack        TEXT,
+    url          TEXT,
+    user_agent   TEXT,
+    meta         JSONB DEFAULT '{}'
+);
+
+CREATE INDEX IF NOT EXISTS idx_error_logs_created_at ON error_logs (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_error_logs_source ON error_logs (source);

@@ -31,6 +31,7 @@ import { CustomerProfile } from "./pages/CustomerProfile";
 import { StaffProfile } from "./pages/StaffProfile";
 import { Incidents } from "./pages/Incidents";
 import { ImportReview } from "./pages/ImportReview";
+import { ErrorLogs } from "./pages/ErrorLogs";
 import { TyreMonitor } from "./pages/TyreMonitor";
 import { Assets } from "./pages/Assets";
 import { GlobalModals } from "./components/GlobalModals";
@@ -260,6 +261,7 @@ export default function App() {
                                     <Route path="/documents" element={<ErrorBoundary><Documents {...p} /></ErrorBoundary>} />
                                     <Route path="/settings" element={<ErrorBoundary><Settings {...p} /></ErrorBoundary>} />
                                     <Route path="/import" element={<ErrorBoundary><ImportReview {...p} /></ErrorBoundary>} />
+                                    <Route path="/error-logs" element={<ErrorBoundary><ErrorLogs {...p} /></ErrorBoundary>} />
                                 </Routes>
                             ) : (
                                 <ErrorBoundary>

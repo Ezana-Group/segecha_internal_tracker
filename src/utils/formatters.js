@@ -19,6 +19,20 @@ export function canonicalTemplateType(raw) {
     return "Email";
 }
 
+/** Weight / numeric fields: 0 is valid; only null/undefined/empty/NaN show as em dash in summaries. */
+export function fmtKgDisplay(value) {
+    if (value === null || value === undefined || value === "") return "—";
+    const n = Number(value);
+    if (!Number.isFinite(n)) return "—";
+    return n.toLocaleString();
+}
+
+/** Same as fmtKgDisplay with optional " kg" suffix for profile cards. */
+export function fmtKgLabel(value) {
+    const s = fmtKgDisplay(value);
+    return s === "—" ? "—" : `${s} kg`;
+}
+
 export const today = () => new Date().toISOString().split("T")[0];
 export const uid = () => Date.now().toString(36).toUpperCase() + Math.random().toString(36).substr(2, 3).toUpperCase();
 export const monthLabel = (m) => new Date(m + "-01").toLocaleDateString("en-KE", { month: "long", year: "numeric" });

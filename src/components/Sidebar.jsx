@@ -21,6 +21,7 @@ import {
     ExternalLink,
     AlertTriangle,
     Package,
+    Bug,
 } from "lucide-react";
 import { NAV } from "../constants/nav";
 import { getPreviewNavItems } from "../constants/previewNav.js";
@@ -44,6 +45,7 @@ const ICON_MAP = {
     incidents: AlertTriangle,
     documents: Files,
     import: Download,
+    "error-logs": Bug,
     settings: Settings,
     "driver-overview": LayoutDashboard,
     "driver-trips": RouteIcon,

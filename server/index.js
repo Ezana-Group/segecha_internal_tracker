@@ -85,6 +85,8 @@ const ALLOWED_ORIGINS = [
     process.env.PORTAL_URL,
     process.env.DRIVER_PORTAL_URL,
     process.env.ADMIN_PORTAL_URL,  // e.g. https://dash.segecha.com
+    process.env.TRACK_PORTAL_URL,  // e.g. https://track.segecha.com
+    process.env.PAYMENT_PORTAL_URL, // e.g. https://payment.segecha.com
 ].filter(Boolean);
 
 const corsOptions = {
@@ -153,6 +155,14 @@ const passwordResetLimiter = rateLimit({
     message: { error: 'Too many password reset requests. Please try again in 1 hour.' },
 });
 
+const clientErrorLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 120,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Too many error reports. Try again later.' },
+});
+
 // 4. Admin Auth Middleware
 const JWT_SECRET = process.env.JWT_SECRET;
 // ADMIN_KEY: only use ADMIN_KEY, never fall back to the frontend VITE_ADMIN_KEY (CRIT-09, LOW-01)
@@ -170,6 +180,7 @@ const PUBLIC_ROUTES = [
     '/admin/login', '/admin/logout', '/health',
     '/driver/login', '/driver/forgot-password', '/driver/set-password',
     '/staff/login',  '/staff/forgot-password',  '/staff/set-password',
+    '/client-error',
 ];
 
 // Driver/staff portal routes — protected by driverAuth.authMiddleware / staffAuth.authMiddleware,
@@ -472,6 +483,22 @@ async function autoSeed() {
         await db.query(`
         `);
 
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS error_logs (
+                id BIGSERIAL PRIMARY KEY,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                source TEXT NOT NULL,
+                level TEXT NOT NULL DEFAULT 'error',
+                message TEXT NOT NULL,
+                stack TEXT,
+                url TEXT,
+                user_agent TEXT,
+                meta JSONB DEFAULT '{}'
+            );
+        `);
+        await db.query(`CREATE INDEX IF NOT EXISTS idx_error_logs_created_at ON error_logs (created_at DESC);`);
+        await db.query(`CREATE INDEX IF NOT EXISTS idx_error_logs_source ON error_logs (source);`);
+
         console.log(`[SEED] Ensuring superadmin exists (${initialAdminEmail})...`);
 
         // 1. Core Admin Login — only create if not already exists; never overwrite an existing
@@ -515,6 +542,61 @@ async function autoSeed() {
 autoSeed();
 
 // --- AUTHENTICATED ENDPOINTS ---
+
+// Public client error reporting (all SPAs: dash, driver, track, payment)
+app.post('/api/client-error', clientErrorLimiter, async (req, res) => {
+    try {
+        const body = req.body || {};
+        const allowed = new Set(['admin', 'driver', 'track', 'payment', 'server', 'unknown']);
+        const source = allowed.has(String(body.source)) ? body.source : 'unknown';
+        const level = String(body.level || 'error').slice(0, 24);
+        const message = String(body.message || '(no message)').slice(0, 4000);
+        const stack = body.stack != null ? String(body.stack).slice(0, 12000) : null;
+        const url = body.url != null ? String(body.url).slice(0, 2000) : null;
+        const userAgent = body.userAgent != null ? String(body.userAgent).slice(0, 500) : null;
+        let meta = {};
+        if (body.meta && typeof body.meta === 'object' && !Array.isArray(body.meta)) {
+            try {
+                meta = JSON.parse(JSON.stringify(body.meta));
+            } catch { /* ignore */ }
+        }
+        await db.query(
+            `INSERT INTO error_logs (source, level, message, stack, url, user_agent, meta)
+             VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)`,
+            [source, level, message, stack, url, userAgent, JSON.stringify(meta)]
+        );
+        res.json({ success: true });
+    } catch (e) {
+        console.warn('[client-error] insert failed:', e.message);
+        res.status(500).json({ success: false });
+    }
+});
+
+// Admin: recent client / portal error logs
+app.get('/api/admin/error-logs', async (req, res) => {
+    try {
+        const lim = Math.min(500, Math.max(1, parseInt(req.query.limit, 10) || 150));
+        const src = req.query.source ? String(req.query.source).slice(0, 32) : null;
+        let rows;
+        if (src) {
+            rows = await db.query(
+                `SELECT id, created_at, source, level, message, stack, url, user_agent, meta
+                 FROM error_logs WHERE source = $1 ORDER BY created_at DESC LIMIT $2`,
+                [src, lim]
+            );
+        } else {
+            rows = await db.query(
+                `SELECT id, created_at, source, level, message, stack, url, user_agent, meta
+                 FROM error_logs ORDER BY created_at DESC LIMIT $1`,
+                [lim]
+            );
+        }
+        res.json({ success: true, logs: rows.rows });
+    } catch (e) {
+        console.error('[error-logs]', e.message);
+        res.status(500).json({ error: e.message });
+    }
+});
 
 // Generate a short-lived preview token for a specific driver (admin only — NOT stored in driver_auth)
 app.post('/api/admin/driver-preview-token', async (req, res) => {
@@ -1139,27 +1221,36 @@ const ADMIN_COLLECTIONS = {
 async function upsertCollectionRow(collection, item) {
     const cfg = ADMIN_COLLECTIONS[collection];
     if (!cfg) throw new Error(`Unknown collection: ${collection}`);
-    const cols = cfg.extract(item);
-    const meta = JSON.stringify(item); // full frontend object → lossless metadata
+
+    const existing = await db.query(`SELECT * FROM ${cfg.table} WHERE id = $1`, [item.id]);
+    let merged = item;
+    if (existing.rows.length > 0) {
+        const row = existing.rows[0];
+        let meta = row.metadata;
+        if (typeof meta === 'string') {
+            try { meta = JSON.parse(meta); } catch { meta = {}; }
+        } else if (!meta || typeof meta !== 'object') {
+            meta = {};
+        }
+        merged = { ...meta, ...item };
+    }
+    const cols = cfg.extract(merged);
+    const metaJson = JSON.stringify(merged);
 
     const colNames  = Object.keys(cols);
     const colValues = Object.values(cols);
 
-    // Check if row exists
-    const existing = await db.query(`SELECT id FROM ${cfg.table} WHERE id = $1`, [item.id]);
     if (existing.rows.length > 0) {
-        // UPDATE
         const sets = colNames.map((c, i) => `${c} = $${i + 2}`).join(', ');
         await db.query(
             `UPDATE ${cfg.table} SET ${sets}, metadata = $${colNames.length + 2}, updated_at = NOW() WHERE id = $1`,
-            [item.id, ...colValues, meta]
+            [item.id, ...colValues, metaJson]
         );
     } else {
-        // INSERT
         const placeholders = colNames.map((_, i) => `$${i + 3}`).join(', ');
         await db.query(
             `INSERT INTO ${cfg.table} (id, metadata, ${colNames.join(', ')}) VALUES ($1, $2, ${placeholders})`,
-            [item.id, meta, ...colValues]
+            [item.id, metaJson, ...colValues]
         );
     }
 }
