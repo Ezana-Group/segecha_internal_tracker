@@ -20,7 +20,7 @@ import {
     Info,
     CheckCircle2
 } from "lucide-react";
-import { fmt, fmtDate } from "../utils/formatters";
+import { fmt, fmtDate, displayRecordId } from "../utils/formatters";
 import { Card } from "../components/Card";
 import { Badge } from "../components/Badge";
 import { Button } from "../components/Button";
@@ -82,7 +82,7 @@ export function JourneyProfile({
 
     const isPendingVerif = journey.status === 'Awaiting Start Verification' || journey.status === 'Awaiting Verification';
 
-    const journeyRef = journey.id.split('-')[0].toUpperCase();
+    const journeyDisplayId = displayRecordId(journey);
 
     return (
         <div className="page-shell">
@@ -100,8 +100,8 @@ export function JourneyProfile({
                 <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
                     <div>
                         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 6 }}>
-                            <span style={{ fontFamily: "var(--font-mono)", fontSize: 13, fontWeight: 800, color: "var(--brand-primary)", background: "rgba(249,115,22,0.1)", padding: "2px 10px", borderRadius: 6 }}>
-                                {journeyRef}
+                            <span style={{ fontFamily: "var(--font-mono)", fontSize: 13, fontWeight: 800, color: "var(--brand-primary)", background: "rgba(249,115,22,0.1)", padding: "2px 10px", borderRadius: 6 }} title={journey.id !== journeyDisplayId ? `Internal id: ${journey.id}` : undefined}>
+                                {journeyDisplayId.toUpperCase()}
                             </span>
                             <Badge status={journey._isRejected ? "Rejected" : journey.status} />
                         </div>

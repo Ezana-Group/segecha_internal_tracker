@@ -450,10 +450,46 @@ export function GlobalModals(props) {
                         form={form} setForm={setForm} S={S} />
 
                     <div style={{ gridColumn: "1/-1" }}>
-                        <Field label="Linked Journey" k="journey"
+                        <Field
+                            label="Linked Journey"
+                            k="journey"
                             options={[{ v: "", l: "None" }, ...data.journeys.map(j => ({ v: j.id, l: `${j.origin}→${j.dest} (${fmtDate(j.date)})` }))]}
-                            full form={form} setForm={setForm} S={S} />
+                            full
+                            form={form}
+                            setForm={setForm}
+                            S={S}
+                            onChange={(journeyId) => {
+                                setForm((f) => {
+                                    const next = { ...f, journey: journeyId };
+                                    if (!journeyId) return next;
+                                    const j = data.journeys.find((x) => x.id === journeyId);
+                                    if (!j) return next;
+                                    if (j.driver) next.driver = j.driver;
+                                    if (j.truck && !f.truck) next.truck = j.truck;
+                                    return next;
+                                });
+                            }}
+                        />
                     </div>
+
+                    {(form.cat === "Allowance" || form.cat === "Salary") && (
+                        <div style={{ gridColumn: "1/-1" }}>
+                            <Field
+                                label={form.cat === "Salary" ? "Paid to (driver)" : "Allowance recipient (driver)"}
+                                k="driver"
+                                options={data.drivers.map((dr) => ({ v: dr.id, l: dr.name }))}
+                                full
+                                form={form}
+                                setForm={setForm}
+                                S={S}
+                            />
+                            {form.cat === "Allowance" && (
+                                <div style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 6, lineHeight: 1.45 }}>
+                                    Link a journey above to auto-fill this driver (and truck if empty), or pick the driver manually so the amount appears on their Financials ledger.
+                                </div>
+                            )}
+                        </div>
+                    )}
 
                     <InfoBox color="var(--brand-primary)" icon="ℹ">
                         Expenses linked to a journey are factored into that journey's P&amp;L automatically.
@@ -793,15 +829,15 @@ export function GlobalModals(props) {
 
             if (driverMileage > 0 && !form.id) {
                 const descPrefix = rates.isFlatRate ? "Flat rate allowance" : `Mileage allowance (${dist} km @ KES ${rates.driver}/km)`;
-                saveItem("expenses", { date: form.date || today(), truck: form.truck, cat: "Allowance", category: "Allowance", amount: driverMileage, desc: `Driver ${descPrefix} — ${form.origin} → ${form.dest}`, journey: enrichedForm.id, status: "Unpaid" }, { skipClose: true, silent: true });
+                saveItem("expenses", { date: form.date || today(), truck: form.truck, driver: form.driver || "", cat: "Allowance", category: "Allowance", amount: driverMileage, desc: `Driver ${descPrefix} — ${form.origin} → ${form.dest}`, journey: enrichedForm.id, status: "Unpaid" }, { skipClose: true, silent: true });
             }
             if (turnboyMileage > 0 && !form.id && (form.turnboyId || form.turnboyName)) {
                 const tbName     = form.turnboyId ? (data.turnboys?.find(t => t.id === form.turnboyId)?.name || form.turnboyId) : form.turnboyName;
                 const descPrefix = rates.isFlatRate ? "Flat rate allowance" : `Mileage allowance (${dist} km @ KES ${rates.turnboy}/km)`;
-                saveItem("expenses", { date: form.date || today(), truck: form.truck, cat: "Allowance", category: "Allowance", amount: turnboyMileage, desc: `Turnboy ${descPrefix} (${tbName}) — ${form.origin} → ${form.dest}`, journey: enrichedForm.id, status: "Unpaid" }, { skipClose: true, silent: true });
+                saveItem("expenses", { date: form.date || today(), truck: form.truck, driver: form.turnboyId || "", cat: "Allowance", category: "Allowance", amount: turnboyMileage, desc: `Turnboy ${descPrefix} (${tbName}) — ${form.origin} → ${form.dest}`, journey: enrichedForm.id, status: "Unpaid" }, { skipClose: true, silent: true });
             }
             if (roadUserAllowance > 0 && !form.id) {
-                saveItem("expenses", { date: form.date || today(), truck: form.truck, cat: "Allowance", category: "Allowance", amount: roadUserAllowance, desc: `Road User Allowance${form.returningEmpty ? " (Return)" : ""} — ${form.origin} → ${form.dest}`, journey: enrichedForm.id, status: "Unpaid" }, { skipClose: true, silent: true });
+                saveItem("expenses", { date: form.date || today(), truck: form.truck, driver: form.driver || "", cat: "Allowance", category: "Allowance", amount: roadUserAllowance, desc: `Road User Allowance${form.returningEmpty ? " (Return)" : ""} — ${form.origin} → ${form.dest}`, journey: enrichedForm.id, status: "Unpaid" }, { skipClose: true, silent: true });
             }
             if (!form.returningEmpty && (enrichedForm.status === "Accepted" || enrichedForm.status === "Loading")) {
                 const existingInvoice = data.invoices?.find(inv => inv.journey === enrichedForm.id);

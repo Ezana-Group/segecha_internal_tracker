@@ -6,7 +6,7 @@ import { Badge } from "../components/Badge";
 import { Button } from "../components/Button";
 import { DocumentPanel, DOC_TYPES_TRUCK } from "../components/DocumentPanel";
 import { TableRowActions } from "../components/TableRowActions";
-import { fmtDate, fmtKgDisplay, fmtKgLabel } from "../utils/formatters";
+import { fmtDate, fmtKgDisplay, fmtKgLabel, displayRecordId } from "../utils/formatters";
 
 export function TrailerProfile({ data, setData, openModal, truckReg, dark }) {
     const { id } = useParams();
@@ -45,8 +45,11 @@ export function TrailerProfile({ data, setData, openModal, truckReg, dark }) {
                     <Truck size={28} />
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 32, fontWeight: 900, color: "var(--text-primary)", lineHeight: 1.1, letterSpacing: "-0.03em", fontFamily: "var(--font-mono)", marginBottom: 6 }}>
+                    <div style={{ fontSize: 32, fontWeight: 900, color: "var(--text-primary)", lineHeight: 1.1, letterSpacing: "-0.03em", fontFamily: "var(--font-mono)", marginBottom: 4 }}>
                         {trailer.reg}
+                    </div>
+                    <div style={{ fontSize: 11, color: "var(--text-dim)", fontFamily: "var(--font-mono)", fontWeight: 600, marginBottom: 8 }} title={trailer.id !== displayRecordId(trailer) ? `Internal id: ${trailer.id}` : undefined}>
+                        {displayRecordId(trailer)}
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", fontSize: 13, color: "var(--text-dim)", fontWeight: 500 }}>
                         <span>{trailer.make || "—"}</span>

@@ -1,7 +1,12 @@
 const cloudinary = require('cloudinary').v2;
 const streamifier = require('streamifier');
 
-const isMock = process.env.CLOUDINARY_API_KEY === 'your_api_key';
+function isCloudinaryConfigured() {
+    const k = process.env.CLOUDINARY_API_KEY || '';
+    return !!(process.env.CLOUDINARY_CLOUD_NAME && k && k !== 'your_api_key');
+}
+
+const isMock = !isCloudinaryConfigured();
 
 if (!isMock) {
     cloudinary.config({
@@ -38,4 +43,4 @@ function uploadBuffer(buffer, folder, filename) {
     });
 }
 
-module.exports = { uploadBuffer };
+module.exports = { uploadBuffer, isCloudinaryConfigured };

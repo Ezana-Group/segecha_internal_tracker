@@ -2691,7 +2691,7 @@ export function Settings({
                                 </Card>
                             </div>
 
-                            <Card title="Recent Server Backups" subtitle="Restore system to a previous state" style={{ marginBottom: 32 }}>
+                            <Card title="Recent Server Backups" subtitle="Local server copies; when Cloudflare R2 is configured, backups are mirrored off-site and listed even if only on R2." style={{ marginBottom: 32 }}>
                                 {backupsLoading ? (
                                     <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-dim)' }}>
                                         <RefreshCw className="animate-spin" style={{ margin: '0 auto 12px' }} />
@@ -2709,6 +2709,7 @@ export function Settings({
                                                     <th>Backup File</th>
                                                     <th>Date & Time</th>
                                                     <th>Size</th>
+                                                    <th>Copy</th>
                                                     <th style={{ textAlign: 'right' }}>Action</th>
                                                 </tr>
                                             </thead>
@@ -2718,6 +2719,9 @@ export function Settings({
                                                         <td style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{b.name}</td>
                                                         <td>{new Date(b.timestamp).toLocaleString()}</td>
                                                         <td style={{ color: 'var(--text-dim)' }}>{(b.size / 1024).toFixed(1)} KB</td>
+                                                        <td style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>
+                                                            {[b.local && 'Disk', b.r2 && 'R2'].filter(Boolean).join(' · ') || '—'}
+                                                        </td>
                                                         <td style={{ textAlign: 'right', display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
                                                             <Button 
                                                                 size="sm" 

@@ -17,7 +17,7 @@ import {
     Plus
 } from "lucide-react";
 import { useParams, useNavigate } from "react-router-dom";
-import { fmt, today, fmtN, fmtDate } from "../utils/formatters";
+import { fmt, today, fmtN, fmtDate, displayRecordId } from "../utils/formatters";
 import { Card } from "../components/Card";
 import { Badge } from "../components/Badge";
 import { Button } from "../components/Button";
@@ -66,9 +66,9 @@ export function CustomerProfile({ data, isMobile, truckReg, customerName }) {
                             <h1 style={{ fontSize: 26, fontWeight: 900, color: "var(--text-primary)", margin: 0, letterSpacing: "-0.03em" }}>{customer.name}</h1>
                             <Badge status={customer.type === "Company" ? "Active" : "Paid"} text={customer.type} />
                         </div>
-                        {customer.uId && (
-                            <div style={{ fontSize: 12, color: "var(--text-dim)", fontFamily: "var(--font-mono)", fontWeight: 600, marginBottom: 10 }}>ID: {customer.uId}</div>
-                        )}
+                        <div style={{ fontSize: 12, color: "var(--text-dim)", fontFamily: "var(--font-mono)", fontWeight: 600, marginBottom: 10 }} title={customer.id !== displayRecordId(customer) ? `Internal id: ${customer.id}` : undefined}>
+                            ID: {displayRecordId(customer)}
+                        </div>
                         <div style={{ display: "flex", flexWrap: "wrap", gap: 16 }}>
                             <span style={{ fontSize: 13, color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: 6 }}>
                                 <Phone size={13} color="var(--brand-primary)" /> {customer.phone}

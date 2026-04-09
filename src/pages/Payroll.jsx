@@ -25,6 +25,7 @@ import { PageHeader } from "../components/PageHeader";
 import { TableRowActions } from "../components/TableRowActions";
 import { SortableTableHead } from "../components/SortableTableHead";
 import { useTableFilter } from "../hooks/useTableFilter";
+import { mileageAllowanceForDriverOnJourney } from "../utils/driverAllowance.js";
 
 export function Payroll({ data, setData, dark, isMobile, modal, form, setForm, openModal, closeModal, saveItem, delItem, markPayrollPaid, truckReg, customerName, driverName }) {
     const payrollRows = Array.isArray(data.payroll) ? data.payroll : [];
@@ -38,7 +39,7 @@ export function Payroll({ data, setData, dark, isMobile, modal, form, setForm, o
         const drv = data.drivers.find(d => d.id === p.driver) || (data.turnboys || []).find(t => t.id === p.driver);
         const journeys = data.journeys.filter(j => (j.driver === p.driver || j.turnboyId === p.driver) && j.date && j.date.startsWith(selMonth) && j.status === 'Completed');
         const calculatedMileage = journeys.reduce((s, j) => {
-            if (j.driver === p.driver) return s + (j.driverMileage || 0);
+            if (j.driver === p.driver) return s + mileageAllowanceForDriverOnJourney(j, p.driver, data.expenses);
             if (j.turnboyId === p.driver) return s + (j.turnboyMileage || 0);
             return s;
         }, 0);

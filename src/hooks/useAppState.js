@@ -278,6 +278,7 @@ function transformDBTables(tables = {}) {
         uId:         m(row).uId || m(row).uid || row.id,
         truck:       row.truck_id   || m(row).truck   || '',  // truck_id now written by extract
         journey:     row.journey_id || m(row).journey || '',
+        driver:      m(row).driver  || '',
         cat:         row.category   || m(row).cat     || '',
         subCat:      m(row).subCat  || '',
         amount:      pickNumericPreferMetaWhenColumnZero(row.amount, m(row).amount),
@@ -537,8 +538,18 @@ export function useAppState() {
         }
     }, [data]);
 
-    // Auto-sync to server on every data change (debounced 1.5s)
+    // Toast state
+    const [toasts, setToasts] = useState([]);
+
+    const showToast = useCallback((message, type = "success") => {
+        const id = Date.now();
+        setToasts(t => [...t, { id, message, type }]);
+        setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), 3000);
+    }, []);
+
+    // Auto-sync to server on every data change (debounced 1.5s). Body is workspace only — endpoint is legacy/no-op but proxies may still enforce size limits.
     const autoSyncTimerRef = useRef(null);
+    const lastAutoSyncWarnAtRef = useRef(0);
     useEffect(() => {
         if (!PAYMENT_API) return;
         if (loading) return;
@@ -548,7 +559,7 @@ export function useAppState() {
             try {
                 const token = adminAuth.getToken();
                 if (!token) return;
-                await fetch(`${PAYMENT_API}/api/tracker/data`, {
+                const res = await fetch(`${PAYMENT_API}/api/tracker/data`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -556,19 +567,24 @@ export function useAppState() {
                     },
                     body: JSON.stringify(data),
                 });
-            } catch { /* silent */ }
+                if (!res.ok) {
+                    const hint =
+                        res.status === 413
+                            ? 'Workspace snapshot too large for auto-sync (often base64 photos). Per-record saves still work; reduce image size or raise server JSON_BODY_LIMIT.'
+                            : `Background sync failed (${res.status}).`;
+                    console.warn('[AUTO_SYNC]', hint, res.status);
+                    const now = Date.now();
+                    if (now - lastAutoSyncWarnAtRef.current > 120_000) {
+                        lastAutoSyncWarnAtRef.current = now;
+                        showToast(hint, 'warning');
+                    }
+                }
+            } catch (e) {
+                console.warn('[AUTO_SYNC]', e?.message || e);
+            }
         }, 1500);
         return () => { if (autoSyncTimerRef.current) clearTimeout(autoSyncTimerRef.current); };
-    }, [data, loading]);
-
-    // Toast state
-    const [toasts, setToasts] = useState([]);
-
-    const showToast = useCallback((message, type = "success") => {
-        const id = Date.now();
-        setToasts(t => [...t, { id, message, type }]);
-        setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), 3000);
-    }, []);
+    }, [data, loading, showToast]);
 
     // Modal / form state
     const [modal, setModal] = useState(null);

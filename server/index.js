@@ -41,6 +41,17 @@ envPaths.forEach(envPath => {
 
 const app = express();
 
+/** Custom R2 public hostname (e.g. files.example.com) for CSP img/connect — *.r2.dev already allowed */
+function cspOriginsFromR2PublicUrl() {
+    const u = process.env.R2_PUBLIC_URL;
+    if (!u) return [];
+    try {
+        const { origin } = new URL(u);
+        if (origin && !/\.r2\.dev$/i.test(origin)) return [origin];
+    } catch { /* ignore */ }
+    return [];
+}
+
 // Trust the Railway / Render load-balancer so express-rate-limit reads
 // the real client IP from X-Forwarded-For instead of the proxy's IP.
 // '1' means trust exactly one proxy hop.
@@ -56,6 +67,14 @@ const db = require('./db');
 const driverAuth = require('./driver-auth');
 const staffAuth = require('./staff-auth');
 const driverData = require('./driver-data');
+const { persistUploadedFile } = require('./persistUpload');
+const {
+    isR2Configured,
+    uploadBackupToR2,
+    listR2Backups,
+    getR2ObjectBuffer,
+    BACKUPS_PREFIX,
+} = require('./r2');
 
 
 // 1. Security headers — must come before routes (HIGH-01)
@@ -69,8 +88,8 @@ app.use(helmet({
             styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
             fontSrc: ["'self'", 'https://fonts.gstatic.com'],
             // Allow blob: previews created by the browser for local uploads.
-            imgSrc: ["'self'", 'data:', 'blob:', 'https://res.cloudinary.com', 'https://*.r2.dev'],
-            connectSrc: ["'self'", ...(API_ORIGIN ? [API_ORIGIN] : [])],
+            imgSrc: ["'self'", 'data:', 'blob:', 'https://res.cloudinary.com', 'https://*.r2.dev', ...cspOriginsFromR2PublicUrl()],
+            connectSrc: ["'self'", ...(API_ORIGIN ? [API_ORIGIN] : []), ...cspOriginsFromR2PublicUrl()],
             objectSrc: ["'none'"],
             frameSrc: ["'none'"],
         }
@@ -143,7 +162,10 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 
-app.use(express.json());
+// Default body limit is ~100kb — too small for fuel/expense photos (base64) and full tracker sync payloads (413).
+const JSON_BODY_LIMIT = process.env.JSON_BODY_LIMIT || '32mb';
+app.use(express.json({ limit: JSON_BODY_LIMIT }));
+app.use(express.urlencoded({ extended: true, limit: JSON_BODY_LIMIT }));
 app.use(cookieParser());
 
 // 3. Rate limiters for auth endpoints (CRIT-04)
@@ -807,6 +829,46 @@ const getData = (file, defaultVal = { journeys: [], history: [] }) => {
 };
 const saveData = (file, data) => writeFileSync(file, JSON.stringify(data, null, 2));
 
+/** Write backup JSON to disk and mirror to Cloudflare R2 when configured (R2 failure does not remove local copy). */
+async function persistBackupFile(filename, backupObj) {
+    const safeName = path.basename(filename);
+    if (!/^[\w.\-]+\.json$/i.test(safeName)) throw new Error('Invalid backup filename');
+    const fullPath = path.join(BACKUPS_DIR, safeName);
+    saveData(fullPath, backupObj);
+    try {
+        const r = await uploadBackupToR2(safeName, JSON.stringify(backupObj, null, 2));
+        if (r.ok) console.log(`[BACKUP] Mirrored to R2: ${safeName}`);
+    } catch (e) {
+        if (isR2Configured()) console.warn('[BACKUP] Cloudflare R2 mirror failed (local copy saved):', e.message);
+    }
+}
+
+async function persistBackupRawString(safeFilename, contentUtf8) {
+    const safeName = path.basename(safeFilename);
+    if (!/^[\w.\-]+\.json$/i.test(safeName)) throw new Error('Invalid backup filename');
+    writeFileSync(path.join(BACKUPS_DIR, safeName), contentUtf8, 'utf8');
+    try {
+        const r = await uploadBackupToR2(safeName, contentUtf8);
+        if (r.ok) console.log(`[BACKUP] Mirrored to R2: ${safeName}`);
+    } catch (e) {
+        if (isR2Configured()) console.warn('[BACKUP] Cloudflare R2 mirror failed (local copy saved):', e.message);
+    }
+}
+
+async function readBackupJsonString(safeName) {
+    const localPath = path.join(BACKUPS_DIR, safeName);
+    if (existsSync(localPath)) return readFileSync(localPath, 'utf8');
+    if (isR2Configured()) {
+        try {
+            const buf = await getR2ObjectBuffer(`${BACKUPS_PREFIX}${safeName}`);
+            return buf.toString('utf8');
+        } catch {
+            return null;
+        }
+    }
+    return null;
+}
+
 // Master Backup Helper
 async function backupEverything() {
     const backup = {
@@ -1052,7 +1114,14 @@ app.post('/api/documents/upload', upload.any(), async (req, res) => {
         const file = req.files?.[0];
         const id = Date.now().toString();
         const { entityType, entityId, label, url, expiryDate, ...rest } = body;
-        const uploadedUrl = file ? `data:${file.mimetype || 'application/octet-stream'};base64,${file.buffer.toString('base64')}` : '';
+        let uploadedUrl = '';
+        if (file) {
+            uploadedUrl = await persistUploadedFile(file, {
+                entityType: entityType || 'documents',
+                entityId: entityId || 'admin',
+                docType: label ? String(label).slice(0, 40) : 'uploads',
+            });
+        }
         const finalUrl = url || uploadedUrl;
         if (!finalUrl) return res.status(400).json({ error: 'Document URL or file is required' });
 
@@ -1077,13 +1146,21 @@ app.delete('/api/documents/:id', async (req, res) => {
 });
 
 // Admin upload — replaced by /api/documents/upload (HIGH-07)
-app.post('/api/admin/upload', upload.any(), (req, res) => {
-    const file = req.files?.[0];
-    if (!file) return res.status(400).json({ error: 'No file uploaded' });
-    const mime = file.mimetype || 'application/octet-stream';
-    const base64 = file.buffer.toString('base64');
-    const dataUrl = `data:${mime};base64,${base64}`;
-    res.json({ success: true, url: dataUrl });
+app.post('/api/admin/upload', upload.any(), async (req, res) => {
+    try {
+        const file = req.files?.[0];
+        if (!file) return res.status(400).json({ error: 'No file uploaded' });
+        const url = await persistUploadedFile(file, {
+            entityType: 'admin',
+            entityId: 'inline',
+            docType: 'uploads',
+            cloudinaryFolder: 'tracker_inline',
+        });
+        res.json({ success: true, url });
+    } catch (e) {
+        console.error('[ADMIN_UPLOAD]', e);
+        res.status(500).json({ error: e.message || 'Upload failed' });
+    }
 });
 
 // ─── GENERIC ADMIN CRUD ────────────────────────────────────────────────────
@@ -1468,22 +1545,56 @@ app.post('/api/tracker/data', (req, res) => {
     res.json({ success: true, message: 'Live data is handled via PostgreSQL' });
 });
 
-// List Backups
-app.get('/api/tracker/backups', (req, res) => {
+// List Backups (local disk + Cloudflare R2 when configured)
+app.get('/api/tracker/backups', async (req, res) => {
     const { readdirSync, statSync } = require('fs');
     try {
-        const files = readdirSync(BACKUPS_DIR)
+        const localFiles = readdirSync(BACKUPS_DIR)
             .filter(f => f.endsWith('.json'))
             .map(f => {
                 const stats = statSync(path.join(BACKUPS_DIR, f));
                 return {
                     name: f,
                     timestamp: stats.mtime,
-                    size: stats.size
+                    size: stats.size,
+                    local: true,
+                    r2: false,
                 };
-            })
-            .sort((a, b) => b.timestamp - a.timestamp);
-        res.json({ success: true, backups: files });
+            });
+
+        const byName = new Map();
+        for (const f of localFiles) {
+            byName.set(f.name, { ...f });
+        }
+
+        if (isR2Configured()) {
+            try {
+                const remote = await listR2Backups();
+                for (const f of remote) {
+                    const cur = byName.get(f.name);
+                    const r2Time = new Date(f.timestamp).getTime();
+                    if (cur) {
+                        cur.r2 = true;
+                        const localTime = cur.timestamp instanceof Date ? cur.timestamp.getTime() : new Date(cur.timestamp).getTime();
+                        if (r2Time > localTime) cur.timestamp = f.timestamp;
+                        if ((f.size || 0) > (cur.size || 0)) cur.size = f.size;
+                    } else {
+                        byName.set(f.name, {
+                            name: f.name,
+                            timestamp: f.timestamp,
+                            size: f.size,
+                            local: false,
+                            r2: true,
+                        });
+                    }
+                }
+            } catch (e) {
+                console.warn('[BACKUP] Could not list R2 backups:', e.message);
+            }
+        }
+
+        const backups = [...byName.values()].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        res.json({ success: true, backups });
     } catch (e) {
         res.status(500).json({ error: 'Failed to list backups' });
     }
@@ -1496,7 +1607,7 @@ app.post('/api/tracker/backup-now', async (req, res) => {
         const filename = `backup_master_${timestamp}.json`;
         const backup = await backupEverything();
 
-        saveData(path.join(BACKUPS_DIR, filename), backup);
+        await persistBackupFile(filename, backup);
         res.json({ success: true, message: 'Master backup created: ' + filename });
     } catch (e) {
         console.error('BACKUP_ERROR:', e);
@@ -1510,10 +1621,11 @@ app.post('/api/tracker/backup-now', async (req, res) => {
 app.post('/api/tracker/restore', async (req, res) => {
     const { filename } = req.body;
     try {
-        const backupPath = path.join(BACKUPS_DIR, filename);
-        if (!existsSync(backupPath)) return res.status(404).json({ error: 'Backup file not found' });
+        const safeName = path.basename(filename || '');
+        const raw = await readBackupJsonString(safeName);
+        if (raw == null) return res.status(404).json({ error: 'Backup file not found (disk and R2)' });
 
-        const backup = JSON.parse(readFileSync(backupPath, 'utf8'));
+        const backup = JSON.parse(raw);
 
         // Handle both legacy (just data/settings) and new unified format
         if (backup.version === '5.0' || backup.version === '4.0') {
@@ -1530,21 +1642,31 @@ app.post('/api/tracker/restore', async (req, res) => {
     }
 });
 
-// Download Backup
-app.get('/api/tracker/backups/download/:filename', (req, res) => {
+// Download Backup (local file first, then Cloudflare R2)
+app.get('/api/tracker/backups/download/:filename', async (req, res) => {
     try {
-        const file = req.params.filename;
-        const safeName = path.basename(file);
+        const safeName = path.basename(req.params.filename);
+        if (!/^[\w.\-]+\.json$/i.test(safeName)) return res.status(400).json({ error: 'Invalid filename' });
         const backupPath = path.join(BACKUPS_DIR, safeName);
-        if (!existsSync(backupPath)) return res.status(404).json({ error: 'Backup not found' });
-        res.download(backupPath);
+        if (existsSync(backupPath)) return res.download(backupPath);
+        if (isR2Configured()) {
+            try {
+                const buf = await getR2ObjectBuffer(`${BACKUPS_PREFIX}${safeName}`);
+                res.setHeader('Content-Type', 'application/json');
+                res.setHeader('Content-Disposition', `attachment; filename="${safeName}"`);
+                return res.send(buf);
+            } catch (e) {
+                console.warn('[BACKUP] R2 download failed:', e.message);
+            }
+        }
+        return res.status(404).json({ error: 'Backup not found' });
     } catch (e) {
         res.status(500).json({ error: 'Download failed' });
     }
 });
 
 // Upload Backup
-app.post('/api/tracker/upload-backup', (req, res) => {
+app.post('/api/tracker/upload-backup', async (req, res) => {
     try {
         const { filename, content } = req.body;
         if (!filename || !content) return res.status(400).json({ error: 'Missing filename or content' });
@@ -1552,8 +1674,7 @@ app.post('/api/tracker/upload-backup', (req, res) => {
         const safeName = path.basename(filename);
         if (!safeName.endsWith('.json')) return res.status(400).json({ error: 'Only JSON backup files are allowed' });
 
-        const backupPath = path.join(BACKUPS_DIR, safeName);
-        writeFileSync(backupPath, content, 'utf8');
+        await persistBackupRawString(safeName, content);
 
         res.json({ success: true, message: 'Backup uploaded successfully' });
     } catch (e) {
@@ -1571,7 +1692,7 @@ async function performAutoBackup() {
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
         const filename = `auto_backup_db_${timestamp}.json`;
         const backup = await backupEverything();
-        saveData(path.join(BACKUPS_DIR, filename), backup);
+        await persistBackupFile(filename, backup);
     } catch (e) {
         console.error('Automated backup failed:', e.message);
     }
@@ -1821,13 +1942,22 @@ app.post('/api/driver/journeys/start-placeholder', driverAuth.authMiddleware, as
     }
 });
 
-app.post('/api/driver/upload', driverAuth.authMiddleware, upload.any(), (req, res) => {
-    const file = req.files?.[0];
-    if (!file) return res.status(400).json({ error: 'No file uploaded' });
-    const mime = file.mimetype || 'application/octet-stream';
-    const base64 = file.buffer.toString('base64');
-    const dataUrl = `data:${mime};base64,${base64}`;
-    res.json({ success: true, url: dataUrl });
+app.post('/api/driver/upload', driverAuth.authMiddleware, upload.any(), async (req, res) => {
+    try {
+        const file = req.files?.[0];
+        if (!file) return res.status(400).json({ error: 'No file uploaded' });
+        const driverId = req.driver.driverId;
+        const url = await persistUploadedFile(file, {
+            entityType: 'driver',
+            entityId: driverId,
+            docType: 'portal',
+            cloudinaryFolder: 'driver_portal',
+        });
+        res.json({ success: true, url });
+    } catch (e) {
+        console.error('[DRIVER_UPLOAD_INLINE]', e);
+        res.status(500).json({ error: e.message || 'Upload failed' });
+    }
 });
 
 app.get('/api/documents/mine', driverAuth.authMiddleware, async (req, res) => {
@@ -1848,14 +1978,24 @@ app.post('/api/documents/driver-upload', driverAuth.authMiddleware, upload.any()
         const body = req.body || {};
         const file = req.files?.[0];
         const id = Date.now().toString();
+        const driverId = req.driver.driverId;
+        let fileUrl = '';
+        if (file) {
+            fileUrl = await persistUploadedFile(file, {
+                entityType: 'driver',
+                entityId: driverId,
+                docType: body.label ? String(body.label).slice(0, 40) : 'documents',
+                cloudinaryFolder: 'driver_documents',
+            });
+        }
         const doc = {
-            id,
-            driverId: req.driver.driverId,
-            entityType: 'driver',
-            entityId: req.driver.driverId,
-            url: body.url || (file ? `data:${file.mimetype || 'application/octet-stream'};base64,${file.buffer.toString('base64')}` : ''),
             ...body,
-            uploadedAt: new Date().toISOString()
+            id,
+            driverId,
+            entityType: 'driver',
+            entityId: driverId,
+            url: (body.url && String(body.url).trim()) || fileUrl,
+            uploadedAt: new Date().toISOString(),
         };
         if (!doc.url) return res.status(400).json({ error: 'Document URL or file is required' });
 
@@ -1938,7 +2078,14 @@ app.post('/api/staff/set-password', passwordResetLimiter, async (req, res) => {
 // Global Error Handler (HIGH-10, HIGH-03)
 // - No synchronous writeFileSync (event loop blocking removed)
 // - Error details hidden from clients in production
+// - PayloadTooLarge from express.json/urlencoded → clear 413 (was opaque "unexpected error")
 app.use((err, req, res, next) => {
+    if (err && (err.type === 'entity.too.large' || err.status === 413)) {
+        console.error(`[413] ${req.method} ${req.url}: body exceeds JSON_BODY_LIMIT (${JSON_BODY_LIMIT})`);
+        return res.status(413).json({
+            error: `Request body too large (limit ${JSON_BODY_LIMIT}). Use smaller photos, or raise JSON_BODY_LIMIT / reverse-proxy client_max_body_size.`,
+        });
+    }
     const isDev = process.env.NODE_ENV !== 'production';
     console.error(`[SERVER_ERROR] ${req.method} ${req.url}:`, err);
     const clientMessage = isDev ? err.message : 'An unexpected error occurred. Please try again.';
@@ -1946,7 +2093,7 @@ app.use((err, req, res, next) => {
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-    console.log('Server running on port ' + PORT);
+    console.log(`Server running on port ${PORT} (JSON body limit: ${JSON_BODY_LIMIT})`);
 });
 
 module.exports = { app, db };

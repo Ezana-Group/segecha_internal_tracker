@@ -33,6 +33,13 @@ export function fmtKgLabel(value) {
     return s === "—" ? "—" : `${s} kg`;
 }
 
+/** Profile / badge text: prefer settings-prefixed uId, else canonical id (avoids stale or truncated id display). */
+export function displayRecordId(record) {
+    if (!record || typeof record !== "object") return "—";
+    const s = String(record.uId ?? record.id ?? "").trim();
+    return s || "—";
+}
+
 export const today = () => new Date().toISOString().split("T")[0];
 export const uid = () => Date.now().toString(36).toUpperCase() + Math.random().toString(36).substr(2, 3).toUpperCase();
 export const monthLabel = (m) => new Date(m + "-01").toLocaleDateString("en-KE", { month: "long", year: "numeric" });

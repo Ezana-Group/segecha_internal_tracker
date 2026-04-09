@@ -28,7 +28,7 @@ import {
     Trash2,
     KeyRound,
 } from "lucide-react";
-import { fmt, fmtDate, today } from "../utils/formatters";
+import { fmt, fmtDate, today, displayRecordId } from "../utils/formatters";
 import { Card } from "../components/Card";
 import { Badge } from "../components/Badge";
 import { Button } from "../components/Button";
@@ -45,6 +45,7 @@ import {
 import { ProfilePermissionOverridesPanel } from "../components/ProfilePermissionOverridesPanel.jsx";
 import { PAYMENT_API } from "../utils/env.js";
 import { fetchWithAuth } from "../utils/api";
+import { mileageAllowanceForDriverOnJourney } from "../utils/driverAllowance.js";
 
 const ACTIVE_TRIP_STATUSES = ["Loading", "In Transit", "Awaiting Verification"];
 
@@ -301,6 +302,9 @@ export function DriverProfile({ data, setData, dark, isMobile, truckReg, openMod
                 </div>
                 <div style={{ flex: 1 }}>
                     <h1 style={{ fontSize: isMobile ? 22 : 30, fontWeight: 900, color: "var(--text-primary)", margin: "0 0 6px", lineHeight: 1.1, letterSpacing: "-0.03em" }}>{driver.name}</h1>
+                    <div style={{ fontSize: 12, color: "var(--text-dim)", fontFamily: "var(--font-mono)", fontWeight: 600, marginBottom: 8 }} title={driver.id !== displayRecordId(driver) ? `Internal id: ${driver.id}` : undefined}>
+                        {displayRecordId(driver)}
+                    </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                         <Badge status={driver.status} />
                         {driver.phone && (
@@ -838,14 +842,17 @@ export function DriverProfile({ data, setData, dark, isMobile, truckReg, openMod
                                                     </tr>
                                                 </thead>
                                                 <tbody>
-                                                    {driverJourneys.map(j => (
+                                                    {driverJourneys.map((j) => {
+                                                        const mileageAllow = mileageAllowanceForDriverOnJourney(j, driver.id, data.expenses);
+                                                        return (
                                                         <tr key={j.id}>
                                                             <td className="sticky-col" title={fmtDate(j.date)}>{fmtDate(j.date)}</td>
                                                             <td style={{ fontWeight: 700 }} title={`${j.origin} → ${j.dest}`}>{j.origin} → {j.dest}</td>
                                                             <td style={{ color: "#10b981", fontWeight: 800 }} title={fmt(j.revenue)}>{fmt(j.revenue)}</td>
-                                                            <td style={{ color: "var(--brand-primary)", fontWeight: 800 }} title={fmt(j.driverMileage || 0)}>{fmt(j.driverMileage || 0)}</td>
+                                                            <td style={{ color: "var(--brand-primary)", fontWeight: 800 }} title={fmt(mileageAllow)}>{fmt(mileageAllow)}</td>
                                                         </tr>
-                                                    ))}
+                                                        );
+                                                    })}
                                                 </tbody>
                                             </table>
                                         </div>

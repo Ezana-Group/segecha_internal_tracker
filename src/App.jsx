@@ -41,6 +41,7 @@ import { getTheme, getStyles } from "./constants/theme";
 import { adminAuth } from "./utils/adminAuth";
 import { applyBrandColor } from "./utils/brandColor";
 import { Login } from "./pages/Login";
+import { KeyedProfile } from "./components/KeyedProfile";
 
 export default function App() {
     const state = useAppState();
@@ -239,14 +240,14 @@ export default function App() {
                                 <Routes>
                                     <Route path="/" element={<ErrorBoundary><Dashboard {...p} /></ErrorBoundary>} />
                                     <Route path="/fleet" element={<ErrorBoundary><Fleet {...p} /></ErrorBoundary>} />
-                                    <Route path="/fleet/:id" element={<ErrorBoundary><VehicleProfile {...p} /></ErrorBoundary>} />
-                                    <Route path="/trailers/:id" element={<ErrorBoundary><TrailerProfile {...p} /></ErrorBoundary>} />
+                                    <Route path="/fleet/:id" element={<ErrorBoundary><KeyedProfile as={VehicleProfile} {...p} /></ErrorBoundary>} />
+                                    <Route path="/trailers/:id" element={<ErrorBoundary><KeyedProfile as={TrailerProfile} {...p} /></ErrorBoundary>} />
                                     <Route path="/drivers" element={<ErrorBoundary><Drivers {...p} /></ErrorBoundary>} />
-                                    <Route path="/drivers/:id" element={<ErrorBoundary><DriverProfile {...p} /></ErrorBoundary>} />
+                                    <Route path="/drivers/:id" element={<ErrorBoundary><KeyedProfile as={DriverProfile} {...p} /></ErrorBoundary>} />
                                     <Route path="/customers" element={<ErrorBoundary><Customers {...p} /></ErrorBoundary>} />
-                                    <Route path="/customers/:id" element={<ErrorBoundary><CustomerProfile {...p} /></ErrorBoundary>} />
+                                    <Route path="/customers/:id" element={<ErrorBoundary><KeyedProfile as={CustomerProfile} {...p} /></ErrorBoundary>} />
                                     <Route path="/journeys" element={<ErrorBoundary><Journeys {...p} /></ErrorBoundary>} />
-                                    <Route path="/journeys/:id" element={<ErrorBoundary><JourneyProfile {...p} /></ErrorBoundary>} />
+                                    <Route path="/journeys/:id" element={<ErrorBoundary><KeyedProfile as={JourneyProfile} {...p} /></ErrorBoundary>} />
                                     <Route path="/fuel" element={<ErrorBoundary><FuelLog {...p} /></ErrorBoundary>} />
                                     <Route path="/expenses" element={<ErrorBoundary><Expenses {...p} /></ErrorBoundary>} />
                                     <Route path="/assets" element={<ErrorBoundary><Assets {...p} /></ErrorBoundary>} />
@@ -256,7 +257,7 @@ export default function App() {
                                     <Route path="/maintenance" element={<ErrorBoundary><Maintenance {...p} /></ErrorBoundary>} />
                                     <Route path="/tyres" element={<ErrorBoundary><TyreMonitor {...p} /></ErrorBoundary>} />
                                     <Route path="/staff" element={<ErrorBoundary><Staff {...p} /></ErrorBoundary>} />
-                                    <Route path="/staff/:id" element={<ErrorBoundary><StaffProfile {...p} /></ErrorBoundary>} />
+                                    <Route path="/staff/:id" element={<ErrorBoundary><KeyedProfile as={StaffProfile} {...p} /></ErrorBoundary>} />
                                     <Route path="/pnl" element={<ErrorBoundary><PnL {...p} /></ErrorBoundary>} />
                                     <Route path="/documents" element={<ErrorBoundary><Documents {...p} /></ErrorBoundary>} />
                                     <Route path="/settings" element={<ErrorBoundary><Settings {...p} /></ErrorBoundary>} />

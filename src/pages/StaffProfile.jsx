@@ -23,7 +23,7 @@ import {
     Download,
     Trash2,
 } from "lucide-react";
-import { fmt, fmtDate } from "../utils/formatters";
+import { fmt, fmtDate, displayRecordId } from "../utils/formatters";
 import { Card } from "../components/Card";
 import { Badge } from "../components/Badge";
 import { adminAuth } from "../utils/adminAuth";
@@ -443,6 +443,9 @@ export function StaffProfile({ data, setData, dark, isMobile, openModal, showToa
                 </div>
                 <div style={{ flex: 1 }}>
                     <h1 style={{ fontSize: isMobile ? 20 : 28, fontWeight: 900, color: "var(--text-primary)", margin: "0 0 6px", lineHeight: 1.1, letterSpacing: "-0.03em" }}>{staff.name}</h1>
+                    <div style={{ fontSize: 12, color: "var(--text-dim)", fontFamily: "var(--font-mono)", fontWeight: 600, marginBottom: 8 }} title={staff.id !== displayRecordId(staff) ? `Internal id: ${staff.id}` : undefined}>
+                        {displayRecordId(staff)}
+                    </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                         <span style={{ fontSize: 13, fontWeight: 700, color: getRoleColor(staff.role) }}>{staff.role}</span>
                         <Badge status={staff.status} />

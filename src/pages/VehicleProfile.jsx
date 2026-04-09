@@ -20,7 +20,7 @@ import {
     Pencil,
     CheckCircle2,
 } from "lucide-react";
-import { fmt, fmtN, today, fmtDate, fmtKgLabel } from "../utils/formatters";
+import { fmt, fmtN, today, fmtDate, fmtKgLabel, displayRecordId } from "../utils/formatters";
 import { Card } from "../components/Card";
 import { Badge } from "../components/Badge";
 import { Button } from "../components/Button";
@@ -166,6 +166,9 @@ export function VehicleProfile({ data, setData, dark, isMobile, openModal, maint
                             }}
                         >
                             {truck.reg}
+                        </div>
+                        <div style={{ fontSize: 11, color: "var(--text-dim)", fontFamily: "var(--font-mono)", fontWeight: 600, marginBottom: 6 }} title={truck.id !== displayRecordId(truck) ? `Internal id: ${truck.id}` : undefined}>
+                            {displayRecordId(truck)}
                         </div>
                         <div
                             style={{
