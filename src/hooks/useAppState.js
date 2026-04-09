@@ -324,16 +324,19 @@ export function useAppState() {
             const saved = localStorage.getItem(STORAGE_KEY);
             if (saved) {
                 const parsed = JSON.parse(saved);
-                // Keep non-collection settings from cache but reset collections so
-                // server data always wins on next fetchTrackerData call.
+                // Restore cached collections so the UI has data immediately on refresh.
+                // The server fetch (fetchTrackerData) will overwrite with fresh server data
+                // within seconds. Using cached data prevents the jarring "all data gone"
+                // flash when the network is slow or the server call hasn't resolved yet.
+                // SEED dummy rows are only visible if localStorage has never been populated
+                // by a real server sync (first-ever load), at which point they're overwritten.
                 return {
                     ...SEED,
                     ...parsed,
-                    ...EMPTY_COLLECTIONS,          // wipe any cached/seed collections
                     templates: mergeTemplateList(SEED.templates, parsed.templates),
                 };
             }
-            // No saved data — start fully clean; server will populate everything.
+            // No saved data at all — start clean; server will populate everything.
             return { ...SEED, ...EMPTY_COLLECTIONS };
         } catch {
             return { ...SEED, ...EMPTY_COLLECTIONS };

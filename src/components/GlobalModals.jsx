@@ -599,8 +599,8 @@ export function GlobalModals(props) {
         const hasErrors = Object.values(errors).some(Boolean);
 
         const _S = JSON.parse(localStorage.getItem("segecha_settings") || "{}");
-        const DRIVER_PER_KM   = _S.driverPerKm  ? +_S.driverPerKm  : 10;
-        const TURNBOY_PER_KM  = _S.turnboyPerKm ? +_S.turnboyPerKm : 6;
+        const DRIVER_PER_KM   = _S.driverPerKm  != null ? +_S.driverPerKm  : 10;
+        const TURNBOY_PER_KM  = _S.turnboyPerKm != null ? +_S.turnboyPerKm : 6;
         const ROUTE_OVERRIDES = _S.routeOverrides || {};
 
         const selectedDriver = data.drivers.find((d) => d.id === form.driver);
@@ -1020,53 +1020,6 @@ export function GlobalModals(props) {
 
                     <Field label="Revenue (KES)" k="revenue" type="number" form={form} setForm={setForm} S={S} error={errors.revenue} />
                     <Field label="Status" k="status" options={STATUSES_JOURNEY} form={form} setForm={setForm} S={S} />
-
-                    {/* Allowance preview */}
-                    {(form.origin && form.dest && (form.distance || form.isInternational)) && (
-                        <div style={{ gridColumn: "1/-1" }}>
-                            {(() => {
-                                const rates     = getEffectiveRates(form.origin, form.dest);
-                                const allowance = rates.isFlatRate ? rates.driver : Math.round(+form.distance * rates.driver);
-                                const rua       = rates.roadUserAllowance || 0;
-                                const total     = allowance + rua;
-                                return (
-                                    <div style={{ display: "grid", gap: 8 }}>
-                                        <div style={{
-                                            background: "rgba(16,185,129,0.05)",
-                                            border: `1px solid ${rates.isOverride ? "var(--brand-primary)33" : "rgba(16,185,129,0.2)"}`,
-                                            borderRadius: "var(--radius-md)", padding: "12px 16px",
-                                            display: "flex", justifyContent: "space-between", alignItems: "center",
-                                        }}>
-                                            <div>
-                                                <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 10, fontWeight: 800, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: "0.07em", marginBottom: 3 }}>
-                                                    {rates.isFlatRate ? "Flat Rate Allowance" : "Mileage Allowance"}
-                                                    {rates.isOverride && <span style={{ background: "var(--brand-muted)", color: "var(--brand-primary)", padding: "1px 6px", borderRadius: 5, fontSize: 9 }}>ROUTE RATE</span>}
-                                                </div>
-                                                <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>
-                                                    {rates.isFlatRate ? "International/Domestic Flat Rate" : `${Number(form.distance).toLocaleString()} km @ ${fmt(rates.driver)}/km`}
-                                                </div>
-                                            </div>
-                                            <div style={{ fontSize: 18, fontWeight: 800, color: "#10b981" }}>{fmt(allowance)}</div>
-                                        </div>
-                                        {rua > 0 && (
-                                            <div style={{
-                                                background: "rgba(7,131,235,0.05)", border: "1px solid rgba(7,131,235,0.2)",
-                                                borderRadius: "var(--radius-md)", padding: "10px 16px",
-                                                display: "flex", justifyContent: "space-between", alignItems: "center",
-                                            }}>
-                                                <div style={{ fontSize: 10, fontWeight: 800, color: "var(--text-dim)", textTransform: "uppercase" }}>Road User Allowance</div>
-                                                <div style={{ fontSize: 16, fontWeight: 800, color: "var(--brand-primary)" }}>{fmt(rua)}</div>
-                                            </div>
-                                        )}
-                                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "2px 16px" }}>
-                                            <div style={{ fontSize: 12, fontWeight: 800, color: "var(--text-primary)" }}>Total Projected Allowance</div>
-                                            <div style={{ fontSize: 20, fontWeight: 900, color: "var(--brand-primary)" }}>{fmt(total)}</div>
-                                        </div>
-                                    </div>
-                                );
-                            })()}
-                        </div>
-                    )}
 
                     <div style={{ gridColumn: "1/-1" }}>
                         <Field label="Notes" k="notes" full form={form} setForm={setForm} S={S} />

@@ -81,6 +81,7 @@ import { buildSmsUrl } from "../utils/contactLinks.js";
 import { expandMessageTemplateContext } from "../utils/templateContext.js";
 import { SettingsProfilePermissions } from "../components/SettingsProfilePermissions.jsx";
 import { adminAuth } from "../utils/adminAuth";
+import { applyBrandColor } from "../utils/brandColor";
 import { TemplateEditor } from "./TemplateEditor.jsx";
 
 const SETTINGS_MENU = [
@@ -1176,10 +1177,10 @@ export function Settings({
                                 </SettingsShellField>
                                 <SettingsShellField label="Accent Color" sub="Choose your organization's primary brand color.">
                                     <div style={{ display: "flex", gap: 8 }}>
-                                        {['#38bdf8', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'].map(c => (
-                                            <div 
+                                        {['#F97316', '#38bdf8', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'].map(c => (
+                                            <div
                                                 key={c}
-                                                onClick={() => { document.documentElement.style.setProperty('--brand-primary', c); saveSettings({ accentColor: c }); }}
+                                                onClick={() => { applyBrandColor(c); saveSettings({ accentColor: c }); }}
                                                 style={{ width: 32, height: 32, borderRadius: 8, background: c, cursor: "pointer", border: localS.accentColor === c ? "2px solid white" : "none", boxShadow: localS.accentColor === c ? "0 0 0 2px " + c : "none" }}
                                             />
                                         ))}
@@ -1692,11 +1693,11 @@ export function Settings({
                             <legend className="settings-fieldset-sr-only">Routes and rates</legend>
                             <SettingsShellSectionHeader title="Mileage & Allowances" desc="Define standard pay rates per kilometer." icon={Navigation} />
                             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginBottom: 32 }}>
-                                <SettingsShellField label="Driver Rate (KES/km)">
-                                    <SettingsShellInput type="number" value={localS.driverPerKm || 10} onChange={e => saveSettings({ driverPerKm: +e.target.value })} />
+                                <SettingsShellField label="Driver Rate (KES/km)" sub="Set to 0 for flat-rate journeys">
+                                    <SettingsShellInput type="number" min="0" value={localS.driverPerKm ?? 10} onChange={e => saveSettings({ driverPerKm: +e.target.value })} />
                                 </SettingsShellField>
-                                <SettingsShellField label="Turnboy Rate (KES/km)">
-                                    <SettingsShellInput type="number" value={localS.turnboyPerKm || 6} onChange={e => saveSettings({ turnboyPerKm: +e.target.value })} />
+                                <SettingsShellField label="Turnboy Rate (KES/km)" sub="Set to 0 for flat-rate journeys">
+                                    <SettingsShellInput type="number" min="0" value={localS.turnboyPerKm ?? 6} onChange={e => saveSettings({ turnboyPerKm: +e.target.value })} />
                                 </SettingsShellField>
                             </div>
 

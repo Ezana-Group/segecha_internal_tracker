@@ -1,4 +1,6 @@
+import { useState, useEffect } from "react";
 import { NavLink } from "react-router-dom";
+import { readSettings, subscribeSettings } from "../utils/settingsStore";
 import {
     LayoutDashboard,
     Truck,
@@ -59,13 +61,8 @@ export function Sidebar({ sideOpen, setSideOpen, isMobile, tyreAlertCount, verif
     const inTransitCount = data?.journeys?.filter((j) => ["In Transit", "Awaiting Start Verification"].includes(j.status)).length || 0;
     const navItems = previewMode ? getPreviewNavItems(previewMode, data) : NAV;
 
-    const s = (() => {
-        try {
-            return JSON.parse(localStorage.getItem("segecha_settings") || "{}");
-        } catch {
-            return {};
-        }
-    })();
+    const [s, setS] = useState(readSettings);
+    useEffect(() => subscribeSettings(setS), []);
 
     // Group nav items: core | finance | other (ops/misc)
     const coreItems    = navItems.filter(n => CORE_IDS.has(n.id));
@@ -138,7 +135,7 @@ export function Sidebar({ sideOpen, setSideOpen, isMobile, tyreAlertCount, verif
                     <img
                         src={s.companyLogo || "/logo.png"}
                         alt="Logo"
-                        style={{ height: 38, width: 'auto', objectFit: 'contain' }}
+                        style={{ width: '100%', height: '100%', objectFit: 'contain' }}
                     />
                 </div>
                 <div style={{ minWidth: 0 }}>

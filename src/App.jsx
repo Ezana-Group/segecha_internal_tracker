@@ -37,6 +37,7 @@ import { WaybillModal } from "./components/WaybillModal";
 import { VerificationModal } from "./components/VerificationModal";
 import { getTheme, getStyles } from "./constants/theme";
 import { adminAuth } from "./utils/adminAuth";
+import { applyBrandColor } from "./utils/brandColor";
 import { Login } from "./pages/Login";
 
 export default function App() {
@@ -85,6 +86,12 @@ export default function App() {
     useEffect(() => {
         document.documentElement.setAttribute('data-theme', state.dark ? 'dark' : 'light');
     }, [state.dark]);
+
+    // Restore saved accent colour on startup (and whenever settings change)
+    useEffect(() => {
+        const settings = JSON.parse(localStorage.getItem("segecha_settings") || "{}");
+        if (settings.accentColor) applyBrandColor(settings.accentColor);
+    }, []);  // runs once on mount
 
     // Inject SheetJS for Excel import
     useEffect(() => {
