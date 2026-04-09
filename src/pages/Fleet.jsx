@@ -247,7 +247,8 @@ export function Fleet({ data, setData, dark, isMobile, modal, form, setForm, ope
                                         { key: "reg", label: "Licence Plate", sortable: true },
                                         { key: "type", label: "Vehicle Type", sortable: true },
                                         { key: "isRigid", label: "Rigid", sortable: true },
-                                        { key: "make", label: "Manufacturer / Model", sortable: true },
+                                        { key: "make", label: "Manufacturer", sortable: true },
+                                        { key: "model", label: "Model", sortable: true },
                                         { key: "_odom", label: "Odometer", sortable: true, align: "right" },
                                         { key: "_health", label: "Health", sortable: true },
                                         { key: "_overdue", label: "Overdue", sortable: true, align: "right" },
@@ -257,7 +258,7 @@ export function Fleet({ data, setData, dark, isMobile, modal, form, setForm, ope
                                 <tbody>
                                     {sortedTrucks.length === 0 ? (
                                         <tr>
-                                            <td colSpan="9" style={{ textAlign: "center", padding: 80, color: "var(--text-dim)" }}>
+                                            <td colSpan="10" style={{ textAlign: "center", padding: 80, color: "var(--text-dim)" }}>
                                                 <div style={{ marginBottom: 16, display: "flex", justifyContent: "center" }}>
                                                     <Truck size={48} opacity={0.15} />
                                                 </div>
@@ -289,6 +290,9 @@ export function Fleet({ data, setData, dark, isMobile, modal, form, setForm, ope
                                             </td>
                                             <td title={t.make}>
                                                 <div style={{ fontSize: 13, color: "var(--text-primary)", fontWeight: 500 }}>{t.make}</div>
+                                            </td>
+                                            <td title={t.model || "—"}>
+                                                <div style={{ fontSize: 13, color: "var(--text-secondary)", fontWeight: 500 }}>{t.model || "—"}</div>
                                             </td>
                                             <td style={{ textAlign: "right" }} title={`${Number(t.odom || 0).toLocaleString()} KM`}>
                                                 <div style={{ fontSize: 13, fontWeight: 700, fontFamily: "var(--font-mono)" }}>

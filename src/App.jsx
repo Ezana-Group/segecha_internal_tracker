@@ -108,7 +108,7 @@ export default function App() {
         if (settings.companyFavicon) {
             const link = document.querySelector("link[rel*='icon']") || document.createElement('link');
             link.type = 'image/x-icon';
-            link.rel = 'shortcut icon';
+            link.rel = 'icon';
             link.href = settings.companyFavicon;
             document.getElementsByTagName('head')[0].appendChild(link);
         }

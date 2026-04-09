@@ -6,9 +6,9 @@ export function PhotoField({ label, hint, token, folder, filename, onUploaded })
     const [status, setStatus] = useState('idle'); // idle | uploading | done | error
     const [preview, setPreview] = useState('');
     const [errMsg, setErrMsg] = useState('');
+    const [dragOver, setDragOver] = useState(false);
 
-    const handleFile = async (e) => {
-        const file = e.target.files[0];
+    const handleFileUpload = async (file) => {
         if (!file) return;
         setStatus('uploading');
         setErrMsg('');
@@ -21,6 +21,10 @@ export function PhotoField({ label, hint, token, folder, filename, onUploaded })
             setStatus('error');
             setErrMsg(err.message);
         }
+    };
+    const handleFile = async (e) => {
+        const file = e.target.files[0];
+        await handleFileUpload(file);
     };
 
     const lbl = { fontSize: 11, color: COLORS.textFaint, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 5, display: 'block' };
@@ -43,8 +47,18 @@ export function PhotoField({ label, hint, token, folder, filename, onUploaded })
             {status === 'done' ? (
                 <div style={{ fontSize: 12, color: COLORS.green, fontWeight: 600, marginBottom: 8 }}>✅ Photo uploaded</div>
             ) : (
-                <label style={{ display: 'block', background: COLORS.bg, border: `1.5px dashed ${status === 'error' ? COLORS.red : COLORS.border}`, borderRadius: 10, padding: '12px', textAlign: 'center', cursor: 'pointer', fontSize: 13, color: status === 'uploading' ? COLORS.textFaint : COLORS.textDim }}>
-                    {status === 'uploading' ? '⏳ Uploading…' : '📷 Tap to take photo or choose file'}
+                <label
+                    style={{ display: 'block', background: dragOver ? '#eff6ff' : COLORS.bg, border: `1.5px dashed ${status === 'error' ? COLORS.red : dragOver ? COLORS.primary : COLORS.border}`, borderRadius: 10, padding: '12px', textAlign: 'center', cursor: 'pointer', fontSize: 13, color: status === 'uploading' ? COLORS.textFaint : COLORS.textDim }}
+                    onDragOver={(e) => { e.preventDefault(); if (status !== 'uploading') setDragOver(true); }}
+                    onDragLeave={() => setDragOver(false)}
+                    onDrop={async (e) => {
+                        e.preventDefault();
+                        setDragOver(false);
+                        if (status === 'uploading') return;
+                        await handleFileUpload(e.dataTransfer?.files?.[0]);
+                    }}
+                >
+                    {status === 'uploading' ? '⏳ Uploading…' : (dragOver ? '📥 Drop image to upload' : '📷 Tap or drag photo to upload')}
                     <input type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={handleFile} disabled={status === 'uploading'} />
                 </label>
             )}

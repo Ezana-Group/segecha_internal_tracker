@@ -29,7 +29,7 @@ export const SubmitTab = ({ activeJourneys = [], apiPost, driver, truck, portalP
         }
         setSubmitting(true);
         setMsg('');
-        const payload = { ...form, truck: driver.truck };
+        const payload = { ...form, truck: driver.truck, fuelType: truck?.fuelType || '' };
         if (fixingId) payload._fixingId = fixingId;
 
         const result = await apiPost('/api/driver/fuel', payload);
@@ -94,6 +94,11 @@ export const SubmitTab = ({ activeJourneys = [], apiPost, driver, truck, portalP
 
                 <label style={S.lbl}>Date (Today)</label>
                 <div style={{ ...S.inp, background: '#f1f5f9', color: COLORS.textDim, cursor: 'not-allowed' }}>{form.date || today()}</div>
+                {truck?.fuelType && (
+                    <div style={{ ...S.success(), marginBottom: 12 }}>
+                        ⛽ Fuel Type: <b>{truck.fuelType}</b> (set by office and locked)
+                    </div>
+                )}
                 
                 <label style={S.lbl}>Station Name</label>
                 <input style={inputStyle('fuelDetails')} placeholder="e.g. Total Mlolongo" value={form.station || ''} onChange={(e) => set('station', e.target.value)} />

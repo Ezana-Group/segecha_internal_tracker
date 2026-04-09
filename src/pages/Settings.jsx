@@ -343,6 +343,9 @@ export function Settings({
     const [editingTemplate, setEditingTemplate] = useState(null);
     const [sendTestPhone, setSendTestPhone] = useState("");
     const [localS, setLocalS] = useState(readSettings);
+    const [logoDragOver, setLogoDragOver] = useState(false);
+    const [faviconDragOver, setFaviconDragOver] = useState(false);
+    const [backupDragOver, setBackupDragOver] = useState(false);
     const [saving, setSaving] = useState(false);
     const [lastSaved, setLastSaved] = useState(null);
     const [syncing, setSyncing] = useState(false);
@@ -541,6 +544,39 @@ export function Settings({
     const [newExpenseCategory, setNewExpenseCategory] = useState("");
     const [newDept, setNewDept] = useState("");
     const [newRole, setNewRole] = useState("");
+
+    const handleLogoFile = (file) => {
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => saveSettings({ companyLogo: ev.target.result });
+        reader.readAsDataURL(file);
+    };
+
+    const handleFaviconFile = (file) => {
+        if (!file) return;
+        const validTypes = new Set(["image/png", "image/svg+xml", "image/x-icon", "image/vnd.microsoft.icon", "image/ico"]);
+        const ext = (file.name.split('.').pop() || '').toLowerCase();
+        const validExt = new Set(["png", "svg", "ico"]);
+        if (!validTypes.has(file.type) && !validExt.has(ext)) {
+            showToast?.("Use PNG, SVG, or ICO for favicon.", "error");
+            return;
+        }
+        if (file.size > 512 * 1024) {
+            showToast?.("Favicon must be 512KB or smaller.", "error");
+            return;
+        }
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            const base64 = ev.target.result;
+            saveSettings({ companyFavicon: base64 });
+            const link = document.querySelector("link[rel*='icon']") || document.createElement('link');
+            link.type = file.type || 'image/x-icon';
+            link.rel = 'icon';
+            link.href = base64;
+            document.getElementsByTagName('head')[0].appendChild(link);
+        };
+        reader.readAsDataURL(file);
+    };
 
     const unlockWorkspaceTab = useCallback(() => {
         if (!canEditSettings) {
@@ -1056,15 +1092,18 @@ export function Settings({
                                             <div style={{ width: 60, height: 60, borderRadius: 12, border: "1px solid var(--border-subtle)", background: "var(--surface-primary)", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
                                                 {localS.companyLogo ? <img src={localS.companyLogo} style={{ width: "100%", height: "100%", objectFit: "contain" }} /> : <Building2 size={24} style={{ opacity: 0.2 }} />}
                                             </div>
-                                            <label className="btn-premium btn-ghost" style={{ fontSize: 12, padding: "8px 12px", cursor: "pointer" }}>
+                                            <label className="btn-premium btn-ghost" style={{ fontSize: 12, padding: "8px 12px", cursor: "pointer", border: logoDragOver ? "1px dashed var(--brand-primary)" : undefined }}
+                                                onDragOver={(e) => { e.preventDefault(); setLogoDragOver(true); }}
+                                                onDragLeave={() => setLogoDragOver(false)}
+                                                onDrop={(e) => {
+                                                    e.preventDefault();
+                                                    setLogoDragOver(false);
+                                                    handleLogoFile(e.dataTransfer?.files?.[0]);
+                                                }}
+                                            >
                                                 <Upload size={14} style={{ marginRight: 6 }} /> Upload Logo
                                                 <input type="file" accept="image/*" style={{ display: "none" }} onChange={e => {
-                                                    const file = e.target.files[0];
-                                                    if (file) {
-                                                        const reader = new FileReader();
-                                                        reader.onload = (ev) => saveSettings({ companyLogo: ev.target.result });
-                                                        reader.readAsDataURL(file);
-                                                    }
+                                                    handleLogoFile(e.target.files[0]);
                                                 }} />
                                             </label>
                                         </div>
@@ -1075,24 +1114,18 @@ export function Settings({
                                             <div style={{ width: 40, height: 40, borderRadius: 8, border: "1px solid var(--border-subtle)", background: "var(--surface-primary)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                                                 {localS.companyFavicon ? <img src={localS.companyFavicon} style={{ width: 24, height: 24, objectFit: "contain" }} /> : <div style={{ width: 16, height: 16, background: "var(--brand-primary)", borderRadius: 2 }} />}
                                             </div>
-                                            <label className="btn-premium btn-ghost" style={{ fontSize: 12, padding: "8px 12px", cursor: "pointer" }}>
+                                            <label className="btn-premium btn-ghost" style={{ fontSize: 12, padding: "8px 12px", cursor: "pointer", border: faviconDragOver ? "1px dashed var(--brand-primary)" : undefined }}
+                                                onDragOver={(e) => { e.preventDefault(); setFaviconDragOver(true); }}
+                                                onDragLeave={() => setFaviconDragOver(false)}
+                                                onDrop={(e) => {
+                                                    e.preventDefault();
+                                                    setFaviconDragOver(false);
+                                                    handleFaviconFile(e.dataTransfer?.files?.[0]);
+                                                }}
+                                            >
                                                 <Upload size={14} style={{ marginRight: 6 }} /> Change Icon
-                                                <input type="file" accept="image/*" style={{ display: "none" }} onChange={e => {
-                                                    const file = e.target.files[0];
-                                                    if (file) {
-                                                        const reader = new FileReader();
-                                                        reader.onload = (ev) => {
-                                                            const base64 = ev.target.result;
-                                                            saveSettings({ companyFavicon: base64 });
-                                                            // Immediate UI apply
-                                                            const link = document.querySelector("link[rel*='icon']") || document.createElement('link');
-                                                            link.type = 'image/x-icon';
-                                                            link.rel = 'shortcut icon';
-                                                            link.href = base64;
-                                                            document.getElementsByTagName('head')[0].appendChild(link);
-                                                        };
-                                                        reader.readAsDataURL(file);
-                                                    }
+                                                <input type="file" accept=".ico,image/png,image/svg+xml,image/x-icon" style={{ display: "none" }} onChange={e => {
+                                                    handleFaviconFile(e.target.files[0]);
                                                 }} />
                                             </label>
                                         </div>
@@ -2468,7 +2501,15 @@ export function Settings({
                                             <option value="Weekly">Weekly</option>
                                         </select>
                                         <Button icon={Plus} variant="secondary" onClick={createManualBackup}>Backup Now</Button>
-                                        <label style={{ cursor: "pointer", display: "inline-block" }}>
+                                        <label style={{ cursor: "pointer", display: "inline-block", border: backupDragOver ? "1px dashed var(--brand-primary)" : undefined, borderRadius: 10 }}
+                                            onDragOver={(e) => { e.preventDefault(); setBackupDragOver(true); }}
+                                            onDragLeave={() => setBackupDragOver(false)}
+                                            onDrop={(e) => {
+                                                e.preventDefault();
+                                                setBackupDragOver(false);
+                                                if (e.dataTransfer?.files?.[0]) uploadBackup(e.dataTransfer.files[0]);
+                                            }}
+                                        >
                                             <input type="file" accept=".json" style={{ display: "none" }} onChange={(e) => {
                                                 if (e.target.files && e.target.files[0]) uploadBackup(e.target.files[0]);
                                                 e.target.value = null;

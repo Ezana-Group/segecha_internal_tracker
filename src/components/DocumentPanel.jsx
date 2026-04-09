@@ -81,6 +81,7 @@ export function DocumentPanel({
     const [uploadForm, setUploadForm] = useState({ docType: '', label: '', expiryDate: '' });
     const [uploadMsg, setUploadMsg] = useState('');
     const [selectedFile, setSelectedFile] = useState(null);
+    const [dragOver, setDragOver] = useState(false);
 
     const entityDocs = (documents || []).filter(d => (d.entityType === entityType && d.entityId === entityId) || (entityType === 'staff' && d.driverId === entityId));
 
@@ -163,12 +164,34 @@ export function DocumentPanel({
                     </div>
                     <div className="form-group">
                         <label className="form-label" style={{ display: "block", fontSize: 11, fontWeight: 700, color: "var(--text-dim)", textTransform: "uppercase", marginBottom: 8 }}>Select File</label>
-                        <input 
-                            type="file" 
-                            accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx"
-                            style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 8 }}
-                            onChange={e => setSelectedFile(e.target.files[0])} 
-                        />
+                        <label
+                            onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                            onDragLeave={() => setDragOver(false)}
+                            onDrop={(e) => {
+                                e.preventDefault();
+                                setDragOver(false);
+                                const file = e.dataTransfer?.files?.[0];
+                                if (file) setSelectedFile(file);
+                            }}
+                            style={{
+                                display: "block",
+                                border: `1.5px dashed ${dragOver ? "var(--brand-primary)" : "var(--border-subtle)"}`,
+                                borderRadius: 10,
+                                padding: "10px 12px",
+                                background: dragOver ? "var(--brand-muted)" : "var(--surface-subtle)",
+                                cursor: "pointer",
+                            }}
+                        >
+                            <div style={{ fontSize: 11, color: "var(--text-dim)", marginBottom: 6 }}>
+                                {selectedFile ? `Selected: ${selectedFile.name}` : "Drag & drop file here, or click to browse"}
+                            </div>
+                            <input 
+                                type="file" 
+                                accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx"
+                                style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 8, width: "100%" }}
+                                onChange={e => setSelectedFile(e.target.files[0])} 
+                            />
+                        </label>
                     </div>
                 </div>
 

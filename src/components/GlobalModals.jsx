@@ -89,6 +89,15 @@ function AutoIdDisplay({ value, S }) {
 /* Upload zone — dashed border, filename / preview when done */
 function UploadZone({ label, hint, value, uploading, onUpload, onRemove, accept = "image/*", previewThumb = true }) {
     const done = !!value;
+    const [dragOver, setDragOver] = useState(false);
+    const handleDrop = (e) => {
+        e.preventDefault();
+        setDragOver(false);
+        if (uploading || done) return;
+        const dropped = e.dataTransfer?.files?.[0];
+        if (!dropped) return;
+        onUpload?.({ target: { files: [dropped], value: "" } });
+    };
     return (
         <div>
             <FormLabel>{label}</FormLabel>
@@ -96,11 +105,15 @@ function UploadZone({ label, hint, value, uploading, onUpload, onRemove, accept 
                 display: "flex", alignItems: "center", justifyContent: "center",
                 flexDirection: "column", gap: 6,
                 minHeight: 70, borderRadius: "var(--radius-md)",
-                border: `1.5px dashed ${uploading ? "var(--brand-primary)" : done ? "#10b981" : "var(--border-medium)"}`,
-                background: done ? "rgba(16,185,129,0.04)" : uploading ? "var(--brand-muted)" : "var(--bg-main)",
+                border: `1.5px dashed ${dragOver ? "var(--brand-primary)" : uploading ? "var(--brand-primary)" : done ? "#10b981" : "var(--border-medium)"}`,
+                background: dragOver ? "var(--brand-muted)" : done ? "rgba(16,185,129,0.04)" : uploading ? "var(--brand-muted)" : "var(--bg-main)",
                 cursor: uploading ? "wait" : "pointer",
                 padding: "12px 16px", textAlign: "center", transition: "border-color 0.15s",
-            }}>
+            }}
+                onDragOver={(e) => { e.preventDefault(); if (!uploading && !done) setDragOver(true); }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={handleDrop}
+            >
                 {uploading ? (
                     <span style={{ fontSize: 12, color: "var(--brand-primary)", fontWeight: 600 }}>Uploading…</span>
                 ) : done ? (
@@ -124,7 +137,7 @@ function UploadZone({ label, hint, value, uploading, onUpload, onRemove, accept 
                     <>
                         <span style={{ fontSize: 20, opacity: 0.4 }}>⬆</span>
                         <span style={{ fontSize: 11, color: "var(--text-dim)", fontWeight: 600 }}>
-                            {hint || "Click to upload"}
+                            {hint || "Click or drag file to upload"}
                         </span>
                     </>
                 )}
@@ -137,7 +150,30 @@ function UploadZone({ label, hint, value, uploading, onUpload, onRemove, accept 
 /* ─────────────────────────────────────────────────────────────────────
    FuelPhotoField (preserves original upload logic, new shell)
 ───────────────────────────────────────────────────────────────────── */
-const FuelPhotoField = ({ label, k, form, setForm, S, T }) => {
+/* Compress an image file to a JPEG data-URL at reduced resolution so it
+   stays small enough to store in JSONB metadata (target ~100 KB). */
+async function compressImageToBase64(file, maxW = 1024, maxH = 768, quality = 0.72) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        const objUrl = URL.createObjectURL(file);
+        img.onload = () => {
+            let { width: w, height: h } = img;
+            const ratio = Math.min(maxW / w, maxH / h, 1); // never upscale
+            w = Math.round(w * ratio);
+            h = Math.round(h * ratio);
+            const canvas = document.createElement('canvas');
+            canvas.width  = w;
+            canvas.height = h;
+            canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+            URL.revokeObjectURL(objUrl);
+            resolve(canvas.toDataURL('image/jpeg', quality));
+        };
+        img.onerror = () => { URL.revokeObjectURL(objUrl); reject(new Error('Image load failed')); };
+        img.src = objUrl;
+    });
+}
+
+const FuelPhotoField = ({ label, k, form, setForm }) => {
     const [uploading, setUploading] = useState(false);
     const photoUrl = form[k];
 
@@ -145,20 +181,14 @@ const FuelPhotoField = ({ label, k, form, setForm, S, T }) => {
         const file = e.target.files[0];
         if (!file) return;
         setUploading(true);
-        const formData = new FormData();
-        formData.append("photo", file);
         try {
-            const res = await fetchWithAuth(`${PAYMENT_API}/api/driver/upload`, {
-                method: "POST",
-                body: formData,
-            });
-            const d = await res.json();
-            if (d.success) setForm(f => ({ ...f, [k]: d.url }));
-            else alert("Upload failed: " + d.error);
+            const dataUrl = await compressImageToBase64(file);
+            setForm(f => ({ ...f, [k]: dataUrl }));
         } catch (err) {
-            alert("Upload error: " + err.message);
+            alert("Could not read image: " + err.message);
         } finally {
             setUploading(false);
+            e.target.value = "";
         }
     };
 
@@ -267,6 +297,20 @@ export function GlobalModals(props) {
 
     const modalGrid = isMobile ? gridFull : grid2;
 
+    const uploadViaAdminApi = async (file) => {
+        const fd = new FormData();
+        fd.append("file", file);
+        const res = await fetchWithAuth(`${PAYMENT_API}/api/admin/upload`, { method: "POST", body: fd });
+        return res.json();
+    };
+
+    const uploadViaDriverApi = async (file) => {
+        const fd = new FormData();
+        fd.append("file", file);
+        const res = await fetch(`${PAYMENT_API}/api/driver/upload`, { method: "POST", body: fd });
+        return res.json();
+    };
+
     /* ═══════════════════════════════════════════════════════════════
        FUEL
     ═══════════════════════════════════════════════════════════════ */
@@ -284,8 +328,28 @@ export function GlobalModals(props) {
 
                     <Field label="Truck" k="truck"
                         options={data.trucks.map(t => ({ v: t.id, l: t.reg }))}
-                        form={form} setForm={setForm} S={S} />
+                        form={form} setForm={setForm} S={S}
+                        onChange={(truckId) => {
+                            const truck = data.trucks.find(t => t.id === truckId);
+                            setForm(f => ({ ...f, truck: truckId, fuelType: truck?.fuelType || f.fuelType || '' }));
+                        }}
+                    />
                     <Field label="Date" k="date" type="date" form={form} setForm={setForm} S={S} />
+                    {form.fuelType && (
+                        <div style={{
+                            gridColumn: "1/-1",
+                            display: "flex", alignItems: "center", gap: 10,
+                            padding: "10px 14px", borderRadius: "var(--radius-md)",
+                            background: "var(--surface-subtle)", border: "1px solid var(--border-subtle)",
+                            fontSize: 12,
+                        }}>
+                            <span style={{ fontSize: 16 }}>⛽</span>
+                            <span style={{ color: "var(--text-secondary)" }}>
+                                Fuel type for this vehicle: <strong style={{ color: "var(--text-primary)" }}>{form.fuelType}</strong>
+                            </span>
+                            <span style={{ marginLeft: "auto", fontSize: 10, color: "var(--text-dim)", fontStyle: "italic" }}>Set on the vehicle — cannot be changed here</span>
+                        </div>
+                    )}
                     <Field label="Litres" k="litres" type="number" form={form} setForm={setForm} S={S} error={errors.litres} />
                     <Field label="Price per Litre (KES)" k="pricePerL" type="number" form={form} setForm={setForm} S={S} error={errors.pricePerL} />
 
@@ -802,7 +866,20 @@ export function GlobalModals(props) {
                                     background: form.tr8Url ? "rgba(16,185,129,0.04)" : form.tr8Uploading ? "var(--brand-muted)" : "var(--bg-main)",
                                     cursor: form.tr8Uploading ? "wait" : "pointer",
                                     padding: "16px", textAlign: "center",
-                                }}>
+                                }}
+                                    onDragOver={(e) => e.preventDefault()}
+                                    onDrop={async (e) => {
+                                        e.preventDefault();
+                                        const file = e.dataTransfer?.files?.[0];
+                                        if (!file || form.tr8Uploading) return;
+                                        setForm(f => ({ ...f, tr8Uploading: true }));
+                                        try {
+                                            const result = await uploadViaAdminApi(file);
+                                            if (result.success) setForm(f => ({ ...f, tr8Url: result.url, tr8Uploading: false }));
+                                            else { alert(result.error); setForm(f => ({ ...f, tr8Uploading: false })); }
+                                        } catch (err) { alert(err.message); setForm(f => ({ ...f, tr8Uploading: false })); }
+                                    }}
+                                >
                                     {form.tr8Uploading ? (
                                         <span style={{ fontSize: 13, color: "var(--brand-primary)", fontWeight: 600 }}>Uploading TR8…</span>
                                     ) : form.tr8Url ? (
@@ -829,10 +906,7 @@ export function GlobalModals(props) {
                                             if (!file) return;
                                             setForm(f => ({ ...f, tr8Uploading: true }));
                                             try {
-                                                const fd = new FormData();
-                                                fd.append("file", file);
-                                                const res    = await fetchWithAuth(`${PAYMENT_API}/api/admin/upload`, { method: "POST", body: fd });
-                                                const result = await res.json();
+                                                const result = await uploadViaAdminApi(file);
                                                 if (result.success) setForm(f => ({ ...f, tr8Url: result.url, tr8Uploading: false }));
                                                 else { alert(result.error); setForm(f => ({ ...f, tr8Uploading: false })); }
                                             } catch (err) { alert(err.message); setForm(f => ({ ...f, tr8Uploading: false })); }
@@ -859,7 +933,20 @@ export function GlobalModals(props) {
                                     background: form.t1Url ? "rgba(16,185,129,0.04)" : form.t1Uploading ? "var(--brand-muted)" : "var(--bg-main)",
                                     cursor: form.t1Uploading ? "wait" : "pointer",
                                     padding: "16px", textAlign: "center", transition: "border-color 0.15s",
-                                }}>
+                                }}
+                                    onDragOver={(e) => e.preventDefault()}
+                                    onDrop={async (e) => {
+                                        e.preventDefault();
+                                        const file = e.dataTransfer?.files?.[0];
+                                        if (!file || form.t1Uploading) return;
+                                        setForm(f => ({ ...f, t1Uploading: true }));
+                                        try {
+                                            const result = await uploadViaAdminApi(file);
+                                            if (result.success) setForm(f => ({ ...f, t1Url: result.url, t1Uploading: false }));
+                                            else { alert(result.error); setForm(f => ({ ...f, t1Uploading: false })); }
+                                        } catch (err) { alert(err.message); setForm(f => ({ ...f, t1Uploading: false })); }
+                                    }}
+                                >
                                     {form.t1Uploading ? (
                                         <span style={{ fontSize: 13, color: "var(--brand-primary)", fontWeight: 600 }}>Uploading T1…</span>
                                     ) : form.t1Url ? (
@@ -887,10 +974,7 @@ export function GlobalModals(props) {
                                             if (!file) return;
                                             setForm(f => ({ ...f, t1Uploading: true }));
                                             try {
-                                                const fd = new FormData();
-                                                fd.append("file", file);
-                                                const res    = await fetchWithAuth(`${PAYMENT_API}/api/admin/upload`, { method: "POST", body: fd });
-                                                const result = await res.json();
+                                                const result = await uploadViaAdminApi(file);
                                                 if (result.success) setForm(f => ({ ...f, t1Url: result.url, t1Uploading: false }));
                                                 else { alert(result.error); setForm(f => ({ ...f, t1Uploading: false })); }
                                             } catch (err) { alert(err.message); setForm(f => ({ ...f, t1Uploading: false })); }
@@ -1163,7 +1247,20 @@ export function GlobalModals(props) {
                             background: form.receiptUrl ? "rgba(16,185,129,0.04)" : form.receiptUploading ? "var(--brand-muted)" : "var(--bg-main)",
                             cursor: form.receiptUploading ? "wait" : "pointer",
                             padding: "14px", textAlign: "center",
-                        }}>
+                        }}
+                            onDragOver={(e) => e.preventDefault()}
+                            onDrop={async (e) => {
+                                e.preventDefault();
+                                const file = e.dataTransfer?.files?.[0];
+                                if (!file || form.receiptUploading) return;
+                                setForm(f => ({ ...f, receiptUploading: true }));
+                                try {
+                                    const result = await uploadViaDriverApi(file);
+                                    if (result.success) setForm(f => ({ ...f, receiptUrl: result.url, receiptUploading: false }));
+                                    else { alert(result.error); setForm(f => ({ ...f, receiptUploading: false })); }
+                                } catch (err) { alert(err.message); setForm(f => ({ ...f, receiptUploading: false })); }
+                            }}
+                        >
                             {form.receiptUploading ? (
                                 <span style={{ fontSize: 12, color: "var(--brand-primary)", fontWeight: 600 }}>Uploading…</span>
                             ) : form.receiptUrl ? (
@@ -1189,9 +1286,7 @@ export function GlobalModals(props) {
                                     const file = e.target.files[0]; if (!file) return;
                                     setForm(f => ({ ...f, receiptUploading: true }));
                                     try {
-                                        const fd = new FormData(); fd.append("file", file);
-                                        const res    = await fetch(`${PAYMENT_API}/api/driver/upload`, { method: "POST", body: fd });
-                                        const result = await res.json();
+                                        const result = await uploadViaDriverApi(file);
                                         if (result.success) setForm(f => ({ ...f, receiptUrl: result.url, receiptUploading: false }));
                                         else { alert(result.error); setForm(f => ({ ...f, receiptUploading: false })); }
                                     } catch (err) { alert(err.message); setForm(f => ({ ...f, receiptUploading: false })); }
@@ -1226,12 +1321,13 @@ export function GlobalModals(props) {
 
                     <SectionDivider title="Vehicle Details" />
 
-                    <Field label="Registration No."    k="reg"      form={form} setForm={setForm} S={S} T={T} error={errors.reg} />
-                    <Field label="Manufacturer / Model" k="make"    form={form} setForm={setForm} S={S} T={T} />
-                    <Field label="Year"                k="year"     type="number" form={form} setForm={setForm} S={S} T={T} />
-                    <Field label="Capacity (tonnes)"   k="capacity" type="number" form={form} setForm={setForm} S={S} T={T} error={errors.capacity} />
-                    <Field label="Vehicle Type"        k="type"     options={TRUCK_TYPES}  form={form} setForm={setForm} S={S} T={T} />
-                    <Field label="Status"              k="status"   options={STATUSES_TRUCK} form={form} setForm={setForm} S={S} T={T} />
+                    <Field label="Registration No."  k="reg"       form={form} setForm={setForm} S={S} T={T} error={errors.reg} />
+                    <Field label="Manufacturer"      k="make"      form={form} setForm={setForm} S={S} T={T} placeholder="e.g. Toyota, Isuzu, MAN" />
+                    <Field label="Model / Version"   k="model"     form={form} setForm={setForm} S={S} T={T} placeholder="e.g. Hino 500, NPR 71, TGS 26" />
+                    <Field label="Year"              k="year"      type="number" form={form} setForm={setForm} S={S} T={T} />
+                    <Field label="Fuel Type"         k="fuelType"  options={["Diesel", "Petrol", "CNG", "Electric", "Other"]} form={form} setForm={setForm} S={S} T={T} />
+                    <Field label="Vehicle Type"      k="type"      options={TRUCK_TYPES} form={form} setForm={setForm} S={S} T={T} />
+                    <Field label="Status"            k="status"    options={STATUSES_TRUCK} form={form} setForm={setForm} S={S} T={T} />
 
                     <div style={{ alignSelf: "end", paddingBottom: 6 }}>
                         <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
@@ -1240,6 +1336,18 @@ export function GlobalModals(props) {
                             <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-primary)" }}>Rigid Vehicle</span>
                         </label>
                     </div>
+
+                    <SectionDivider title="Specifications" />
+
+                    <Field label="Load Capacity (KGs)"  k="capacity"     type="number" form={form} setForm={setForm} S={S} T={T} error={errors.capacity} />
+                    <Field label="Gross Weight (KGs)"   k="grossWeightKg" type="number" form={form} setForm={setForm} S={S} T={T} />
+                    <Field label="Number of Axles"      k="axleCount"    type="number" form={form} setForm={setForm} S={S} T={T} />
+                    <Field label="Tare Weight (KGs)"     k="tareWeightKg" type="number" form={form} setForm={setForm} S={S} T={T} />
+                    <div>
+                        <Field label="Engine Rating (CC)" k="engineCC" type="number" form={form} setForm={setForm} S={S} T={T} />
+                        <p style={{ fontSize: 10, color: "var(--text-dim)", marginTop: 4, lineHeight: 1.4 }}>For records &amp; compliance — fuel efficiency is calculated from actual fill-up data.</p>
+                    </div>
+                    <Field label="Date of Registration" k="registeredOn" type="date" form={form} setForm={setForm} S={S} T={T} />
 
                     <SectionDivider title="Registration &amp; Compliance" />
 
@@ -1415,8 +1523,12 @@ export function GlobalModals(props) {
 
                     <Field label="Registration No."     k="reg"   form={form} setForm={setForm} S={S} T={T} />
                     <Field label="Trailer Type"         k="type"  options={["Flatbed", "Skeleton", "Tanker", "Lowloader", "Box Body", "Refrigerated"]} form={form} setForm={setForm} S={S} T={T} />
-                    <Field label="Manufacturer / Model" k="make"  form={form} setForm={setForm} S={S} T={T} />
+                    <Field label="Manufacturer"         k="make"  form={form} setForm={setForm} S={S} T={T} />
+                    <Field label="Model / Version"      k="model" form={form} setForm={setForm} S={S} T={T} />
                     <Field label="Year"                 k="year"  type="number" form={form} setForm={setForm} S={S} T={T} />
+                    <Field label="Number of Axles"      k="axleCount"    type="number" form={form} setForm={setForm} S={S} T={T} />
+                    <Field label="Tare Weight (KGs)"     k="tareWeightKg" type="number" form={form} setForm={setForm} S={S} T={T} />
+                    <Field label="Date of Registration"  k="registeredOn" type="date" form={form} setForm={setForm} S={S} T={T} />
                     <Field label="Status"               k="status" options={["Active", "Maintenance", "Inactive"]} form={form} setForm={setForm} S={S} T={T} />
                     <Field label="Assigned Truck"       k="truck"  options={data.trucks.map(t => ({ v: t.id, l: t.reg }))} form={form} setForm={setForm} S={S} T={T} />
 

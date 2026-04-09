@@ -630,6 +630,9 @@ async function addPendingSubmission(driverId, type, payload) {
     if (!v.success) return v;
 
     const { truck, journey } = v;
+    const truckRes = await db.query('SELECT * FROM trucks WHERE id = $1', [truck]);
+    const truckMeta = truckRes.rows[0]?.metadata || {};
+    const truckFuelType = truckMeta.fuelType || '';
     const now  = new Date().toISOString();
     const id   = uid();
     const date = payload.date || now.split('T')[0];
@@ -651,6 +654,7 @@ async function addPendingSubmission(driverId, type, payload) {
                 amount, +payload.litres, payload.station || '',
                 JSON.stringify({
                     pricePerL:        +payload.pricePerL || 0,
+                    fuelType:         truckFuelType,
                     odom:             +payload.odom || 0,
                     photoPump:        payload.photoPump        || '',
                     photoReceipt:     payload.photoReceipt     || payload.receiptUrl || '',

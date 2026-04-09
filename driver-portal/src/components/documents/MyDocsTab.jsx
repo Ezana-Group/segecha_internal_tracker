@@ -10,6 +10,7 @@ export const MyDocsTab = ({ token, portalPerm }) => {
     const [uploadForm, setUploadForm] = useState({ docType: '', label: '', expiryDate: '' });
     const [msg, setMsg] = useState('');
     const [uploading, setUploading] = useState(false);
+    const [dragOver, setDragOver] = useState(false);
 
     const DOC_TYPES = [
         { v: 'psv_licence', l: 'PSV Driving Licence' },
@@ -97,7 +98,35 @@ export const MyDocsTab = ({ token, portalPerm }) => {
                     <input style={S.inp} type="date" value={uploadForm.expiryDate} onChange={(e) => setUploadForm((f) => ({ ...f, expiryDate: e.target.value }))} />
 
                     <div style={{ marginTop: 12, marginBottom: 12 }}>
-                        <input type="file" accept=".pdf,.jpg,.jpeg,.png" style={S.inp} onChange={(e) => e.target.files[0] && handleUpload(e.target.files[0])} disabled={uploading} />
+                        <label
+                            style={{
+                                ...S.inp,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                border: `1.5px dashed ${dragOver ? COLORS.primary : COLORS.border}`,
+                                background: dragOver ? COLORS.bg : S.inp.background,
+                                cursor: uploading ? 'wait' : 'pointer',
+                                minHeight: 42,
+                            }}
+                            onDragOver={(e) => { e.preventDefault(); if (!uploading) setDragOver(true); }}
+                            onDragLeave={() => setDragOver(false)}
+                            onDrop={(e) => {
+                                e.preventDefault();
+                                setDragOver(false);
+                                const file = e.dataTransfer?.files?.[0];
+                                if (file && !uploading) handleUpload(file);
+                            }}
+                        >
+                            {uploading ? 'Uploading…' : 'Drag & drop file or click to choose'}
+                            <input
+                                type="file"
+                                accept=".pdf,.jpg,.jpeg,.png"
+                                style={{ display: 'none' }}
+                                onChange={(e) => e.target.files[0] && handleUpload(e.target.files[0])}
+                                disabled={uploading}
+                            />
+                        </label>
                     </div>
 
                     <div style={{ fontSize: 11, color: COLORS.textFaint }}>Upload your PSV licence, medical certificate, or ID card for office records.</div>

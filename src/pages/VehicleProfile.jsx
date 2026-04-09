@@ -178,7 +178,9 @@ export function VehicleProfile({ data, setData, dark, isMobile, openModal, maint
                                 fontWeight: 500,
                             }}
                         >
-                            <span>{truck.make}</span>
+                            <span>{truck.make || "—"}</span>
+                            <span style={{ opacity: 0.3 }}>·</span>
+                            <span>{truck.model || "—"}</span>
                             <span style={{ opacity: 0.3 }}>·</span>
                             <span>{truck.type}</span>
                             {truck.year && (
@@ -236,10 +238,14 @@ export function VehicleProfile({ data, setData, dark, isMobile, openModal, maint
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px 16px" }}>
                         {[
                             ["Reg", truck.reg],
-                            ["Make", truck.make],
+                            ["Manufacturer", truck.make || "—"],
+                            ["Model", truck.model || "—"],
                             ["Type", truck.type],
                             ["Year", truck.year || "—"],
-                            ["Engine", truck.engine || "—"],
+                            ["Fuel Type", truck.fuelType || "—"],
+                            ["Engine (CC)", truck.engineCC || "—"],
+                            ["Axles", truck.axleCount || "—"],
+                            ["Tare (kg)", truck.tareWeightKg ? Number(truck.tareWeightKg).toLocaleString() : "—"],
                         ].map(([label, value]) => (
                             <div key={label}>
                                 <div style={{ fontSize: 10, color: "var(--text-dim)", fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>{label}</div>
@@ -393,7 +399,7 @@ export function VehicleProfile({ data, setData, dark, isMobile, openModal, maint
                                 { l: 'Distance',    v: `${totalKm.toLocaleString()} km`,       c: "var(--text-primary)",   i: Navigation },
                                 { l: 'Fuel Used',   v: `${totalLitres.toLocaleString()} L`,    c: "var(--text-primary)",   i: Fuel },
                                 { l: 'Efficiency',  v: `${avgKmPerL} km/L`,                    c: '#a78bfa',               i: ArrowUpRight },
-                                { l: 'Max Payload', v: `${truck.capacity} T`,                  c: "var(--text-primary)",   i: Truck },
+                                { l: 'Load Capacity', v: `${Number(truck.capacity || 0).toLocaleString()} kg`, c: "var(--text-primary)", i: Truck },
                             ].map(k => (
                                 <div
                                     key={k.l}
@@ -434,10 +440,17 @@ export function VehicleProfile({ data, setData, dark, isMobile, openModal, maint
                                     }}
                                 >
                                     {[
-                                        ['Make / Model',         truck.make],
+                                        ['Manufacturer',         truck.make || '—'],
+                                        ['Model',                truck.model || '—'],
                                         ['Year of Manufacture',  truck.year],
                                         ['Body Type',            truck.type],
-                                        ['Payload Capacity',     `${truck.capacity} T`],
+                                        ['Fuel Type',            truck.fuelType || '—'],
+                                        ['Engine Rating',        truck.engineCC ? `${truck.engineCC} CC` : '—'],
+                                        ['Axles',                truck.axleCount || '—'],
+                                        ['Tare Weight',          truck.tareWeightKg ? `${Number(truck.tareWeightKg).toLocaleString()} kg` : '—'],
+                                        ['Load Capacity',        `${Number(truck.capacity || 0).toLocaleString()} kg`],
+                                        ['Gross Weight',         truck.grossWeightKg ? `${Number(truck.grossWeightKg).toLocaleString()} kg` : '—'],
+                                        ['Date Registered',      truck.registeredOn || '—'],
                                         ['Live Odometer',        `${Number(truck.odom || 0).toLocaleString()} km`],
                                         ['Assigned Operator',    driverName(truck.driver)],
                                         ['KRA PIN Ref',          truck.kraPin || 'Unset'],

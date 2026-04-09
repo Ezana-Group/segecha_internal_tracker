@@ -893,15 +893,19 @@ app.get('/api/documents/expiring', async (req, res) => {
 app.post('/api/documents/upload', upload.any(), async (req, res) => {
     try {
         const body = req.body || {};
+        const file = req.files?.[0];
         const id = Date.now().toString();
         const { entityType, entityId, label, url, expiryDate, ...rest } = body;
+        const uploadedUrl = file ? `data:${file.mimetype || 'application/octet-stream'};base64,${file.buffer.toString('base64')}` : '';
+        const finalUrl = url || uploadedUrl;
+        if (!finalUrl) return res.status(400).json({ error: 'Document URL or file is required' });
 
         await db.query(
             'INSERT INTO documents (id, entity_type, entity_id, label, url, expiry_date, metadata) VALUES ($1, $2, $3, $4, $5, $6, $7)',
-            [id, entityType, entityId, label, url || 'https://res.cloudinary.com/demo/image/upload/sample.jpg', expiryDate, JSON.stringify(rest)]
+            [id, entityType, entityId, label, finalUrl, expiryDate, JSON.stringify(rest)]
         );
 
-        res.json({ success: true, document: { id, ...body, url: url || 'https://res.cloudinary.com/demo/image/upload/sample.jpg' } });
+        res.json({ success: true, document: { id, ...body, url: finalUrl } });
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
@@ -917,8 +921,13 @@ app.delete('/api/documents/:id', async (req, res) => {
 });
 
 // Admin upload — replaced by /api/documents/upload (HIGH-07)
-app.post('/api/admin/upload', (req, res) => {
-    res.status(410).json({ error: 'Deprecated. Use POST /api/documents/upload instead.' });
+app.post('/api/admin/upload', upload.any(), (req, res) => {
+    const file = req.files?.[0];
+    if (!file) return res.status(400).json({ error: 'No file uploaded' });
+    const mime = file.mimetype || 'application/octet-stream';
+    const base64 = file.buffer.toString('base64');
+    const dataUrl = `data:${mime};base64,${base64}`;
+    res.json({ success: true, url: dataUrl });
 });
 
 // ─── GENERIC ADMIN CRUD ────────────────────────────────────────────────────
@@ -931,7 +940,7 @@ const ADMIN_COLLECTIONS = {
         table: 'trucks',
         extract: (item) => ({
             registration_number: item.reg || item.registration_number || '',
-            model:               item.make || item.model || '',
+            model:               item.model || '',
             status:              item.status || 'Active',
             current_mileage:     Number(item.odom || item.current_mileage) || 0,
             tyre_odom:           Number(item.tyreOdom || item.tyre_odom) || 0,
@@ -1107,6 +1116,9 @@ async function upsertCollectionRow(collection, item) {
 app.post('/api/admin/collection/:col', async (req, res) => {
     const { col } = req.params;
     if (!ADMIN_COLLECTIONS[col]) return res.status(400).json({ error: `Unknown collection: ${col}` });
+    if (!req.body || !req.body.id) {
+        return res.status(400).json({ error: 'Missing required field: id' });
+    }
     try {
         await upsertCollectionRow(col, req.body);
         res.json({ success: true });
@@ -1627,8 +1639,13 @@ app.post('/api/driver/journeys/start-placeholder', driverAuth.authMiddleware, as
     }
 });
 
-app.post('/api/driver/upload', driverAuth.authMiddleware, (req, res) => {
-    res.json({ success: true, url: 'https://res.cloudinary.com/demo/image/upload/sample.jpg' });
+app.post('/api/driver/upload', driverAuth.authMiddleware, upload.any(), (req, res) => {
+    const file = req.files?.[0];
+    if (!file) return res.status(400).json({ error: 'No file uploaded' });
+    const mime = file.mimetype || 'application/octet-stream';
+    const base64 = file.buffer.toString('base64');
+    const dataUrl = `data:${mime};base64,${base64}`;
+    res.json({ success: true, url: dataUrl });
 });
 
 app.get('/api/documents/mine', driverAuth.authMiddleware, async (req, res) => {
@@ -1647,16 +1664,18 @@ app.get('/api/documents/mine', driverAuth.authMiddleware, async (req, res) => {
 app.post('/api/documents/driver-upload', driverAuth.authMiddleware, upload.any(), async (req, res) => {
     try {
         const body = req.body || {};
+        const file = req.files?.[0];
         const id = Date.now().toString();
         const doc = {
             id,
             driverId: req.driver.driverId,
             entityType: 'driver',
             entityId: req.driver.driverId,
-            url: body.url || 'https://res.cloudinary.com/demo/image/upload/sample.jpg',
+            url: body.url || (file ? `data:${file.mimetype || 'application/octet-stream'};base64,${file.buffer.toString('base64')}` : ''),
             ...body,
             uploadedAt: new Date().toISOString()
         };
+        if (!doc.url) return res.status(400).json({ error: 'Document URL or file is required' });
 
         const { entityType, entityId, label, url, expiryDate, ...metadata } = doc;
         await db.query(

@@ -53,6 +53,7 @@ export function Documents({ data, setData, dark, isMobile }) {
         entityType: '', entityId: '', docType: '', label: '', expiryDate: ''
     });
     const [selectedFile, setSelectedFile] = useState(null);
+    const [uploadDragOver, setUploadDragOver] = useState(false);
 
     // ── Helper: fetchDocuments
     const fetchDocuments = async (entityType, entityId) => {
@@ -360,15 +361,25 @@ export function Documents({ data, setData, dark, isMobile }) {
                             <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>
                                 File
                             </label>
-                            <div style={{ position: "relative" }}>
+                            <div
+                                style={{ position: "relative" }}
+                                onDragOver={(e) => { e.preventDefault(); setUploadDragOver(true); }}
+                                onDragLeave={() => setUploadDragOver(false)}
+                                onDrop={(e) => {
+                                    e.preventDefault();
+                                    setUploadDragOver(false);
+                                    const file = e.dataTransfer?.files?.[0];
+                                    if (file) setSelectedFile(file);
+                                }}
+                            >
                                 <input
                                     type="file"
                                     style={{ position: "absolute", inset: 0, opacity: 0, cursor: "pointer", width: "100%", height: "100%" }}
                                     onChange={e => setSelectedFile(e.target.files[0])}
                                 />
-                                <div style={{ height: 40, background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-md)", display: "flex", alignItems: "center", padding: "0 12px", gap: 8, color: selectedFile ? "var(--text-primary)" : "var(--text-muted)", fontWeight: 600, fontSize: 13 }}>
+                                <div style={{ height: 40, background: uploadDragOver ? "var(--brand-muted)" : "var(--bg-surface)", border: uploadDragOver ? "1px solid var(--brand-primary)" : "1px solid var(--border-subtle)", borderRadius: "var(--radius-md)", display: "flex", alignItems: "center", padding: "0 12px", gap: 8, color: selectedFile ? "var(--text-primary)" : "var(--text-muted)", fontWeight: 600, fontSize: 13 }}>
                                     <Cloud size={15} color="var(--brand-primary)" />
-                                    {selectedFile ? selectedFile.name : "Choose file..."}
+                                    {selectedFile ? selectedFile.name : "Choose or drop file..."}
                                 </div>
                             </div>
                         </div>

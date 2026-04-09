@@ -34,21 +34,29 @@ function transformDBTables(tables = {}) {
 
     const trucks = (tables.trucks || []).map(row => ({
         ...m(row),
-        id:           row.id,
-        uId:          m(row).uId || m(row).uid || row.id,
-        reg:          row.registration_number || m(row).reg || '',
-        registration: row.registration_number || m(row).reg || '', // alias used by some components
-        model:        m(row).make || row.model || '',              // alias used by Fleet table
-        make:         m(row).make || row.model || '',
-        year:         m(row).year || '',
-        type:         m(row).type || '',
-        isRigid:      m(row).isRigid ?? false,
-        capacity:     m(row).capacity || '',
-        driver:       m(row).driver || m(row).driverId || row.driver_id || '',
-        status:       row.status || 'Active',
-        odom:         Number(row.current_mileage) || 0,
-        tyreOdom:     Number(row.tyre_odom)       || 0,
-        tyreLimit:    Number(row.tyre_limit)       || 0,
+        id:             row.id,
+        uId:            m(row).uId || m(row).uid || row.id,
+        reg:            row.registration_number || m(row).reg || '',
+        registration:   row.registration_number || m(row).reg || '', // alias used by some components
+        // Manufacturer and model are now separate fields.
+        // Legacy records stored "Toyota Hino" in make; new records store them separately.
+        make:           m(row).make || '',                            // Manufacturer only (e.g. "Toyota")
+        model:          m(row).model || row.model || '',              // Model/version (e.g. "Hino 500")
+        year:           m(row).year || '',
+        type:           m(row).type || '',
+        isRigid:        m(row).isRigid ?? false,
+        capacity:       m(row).capacity || '',                        // Load capacity in KGs
+        grossWeightKg:  m(row).grossWeightKg || '',                   // Gross vehicle weight in KGs
+        engineCC:       m(row).engineCC || '',                        // Engine displacement (CC) — informational
+        fuelType:       m(row).fuelType || '',                        // Diesel / Petrol / CNG / Electric / Other
+        axleCount:      Number(m(row).axleCount) || 0,
+        tareWeightKg:   Number(m(row).tareWeightKg) || 0,
+        registeredOn:   d(m(row).registeredOn),
+        driver:         m(row).driver || m(row).driverId || row.driver_id || '',
+        status:         row.status || 'Active',
+        odom:           Number(row.current_mileage) || 0,
+        tyreOdom:       Number(row.tyre_odom)       || 0,
+        tyreLimit:      Number(row.tyre_limit)       || 0,
     }));
 
     const trailers = (tables.trailers || []).map(row => ({
@@ -57,7 +65,11 @@ function transformDBTables(tables = {}) {
         uId:    m(row).uId || m(row).uid || row.id,
         reg:    row.registration_number || m(row).reg || '',
         make:   m(row).make || '',
+        model:  m(row).model || '',
         type:   row.type || m(row).type || '',
+        axleCount:    Number(m(row).axleCount) || 0,
+        tareWeightKg: Number(m(row).tareWeightKg) || 0,
+        registeredOn: d(m(row).registeredOn),
         status: row.status || 'Active',
     }));
 
@@ -661,11 +673,19 @@ export function useAppState() {
     const saveItem = (col, item, options = {}) => {
         const skipClose = options?.skipClose === true;
         let isNew = false;
-        let finalItem = { ...item };
+        // Ensure every new record has an id before local update and server sync.
+        // This prevents null-id inserts (e.g. trucks.id NOT NULL violations).
+        const preparedItem = { ...item, id: item?.id || uid() };
+        // Fuel type is locked to the selected truck.
+        if (col === 'fuel' && preparedItem.truck) {
+            const truck = (data.trucks || []).find(t => t.id === preparedItem.truck);
+            if (truck?.fuelType) preparedItem.fuelType = truck.fuelType;
+        }
+        let finalItem = preparedItem;
 
         setData(d => {
             const arr = [...(d[col] || [])];
-            const i = arr.findIndex(x => x.id === item.id);
+            const i = arr.findIndex(x => x.id === preparedItem.id);
 
             if (col === 'journeys') {
                 if (finalItem.startOdom && finalItem.finalOdom) {
@@ -699,7 +719,7 @@ export function useAppState() {
                         console.error("Error generating uId:", e);
                     }
                 }
-                finalItem = { ...finalItem, id: finalItem.id || uid(), uId };
+                finalItem = { ...finalItem, id: preparedItem.id, uId };
                 arr.push(finalItem);
             }
             return { ...d, [col]: arr };

@@ -9,9 +9,10 @@ import { useNavigate } from "react-router-dom";
 export const ImportUploadButton = ({ label = 'Import from Excel', runExcelImport, setImportSession, onNavigate }) => {
     const [loading, setLoading] = useState(false);
     const [err, setErr] = useState('');
+    const [dragOver, setDragOver] = useState(false);
 
-    const handleFile = async (e) => {
-        const file = e.target.files[0]; if (!file) return;
+    const handleFileObject = async (file) => {
+        if (!file) return;
         setLoading(true); setErr('');
         try {
             const session = await runExcelImport(file);
@@ -21,6 +22,11 @@ export const ImportUploadButton = ({ label = 'Import from Excel', runExcelImport
             setErr(error.message);
         }
         setLoading(false);
+    };
+
+    const handleFile = async (e) => {
+        const file = e.target.files[0];
+        await handleFileObject(file);
         e.target.value = '';
     };
 
@@ -28,10 +34,19 @@ export const ImportUploadButton = ({ label = 'Import from Excel', runExcelImport
         <div>
             <label style={{
                 display: 'inline-flex', cursor: 'pointer', alignItems: 'center', gap: 8,
-                background: 'var(--brand-primary)', color: 'white', padding: '10px 18px',
+                background: dragOver ? '#ea580c' : 'var(--brand-primary)', color: 'white', padding: '10px 18px',
                 borderRadius: 8, fontWeight: 600, fontSize: 13,
                 boxShadow: '0 4px 12px rgba(249, 115, 22, 0.3)', transition: 'all 0.2s ease'
-            }}>
+            }}
+                onDragOver={(e) => { e.preventDefault(); if (!loading) setDragOver(true); }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={async (e) => {
+                    e.preventDefault();
+                    setDragOver(false);
+                    if (loading) return;
+                    await handleFileObject(e.dataTransfer?.files?.[0]);
+                }}
+            >
                 {loading ? 'Parsing…' : label}
                 <input type="file" accept=".xlsx,.xls,.csv" style={{ display: 'none' }} onChange={handleFile} disabled={loading} />
             </label>
@@ -104,14 +119,15 @@ export const ImportReview = ({ importSession, setImportSession, importHistory, r
     const [importMsg, setImportMsg] = useState('');
     const [uploadLoading, setUploadLoading] = useState(false);
     const [uploadErr, setUploadErr] = useState('');
+    const [uploadDragOver, setUploadDragOver] = useState(false);
     const navigate = useNavigate();
 
     const sTable = { width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: 13 };
     const sTh = { padding: '12px 14px', borderBottom: `2px solid ${T?.border || 'var(--border-subtle)'}`, color: T?.textDim || 'var(--text-dim)', fontWeight: 600, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', background: 'var(--surface-subtle)', position: 'sticky', top: 0, zIndex: 1 };
     const sTd = { padding: '12px 14px', borderBottom: `1px solid ${T?.border || 'var(--border-subtle)'}`, color: T?.text || 'var(--text-secondary)' };
 
-    const handleUploadDrop = async (e) => {
-        const file = e.target.files[0]; if (!file) return;
+    const handleUploadFile = async (file) => {
+        if (!file) return;
         setUploadLoading(true); setUploadErr('');
         try {
             const parsedSession = await runExcelImport(file);
@@ -120,6 +136,11 @@ export const ImportReview = ({ importSession, setImportSession, importHistory, r
             setUploadErr(error.message);
         }
         setUploadLoading(false);
+    };
+
+    const handleUploadDrop = async (e) => {
+        const file = e.target.files[0];
+        await handleUploadFile(file);
         e.target.value = '';
     };
 
@@ -208,14 +229,23 @@ export const ImportReview = ({ importSession, setImportSession, importHistory, r
 
                                 <label style={{
                                     display: 'block',
-                                    border: '2px dashed var(--border-subtle)',
+                                    border: uploadDragOver ? '2px dashed var(--brand-primary)' : '2px dashed var(--border-subtle)',
                                     borderRadius: 'var(--radius-md)',
-                                    background: 'var(--surface-subtle)',
+                                    background: uploadDragOver ? 'var(--brand-muted)' : 'var(--surface-subtle)',
                                     padding: '40px 20px',
                                     cursor: uploadLoading ? 'wait' : 'pointer',
                                     transition: 'border-color 0.2s ease',
                                     marginBottom: 16,
-                                }}>
+                                }}
+                                    onDragOver={(e) => { e.preventDefault(); if (!uploadLoading) setUploadDragOver(true); }}
+                                    onDragLeave={() => setUploadDragOver(false)}
+                                    onDrop={async (e) => {
+                                        e.preventDefault();
+                                        setUploadDragOver(false);
+                                        if (uploadLoading) return;
+                                        await handleUploadFile(e.dataTransfer?.files?.[0]);
+                                    }}
+                                >
                                     {uploadLoading ? (
                                         <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-secondary)' }}>Processing file…</div>
                                     ) : (
