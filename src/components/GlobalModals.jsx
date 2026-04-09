@@ -671,11 +671,13 @@ export function GlobalModals(props) {
         const vehicleLocked  = !!selectedDriver?.lockVehicleAssignment;
         const selectedTruck = data.trucks.find((t) => t.id === form.truck);
         const selectedTrailer = (data.trailers || []).find((t) => t.id === form.trailer);
+        const combinationLegalMaxKg = Number(selectedTruck?.combinationLegalMaxKg) || 0;
         const truckPayloadKg = Number(selectedTruck?.capacity) || 0;
         const trailerPayloadKg = Number(selectedTrailer?.capacity) || 0;
-        const effectivePayloadKg = truckPayloadKg && trailerPayloadKg
+        const fallbackPayloadKg = truckPayloadKg && trailerPayloadKg
             ? Math.min(truckPayloadKg, trailerPayloadKg)
             : (trailerPayloadKg || truckPayloadKg || 0);
+        const effectivePayloadKg = combinationLegalMaxKg || fallbackPayloadKg;
         const enteredCargoKg = Number(form.weight) || 0;
         const isOverPayload = enteredCargoKg > 0 && effectivePayloadKg > 0 && enteredCargoKg > effectivePayloadKg;
         const overPayloadByKg = isOverPayload ? (enteredCargoKg - effectivePayloadKg) : 0;
@@ -1129,7 +1131,9 @@ export function GlobalModals(props) {
                                 ? `Overload risk: ${enteredCargoKg.toLocaleString()} kg is above the configured limit (${effectivePayloadKg.toLocaleString()} kg) by ${overPayloadByKg.toLocaleString()} kg.`
                                 : `Load check: ${enteredCargoKg.toLocaleString()} kg is within configured limit (${effectivePayloadKg.toLocaleString()} kg).`}
                             <div style={{ marginTop: 4, fontWeight: 500, color: "var(--text-dim)" }}>
-                                For tractor + trailer, this check uses the lower configured payload limit for safety.
+                                {combinationLegalMaxKg > 0
+                                    ? "Using Combination Legal Max from tractor unit as the primary compliance limit."
+                                    : "Combination Legal Max is not set; using the lower truck/trailer payload as a safety fallback."}
                             </div>
                         </div>
                     )}
@@ -1398,6 +1402,7 @@ export function GlobalModals(props) {
                         <Field label="Engine Rating (CC)" k="engineCC" type="number" form={form} setForm={setForm} S={S} T={T} />
                         <p style={{ fontSize: 10, color: "var(--text-dim)", marginTop: 4, lineHeight: 1.4 }}>For records &amp; compliance — fuel efficiency is calculated from actual fill-up data.</p>
                     </div>
+                    <Field label="Combination Legal Max (KGs)" k="combinationLegalMaxKg" type="number" form={form} setForm={setForm} S={S} T={T} />
                     <Field label="Date of Registration" k="registeredOn" type="date" form={form} setForm={setForm} S={S} T={T} />
 
                     <SectionDivider title="Registration &amp; Compliance" />
@@ -1578,6 +1583,7 @@ export function GlobalModals(props) {
                     <Field label="Model / Version"      k="model" form={form} setForm={setForm} S={S} T={T} />
                     <Field label="Year"                 k="year"  type="number" form={form} setForm={setForm} S={S} T={T} />
                     <Field label="Load Capacity (KGs)"  k="capacity" type="number" form={form} setForm={setForm} S={S} T={T} />
+                    <Field label="Gross Weight (KGs)"   k="grossWeightKg" type="number" form={form} setForm={setForm} S={S} T={T} />
                     <Field label="Number of Axles"      k="axleCount"    type="number" form={form} setForm={setForm} S={S} T={T} />
                     <Field label="Tare Weight (KGs)"     k="tareWeightKg" type="number" form={form} setForm={setForm} S={S} T={T} />
                     <Field label="Date of Registration"  k="registeredOn" type="date" form={form} setForm={setForm} S={S} T={T} />

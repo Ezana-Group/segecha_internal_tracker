@@ -46,6 +46,9 @@ CREATE TABLE IF NOT EXISTS trailers (
     id                  TEXT PRIMARY KEY,
     registration_number TEXT UNIQUE NOT NULL,
     type                TEXT,
+    load_capacity_kg    INTEGER DEFAULT 0,
+    gross_weight_kg     INTEGER DEFAULT 0,
+    registration_date   DATE,
     status              TEXT DEFAULT 'Active',
     metadata            JSONB DEFAULT '{}',
     created_at          TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -344,6 +347,18 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns
                    WHERE table_name='journeys' AND column_name='trailer_id') THEN
         ALTER TABLE journeys ADD COLUMN trailer_id TEXT REFERENCES trailers(id) ON DELETE SET NULL;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_name='trailers' AND column_name='load_capacity_kg') THEN
+        ALTER TABLE trailers ADD COLUMN load_capacity_kg INTEGER DEFAULT 0;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_name='trailers' AND column_name='gross_weight_kg') THEN
+        ALTER TABLE trailers ADD COLUMN gross_weight_kg INTEGER DEFAULT 0;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_name='trailers' AND column_name='registration_date') THEN
+        ALTER TABLE trailers ADD COLUMN registration_date DATE;
     END IF;
 
     -- updated_at columns (DB-06)

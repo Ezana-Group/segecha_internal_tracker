@@ -952,6 +952,9 @@ const ADMIN_COLLECTIONS = {
         extract: (item) => ({
             registration_number: item.reg || item.registration_number || '',
             type:                item.type || '',
+            load_capacity_kg:    Number(item.capacity || item.load_capacity_kg) || 0,
+            gross_weight_kg:     Number(item.grossWeightKg || item.gross_weight_kg) || 0,
+            registration_date:   item.registeredOn || item.registration_date || null,
             status:              item.status || 'Active',
         }),
     },

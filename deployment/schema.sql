@@ -28,6 +28,9 @@ CREATE TABLE IF NOT EXISTS trailers (
     reg TEXT NOT NULL,
     make TEXT,
     type TEXT,
+    capacity NUMERIC,
+    gross_weight_kg NUMERIC,
+    registration_date DATE,
     status TEXT DEFAULT 'Active',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );

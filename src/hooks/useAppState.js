@@ -49,6 +49,7 @@ function transformDBTables(tables = {}) {
         grossWeightKg:  m(row).grossWeightKg || '',                   // Gross vehicle weight in KGs
         engineCC:       m(row).engineCC || '',                        // Engine displacement (CC) — informational
         fuelType:       m(row).fuelType || '',                        // Diesel / Petrol / CNG / Electric / Other
+        combinationLegalMaxKg: Number(m(row).combinationLegalMaxKg) || 0,
         axleCount:      Number(m(row).axleCount) || 0,
         tareWeightKg:   Number(m(row).tareWeightKg) || 0,
         registeredOn:   d(m(row).registeredOn),
@@ -67,10 +68,11 @@ function transformDBTables(tables = {}) {
         make:   m(row).make || '',
         model:  m(row).model || '',
         type:   row.type || m(row).type || '',
-        capacity: Number(m(row).capacity) || 0,
+        capacity: Number(row.load_capacity_kg || m(row).capacity || 0),
+        grossWeightKg: Number(row.gross_weight_kg || m(row).grossWeightKg || 0),
         axleCount:    Number(m(row).axleCount) || 0,
         tareWeightKg: Number(m(row).tareWeightKg) || 0,
-        registeredOn: d(m(row).registeredOn),
+        registeredOn: d(row.registration_date || m(row).registeredOn),
         status: row.status || 'Active',
     }));
 
