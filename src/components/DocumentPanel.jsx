@@ -1,36 +1,17 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PAYMENT_API } from "../utils/env";
 import { fetchWithAuth } from "../utils/api";
+import {
+    DEFAULT_DOC_TYPES_DRIVER,
+    DEFAULT_DOC_TYPES_JOURNEY,
+    DEFAULT_DOC_TYPES_TRUCK,
+    getDocumentTypes,
+    subscribeSettings,
+} from "../utils/settingsStore.js";
 
-export const DOC_TYPES_TRUCK = [
-    { value: 'insurance_lorry', label: 'Lorry Insurance Certificate' },
-    { value: 'insurance_trailer', label: 'Trailer Insurance Certificate' },
-    { value: 'comesa', label: 'COMESA Certificate' },
-    { value: 'ntsa_inspection', label: 'NTSA Inspection Certificate' },
-    { value: 'logbook', label: 'Vehicle Logbook / Title' },
-    { value: 'overweight_permit', label: 'Overweight / Special Permit' },
-    { value: 'customs', label: 'Customs / Border Document' },
-    { value: 'other', label: 'Other Document' },
-];
-
-export const DOC_TYPES_DRIVER = [
-    { value: 'psv_licence', label: 'PSV Driving Licence' },
-    { value: 'medical_certificate', label: 'Medical Certificate' },
-    { value: 'id_card', label: 'National ID / Passport' },
-    { value: 'certificate_of_good_conduct', label: 'Certificate of Good Conduct' },
-    { value: 'other', label: 'Other Document' },
-];
-
-export const DOC_TYPES_JOURNEY = [
-    { value: 'delivery_note', label: 'Delivery Note / POD' },
-    { value: 'loading_manifest', label: 'Loading Manifest' },
-    { value: 'tr8_form', label: 'TR8 Transit Document' },
-    { value: 'fuel_receipt', label: 'External Fuel Receipt' },
-    { value: 'weighbridge_ticket', label: 'Weighbridge Ticket' },
-    { value: 'customs_clearance', label: 'Customs Clearance' },
-    { value: 'toll_receipt', label: 'Toll/Gate Receipt' },
-    { value: 'other', label: 'Other Trip Document' },
-];
+export const DOC_TYPES_TRUCK = DEFAULT_DOC_TYPES_TRUCK;
+export const DOC_TYPES_DRIVER = DEFAULT_DOC_TYPES_DRIVER;
+export const DOC_TYPES_JOURNEY = DEFAULT_DOC_TYPES_JOURNEY;
 
 export const uploadDocument = async (file, entityType, entityId, docType, label, expiryDate) => {
     const formData = new FormData();
@@ -78,22 +59,39 @@ export function DocumentPanel({
     capabilities = { upload: true, open: true, delete: true, viewList: true },
 }) {
     const [uploading, setUploading] = useState(false);
-    const [uploadForm, setUploadForm] = useState({ docType: '', label: '', expiryDate: '' });
+    const [uploadForm, setUploadForm] = useState({ docType: '', docTypeOther: '', label: '', expiryDate: '' });
     const [uploadMsg, setUploadMsg] = useState('');
     const [selectedFile, setSelectedFile] = useState(null);
     const [dragOver, setDragOver] = useState(false);
+    const [, bumpSettingsVersion] = useState(0);
+
+    useEffect(() => subscribeSettings(() => bumpSettingsVersion((n) => n + 1)), []);
+
+    const resolvedDocTypes = useMemo(() => {
+        const fromSettings = getDocumentTypes(entityType);
+        if (!Array.isArray(docTypes) || docTypes.length === 0) return fromSettings;
+        const seen = new Set();
+        return [...docTypes, ...fromSettings].filter((d) => {
+            const k = String(d?.value || '').toLowerCase();
+            if (!k || seen.has(k)) return false;
+            seen.add(k);
+            return true;
+        });
+    }, [docTypes, entityType]);
 
     const entityDocs = (documents || []).filter(d => (d.entityType === entityType && d.entityId === entityId) || (entityType === 'staff' && d.driverId === entityId));
 
     const handleUpload = async () => {
-        if (!selectedFile || !uploadForm.docType) { setUploadMsg('❌ Select a document type and choose a file'); return; }
+        const customDocType = uploadForm.docType === 'other' ? uploadForm.docTypeOther.trim() : '';
+        const effectiveDocType = customDocType || uploadForm.docType;
+        if (!selectedFile || !effectiveDocType) { setUploadMsg('❌ Select a document type and choose a file'); return; }
         setUploading(true); setUploadMsg('');
-        const result = await uploadDocument(selectedFile, entityType, entityId, uploadForm.docType, uploadForm.label || selectedFile.name, uploadForm.expiryDate);
+        const result = await uploadDocument(selectedFile, entityType, entityId, effectiveDocType, uploadForm.label || selectedFile.name, uploadForm.expiryDate);
         if (result.success) {
             setDocuments(d => [...d, result.document]);
             setUploadMsg('OK: Document uploaded.');
             setSelectedFile(null);
-            setUploadForm({ docType: '', label: '', expiryDate: '' });
+            setUploadForm({ docType: '', docTypeOther: '', label: '', expiryDate: '' });
         } else {
             setUploadMsg('❌ ' + (result.error || 'Upload failed'));
         }
@@ -136,12 +134,24 @@ export function DocumentPanel({
                             className="input-premium"
                             style={{ width: "100%", height: 42, background: "var(--bg-card)", border: "1px solid var(--border-subtle)", borderRadius: 10, padding: "0 12px", color: "var(--text-primary)", fontSize: 14, fontWeight: 600 }}
                             value={uploadForm.docType} 
-                            onChange={e => setUploadForm(f => ({ ...f, docType: e.target.value }))}
+                            onChange={e => setUploadForm(f => ({ ...f, docType: e.target.value, docTypeOther: e.target.value === 'other' ? f.docTypeOther : '' }))}
                         >
                             <option value="">Select type…</option>
-                            {(docTypes || []).map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                            {resolvedDocTypes.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                         </select>
                     </div>
+                    {uploadForm.docType === 'other' && (
+                        <div className="form-group">
+                            <label className="form-label" style={{ display: "block", fontSize: 11, fontWeight: 700, color: "var(--text-dim)", textTransform: "uppercase", marginBottom: 8 }}>Specify Document Type</label>
+                            <input
+                                className="input-premium"
+                                style={{ width: "100%", height: 42, background: "var(--bg-card)", border: "1px solid var(--border-subtle)", borderRadius: 10, padding: "0 12px", color: "var(--text-primary)", fontSize: 14, fontWeight: 600 }}
+                                placeholder="e.g. Emissions Certificate"
+                                value={uploadForm.docTypeOther}
+                                onChange={e => setUploadForm(f => ({ ...f, docTypeOther: e.target.value }))}
+                            />
+                        </div>
+                    )}
                     <div className="form-group">
                         <label className="form-label" style={{ display: "block", fontSize: 11, fontWeight: 700, color: "var(--text-dim)", textTransform: "uppercase", marginBottom: 8 }}>Custom Label (Optional)</label>
                         <input 
@@ -255,7 +265,7 @@ export function DocumentPanel({
                                         </td>
                                         <td>
                                             <div style={{ fontSize: 13, color: "var(--text-secondary)", fontWeight: 700 }}>
-                                                {(docTypes || []).find(t => t.value === doc.docType)?.label || doc.docType}
+                                                {resolvedDocTypes.find(t => t.value === doc.docType)?.label || doc.docType}
                                             </div>
                                         </td>
                                         <td>

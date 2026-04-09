@@ -654,8 +654,14 @@ export function GlobalModals(props) {
     ═══════════════════════════════════════════════════════════════ */
     if (modal === "journey") {
         const errors = {};
-        errors.revenue  = validators.required(form.revenue) || validators.positiveNumber(form.revenue);
+        // Revenue: 0 allowed for empty return; loaded / revenue journeys must be > 0
+        errors.revenue = form.returningEmpty
+            ? validators.nonNegativeNumber(form.revenue)
+            : validators.required(form.revenue) || validators.positiveNumber(form.revenue);
         errors.endDate  = validators.dateOrder(form.date, form.endDate);
+        if (form.isInternational && form.returningEmpty) {
+            errors.journeyType = "International journey and empty return cannot be selected together.";
+        }
         if (!form.returningEmpty) {
             errors.customerId         = validators.required(form.customerId);
             errors.deliveryCustomerId = validators.required(form.deliveryCustomerId);
@@ -719,6 +725,10 @@ export function GlobalModals(props) {
         };
 
         const onSave = () => {
+            if (form.isInternational && form.returningEmpty) {
+                showToast?.("Choose either international journey or empty return — not both.", "error");
+                return;
+            }
             if (!form.returningEmpty && (!form.customerId || !form.deliveryCustomerId)) {
                 showToast?.("Billing customer and delivery customer are required.", "error");
                 return;
@@ -806,21 +816,42 @@ export function GlobalModals(props) {
                     <Field label="Departure Date" k="date"    type="date" form={form} setForm={setForm} S={S} />
                     <Field label="Arrival Date"   k="endDate" type="date" form={form} setForm={setForm} S={S} error={errors.endDate} />
 
-                    {/* Journey type toggles */}
+                    {/* Journey type toggles — international vs empty return are mutually exclusive */}
                     <ToggleCard
                         checked={!!form.isInternational}
-                        onChange={e => setForm(f => ({ ...f, isInternational: e.target.checked }))}
-                        title="International Journey"
-                        subtitle="Journey outside Kenya. International flat rates apply."
+                        onChange={e => {
+                            const checked = e.target.checked;
+                            setForm((f) => ({
+                                ...f,
+                                isInternational: checked,
+                                ...(checked ? { returningEmpty: false } : {}),
+                            }));
+                        }}
+                        title="International journey"
+                        subtitle="Outside Kenya. International flat rates and cross-border documents apply."
                         activeColor="var(--brand-primary)"
                     />
                     <ToggleCard
                         checked={!!form.returningEmpty}
-                        onChange={e => setForm(f => ({ ...f, returningEmpty: e.target.checked, customerId: e.target.checked ? "" : f.customerId, deliveryCustomerId: e.target.checked ? "" : f.deliveryCustomerId }))}
-                        title="Return Trip / Empty"
-                        subtitle="Vehicle returning empty. Return rates apply."
+                        onChange={e => {
+                            const checked = e.target.checked;
+                            setForm((f) => ({
+                                ...f,
+                                returningEmpty: checked,
+                                ...(checked ? { isInternational: false } : {}),
+                                customerId: checked ? "" : f.customerId,
+                                deliveryCustomerId: checked ? "" : f.deliveryCustomerId,
+                            }));
+                        }}
+                        title="Empty return (no load / no revenue)"
+                        subtitle="Deadhead leg — return mileage rates and road-user allowance; revenue may be 0."
                         activeColor="#f59e0b"
                     />
+                    {errors.journeyType && (
+                        <div style={{ gridColumn: "1/-1", fontSize: 12, fontWeight: 600, color: "#b91c1c", padding: "8px 12px", borderRadius: "var(--radius-md)", background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.35)" }}>
+                            {errors.journeyType}
+                        </div>
+                    )}
 
                     {/* ── ASSIGNMENT ── */}
                     <SectionDivider title="Assignment" />

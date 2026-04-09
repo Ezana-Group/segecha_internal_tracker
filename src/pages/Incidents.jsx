@@ -19,22 +19,12 @@ import { Card } from "../components/Card";
 import { Badge } from "../components/Badge";
 import { Button } from "../components/Button";
 import { PageHeader } from "../components/PageHeader";
-
-const INCIDENT_TYPES = [
-    "Accident",
-    "Breakdown",
-    "Theft",
-    "Near Miss",
-    "Vehicle Damage",
-    "Road Incident",
-    "Cargo Damage",
-    "Driver Incident",
-    "Other",
-];
+import { getIncidentTypes, subscribeSettings } from "../utils/settingsStore.js";
 
 const EMPTY_FORM = {
     date: new Date().toISOString().split('T')[0],
     incidentType: "Accident",
+    incidentTypeOther: "",
     driverId: "",
     truck: "",
     location: "",
@@ -48,6 +38,10 @@ export function Incidents({ data, dark, isMobile, driverName, truckReg, setVerif
     const [logForm, setLogForm] = useState(EMPTY_FORM);
     const [logSubmitting, setLogSubmitting] = useState(false);
     const [localIncidents, setLocalIncidents] = useState([]);
+    const [, bumpSettingsVersion] = useState(0);
+    const INCIDENT_TYPES = getIncidentTypes();
+
+    React.useEffect(() => subscribeSettings(() => bumpSettingsVersion((n) => n + 1)), []);
 
     const drivers = data.drivers || [];
     const fleet   = data.trucks  || [];
@@ -72,13 +66,16 @@ export function Incidents({ data, dark, isMobile, driverName, truckReg, setVerif
     };
 
     const submitIncident = async () => {
-        if (!logForm.incidentType || !logForm.description.trim()) return;
+        const effectiveIncidentType = logForm.incidentType === "Other"
+            ? logForm.incidentTypeOther.trim()
+            : logForm.incidentType;
+        if (!effectiveIncidentType || !logForm.description.trim()) return;
         setLogSubmitting(true);
         try {
             const res = await fetchWithAuth('/admin/incidents', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(logForm),
+                body: JSON.stringify({ ...logForm, incidentType: effectiveIncidentType }),
             });
             if (res.ok) {
                 const { id } = await res.json();
@@ -86,7 +83,7 @@ export function Incidents({ data, dark, isMobile, driverName, truckReg, setVerif
                     id,
                     driverId:     logForm.driverId,
                     truck:        logForm.truck,
-                    incidentType: logForm.incidentType,
+                    incidentType: effectiveIncidentType,
                     location:     logForm.location,
                     description:  logForm.description,
                     date:         logForm.date,
@@ -382,13 +379,24 @@ export function Incidents({ data, dark, isMobile, driverName, truckReg, setVerif
                                     <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "var(--text-primary)", marginBottom: 6 }}>Incident Type</label>
                                     <select
                                         value={logForm.incidentType}
-                                        onChange={e => setLogForm(f => ({ ...f, incidentType: e.target.value }))}
+                                        onChange={e => setLogForm(f => ({ ...f, incidentType: e.target.value, incidentTypeOther: e.target.value === "Other" ? f.incidentTypeOther : "" }))}
                                         style={{ width: "100%", height: 40, background: "var(--surface-subtle)", border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-md)", padding: "0 12px", fontSize: 13, color: "var(--text-primary)", fontWeight: 600, outline: "none", boxSizing: "border-box" }}
                                     >
                                         {INCIDENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                                     </select>
                                 </div>
                             </div>
+                            {logForm.incidentType === "Other" && (
+                                <div>
+                                    <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "var(--text-primary)", marginBottom: 6 }}>Specify Incident Type</label>
+                                    <input
+                                        placeholder="e.g. Security breach, strike event"
+                                        value={logForm.incidentTypeOther}
+                                        onChange={e => setLogForm(f => ({ ...f, incidentTypeOther: e.target.value }))}
+                                        style={{ width: "100%", height: 40, background: "var(--surface-subtle)", border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-md)", padding: "0 12px", fontSize: 13, color: "var(--text-primary)", fontWeight: 600, outline: "none", boxSizing: "border-box" }}
+                                    />
+                                </div>
+                            )}
 
                             {/* Driver */}
                             <div>
@@ -469,7 +477,7 @@ export function Incidents({ data, dark, isMobile, driverName, truckReg, setVerif
                                 <Button
                                     variant="primary"
                                     loading={logSubmitting}
-                                    disabled={logSubmitting || !logForm.description.trim()}
+                                    disabled={logSubmitting || !logForm.description.trim() || (logForm.incidentType === "Other" && !logForm.incidentTypeOther.trim())}
                                     onClick={submitIncident}
                                     style={{ background: "#ef4444" }}
                                 >

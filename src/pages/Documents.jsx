@@ -28,6 +28,7 @@ import { PAYMENT_API } from "../utils/env";
 import { fetchWithAuth } from "../utils/api";
 import { fmtDate } from "../utils/formatters";
 import { DOC_TYPES_TRUCK, DOC_TYPES_DRIVER, uploadDocument, deleteDocumentById } from "../components/DocumentPanel";
+import { getDocumentTypes, subscribeSettings } from "../utils/settingsStore.js";
 import { Card } from "../components/Card";
 import { Badge } from "../components/Badge";
 import { Button } from "../components/Button";
@@ -50,10 +51,13 @@ export function Documents({ data, setData, dark, isMobile }) {
     const [uploading, setUploading]     = useState(false);
     const [uploadMsg, setUploadMsg]     = useState('');
     const [uploadForm, setUploadForm]   = useState({
-        entityType: '', entityId: '', docType: '', label: '', expiryDate: ''
+        entityType: '', entityId: '', docType: '', docTypeOther: '', label: '', expiryDate: ''
     });
     const [selectedFile, setSelectedFile] = useState(null);
     const [uploadDragOver, setUploadDragOver] = useState(false);
+    const [, bumpSettingsVersion] = useState(0);
+
+    useEffect(() => subscribeSettings(() => bumpSettingsVersion((n) => n + 1)), []);
 
     // ── Helper: fetchDocuments
     const fetchDocuments = async (entityType, entityId) => {
@@ -160,8 +164,14 @@ export function Documents({ data, setData, dark, isMobile }) {
         });
 
     const handleUpload = async () => {
+        const customDocType = uploadForm.docType === 'other' ? uploadForm.docTypeOther.trim() : '';
+        const effectiveDocType = customDocType || uploadForm.docType;
         if (!selectedFile || !uploadForm.docType || !uploadForm.entityId) {
             setUploadMsg('❌ Requirements missing');
+            return;
+        }
+        if (!effectiveDocType) {
+            setUploadMsg('❌ Specify the document type');
             return;
         }
         setUploading(true); setUploadMsg('');
@@ -169,14 +179,14 @@ export function Documents({ data, setData, dark, isMobile }) {
             selectedFile,
             uploadForm.entityType,
             uploadForm.entityId,
-            uploadForm.docType,
+            effectiveDocType,
             uploadForm.label || selectedFile.name,
             uploadForm.expiryDate
         );
         if (result.success) {
             setUploadMsg('OK: Uploaded successfully.');
             setDocuments(d => [...d, result.document]);
-            setUploadForm({ entityType: '', entityId: '', docType: '', label: '', expiryDate: '' });
+            setUploadForm({ entityType: '', entityId: '', docType: '', docTypeOther: '', label: '', expiryDate: '' });
             setSelectedFile(null);
             setShowUpload(false);
         } else {
@@ -323,15 +333,33 @@ export function Documents({ data, setData, dark, isMobile }) {
                             <select
                                 style={{ width: "100%", height: 40, background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-md)", padding: "0 12px", color: "var(--text-primary)", fontWeight: 600, fontSize: 13 }}
                                 value={uploadForm.docType}
-                                onChange={e => setUploadForm({ ...uploadForm, docType: e.target.value })}
+                                onChange={e => setUploadForm({ ...uploadForm, docType: e.target.value, docTypeOther: e.target.value === 'other' ? uploadForm.docTypeOther : '' })}
                                 disabled={!uploadForm.entityId}
                             >
                                 <option value="">Select Type...</option>
-                                {(uploadForm.entityType === 'truck' ? DOC_TYPES_TRUCK : DOC_TYPES_DRIVER).map(t => (
+                                {(uploadForm.entityType === 'truck'
+                                    ? getDocumentTypes('truck')
+                                    : uploadForm.entityType === 'driver'
+                                        ? getDocumentTypes('driver')
+                                        : DOC_TYPES_DRIVER
+                                ).map(t => (
                                     <option key={t.value} value={t.value}>{t.label}</option>
                                 ))}
                             </select>
                         </div>
+                        {uploadForm.docType === 'other' && (
+                            <div>
+                                <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>
+                                    Specify Document Type
+                                </label>
+                                <input
+                                    style={{ width: "100%", height: 40, background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-md)", padding: "0 12px", color: "var(--text-primary)", fontWeight: 600, fontSize: 13, boxSizing: "border-box" }}
+                                    placeholder="e.g. Local Authority Permit"
+                                    value={uploadForm.docTypeOther}
+                                    onChange={e => setUploadForm({ ...uploadForm, docTypeOther: e.target.value })}
+                                />
+                            </div>
+                        )}
                         {/* Label */}
                         <div>
                             <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>

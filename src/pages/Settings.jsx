@@ -74,6 +74,7 @@ import {
     DEFAULT_TRUCK_TYPES,
     DEFAULT_CARGO_TYPES,
     DEFAULT_EXPENSE_CATEGORIES,
+    DEFAULT_INCIDENT_TYPES,
     DEFAULT_COMMON_ROUTES,
     DEFAULT_CROSS_BORDER_RULES,
 } from "../utils/settingsStore.js";
@@ -541,6 +542,10 @@ export function Settings({
     const [newLicenceClass, setNewLicenceClass] = useState("");
     const [newTruckType, setNewTruckType] = useState("");
     const [newCargoType, setNewCargoType] = useState("");
+    const [newIncidentType, setNewIncidentType] = useState("");
+    const [newTruckDocType, setNewTruckDocType] = useState("");
+    const [newDriverDocType, setNewDriverDocType] = useState("");
+    const [newJourneyDocType, setNewJourneyDocType] = useState("");
     const [newExpenseCategory, setNewExpenseCategory] = useState("");
     const [newDept, setNewDept] = useState("");
     const [newRole, setNewRole] = useState("");
@@ -1715,6 +1720,135 @@ export function Settings({
                                             />
                                         );
                                     })()}
+                                </div>
+
+                                {/* ── INCIDENT TYPES ── */}
+                                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, marginTop: 32 }}>
+                                    <div style={{ width: 36, height: 36, borderRadius: 10, background: "var(--brand-primary)12", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--brand-primary)" }}>
+                                        <AlertTriangle size={18} aria-hidden />
+                                    </div>
+                                    <div>
+                                        <h4 style={{ fontSize: 16, fontWeight: 800, color: "var(--text-primary)", margin: 0 }}>Incident types</h4>
+                                        <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "4px 0 0", fontWeight: 500 }}>
+                                            Add custom incident dropdown options beyond defaults ({DEFAULT_INCIDENT_TYPES.length} included by default).
+                                        </p>
+                                    </div>
+                                </div>
+                                <div style={{ background: "var(--surface-subtle)", borderRadius: 12, border: "1px solid var(--border-subtle)", padding: 20 }}>
+                                    {(() => {
+                                        const incidentTypeList = Array.isArray(localS.incidentTypesCustom) ? localS.incidentTypesCustom : [];
+                                        const persistIncidentTypes = (next) => saveSettings({ incidentTypesCustom: next });
+                                        return (
+                                            <SettingsTagList
+                                                items={incidentTypeList}
+                                                onRemove={(i) => persistIncidentTypes(incidentTypeList.filter((_, idx) => idx !== i))}
+                                                onAdd={() => {
+                                                    const t = newIncidentType.trim();
+                                                    if (!t) return;
+                                                    persistIncidentTypes([...incidentTypeList, t]);
+                                                    setNewIncidentType("");
+                                                }}
+                                                addValue={newIncidentType}
+                                                onAddChange={(e) => setNewIncidentType(e.target.value)}
+                                                addPlaceholder="e.g. Border hold-up, Escort issue"
+                                                onAddKeyDown={(e) => {
+                                                    if (e.key === "Enter") { e.preventDefault(); const t = newIncidentType.trim(); if (!t) return; persistIncidentTypes([...incidentTypeList, t]); setNewIncidentType(""); }
+                                                }}
+                                                onResetDefaults={() => { persistIncidentTypes([]); showToast?.("Custom incident types cleared (defaults remain)", "success"); }}
+                                                disabled={!workspaceTabEditable.fleet || !canEditSettings}
+                                            />
+                                        );
+                                    })()}
+                                </div>
+
+                                {/* ── DOCUMENT TYPE OPTIONS ── */}
+                                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, marginTop: 32 }}>
+                                    <div style={{ width: 36, height: 36, borderRadius: 10, background: "var(--brand-primary)12", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--brand-primary)" }}>
+                                        <FileText size={18} aria-hidden />
+                                    </div>
+                                    <div>
+                                        <h4 style={{ fontSize: 16, fontWeight: 800, color: "var(--text-primary)", margin: 0 }}>Document type options</h4>
+                                        <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "4px 0 0", fontWeight: 500 }}>
+                                            Extend dropdown lists for vehicle, driver, and journey documents.
+                                        </p>
+                                    </div>
+                                </div>
+                                <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 14 }}>
+                                    <div className="s-block">
+                                        <div className="s-block-hd"><div className="s-block-title">Vehicle document types</div></div>
+                                        <SettingsTagList
+                                            items={Array.isArray(localS.documentTypesTruckCustom) ? localS.documentTypesTruckCustom : []}
+                                            onRemove={(i) => {
+                                                const list = Array.isArray(localS.documentTypesTruckCustom) ? localS.documentTypesTruckCustom : [];
+                                                saveSettings({ documentTypesTruckCustom: list.filter((_, idx) => idx !== i) });
+                                            }}
+                                            onAdd={() => {
+                                                const t = newTruckDocType.trim();
+                                                if (!t) return;
+                                                const list = Array.isArray(localS.documentTypesTruckCustom) ? localS.documentTypesTruckCustom : [];
+                                                saveSettings({ documentTypesTruckCustom: [...list, t] });
+                                                setNewTruckDocType("");
+                                            }}
+                                            addValue={newTruckDocType}
+                                            onAddChange={(e) => setNewTruckDocType(e.target.value)}
+                                            addPlaceholder="e.g. Emissions Test Certificate"
+                                            onAddKeyDown={(e) => {
+                                                if (e.key === "Enter") { e.preventDefault(); const t = newTruckDocType.trim(); if (!t) return; const list = Array.isArray(localS.documentTypesTruckCustom) ? localS.documentTypesTruckCustom : []; saveSettings({ documentTypesTruckCustom: [...list, t] }); setNewTruckDocType(""); }
+                                            }}
+                                            onResetDefaults={() => saveSettings({ documentTypesTruckCustom: [] })}
+                                            disabled={!workspaceTabEditable.fleet || !canEditSettings}
+                                        />
+                                    </div>
+                                    <div className="s-block">
+                                        <div className="s-block-hd"><div className="s-block-title">Driver document types</div></div>
+                                        <SettingsTagList
+                                            items={Array.isArray(localS.documentTypesDriverCustom) ? localS.documentTypesDriverCustom : []}
+                                            onRemove={(i) => {
+                                                const list = Array.isArray(localS.documentTypesDriverCustom) ? localS.documentTypesDriverCustom : [];
+                                                saveSettings({ documentTypesDriverCustom: list.filter((_, idx) => idx !== i) });
+                                            }}
+                                            onAdd={() => {
+                                                const t = newDriverDocType.trim();
+                                                if (!t) return;
+                                                const list = Array.isArray(localS.documentTypesDriverCustom) ? localS.documentTypesDriverCustom : [];
+                                                saveSettings({ documentTypesDriverCustom: [...list, t] });
+                                                setNewDriverDocType("");
+                                            }}
+                                            addValue={newDriverDocType}
+                                            onAddChange={(e) => setNewDriverDocType(e.target.value)}
+                                            addPlaceholder="e.g. Defensive Driving Certificate"
+                                            onAddKeyDown={(e) => {
+                                                if (e.key === "Enter") { e.preventDefault(); const t = newDriverDocType.trim(); if (!t) return; const list = Array.isArray(localS.documentTypesDriverCustom) ? localS.documentTypesDriverCustom : []; saveSettings({ documentTypesDriverCustom: [...list, t] }); setNewDriverDocType(""); }
+                                            }}
+                                            onResetDefaults={() => saveSettings({ documentTypesDriverCustom: [] })}
+                                            disabled={!workspaceTabEditable.fleet || !canEditSettings}
+                                        />
+                                    </div>
+                                    <div className="s-block">
+                                        <div className="s-block-hd"><div className="s-block-title">Journey document types</div></div>
+                                        <SettingsTagList
+                                            items={Array.isArray(localS.documentTypesJourneyCustom) ? localS.documentTypesJourneyCustom : []}
+                                            onRemove={(i) => {
+                                                const list = Array.isArray(localS.documentTypesJourneyCustom) ? localS.documentTypesJourneyCustom : [];
+                                                saveSettings({ documentTypesJourneyCustom: list.filter((_, idx) => idx !== i) });
+                                            }}
+                                            onAdd={() => {
+                                                const t = newJourneyDocType.trim();
+                                                if (!t) return;
+                                                const list = Array.isArray(localS.documentTypesJourneyCustom) ? localS.documentTypesJourneyCustom : [];
+                                                saveSettings({ documentTypesJourneyCustom: [...list, t] });
+                                                setNewJourneyDocType("");
+                                            }}
+                                            addValue={newJourneyDocType}
+                                            onAddChange={(e) => setNewJourneyDocType(e.target.value)}
+                                            addPlaceholder="e.g. Port Release Note"
+                                            onAddKeyDown={(e) => {
+                                                if (e.key === "Enter") { e.preventDefault(); const t = newJourneyDocType.trim(); if (!t) return; const list = Array.isArray(localS.documentTypesJourneyCustom) ? localS.documentTypesJourneyCustom : []; saveSettings({ documentTypesJourneyCustom: [...list, t] }); setNewJourneyDocType(""); }
+                                            }}
+                                            onResetDefaults={() => saveSettings({ documentTypesJourneyCustom: [] })}
+                                            disabled={!workspaceTabEditable.fleet || !canEditSettings}
+                                        />
+                                    </div>
                                 </div>
                             </div>
                         </fieldset>

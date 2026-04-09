@@ -30,6 +30,14 @@ export const validators = {
         return v && Number(v) > 0 ? null : 'Must be a number greater than zero';
     },
 
+    /** Numeric field required; allows 0 (e.g. journey revenue on empty return). */
+    nonNegativeNumber: (v) => {
+        if (v === '' || v === null || v === undefined) return 'This field is required';
+        const n = Number(v);
+        if (Number.isNaN(n)) return 'Must be a valid number';
+        return n >= 0 ? null : 'Must be zero or greater';
+    },
+
     dateOrder: (start, end) => {
         return !end || !start || new Date(end) >= new Date(start)
             ? null

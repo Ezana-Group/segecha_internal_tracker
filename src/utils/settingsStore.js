@@ -52,6 +52,44 @@ export const DEFAULT_LICENCE_CLASSES = ["Class G", "Class CE", "Class C", "Class
 export const DEFAULT_TRUCK_TYPES = ["Prime Mover", "Tipper", "Tanker", "Flatbed", "Box Body", "Refrigerated", "Other"];
 export const DEFAULT_CARGO_TYPES = ["Electronics", "FMCG Goods", "Spare Parts", "Machinery", "Cement", "Fertiliser", "Fuel", "Timber", "Other"];
 export const DEFAULT_EXPENSE_CATEGORIES = ["Fuel", "Maintenance", "Toll", "Permit", "Tyre", "Allowance", "Salary", "Insurance", "Other"];
+export const DEFAULT_INCIDENT_TYPES = [
+    "Accident",
+    "Breakdown",
+    "Theft",
+    "Near Miss",
+    "Vehicle Damage",
+    "Road Incident",
+    "Cargo Damage",
+    "Driver Incident",
+    "Other",
+];
+export const DEFAULT_DOC_TYPES_TRUCK = [
+    { value: 'insurance_lorry', label: 'Lorry Insurance Certificate' },
+    { value: 'insurance_trailer', label: 'Trailer Insurance Certificate' },
+    { value: 'comesa', label: 'COMESA Certificate' },
+    { value: 'ntsa_inspection', label: 'NTSA Inspection Certificate' },
+    { value: 'logbook', label: 'Vehicle Logbook / Title' },
+    { value: 'overweight_permit', label: 'Overweight / Special Permit' },
+    { value: 'customs', label: 'Customs / Border Document' },
+    { value: 'other', label: 'Other Document' },
+];
+export const DEFAULT_DOC_TYPES_DRIVER = [
+    { value: 'psv_licence', label: 'PSV Driving Licence' },
+    { value: 'medical_certificate', label: 'Medical Certificate' },
+    { value: 'id_card', label: 'National ID / Passport' },
+    { value: 'certificate_of_good_conduct', label: 'Certificate of Good Conduct' },
+    { value: 'other', label: 'Other Document' },
+];
+export const DEFAULT_DOC_TYPES_JOURNEY = [
+    { value: 'delivery_note', label: 'Delivery Note / POD' },
+    { value: 'loading_manifest', label: 'Loading Manifest' },
+    { value: 'tr8_form', label: 'TR8 Transit Document' },
+    { value: 'fuel_receipt', label: 'External Fuel Receipt' },
+    { value: 'weighbridge_ticket', label: 'Weighbridge Ticket' },
+    { value: 'customs_clearance', label: 'Customs Clearance' },
+    { value: 'toll_receipt', label: 'Toll/Gate Receipt' },
+    { value: 'other', label: 'Other Trip Document' },
+];
 
 /** Default “Quick route” presets for the journey modal when `commonRoutes` is not set in settings */
 export const DEFAULT_COMMON_ROUTES = [
@@ -225,6 +263,54 @@ export function getExpenseCategories() {
     const raw = s.expenseCategories;
     if (Array.isArray(raw)) return raw.filter(Boolean);
     return [...DEFAULT_EXPENSE_CATEGORIES];
+}
+
+export function getIncidentTypes() {
+    const s = readSettings();
+    const base = [...DEFAULT_INCIDENT_TYPES];
+    const custom = Array.isArray(s.incidentTypesCustom)
+        ? s.incidentTypesCustom.map((x) => String(x).trim()).filter(Boolean)
+        : [];
+    const seen = new Set();
+    return [...base, ...custom].filter((x) => {
+        const key = x.toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+    });
+}
+
+export function getDocumentTypes(entityType = 'truck') {
+    const s = readSettings();
+    const normalized = entityType === 'staff' ? 'driver' : entityType;
+    const defaults =
+        normalized === 'driver'
+            ? DEFAULT_DOC_TYPES_DRIVER
+            : normalized === 'journey'
+                ? DEFAULT_DOC_TYPES_JOURNEY
+                : DEFAULT_DOC_TYPES_TRUCK;
+    const customKey =
+        normalized === 'driver'
+            ? 'documentTypesDriverCustom'
+            : normalized === 'journey'
+                ? 'documentTypesJourneyCustom'
+                : 'documentTypesTruckCustom';
+    const customLabels = Array.isArray(s[customKey]) ? s[customKey] : [];
+    const custom = customLabels
+        .map((label) => String(label || '').trim())
+        .filter(Boolean)
+        .map((label) => ({
+            value: label,
+            label,
+        }));
+    const combined = [...defaults, ...custom];
+    const seen = new Set();
+    return combined.filter((opt) => {
+        const key = String(opt.value || '').toLowerCase();
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+    });
 }
 
 /**
