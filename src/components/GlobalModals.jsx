@@ -669,6 +669,16 @@ export function GlobalModals(props) {
 
         const selectedDriver = data.drivers.find((d) => d.id === form.driver);
         const vehicleLocked  = !!selectedDriver?.lockVehicleAssignment;
+        const selectedTruck = data.trucks.find((t) => t.id === form.truck);
+        const selectedTrailer = (data.trailers || []).find((t) => t.id === form.trailer);
+        const truckPayloadKg = Number(selectedTruck?.capacity) || 0;
+        const trailerPayloadKg = Number(selectedTrailer?.capacity) || 0;
+        const effectivePayloadKg = truckPayloadKg && trailerPayloadKg
+            ? Math.min(truckPayloadKg, trailerPayloadKg)
+            : (trailerPayloadKg || truckPayloadKg || 0);
+        const enteredCargoKg = Number(form.weight) || 0;
+        const isOverPayload = enteredCargoKg > 0 && effectivePayloadKg > 0 && enteredCargoKg > effectivePayloadKg;
+        const overPayloadByKg = isOverPayload ? (enteredCargoKg - effectivePayloadKg) : 0;
 
         const getEffectiveRates = (origin, dest) => {
             if (!origin || !dest) return { driver: DRIVER_PER_KM, turnboy: TURNBOY_PER_KM };
@@ -700,6 +710,12 @@ export function GlobalModals(props) {
             if (!form.returningEmpty && (!form.customerId || !form.deliveryCustomerId)) {
                 showToast?.("Billing customer and delivery customer are required.", "error");
                 return;
+            }
+            if (isOverPayload) {
+                const proceed = window.confirm(
+                    `Overload warning: cargo is ${enteredCargoKg.toLocaleString()} kg, which exceeds the configured vehicle limit (${effectivePayloadKg.toLocaleString()} kg) by ${overPayloadByKg.toLocaleString()} kg.\n\nSave journey anyway?`
+                );
+                if (!proceed) return;
             }
             const wasNew = !form.id;
             const dist   = +form.distance || 0;
@@ -1097,6 +1113,41 @@ export function GlobalModals(props) {
                     )}
 
                     <Field label="Weight (KGs)"  k="weight"   type="number" form={form} setForm={setForm} S={S} />
+                    {enteredCargoKg > 0 && effectivePayloadKg > 0 && (
+                        <div style={{
+                            gridColumn: "1/-1",
+                            borderRadius: "var(--radius-md)",
+                            border: `1px solid ${isOverPayload ? "#ef4444" : "rgba(16,185,129,0.35)"}`,
+                            background: isOverPayload ? "rgba(239,68,68,0.08)" : "rgba(16,185,129,0.08)",
+                            padding: "10px 12px",
+                            fontSize: 12,
+                            lineHeight: 1.45,
+                            color: isOverPayload ? "#991b1b" : "#166534",
+                            fontWeight: 600,
+                        }}>
+                            {isOverPayload
+                                ? `Overload risk: ${enteredCargoKg.toLocaleString()} kg is above the configured limit (${effectivePayloadKg.toLocaleString()} kg) by ${overPayloadByKg.toLocaleString()} kg.`
+                                : `Load check: ${enteredCargoKg.toLocaleString()} kg is within configured limit (${effectivePayloadKg.toLocaleString()} kg).`}
+                            <div style={{ marginTop: 4, fontWeight: 500, color: "var(--text-dim)" }}>
+                                For tractor + trailer, this check uses the lower configured payload limit for safety.
+                            </div>
+                        </div>
+                    )}
+                    {enteredCargoKg > 0 && effectivePayloadKg === 0 && (
+                        <div style={{
+                            gridColumn: "1/-1",
+                            borderRadius: "var(--radius-md)",
+                            border: "1px solid rgba(245,158,11,0.45)",
+                            background: "rgba(245,158,11,0.10)",
+                            padding: "10px 12px",
+                            fontSize: 12,
+                            lineHeight: 1.45,
+                            color: "#92400e",
+                            fontWeight: 600,
+                        }}>
+                            No payload capacity is configured for this vehicle/trailer. Add capacity values to enable automatic overload warnings.
+                        </div>
+                    )}
                     <Field label="Distance (km)" k="distance" type="number" form={form} setForm={setForm} S={S} />
 
                     {/* ── FINANCIAL ── */}
@@ -1526,6 +1577,7 @@ export function GlobalModals(props) {
                     <Field label="Manufacturer"         k="make"  form={form} setForm={setForm} S={S} T={T} />
                     <Field label="Model / Version"      k="model" form={form} setForm={setForm} S={S} T={T} />
                     <Field label="Year"                 k="year"  type="number" form={form} setForm={setForm} S={S} T={T} />
+                    <Field label="Load Capacity (KGs)"  k="capacity" type="number" form={form} setForm={setForm} S={S} T={T} />
                     <Field label="Number of Axles"      k="axleCount"    type="number" form={form} setForm={setForm} S={S} T={T} />
                     <Field label="Tare Weight (KGs)"     k="tareWeightKg" type="number" form={form} setForm={setForm} S={S} T={T} />
                     <Field label="Date of Registration"  k="registeredOn" type="date" form={form} setForm={setForm} S={S} T={T} />

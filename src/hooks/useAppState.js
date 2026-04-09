@@ -67,6 +67,7 @@ function transformDBTables(tables = {}) {
         make:   m(row).make || '',
         model:  m(row).model || '',
         type:   row.type || m(row).type || '',
+        capacity: Number(m(row).capacity) || 0,
         axleCount:    Number(m(row).axleCount) || 0,
         tareWeightKg: Number(m(row).tareWeightKg) || 0,
         registeredOn: d(m(row).registeredOn),
