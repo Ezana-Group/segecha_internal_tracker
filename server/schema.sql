@@ -399,6 +399,10 @@ BEGIN
         ALTER TABLE tyre_logs ADD COLUMN updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
     END IF;
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_name='assets' AND column_name='updated_at') THEN
+        ALTER TABLE assets ADD COLUMN updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
                    WHERE table_name='journeys' AND column_name='updated_at') THEN
         ALTER TABLE journeys  ADD COLUMN updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
     END IF;
