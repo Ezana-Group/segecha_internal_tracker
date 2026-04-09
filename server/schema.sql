@@ -361,14 +361,42 @@ BEGIN
         ALTER TABLE trailers ADD COLUMN registration_date DATE;
     END IF;
 
-    -- updated_at columns (DB-06)
+    -- updated_at columns (DB-06) — required by upsertCollectionRow UPDATE … updated_at = NOW()
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns
                    WHERE table_name='trucks' AND column_name='updated_at') THEN
         ALTER TABLE trucks    ADD COLUMN updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
     END IF;
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_name='trailers' AND column_name='updated_at') THEN
+        ALTER TABLE trailers  ADD COLUMN updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
                    WHERE table_name='drivers' AND column_name='updated_at') THEN
         ALTER TABLE drivers   ADD COLUMN updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_name='staff' AND column_name='updated_at') THEN
+        ALTER TABLE staff     ADD COLUMN updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_name='customers' AND column_name='updated_at') THEN
+        ALTER TABLE customers ADD COLUMN updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_name='invoices' AND column_name='updated_at') THEN
+        ALTER TABLE invoices  ADD COLUMN updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_name='payroll' AND column_name='updated_at') THEN
+        ALTER TABLE payroll   ADD COLUMN updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_name='maintenance_logs' AND column_name='updated_at') THEN
+        ALTER TABLE maintenance_logs ADD COLUMN updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_name='tyre_logs' AND column_name='updated_at') THEN
+        ALTER TABLE tyre_logs ADD COLUMN updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
     END IF;
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns
                    WHERE table_name='journeys' AND column_name='updated_at') THEN
