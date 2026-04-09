@@ -2,6 +2,11 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <!-- Match dark theme before bundled CSS loads (avoids white flash / empty-looking first paint). -->
+    <style>
+      html, body { background-color: #09090b; color: #fafafa; }
+      #root { min-height: 100vh; }
+    </style>
     <link rel="icon" type="image/png" href="/logo.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Segecha Internal Tracker</title>

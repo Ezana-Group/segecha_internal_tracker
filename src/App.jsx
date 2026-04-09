@@ -149,7 +149,7 @@ export default function App() {
         };
     }, [authed, state.showToast]);
 
-    const tyreAlertCount = state.data.trucks.filter(t => state.tyreStatus(t).status !== "OK").length;
+    const tyreAlertCount = (state.data.trucks ?? []).filter(t => state.tyreStatus(t).status !== "OK").length;
     const verifyAlertCount = (state.pendingVerifications || []).length;
 
     const T = getTheme(state.dark);

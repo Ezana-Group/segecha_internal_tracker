@@ -380,9 +380,13 @@ app.use((req, res, next) => {
         return res.status(404).set('Content-Type', 'text/plain').send('Asset not found');
     }
 
-    // SPA fallback
+    // SPA fallback — same cache policy as express.static so HTML is not cached at the edge
+    // while hashed /assets/* stay long-lived (see staticOpts).
     const indexFile = path.join(distPath, 'index.html');
-    if (existsSync(indexFile)) return res.sendFile(indexFile);
+    if (existsSync(indexFile)) {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        return res.sendFile(indexFile);
+    }
     return res.status(404).send('Portal not found');
 });
 
