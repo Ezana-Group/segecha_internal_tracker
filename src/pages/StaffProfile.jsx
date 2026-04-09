@@ -97,16 +97,36 @@ export function StaffProfile({ data, setData, dark, isMobile, openModal, showToa
     const configuredSuperAdminUsers = Array.isArray(accessSettings.superAdminUsers) ? accessSettings.superAdminUsers : [];
     const hasConfiguredAccessLists = configuredAdminUsers.length > 0 || configuredSuperAdminUsers.length > 0;
 
-    const isSuperAdmin = operatorEmail && configuredSuperAdminUsers.some((u) => normalizeEmail(u?.email) === operatorEmail);
-    const isAdmin = isSuperAdmin || (operatorEmail && configuredAdminUsers.some((u) => normalizeEmail(u?.email) === operatorEmail));
+    // ── JWT is the ground truth for the LOGGED-IN operator's role ──────────
+    // adminAuth.getUser() returns { id, email, role } from the login response.
+    // This avoids the "fresh DB" problem where configuredSuperAdminUsers is
+    // empty and the operator had to manually promote themselves.
+    const currentUser = adminAuth.getUser();
+    const jwtRole  = currentUser?.role  || '';
+    const jwtEmail = normalizeEmail(currentUser?.email || '');
+    const actorIsSuperAdminJWT = jwtRole === 'superadmin';
+    const actorIsAdminJWT      = jwtRole === 'admin' || jwtRole === 'superadmin';
+
+    // Actor checks: prefer JWT role, fall back to settings list
+    const isSuperAdmin = actorIsSuperAdminJWT ||
+        (operatorEmail && configuredSuperAdminUsers.some((u) => normalizeEmail(u?.email) === operatorEmail));
+    const isAdmin = isSuperAdmin ||
+        actorIsAdminJWT ||
+        (operatorEmail && configuredAdminUsers.some((u) => normalizeEmail(u?.email) === operatorEmail));
 
     // Bootstrap mode (no access lists configured yet): allow the operator to perform the first setup.
     const actorEffectiveSuperAdmin = !hasConfiguredAccessLists || isSuperAdmin;
     const actorIsAdminNonSuper = isAdmin && !isSuperAdmin;
 
     const targetEmail = normalizeEmail(staff?.email || "");
-    const isTargetAdmin = targetEmail && configuredAdminUsers.some((u) => normalizeEmail(u?.email) === targetEmail);
-    const isTargetSuperAdmin = targetEmail && configuredSuperAdminUsers.some((u) => normalizeEmail(u?.email) === targetEmail);
+    // If the target IS the logged-in user, trust the JWT role directly
+    // (fixes: superadmin seeing "None" badge on their own profile on a fresh DB)
+    const isTargetCurrentUser = !!(targetEmail && jwtEmail && targetEmail === jwtEmail);
+    const isTargetSuperAdmin = (isTargetCurrentUser && actorIsSuperAdminJWT) ||
+        !!(targetEmail && configuredSuperAdminUsers.some((u) => normalizeEmail(u?.email) === targetEmail));
+    const isTargetAdmin = isTargetSuperAdmin ||
+        (isTargetCurrentUser && actorIsAdminJWT) ||
+        !!(targetEmail && configuredAdminUsers.some((u) => normalizeEmail(u?.email) === targetEmail));
 
     const isStaffSelfView = previewMode?.role === "staff" && previewMode?.entityId === staff?.id;
     const baseStaffTracker = mergedPerms.staffTracker;
@@ -149,7 +169,7 @@ export function StaffProfile({ data, setData, dark, isMobile, openModal, showToa
     const [passBusy, setPassBusy] = useState(false);
     const [showPassForm, setShowPassForm] = useState(false);
 
-    const currentUser = adminAuth.getUser();
+    // currentUser already declared above in role detection block
     const isActuallyMe = currentUser?.id === staff?.id;
 
     const handleChangePassword = async (e) => {
@@ -690,23 +710,46 @@ export function StaffProfile({ data, setData, dark, isMobile, openModal, showToa
                                         </div>
                                     )}
 
-                                    {accountStatus && (
+                                    {/* Superadmin notice — their auth lives in the admins table,
+                                        not staff_auth, so OTP/Reset don't apply to their
+                                        admin dashboard login. */}
+                                    {isTargetSuperAdmin && (
+                                        <div style={{ padding: "10px 14px", background: "rgba(249,115,22,0.07)", border: "1px solid rgba(249,115,22,0.2)", borderRadius: 10, fontSize: 12, color: "var(--text-secondary)", lineHeight: 1.6, marginBottom: 14 }}>
+                                            <b style={{ color: "var(--brand-primary)" }}>Admin dashboard login</b> is managed separately — use <b>Change My Password</b> below (if this is your own account) or the admin login page to reset it. OTP and temp-password functions apply to the staff portal only.
+                                        </div>
+                                    )}
+
+                                    {/* Staff-portal credential status — only meaningful for non-superadmin staff */}
+                                    {accountStatus && !isTargetSuperAdmin && (
                                         <div style={{ fontSize: 12, color: "var(--text-dim)", lineHeight: 1.6, marginBottom: 12 }}>
                                             <div>Requires password reset: <b>{accountStatus.requiresPasswordChange ? "Yes" : "No"}</b></div>
                                             <div>Active OTP: <b>{accountStatus.hasOtp ? "Yes" : "No"}</b></div>
                                             <div>Temp password active: <b>{accountStatus.hasTempPassword ? "Yes" : "No"}</b></div>
                                         </div>
                                     )}
+
                                     <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
                                         {isActuallyMe && (
                                             <Button variant="premium" icon={Lock} onClick={() => setShowPassForm(!showPassForm)}>
                                                 {showPassForm ? "Cancel Change" : "Change My Password"}
                                             </Button>
                                         )}
-                                        <Button variant="secondary" icon={Key} onClick={regenerateOtpAndTemp} disabled={accountBusy}>Create New OTP + Temp Password</Button>
-                                        <Button variant="secondary" icon={Key} onClick={handleResetPassword} disabled={accountBusy}>Reset Password</Button>
+                                        {/* OTP + Reset only shown for non-superadmin staff.
+                                            Superadmins use the admins table — these endpoints
+                                            only touch staff_auth and would not affect their
+                                            admin dashboard login. */}
+                                        {!isTargetSuperAdmin && (
+                                            <>
+                                                <Button variant="secondary" icon={Key} onClick={regenerateOtpAndTemp} disabled={accountBusy}>Create New OTP + Temp Password</Button>
+                                                <Button variant="secondary" icon={Key} onClick={handleResetPassword} disabled={accountBusy}>Reset Password</Button>
+                                            </>
+                                        )}
                                         <Button variant="ghost" icon={Download} onClick={exportAccount} disabled={accountBusy}>Download Account</Button>
-                                        <Button variant="danger" icon={Trash2} onClick={handleDeleteAccount} disabled={accountBusy}>Delete Account</Button>
+                                        {/* Don't show Delete for the currently logged-in superadmin
+                                            — deleting your own account would lock you out */}
+                                        {!(isActuallyMe && isTargetSuperAdmin) && (
+                                            <Button variant="danger" icon={Trash2} onClick={handleDeleteAccount} disabled={accountBusy}>Delete Account</Button>
+                                        )}
                                     </div>
 
                                     {showPassForm && isActuallyMe && (
