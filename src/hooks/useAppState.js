@@ -51,7 +51,25 @@ function pickNumeric(columnVal, metaVal) {
     return 0;
 }
 
-/** Assign settings-based internal IDs when missing or when uId was incorrectly set to the primary id (uid()). */
+/**
+ * Trailer (and similar) legacy rows: dedicated weight columns default to 0 while real values lived in metadata.
+ * Prefer metadata when the DB column is 0 and metadata has a different numeric value.
+ */
+function pickNumericPreferMetaWhenColumnZero(columnVal, metaVal) {
+    const parse = (v) => {
+        if (v === null || v === undefined || v === '') return null;
+        const n = Number(v);
+        return Number.isFinite(n) ? n : null;
+    };
+    const fromCol = parse(columnVal);
+    const fromMeta = parse(metaVal);
+    if (fromMeta !== null && fromMeta !== 0 && (fromCol === null || fromCol === 0)) return fromMeta;
+    if (fromCol !== null) return fromCol;
+    if (fromMeta !== null) return fromMeta;
+    return 0;
+}
+
+/** Assign settings-based internal IDs when missing, invalid, or legacy (wrong prefix / nanoid-style). */
 function ensurePrefixedUId(col, item, allRows) {
     const settings = readSettings();
     const prefixes = {
@@ -67,13 +85,19 @@ function ensurePrefixedUId(col, item, allRows) {
         maintenanceLogs: settings.maintenanceIdPrefix || 'MNT-',
         tyreLogs: settings.tyreLogIdPrefix || 'TYR-',
         assets: settings.assetIdPrefix || 'AST-',
+        journeys: settings.journeyIdPrefix || 'JRN-',
     };
     const raw = prefixes[col];
     if (!raw || !item?.id) return item;
     const p = String(raw).replace(/\s+/g, '');
     const u = item.uId;
-    if (u && u !== item.id) return item;
-    const padLen = ['fuel', 'expenses', 'invoices'].includes(col) ? 4 : 3;
+    const needsPrefixed =
+        !u ||
+        u === item.id ||
+        typeof u !== 'string' ||
+        !u.startsWith(p);
+    if (!needsPrefixed) return item;
+    const padLen = ['fuel', 'expenses', 'invoices', 'journeys'].includes(col) ? 4 : 3;
     let max = 0;
     for (const x of allRows || []) {
         if (x.id === item.id) continue;
@@ -140,8 +164,9 @@ function transformDBTables(tables = {}) {
         make:   m(row).make || '',
         model:  m(row).model || '',
         type:   row.type || m(row).type || '',
-        capacity: pickNumeric(row.load_capacity_kg, m(row).capacity),
-        grossWeightKg: pickNumeric(row.gross_weight_kg, m(row).grossWeightKg),
+        truck:  m(row).truck || '',
+        capacity: pickNumericPreferMetaWhenColumnZero(row.load_capacity_kg, m(row).capacity),
+        grossWeightKg: pickNumericPreferMetaWhenColumnZero(row.gross_weight_kg, m(row).grossWeightKg),
         axleCount:    Number(m(row).axleCount) || 0,
         tareWeightKg: Number(m(row).tareWeightKg) || 0,
         registeredOn: d(row.registration_date || m(row).registeredOn),
@@ -224,23 +249,28 @@ function transformDBTables(tables = {}) {
         turnboyMileage:       m(row).turnboyMileage || 0,
     }));
 
-    const fuel = (tables.fuel_logs || []).map(row => ({
-        ...m(row),
-        id:           row.id,
-        uId:          m(row).uId || m(row).uid || row.id,
-        truck:        row.truck_id   || m(row).truck   || '',
-        journey:      row.journey_id || m(row).journey || '',
-        date:         d(row.date),
-        litres:       Number(row.litres) || 0,
-        pricePerL:    m(row).pricePerL || (row.amount && row.litres ? row.amount / row.litres : 0),
-        station:      row.station  || '',
-        odom:         m(row).odom  || 0,
-        status:       row.status   || '',
-        amount:       Number(row.amount) || 0,
-        photoPump:    m(row).photoPump    || '',
-        photoReceipt: m(row).photoReceipt || '',
-        photoOdom:    m(row).photoOdom    || '',
-    }));
+    const fuel = (tables.fuel_logs || []).map((row) => {
+        const md = m(row);
+        const litresP = pickNumericPreferMetaWhenColumnZero(row.litres, md.litres);
+        const amountP = pickNumericPreferMetaWhenColumnZero(row.amount, md.amount);
+        return {
+            ...md,
+            id:           row.id,
+            uId:          md.uId || md.uid || row.id,
+            truck:        row.truck_id   || md.truck   || '',
+            journey:      row.journey_id || md.journey || '',
+            date:         d(row.date),
+            litres:       litresP,
+            pricePerL:    md.pricePerL || (litresP && amountP ? amountP / litresP : 0),
+            station:      row.station  || '',
+            odom:         md.odom  || 0,
+            status:       row.status   || '',
+            amount:       amountP,
+            photoPump:    md.photoPump    || '',
+            photoReceipt: md.photoReceipt || '',
+            photoOdom:    md.photoOdom    || '',
+        };
+    });
 
     const expenses = (tables.expenses || []).map(row => ({
         ...m(row),
@@ -250,7 +280,7 @@ function transformDBTables(tables = {}) {
         journey:     row.journey_id || m(row).journey || '',
         cat:         row.category   || m(row).cat     || '',
         subCat:      m(row).subCat  || '',
-        amount:      Number(row.amount) || 0,
+        amount:      pickNumericPreferMetaWhenColumnZero(row.amount, m(row).amount),
         date:        d(row.date),
         desc:        row.description || m(row).desc || '',
         description: row.description || m(row).desc || '', // alias
@@ -738,21 +768,40 @@ export function useAppState() {
     ]);
 
     /**
-     * Persist a single item to the server in the background.
-     * Never blocks the UI — optimistic local update already happened.
+     * Persist a single item to the server after the optimistic local update.
+     * Resolves true when skipped (no API / collection) or HTTP OK; false on failure.
      */
-    const _syncItemToServer = useCallback((col, item) => {
-        if (!PAYMENT_API || !SERVER_COLLECTIONS.has(col)) return;
-        fetchWithAuth(`${PAYMENT_API}/api/admin/collection/${col}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(item),
-        }).catch(err => console.warn(`[SYNC] ${col} save failed:`, err.message));
-    }, []);
+    const _syncItemToServer = useCallback(async (col, item, syncOpts = {}) => {
+        const quiet = syncOpts.quiet === true;
+        if (!PAYMENT_API || !SERVER_COLLECTIONS.has(col)) return true;
+        try {
+            const res = await fetchWithAuth(`${PAYMENT_API}/api/admin/collection/${col}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(item),
+            });
+            if (!res.ok) {
+                const j = await res.json().catch(() => ({}));
+                const msg = j.error || res.statusText || String(res.status);
+                console.warn(`[SYNC] ${col} save failed:`, msg);
+                if (!quiet) {
+                    showToast(`Could not save to server: ${msg}. This page may differ after refresh.`, 'error');
+                }
+                return false;
+            }
+            return true;
+        } catch (err) {
+            console.warn(`[SYNC] ${col} save failed:`, err.message);
+            if (!quiet) {
+                showToast(`Could not save to server: ${err.message}`, 'error');
+            }
+            return false;
+        }
+    }, [showToast]);
 
     const PREFIXED_COLLECTIONS = [
         'trucks', 'trailers', 'drivers', 'staff', 'customers', 'payroll',
-        'fuel', 'expenses', 'invoices', 'maintenanceLogs', 'tyreLogs', 'assets',
+        'journeys', 'fuel', 'expenses', 'invoices', 'maintenanceLogs', 'tyreLogs', 'assets',
     ];
 
     const saveItem = (col, item, options = {}) => {
@@ -776,61 +825,40 @@ export function useAppState() {
             const truck = (data.trucks || []).find(t => t.id === preparedItem.truck);
             if (truck?.fuelType) preparedItem.fuelType = truck.fuelType;
         }
-        let finalItem = preparedItem;
-        if (PREFIXED_COLLECTIONS.includes(col)) {
-            finalItem = ensurePrefixedUId(col, preparedItem, data[col] || []);
-        }
 
+        let finalItem = preparedItem;
         setData(d => {
             const arr = [...(d[col] || [])];
             const i = arr.findIndex(x => x.id === preparedItem.id);
 
-            if (col === 'journeys') {
-                if (finalItem.startOdom && finalItem.finalOdom) {
-                    finalItem.distance = Number(finalItem.finalOdom) - Number(finalItem.startOdom);
-                }
+            let fi = preparedItem;
+            if (PREFIXED_COLLECTIONS.includes(col)) {
+                fi = ensurePrefixedUId(col, preparedItem, d[col] || []);
+            }
+
+            if (col === 'journeys' && fi.startOdom && fi.finalOdom) {
+                fi = { ...fi, distance: Number(fi.finalOdom) - Number(fi.startOdom) };
             }
 
             if (i >= 0) {
-                arr[i] = finalItem;
+                arr[i] = fi;
             } else {
                 isNew = true;
-                arr.push(finalItem);
+                arr.push(fi);
             }
+            finalItem = fi;
             return { ...d, [col]: arr };
         });
 
-        // Persist to DB in the background (non-blocking)
-        _syncItemToServer(col, finalItem);
-
-        // Fleet auto-link: Vehicle assets automatically create/update a truck entry
-        if (col === 'assets' && finalItem.category === 'Vehicle') {
-            const regFromName = finalItem.name || '';
-            // If no linked truck, create a new fleet entry
-            if (!finalItem.linkedTruckId) {
-                const newTruck = {
-                    id: uid(),
-                    reg: regFromName,
-                    make: regFromName,
-                    status: finalItem.status === 'Active' ? 'Active' : 'Off Road',
-                    odom: 0,
-                };
-                setData(d => ({ ...d, trucks: [...(d.trucks || []), newTruck] }));
-                _syncItemToServer('trucks', newTruck);
-                // Update the asset with the linked truck id
-                const updatedAsset = { ...finalItem, linkedTruckId: newTruck.id };
-                setData(d => {
-                    const arr = [...(d.assets || [])];
-                    const i = arr.findIndex(x => x.id === updatedAsset.id);
-                    if (i >= 0) arr[i] = updatedAsset;
-                    return { ...d, assets: arr };
-                });
-                _syncItemToServer('assets', updatedAsset);
+        void _syncItemToServer(col, finalItem).then((ok) => {
+            try {
+                options?.onSynced?.(ok, finalItem);
+            } catch (e) {
+                console.warn('[saveItem] onSynced:', e);
             }
-        }
-
-        if (!options?.silent) {
+            if (options?.silent) return;
             if (isNew && col === 'drivers') {
+                if (ok === false) return;
                 const portalUrl = DRIVER_PORTAL_URL
                     ? `${DRIVER_PORTAL_URL.replace(/\/$/, "")}/set-password`
                     : '/set-password';
@@ -867,8 +895,34 @@ export function useAppState() {
                 } else {
                     showToast("Driver saved. Configure API to send welcome SMS.", "success");
                 }
-            } else {
+            } else if (ok !== false) {
                 showToast("Record saved", "success");
+            }
+        });
+
+        // Fleet auto-link: Vehicle assets automatically create/update a truck entry
+        if (col === 'assets' && finalItem.category === 'Vehicle') {
+            const regFromName = finalItem.name || '';
+            // If no linked truck, create a new fleet entry
+            if (!finalItem.linkedTruckId) {
+                const newTruck = {
+                    id: uid(),
+                    reg: regFromName,
+                    make: regFromName,
+                    status: finalItem.status === 'Active' ? 'Active' : 'Off Road',
+                    odom: 0,
+                };
+                setData(d => ({ ...d, trucks: [...(d.trucks || []), newTruck] }));
+                void _syncItemToServer('trucks', newTruck);
+                // Update the asset with the linked truck id
+                const updatedAsset = { ...finalItem, linkedTruckId: newTruck.id };
+                setData(d => {
+                    const arr = [...(d.assets || [])];
+                    const i = arr.findIndex(x => x.id === updatedAsset.id);
+                    if (i >= 0) arr[i] = updatedAsset;
+                    return { ...d, assets: arr };
+                });
+                void _syncItemToServer('assets', updatedAsset);
             }
         }
 
@@ -879,77 +933,103 @@ export function useAppState() {
         const desc = label ? `"${label}"` : 'this record';
         if (!window.confirm(`Delete ${desc}? This cannot be undone.`)) return;
 
-        // Optimistic local delete
-        setData(d => ({ ...d, [col]: d[col].filter(x => x.id !== id) }));
-
-        // Persist deletion to DB
         if (PAYMENT_API && SERVER_COLLECTIONS.has(col)) {
             try {
                 const res = await fetchWithAuth(`${PAYMENT_API}/api/admin/collection/${col}/${id}`, {
                     method: 'DELETE',
                 });
                 const j = await res.json().catch(() => ({}));
-                if (!res.ok) console.warn(`Backend delete failed: ${j.error || res.status}. Local delete persists.`);
+                if (!res.ok) {
+                    showToast(`Could not delete on server: ${j.error || res.status}. The record was not removed.`, 'error');
+                    return;
+                }
             } catch (err) {
-                console.warn(`Sync failed: ${err.message}. Local delete persists.`);
+                showToast(`Could not delete on server: ${err.message}`, 'error');
+                return;
             }
         }
 
+        setData(d => ({ ...d, [col]: (d[col] || []).filter(x => x.id !== id) }));
         showToast(`${label || 'Record'} deleted`, "success");
     };
 
-    const markPayrollPaid = (id) => {
+    const markPayrollPaid = async (id) => {
         const paidDate = today();
         const mpesaRef = "MPESA" + uid().slice(0, 8);
+        if (PAYMENT_API) {
+            try {
+                const res = await fetchWithAuth(`${PAYMENT_API}/api/admin/collection/payroll/${id}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: 'Paid', paidDate, mpesaRef }),
+                });
+                const j = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                    showToast(`Could not mark payroll paid: ${j.error || res.status}`, 'error');
+                    return;
+                }
+            } catch (err) {
+                showToast(`Could not mark payroll paid: ${err.message}`, 'error');
+                return;
+            }
+        }
         setData(d => ({
             ...d,
             payroll: d.payroll.map(p => p.id === id ? { ...p, status: "Paid", paidDate, mpesaRef } : p)
         }));
-        // Persist status change to DB
-        if (PAYMENT_API) {
-            fetchWithAuth(`${PAYMENT_API}/api/admin/collection/payroll/${id}`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ status: 'Paid', paidDate, mpesaRef }),
-            }).catch(err => console.warn('[SYNC] markPayrollPaid failed:', err.message));
-        }
         showToast("Payroll marked as paid", "success");
     };
 
-    const markInvoicePaid = (id) => {
+    const markInvoicePaid = async (id) => {
         const paidDate = today();
         const mpesaRef = "QJK" + uid().slice(0, 7);
-        let updatedInvoice = null;
+        const current = data.invoices.find(i => i.id === id);
+        if (!current) {
+            showToast("Invoice not found", "error");
+            return;
+        }
+        const updatedInvoice = {
+            ...current,
+            status: "Paid",
+            paidAmount: +current.amount,
+            paidDate,
+            mpesaRef,
+            payments: [...(current.payments || []), {
+                id: uid().slice(0, 8),
+                date: paidDate,
+                amount: +current.amount - (+current.paidAmount || 0),
+                method: 'Quick Pay',
+                ref: mpesaRef,
+                notes: 'Marked as paid by admin'
+            }]
+        };
+        if (PAYMENT_API) {
+            try {
+                const res = await fetchWithAuth(`${PAYMENT_API}/api/admin/collection/invoices/${id}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        status: 'Paid',
+                        paidAmount: updatedInvoice.paidAmount,
+                        paidDate,
+                        mpesaRef,
+                        payments: updatedInvoice.payments,
+                    }),
+                });
+                const j = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                    showToast(`Could not mark invoice paid: ${j.error || res.status}`, 'error');
+                    return;
+                }
+            } catch (err) {
+                showToast(`Could not mark invoice paid: ${err.message}`, 'error');
+                return;
+            }
+        }
         setData(d => ({
             ...d,
-            invoices: d.invoices.map(i => {
-                if (i.id !== id) return i;
-                updatedInvoice = {
-                    ...i,
-                    status: "Paid",
-                    paidAmount: +i.amount,
-                    paidDate,
-                    mpesaRef,
-                    payments: [...(i.payments || []), {
-                        id: uid().slice(0, 8),
-                        date: paidDate,
-                        amount: +i.amount - (+i.paidAmount || 0),
-                        method: 'Quick Pay',
-                        ref: mpesaRef,
-                        notes: 'Marked as paid by admin'
-                    }]
-                };
-                return updatedInvoice;
-            })
+            invoices: d.invoices.map(i => i.id === id ? updatedInvoice : i),
         }));
-        // Persist status change to DB
-        if (PAYMENT_API && updatedInvoice) {
-            fetchWithAuth(`${PAYMENT_API}/api/admin/collection/invoices/${id}`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ status: 'Paid', paidAmount: updatedInvoice.paidAmount, paidDate, mpesaRef, payments: updatedInvoice.payments }),
-            }).catch(err => console.warn('[SYNC] markInvoicePaid failed:', err.message));
-        }
         showToast("Invoice marked as paid", "success");
     };
 
@@ -1646,17 +1726,9 @@ export function useAppState() {
         });
         const newExpenses = [...allExpenses, ...allMaint].map(sheetExpenseToRecord);
 
-        const settings = readSettings();
-        const journeyPrefix = settings.journeyIdPrefix || 'JRN-';
-
-        allTrips.forEach((row, tripIdx) => {
-            // Generate uId for journey
-            const journeyCount = data.journeys.length + newJourneys.length + 1;
-            const uId = journeyPrefix + String(journeyCount).padStart(4, '0');
-
+        allTrips.forEach((row) => {
             newJourneys.push({
                 id: row.journeyId,
-                uId: uId,
                 truck: row.truck,
                 date: row.date,
                 origin: row.origin,
@@ -1704,6 +1776,12 @@ export function useAppState() {
             }
         });
 
+        let accJ = [...data.journeys];
+        for (let i = 0; i < newJourneys.length; i++) {
+            newJourneys[i] = ensurePrefixedUId('journeys', newJourneys[i], accJ);
+            accJ = [...accJ, newJourneys[i]];
+        }
+
         setData(d => ({
             ...d,
             journeys: [...d.journeys, ...newJourneys],
@@ -1713,12 +1791,21 @@ export function useAppState() {
 
         setImportSession(s => ({ ...s, committed: true }));
 
-        // Sync each imported record to DB individually so revenue, odom, and all
-        // fields land in the metadata column — syncToServer() is a no-op since the
-        // server now reads from PostgreSQL, not the old JSON blob.
-        newJourneys.forEach(j => _syncItemToServer('journeys', j));
-        newFuel.forEach(f  => _syncItemToServer('fuel',     f));
-        newExpenses.forEach(e => _syncItemToServer('expenses', e));
+        const syncJobs = [
+            ...newJourneys.map((j) => ['journeys', j]),
+            ...newFuel.map((f) => ['fuel', f]),
+            ...newExpenses.map((e) => ['expenses', e]),
+        ];
+        let syncFail = 0;
+        for (const [col, item] of syncJobs) {
+            const ok = await _syncItemToServer(col, item, { quiet: true });
+            if (ok === false) syncFail++;
+        }
+        if (syncJobs.length > 0 && syncFail > 0) {
+            showToast(`Import saved in this browser; ${syncFail} of ${syncJobs.length} rows failed server sync. Check connection or try again.`, 'warning');
+        } else if (syncJobs.length > 0) {
+            showToast('Import complete — synced to server', 'success');
+        }
 
         // Record history
         if (PAYMENT_API) {
@@ -1802,7 +1889,7 @@ export function useAppState() {
         }
     }, [data.maintenanceSettings, data.maintenanceLogs]);
 
-    const logMaintenance = (truckId, typeId, cost, desc, odom, date) => {
+    const logMaintenance = async (truckId, typeId, cost, desc, odom, date) => {
         const log = { id: 'ml' + uid().slice(0, 6), truck: truckId, type: typeId, cost: +cost, desc, odom: +odom, date: date || today() };
         const expense = { id: 'e' + uid().slice(0, 6), truck: truckId, cat: "Maintenance", amount: +cost, date: date || today(), desc: `${data.maintenanceSettings.find(s => s.id === typeId)?.name}: ${desc}`, journey: "" };
 
@@ -1812,11 +1899,13 @@ export function useAppState() {
             expenses: [expense, ...d.expenses]
         }));
 
-        // Persist both the maintenance log and the linked expense to DB
-        _syncItemToServer('maintenanceLogs', log);
-        _syncItemToServer('expenses', expense);
-
-        showToast("Maintenance logged and expense added", "success");
+        const okLog = await _syncItemToServer('maintenanceLogs', log, { quiet: true });
+        const okExp = await _syncItemToServer('expenses', expense, { quiet: true });
+        if (okLog && okExp) {
+            showToast("Maintenance logged and expense added", "success");
+        } else {
+            showToast("Saved locally; server sync failed for one or more records. Check connection.", "warning");
+        }
     };
 
     const tyreStatus = (truck) => maintenanceStatus(truck, "m16"); // Default to tyre replacement setting
@@ -1826,7 +1915,7 @@ export function useAppState() {
      * For replacements: resets truck.tyreOdom to the current odometer reading.
      * Also creates a linked expense entry so it shows in Tyre Spend tab.
      */
-    const logTyreChange = (entry) => {
+    const logTyreChange = async (entry) => {
         const logId = 'tyr' + uid().slice(0, 7);
         const log = {
             id: logId,
@@ -1843,27 +1932,24 @@ export function useAppState() {
             status:       'Active',
         };
 
+        let updatedTruck = null;
+        let expense = null;
+
         setData(d => {
             const newState = {
                 ...d,
                 tyreLogs: [log, ...(d.tyreLogs || [])],
             };
 
-            // Reset tyreOdom on the truck when it's a replacement
             if (entry.action === 'Replacement' || !entry.action) {
                 newState.trucks = d.trucks.map(t =>
                     t.id === entry.truck ? { ...t, tyreOdom: Number(entry.odom) || t.odom } : t
                 );
-                // Sync updated truck to DB so tyreOdom persists
-                const updatedTruck = newState.trucks.find(t => t.id === entry.truck);
-                if (updatedTruck) {
-                    setTimeout(() => _syncItemToServer('trucks', updatedTruck), 0);
-                }
+                updatedTruck = newState.trucks.find(t => t.id === entry.truck);
             }
 
-            // Add a Tyre expense if cost > 0
             if (Number(entry.cost) > 0) {
-                const expense = {
+                expense = {
                     id: 'e' + uid().slice(0, 6),
                     truck: entry.truck,
                     cat: 'Tyre',
@@ -1874,15 +1960,19 @@ export function useAppState() {
                     status: 'Approved',
                 };
                 newState.expenses = [expense, ...(d.expenses || [])];
-                setTimeout(() => _syncItemToServer('expenses', expense), 0);
             }
 
             return newState;
         });
 
-        // Persist the tyre log to DB
-        _syncItemToServer('tyreLogs', log);
-        showToast("Tyre entry logged", "success");
+        const okTyre = await _syncItemToServer('tyreLogs', log, { quiet: true });
+        const okTruck = updatedTruck ? await _syncItemToServer('trucks', updatedTruck, { quiet: true }) : true;
+        const okExp = expense ? await _syncItemToServer('expenses', expense, { quiet: true }) : true;
+        if (okTyre && okTruck && okExp) {
+            showToast("Tyre entry logged", "success");
+        } else {
+            showToast("Tyre entry saved locally; server sync had errors. Check connection.", "warning");
+        }
     };
 
     const fillTemplate = useCallback((templateStr, context = {}) => {

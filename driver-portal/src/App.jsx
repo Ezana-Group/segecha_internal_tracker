@@ -177,7 +177,9 @@ export default function DriverPortal() {
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
             body: JSON.stringify(body),
         });
-        return res.json();
+        const data = await res.json().catch(() => ({}));
+        const success = typeof data.success === 'boolean' ? data.success : res.ok;
+        return { ...data, ok: res.ok, success };
     };
 
     // --- Tab Rendering Helpers ---

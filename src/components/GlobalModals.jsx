@@ -7,7 +7,13 @@ import { validators } from "../utils/validators";
 import { PAYMENT_API } from "../utils/env";
 import { fetchWithAuth } from "../utils/api";
 import { DEFAULT_FUEL_PRICE, STATUSES_JOURNEY, CARGO_TYPES, TRUCK_TYPES, STATUSES_TRUCK, INVOICE_PREFIX, PAYMENT_TERMS_DAYS } from "../constants/nav";
-import { getLicenceClasses, getCommonRoutes, subscribeSettings } from "../utils/settingsStore.js";
+import { getLicenceClasses, getCommonRoutes, subscribeSettings, readSettings } from "../utils/settingsStore.js";
+
+/** Blur focused input then run save on the next microtask so number fields commit. */
+function flushModalSave(fn) {
+    document.activeElement?.blur?.();
+    queueMicrotask(fn);
+}
 
 /* ─────────────────────────────────────────────────────────────────────
    Shared sub-components
@@ -321,7 +327,7 @@ export function GlobalModals(props) {
         const hasErrors = Object.values(errors).some(Boolean);
 
         return (
-            <Modal title={form.id ? "Edit Fuel Entry" : "Log Fuel Fill-up"} onSave={() => saveItem("fuel", form)} S={S} closeModal={closeModal} saveDisabled={hasErrors}>
+            <Modal title={form.id ? "Edit Fuel Entry" : "Log Fuel Fill-up"} onSave={() => flushModalSave(() => saveItem("fuel", form))} S={S} closeModal={closeModal} saveDisabled={hasErrors}>
                 <div style={modalGrid}>
 
                     <SectionDivider title="Fuel Entry" />
@@ -401,7 +407,7 @@ export function GlobalModals(props) {
         const CATS = ["Maintenance", "Toll", "Permit", "Tyre", "Fuel", "Salary", "Allowance", "Other"];
 
         return (
-            <Modal title={form.id ? "Edit Expense" : "Add New Expense"} onSave={() => saveItem("expenses", form)} S={S} closeModal={closeModal} saveDisabled={hasErrors}>
+            <Modal title={form.id ? "Edit Expense" : "Add New Expense"} onSave={() => flushModalSave(() => saveItem("expenses", form))} S={S} closeModal={closeModal} saveDisabled={hasErrors}>
                 <div style={modalGrid}>
 
                     <SectionDivider title="Expense Details" />
@@ -473,10 +479,10 @@ export function GlobalModals(props) {
         const hasErrors = Object.values(errors).some(Boolean);
 
         return (
-            <Modal title={form.id ? "Edit Invoice" : "Generate New Invoice"} onSave={() => {
+            <Modal title={form.id ? "Edit Invoice" : "Generate New Invoice"} onSave={() => flushModalSave(() => {
                 if (!form.id) form.id = INVOICE_PREFIX + "-" + uid().slice(0, 5);
                 saveItem("invoices", form);
-            }} S={S} closeModal={closeModal} saveDisabled={hasErrors}>
+            })} S={S} closeModal={closeModal} saveDisabled={hasErrors}>
                 <div style={modalGrid}>
 
                     <SectionDivider title="Invoice Details" />
@@ -534,7 +540,44 @@ export function GlobalModals(props) {
     ═══════════════════════════════════════════════════════════════ */
     if (modal === "logPayment") {
         return (
-            <Modal title={`Log Payment — ${form.invoiceId}`} onSave={() => saveItem("payments", form)} S={S} closeModal={closeModal}>
+            <Modal title={`Log Payment — ${form.invoiceId}`} onSave={() => flushModalSave(() => {
+                const inv = data.invoices.find((i) => i.id === form.invoiceId);
+                if (!inv) return;
+                const payment = {
+                    id: uid().slice(0, 8),
+                    date: form.date || today(),
+                    amount: Number(form.amount) || 0,
+                    method: form.method || "",
+                    ref: form.ref || "",
+                    notes: form.notes || "",
+                };
+                const newPayments = [...(inv.payments || []), payment];
+                const newPaidAmount = newPayments.reduce((s, p) => s + Number(p.amount || 0), 0);
+                const amt = Number(inv.amount || 0);
+                const newStatus = newPaidAmount >= amt ? "Paid" : "Partial";
+                const invEmail = (inv.email || "").trim();
+                saveItem("invoices", {
+                    ...inv,
+                    paidAmount: newPaidAmount,
+                    status: newStatus,
+                    payments: newPayments,
+                    paidDate: newStatus === "Paid" ? (form.date || today()) : inv.paidDate,
+                }, {
+                    onSynced: (ok) => {
+                        if (ok === false || !PAYMENT_API || !invEmail || !payment.method) return;
+                        const s = readSettings();
+                        fetchWithAuth(`${PAYMENT_API}/api/invoices/send-receipt`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                                invoiceId: inv.id,
+                                payment,
+                                settings: s,
+                            }),
+                        }).catch((err) => console.warn("Receipt email failed:", err.message));
+                    },
+                });
+            })} S={S} closeModal={closeModal}>
                 <div style={modalGrid}>
 
                     <SectionDivider title="Payment Details" />
@@ -562,7 +605,7 @@ export function GlobalModals(props) {
         const hasErrors = Object.values(errors).some(Boolean);
 
         return (
-            <Modal title={form.id ? "Edit Pay Record" : "Add New Pay Record"} onSave={() => saveItem("payroll", form)} S={S} closeModal={closeModal} saveDisabled={hasErrors}>
+            <Modal title={form.id ? "Edit Pay Record" : "Add New Pay Record"} onSave={() => flushModalSave(() => saveItem("payroll", form))} S={S} closeModal={closeModal} saveDisabled={hasErrors}>
                 <div style={modalGrid}>
 
                     <SectionDivider title="Employee" />
@@ -724,7 +767,7 @@ export function GlobalModals(props) {
             return { driver: dRate, turnboy: tRate, isOverride: !!override, isFlatRate, roadUserAllowance: rua, routeKey: `${origin.trim()}→${dest.trim()}` };
         };
 
-        const onSave = () => {
+        const onSave = () => flushModalSave(() => {
             if (form.isInternational && form.returningEmpty) {
                 showToast?.("Choose either international journey or empty return — not both.", "error");
                 return;
@@ -780,7 +823,7 @@ export function GlobalModals(props) {
                     openWaybillGenerator(enrichedForm);
                 }
             }
-        };
+        });
 
         return (
             <Modal title={form.id ? "Edit Journey" : "Log New Journey"} onSave={onSave} S={S} closeModal={closeModal} saveDisabled={hasErrors} wide>
@@ -1252,7 +1295,7 @@ export function GlobalModals(props) {
        MAINTENANCE
     ═══════════════════════════════════════════════════════════════ */
     if (modal === "maintenance") {
-        const submitLog = () => {
+        const submitLog = () => flushModalSave(() => {
             if (!form.date || !form.odom) { alert("Date and odometer reading are required"); return; }
             const taskName = form.task === "Custom" ? form.customTask : form.task;
             const entry = {
@@ -1266,7 +1309,7 @@ export function GlobalModals(props) {
             if (+form.odom > +(truckObj?.odom || 0)) {
                 setData(d => ({ ...d, trucks: d.trucks.map(t => t.id === form.truck ? { ...t, odom: +form.odom } : t) }));
             }
-        };
+        });
 
         const DEFAULT_SCHEDULE = [
             { task: "Oil Change",                       intervalKm: 10000 },
@@ -1413,7 +1456,7 @@ export function GlobalModals(props) {
         const hasErrors = Object.values(errors).some(Boolean);
 
         return (
-            <Modal title={form.id ? "Edit Truck" : "Add Truck"} onSave={() => saveItem("trucks", form)} S={S} closeModal={closeModal} saveDisabled={hasErrors}>
+            <Modal title={form.id ? "Edit Truck" : "Add Truck"} onSave={() => flushModalSave(() => saveItem("trucks", form))} S={S} closeModal={closeModal} saveDisabled={hasErrors}>
                 <div style={modalGrid}>
 
                     <AutoIdDisplay value={form.uId} S={S} />
@@ -1503,7 +1546,7 @@ export function GlobalModals(props) {
         };
 
         return (
-            <Modal title={form.id ? "Edit Driver" : "Add Driver"} onSave={handleDriverSave} S={S} closeModal={closeModal} saveDisabled={hasErrors}>
+            <Modal title={form.id ? "Edit Driver" : "Add Driver"} onSave={() => flushModalSave(() => void handleDriverSave())} S={S} closeModal={closeModal} saveDisabled={hasErrors}>
                 <div style={modalGrid}>
 
                     <AutoIdDisplay value={form.uId} S={S} />
@@ -1576,7 +1619,7 @@ export function GlobalModals(props) {
         const hasErrors = Object.values(errors).some(Boolean);
 
         return (
-            <Modal title={form.id ? "Edit Customer" : "Add New Customer"} onSave={() => saveItem("customers", form)} S={S} closeModal={closeModal} saveDisabled={hasErrors}>
+            <Modal title={form.id ? "Edit Customer" : "Add New Customer"} onSave={() => flushModalSave(() => saveItem("customers", form))} S={S} closeModal={closeModal} saveDisabled={hasErrors}>
                 <div style={modalGrid}>
 
                     <AutoIdDisplay value={form.uId} S={S} />
@@ -1613,7 +1656,7 @@ export function GlobalModals(props) {
     ═══════════════════════════════════════════════════════════════ */
     if (modal === "trailer") {
         return (
-            <Modal title={form.id ? "Edit Trailer" : "Add Trailer"} onSave={() => saveItem("trailers", form)} S={S} closeModal={closeModal}>
+            <Modal title={form.id ? "Edit Trailer" : "Add Trailer"} onSave={() => flushModalSave(() => saveItem("trailers", form))} S={S} closeModal={closeModal}>
                 <div style={modalGrid}>
 
                     <AutoIdDisplay value={form.uId} S={S} />
@@ -1688,7 +1731,7 @@ export function GlobalModals(props) {
         };
 
         return (
-            <Modal title={form.id ? "Edit Staff Member" : "Add Staff Member"} onSave={handleStaffSave} S={S} closeModal={closeModal} saveDisabled={hasErrors}>
+            <Modal title={form.id ? "Edit Staff Member" : "Add Staff Member"} onSave={() => flushModalSave(() => void handleStaffSave())} S={S} closeModal={closeModal} saveDisabled={hasErrors}>
                 {creationResult ? (
                     /* ── Account Created confirmation ── */
                     <div style={{ padding: "4px 0" }}>
@@ -1853,7 +1896,7 @@ export function GlobalModals(props) {
         const isVehicle = form.category === "Vehicle";
 
         return (
-            <Modal title={form.id ? "Edit Asset" : "Add New Asset"} onSave={() => saveItem("assets", form)} S={S} closeModal={closeModal} saveDisabled={hasErrors}>
+            <Modal title={form.id ? "Edit Asset" : "Add New Asset"} onSave={() => flushModalSave(() => saveItem("assets", form))} S={S} closeModal={closeModal} saveDisabled={hasErrors}>
                 <div style={modalGrid}>
 
                     <SectionDivider title="Asset Details" />

@@ -14,7 +14,7 @@ import {
     Download,
     MessageSquare,
 } from "lucide-react";
-import { fmt, uid, today, fmtDate } from "../utils/formatters";
+import { fmt, today, fmtDate } from "../utils/formatters";
 import { useNavigate } from "react-router-dom";
 import { INVOICE_PREFIX, PAYMENT_TERMS_DAYS } from "../constants/nav";
 import { Card } from "../components/Card";
@@ -38,58 +38,6 @@ export function Invoices({ data, setData, dark, isMobile, modal, form, setForm, 
     const [payReqStatus, setPayReqStatus] = useState({});
     const [paymentReceiptWa, setPaymentReceiptWa] = useState(null);
     const [statusTab, setStatusTab] = useState("All");
-
-    const handleLogPayment = (payment) => {
-        const s = JSON.parse(localStorage.getItem('segecha_settings') || '{}');
-        const inv = modal === "logPayment" ? data.invoices.find(i => i.id === form.invoiceId) : null;
-        if (!inv) return;
-
-        const newPayments = [...(inv.payments || []), { ...payment, id: uid().slice(0, 8) }];
-        const newPaidAmount = newPayments.reduce((s, p) => s + +p.amount, 0);
-        const newStatus = newPaidAmount >= +inv.amount ? "Paid" : "Partial";
-
-        setData(d => ({
-            ...d,
-            invoices: d.invoices.map(i => i.id === inv.id ? {
-                ...i,
-                paidAmount: newPaidAmount,
-                status: newStatus,
-                payments: newPayments,
-                paidDate: newStatus === "Paid" ? today() : i.paidDate
-            } : i)
-        }));
-
-        if (inv.email && payment.method) {
-            fetchWithAuth(`${PAYMENT_API}/api/invoices/send-receipt`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    invoiceId: inv.id,
-                    payment: { ...payment, id: payment.id || Date.now() },
-                    settings: s,
-                }),
-            }).catch(err => console.warn('Receipt email failed:', err.message));
-        }
-
-        const waMsg = [
-            `✅ *Payment Receipt — ${inv.id}*`,
-            ``,
-            `Dear ${inv.client},`,
-            `We have received your payment of *KES ${Number(payment.amount).toLocaleString()}*.`,
-            ``,
-            `Method: ${payment.method}`,
-            `Ref: *${payment.ref || 'N/A'}*`,
-            `Status: ${newStatus === "Paid" ? "Fully Settled ✅" : "Balance Outstanding"}`,
-            ``,
-            `Thank you — ${s.companyName || 'Segecha Group Ltd'}`,
-        ].join('\n');
-
-        const clientPhone = (inv.phone || '').replace(/\D/g, '').replace(/^0/, '254');
-        if (clientPhone) {
-            setPaymentReceiptWa({ url: `https://wa.me/${clientPhone}?text=${encodeURIComponent(waMsg)}`, name: inv.client });
-        }
-        closeModal();
-    };
 
     // Refine data for sorting and filtering
     const refinedInvoices = data.invoices.map(i => ({
