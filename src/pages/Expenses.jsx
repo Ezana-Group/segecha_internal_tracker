@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
     CreditCard,
     Truck,
@@ -18,7 +18,7 @@ import {
     History,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { fmt, today, fmtDate } from "../utils/formatters";
+import { fmt, today, fmtDate, displayRecordId } from "../utils/formatters";
 import { CATS } from "../constants/nav";
 import { Card } from "../components/Card";
 import { Badge } from "../components/Badge";
@@ -30,17 +30,69 @@ import { useTableFilter } from "../hooks/useTableFilter";
 
 export function Expenses({
     data, isMobile, modal, form, setForm, openModal, closeModal, saveItem, delItem,
-    truckReg, setVerifyModal, pendingVerifications, customerName, verifySubmission
+    truckReg, driverName, setVerifyModal, pendingVerifications, customerName, verifySubmission
 }) {
     const navigate = useNavigate();
     const [panelTruckId, setPanelTruckId] = useState(null);
     const [activeTab, setActiveTab] = useState('all');
 
-    const refinedExpenses = data.expenses.map(e => ({
-        ...e,
-        _vehicle: truckReg(e.truck),
-        _amount: Number(e.amount || 0)
-    }));
+    const refinedExpenses = useMemo(() => {
+        const journeys = data.journeys || [];
+        const resolveJourney = (jid) => (jid ? journeys.find((x) => x.id === jid) : null);
+        const tripLabel = (j, jid) => {
+            if (j) {
+                const ref = displayRecordId(j);
+                const route = j.origin && j.dest ? `${j.origin} → ${j.dest}` : "";
+                return route ? `${ref} · ${route}` : ref;
+            }
+            if (jid) return displayRecordId({ id: jid });
+            return "—";
+        };
+        const driverForRow = (driverId, j) => {
+            const id = driverId || j?.driver || "";
+            if (!id) return "—";
+            return typeof driverName === "function"
+                ? driverName(id)
+                : (data.drivers || []).find((d) => d.id === id)?.name || "—";
+        };
+
+        // Fuel is stored in data.fuel; exclude cat=Fuel expenses here to avoid double-count with logs (see truckStats).
+        const expenseRows = (data.expenses || [])
+            .filter((e) => e.cat !== "Fuel")
+            .map((e) => {
+                const j = resolveJourney(e.journey);
+                return {
+                    ...e,
+                    _vehicle: truckReg(e.truck),
+                    _amount: Number(e.amount || 0),
+                    _trip: tripLabel(j, e.journey),
+                    _driver: driverForRow(e.driver, j),
+                    _source: "expense",
+                };
+            });
+
+        const fuelRows = (data.fuel || []).map((f) => {
+            const j = resolveJourney(f.journey);
+            const amount = Number(f.litres || 0) * Number(f.pricePerL || 0);
+            const desc = [f.station, f.litres ? `${Number(f.litres).toLocaleString()} L @ KES ${f.pricePerL}` : null]
+                .filter(Boolean)
+                .join(" · ") || "Fuel";
+            return {
+                ...f,
+                cat: "Fuel",
+                subCat: "",
+                desc,
+                amount,
+                _vehicle: truckReg(f.truck),
+                _amount: amount,
+                _trip: tripLabel(j, f.journey),
+                _driver: driverForRow(f.driver, j),
+                _source: "fuel",
+            };
+        });
+
+        return [...expenseRows, ...fuelRows];
+    }, [data.expenses, data.fuel, data.journeys, data.drivers, truckReg, driverName]);
 
     const {
         filteredRows: sortedItems,
@@ -54,7 +106,7 @@ export function Expenses({
     } = useTableFilter(refinedExpenses, {
         namespace: "exp",
         initialSort: { col: "date", dir: "desc" },
-        searchColumns: ["uId", "desc", "cat", "_vehicle"]
+        searchColumns: ["uId", "desc", "cat", "_vehicle", "_trip", "_driver"]
     });
 
     const getCatIcon = (cat) => {
@@ -108,13 +160,23 @@ export function Expenses({
 
     const stats = panelTruckId ? getTruckStats(panelTruckId) : null;
 
-    // Category filter tabs
+    // Category counts: fuel logs + expenses (Fuel category expenses are merged only via fuel logs to avoid duplicates)
     const catCounts = CATS.reduce((acc, c) => {
-        acc[c] = data.expenses.filter(e => e.cat === c).length;
+        if (c === "Fuel") acc[c] = refinedExpenses.filter((e) => e.cat === "Fuel").length;
+        else acc[c] = (data.expenses || []).filter((e) => e.cat === c).length;
         return acc;
     }, {});
 
     const pendingCount = pendingVerifications?.filter(v => v._itemType === 'expense').length || 0;
+
+    const openFuelModal = (row) => {
+        const raw = (data.fuel || []).find((x) => x.id === row.id);
+        openModal("fuel", raw || row);
+    };
+    const openExpenseModalFromRow = (row) => {
+        const { _vehicle, _amount, _trip, _driver, _source, ...rest } = row;
+        openModal("expense", rest);
+    };
 
     return (
         <div className="page-shell">
@@ -238,6 +300,8 @@ export function Expenses({
                                 { key: "date", label: "Date", sortable: true },
                                 { key: "cat", label: "Category", sortable: true },
                                 { key: "desc", label: "Description", sortable: true },
+                                { key: "_trip", label: "Trip", sortable: true },
+                                { key: "_driver", label: "Driver", sortable: true },
                                 { key: "_vehicle", label: "Truck", sortable: true },
                                 { key: "_amount", label: "Amount", sortable: true, align: "right" },
                                 { key: "status", label: "Status", sortable: true },
@@ -248,7 +312,7 @@ export function Expenses({
                             {activeTab === 'awaiting' ? (
                                 pendingCount === 0 ? (
                                     <tr>
-                                        <td colSpan="7" style={{ textAlign: "center", padding: 64, color: "var(--text-dim)" }}>
+                                        <td colSpan="9" style={{ textAlign: "center", padding: 64, color: "var(--text-dim)" }}>
                                             <div style={{ marginBottom: 12 }}><CheckCircle2 size={40} opacity={0.2} color="#10b981" /></div>
                                             <div style={{ fontWeight: 600 }}>No expenses awaiting approval.</div>
                                         </td>
@@ -269,6 +333,8 @@ export function Expenses({
                                                     </div>
                                                 </td>
                                                 <td style={{ color: "var(--text-secondary)", fontSize: 13 }}>{v.desc || v.cat}</td>
+                                                <td style={{ fontSize: 12, color: "var(--text-dim)" }}>—</td>
+                                                <td style={{ fontSize: 12, color: "var(--text-dim)" }}>—</td>
                                                 <td>
                                                     <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 700 }}>
                                                         <Truck size={13} color="var(--brand-primary)" />
@@ -286,7 +352,7 @@ export function Expenses({
                                 )
                             ) : sortedItems.length === 0 ? (
                                 <tr>
-                                    <td colSpan="7" style={{ textAlign: "center", padding: 64, color: "var(--text-dim)" }}>
+                                    <td colSpan="9" style={{ textAlign: "center", padding: 64, color: "var(--text-dim)" }}>
                                         <div style={{ marginBottom: 12 }}><AlertCircle size={40} opacity={0.2} /></div>
                                         <div style={{ fontWeight: 600 }}>No expense records found.</div>
                                     </td>
@@ -294,8 +360,19 @@ export function Expenses({
                             ) : sortedItems.map(e => {
                                 const Icon = getCatIcon(e.cat);
                                 const color = getCatColor(e.cat);
+                                const rowKey = e._source === "fuel" ? `fuel-${e.id}` : e.id;
+                                const openRow = () => {
+                                    if (e._source === "fuel") openFuelModal(e);
+                                    else openExpenseModalFromRow(e);
+                                };
+                                const fuelStatusBadge = e._source === "fuel" ? (
+                                    e._pendingApproval ? <Badge status="Warning" text="Pending" /> :
+                                        (!e.photoPump || !e.photoReceipt || !e.photoOdom) ?
+                                            <Badge status="Warning" text="Missing Docs" /> :
+                                            <Badge status="Active" text="Verified" />
+                                ) : null;
                                 return (
-                                    <tr key={e.id} onClick={() => openModal("expense", e)} style={{ cursor: "pointer" }} className="hover-scale">
+                                    <tr key={rowKey} onClick={openRow} style={{ cursor: "pointer" }} className="hover-scale">
                                         <td className="sticky-col" style={{ fontWeight: 700 }}>{fmtDate(e.date)}</td>
                                         <td>
                                             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -308,8 +385,9 @@ export function Expenses({
                                         <td>
                                             {e.subCat && <div style={{ fontSize: 10, fontWeight: 800, color: "var(--brand-primary)", textTransform: "uppercase", marginBottom: 2 }}>{e.subCat}</div>}
                                             <div style={{ color: "var(--text-secondary)", fontSize: 13 }}>{e.desc}</div>
-                                            {e.journey && <div style={{ fontSize: 10, color: "var(--text-dim)", marginTop: 2 }}>Mission #{e.journey.slice(0, 8)}</div>}
                                         </td>
+                                        <td style={{ fontSize: 12, color: "var(--text-secondary)", maxWidth: 220 }} title={e._trip}>{e._trip}</td>
+                                        <td style={{ fontSize: 13, fontWeight: 600 }}>{e._driver}</td>
                                         <td>
                                             <div
                                                 style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 700, cursor: "pointer" }}
@@ -320,14 +398,29 @@ export function Expenses({
                                             </div>
                                         </td>
                                         <td style={{ fontWeight: 900, textAlign: "right" }}>{fmt(e.amount)}</td>
-                                        <td className="status-col"><Badge status="Active" text="Processed" /></td>
+                                        <td className="status-col">
+                                            {e._source === "fuel" ? fuelStatusBadge : <Badge status="Active" text="Processed" />}
+                                        </td>
                                         <td style={{ textAlign: "right", verticalAlign: "middle" }}>
                                             <TableRowActions
-                                                ariaLabel={`Actions for expense ${e.id}`}
-                                                items={[
+                                                ariaLabel={e._source === "fuel" ? `Actions for fuel ${e.id}` : `Actions for expense ${e.id}`}
+                                                items={e._source === "fuel" ? [
+                                                    ...(e._pendingApproval ? [{
+                                                        id: "verify", label: "Verify", icon: CheckCircle2,
+                                                        onClick: (ev) => { ev.stopPropagation(); setVerifyModal({ ...e, _itemType: "fuel" }); },
+                                                    }] : []),
+                                                    {
+                                                        id: "edit", label: "Edit fuel entry", icon: Pencil,
+                                                        onClick: (ev) => { ev.stopPropagation(); openFuelModal(e); },
+                                                    },
+                                                    {
+                                                        id: "delete", label: "Delete", icon: Trash2, danger: true,
+                                                        onClick: (ev) => { ev.stopPropagation(); delItem("fuel", e.id, `${e.station || ""} ${e.date || ""}`); },
+                                                    },
+                                                ] : [
                                                     {
                                                         id: "edit", label: "Edit expense", icon: Pencil,
-                                                        onClick: (ev) => { ev.stopPropagation(); openModal("expense", e); },
+                                                        onClick: (ev) => { ev.stopPropagation(); openExpenseModalFromRow(e); },
                                                     },
                                                     {
                                                         id: "delete", label: "Delete", icon: Trash2, danger: true,
