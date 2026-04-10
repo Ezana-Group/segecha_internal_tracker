@@ -641,6 +641,20 @@ async function autoSeed() {
                 updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
             );
         `);
+        await db.query(`
+            DO $$
+            BEGIN
+                -- Backward compatibility: older schemas used "date" instead of "txn_date".
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='mpesa_transactions' AND column_name='txn_date') THEN
+                    ALTER TABLE mpesa_transactions ADD COLUMN txn_date DATE;
+                END IF;
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='mpesa_transactions' AND column_name='date') THEN
+                    UPDATE mpesa_transactions
+                    SET txn_date = COALESCE(txn_date, date)
+                    WHERE txn_date IS NULL;
+                END IF;
+            END $$;
+        `);
         await db.query(`CREATE INDEX IF NOT EXISTS idx_mpesa_txn_date ON mpesa_transactions (txn_date DESC);`);
         await db.query(`CREATE INDEX IF NOT EXISTS idx_mpesa_reference ON mpesa_transactions (reference);`);
         await db.query(`
