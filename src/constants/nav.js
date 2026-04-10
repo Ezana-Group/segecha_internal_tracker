@@ -3,7 +3,12 @@
 // Reads from localStorage 'segecha_settings' for user-customizable values
 // ═══════════════════════════════════════════════════════════════════
 
-import { getLicenceClasses as readLicenceClasses, getCommonRoutes as readCommonRoutes } from "../utils/settingsStore.js";
+import {
+    getLicenceClasses as readLicenceClasses,
+    getCommonRoutes as readCommonRoutes,
+    getJourneyStatuses as readJourneyStatuses,
+    getTruckStatuses as readTruckStatuses,
+} from "../utils/settingsStore.js";
 
 const _S = (() => { try { return JSON.parse(localStorage.getItem('segecha_settings') || '{}'); } catch { return {}; } })();
 
@@ -38,9 +43,9 @@ export const CARGO_TYPES = _S.cargoTypes?.length ? _S.cargoTypes : ["Electronics
 /** Snapshot at module load; use `getCommonRoutes` from `settingsStore` when options must stay in sync */
 export const COMMON_ROUTES = readCommonRoutes();
 
-// ─── Status Enums (not customizable) ─────────────────────────────
-export const STATUSES_JOURNEY = ["Accepted", "Loading", "In Transit", "Awaiting Verification", "Completed", "Cancelled"];
-export const STATUSES_TRUCK = ["Active", "Maintenance", "Off Road"];
+// ─── Status Lists (settings-aware snapshots at module load) ──────
+export const STATUSES_JOURNEY = readJourneyStatuses();
+export const STATUSES_TRUCK = readTruckStatuses();
 
 // ─── Configurable Thresholds ─────────────────────────────────────
 export const TYRE_WARN_KM = _S.tyreWarnKm ? +_S.tyreWarnKm : Number(import.meta.env.VITE_TYRE_WARNING_KM);

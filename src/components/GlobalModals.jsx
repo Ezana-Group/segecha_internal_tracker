@@ -6,8 +6,9 @@ import { fmt, fmtDate, today, uid, monthLabel } from "../utils/formatters";
 import { validators } from "../utils/validators";
 import { PAYMENT_API } from "../utils/env";
 import { fetchWithAuth } from "../utils/api";
-import { DEFAULT_FUEL_PRICE, STATUSES_JOURNEY, CARGO_TYPES, TRUCK_TYPES, STATUSES_TRUCK, INVOICE_PREFIX, PAYMENT_TERMS_DAYS } from "../constants/nav";
-import { getLicenceClasses, getCommonRoutes, subscribeSettings, readSettings } from "../utils/settingsStore.js";
+import { DEFAULT_FUEL_PRICE, INVOICE_PREFIX, PAYMENT_TERMS_DAYS } from "../constants/nav";
+import { getLicenceClasses, getCommonRoutes, getCargoTypes, getTruckTypes, getIncidentTypes, getJourneyStatuses, getTruckStatuses, subscribeSettings, readSettings } from "../utils/settingsStore.js";
+import { computePayrollKRA } from "../utils/kenyaPayroll.js";
 
 /** Blur focused input then run save on the next microtask so number fields commit. */
 function flushModalSave(fn) {
@@ -307,6 +308,11 @@ export function GlobalModals(props) {
 
     const licenceClasses = getLicenceClasses();
     const commonRoutes = getCommonRoutes();
+    const cargoTypes = getCargoTypes();
+    const truckTypes = getTruckTypes();
+    const incidentTypes = getIncidentTypes();
+    const journeyStatuses = getJourneyStatuses();
+    const truckStatuses = getTruckStatuses();
 
     if (!modal) return null;
 
@@ -706,9 +712,31 @@ export function GlobalModals(props) {
         const errors = {};
         errors.baseSalary = validators.required(form.baseSalary) || validators.positiveNumber(form.baseSalary);
         const hasErrors = Object.values(errors).some(Boolean);
+        const payrollPreview = computePayrollKRA(form, readSettings());
 
         return (
-            <Modal title={form.id ? "Edit Pay Record" : "Add New Pay Record"} onSave={() => flushModalSave(() => saveItem("payroll", form))} S={S} closeModal={closeModal} saveDisabled={hasErrors}>
+            <Modal
+                title={form.id ? "Edit Pay Record" : "Add New Pay Record"}
+                onSave={() => flushModalSave(() => saveItem("payroll", {
+                    ...form,
+                    grossPay: payrollPreview.grossPay,
+                    taxablePay: payrollPreview.taxablePay,
+                    paye: payrollPreview.paye,
+                    nhif: payrollPreview.nhif,
+                    nssfEmployee: payrollPreview.nssfEmployee,
+                    nssfEmployer: payrollPreview.nssfEmployer,
+                    housingLevyEmployee: payrollPreview.housingLevyEmployee,
+                    housingLevyEmployer: payrollPreview.housingLevyEmployer,
+                    otherDeductions: payrollPreview.otherDeductions,
+                    totalDeductions: payrollPreview.totalDeductions,
+                    deductions: payrollPreview.totalDeductions,
+                    netPay: payrollPreview.netPay,
+                    employerCost: payrollPreview.employerCost,
+                }))}
+                S={S}
+                closeModal={closeModal}
+                saveDisabled={hasErrors}
+            >
                 <div style={modalGrid}>
 
                     <SectionDivider title="Employee" />
@@ -732,7 +760,7 @@ export function GlobalModals(props) {
 
                     <Field label="Base Salary (KES)"  k="baseSalary"  type="number" form={form} setForm={setForm} S={S} error={errors.baseSalary} />
                     <Field label="Allowances (KES)"   k="allowance"   type="number" form={form} setForm={setForm} S={S} />
-                    <Field label="Deductions (KES)"   k="deductions"  type="number" form={form} setForm={setForm} S={S} />
+                    <Field label="Other Deductions (KES)"   k="deductions"  type="number" form={form} setForm={setForm} S={S} />
 
                     {/* Net disbursement banner */}
                     <div style={{
@@ -745,8 +773,16 @@ export function GlobalModals(props) {
                     }}>
                         <span style={{ fontWeight: 700, color: "var(--text-primary)", fontSize: 13 }}>Net Disbursement</span>
                         <span style={{ fontSize: 22, fontWeight: 900, color: "#10b981" }}>
-                            {fmt((+form.baseSalary || 0) + (+form.allowance || 0) - (+form.deductions || 0))}
+                            {fmt(payrollPreview.netPay)}
                         </span>
+                    </div>
+                    <div style={{ gridColumn: "1/-1", fontSize: 11, color: "var(--text-dim)", display: "flex", flexWrap: "wrap", gap: 10 }}>
+                        <span>Gross: {fmt(payrollPreview.grossPay)}</span>
+                        <span>PAYE: {fmt(payrollPreview.paye)}</span>
+                        <span>SHIF/NHIF: {fmt(payrollPreview.nhif)}</span>
+                        <span>NSSF (Emp): {fmt(payrollPreview.nssfEmployee)}</span>
+                        <span>Housing Levy (Emp): {fmt(payrollPreview.housingLevyEmployee)}</span>
+                        <span>Total Deductions: {fmt(payrollPreview.totalDeductions)}</span>
                     </div>
 
                     <SectionDivider title="Payment Status" />
@@ -1371,20 +1407,20 @@ export function GlobalModals(props) {
                     <div>
                         <FormLabel>Cargo Type</FormLabel>
                         {(() => {
-                            const effectiveCargoType = form.cargoType || (CARGO_TYPES.includes(form.cargo) ? form.cargo : form.cargo ? "Other" : "");
+                            const effectiveCargoType = form.cargoType || (cargoTypes.includes(form.cargo) ? form.cargo : form.cargo ? "Other" : "");
                             return (
                                 <select style={S.inp} value={effectiveCargoType} onChange={e => {
                                     const v = e.target.value;
                                     setForm(f => ({ ...f, cargoType: v, cargo: v !== "Other" ? v : "" }));
                                 }}>
                                     <option value="">Select cargo type…</option>
-                                    {CARGO_TYPES.map(c => <option key={c} value={c}>{c}</option>)}
+                                    {cargoTypes.map(c => <option key={c} value={c}>{c}</option>)}
                                 </select>
                             );
                         })()}
                     </div>
 
-                    {(form.cargoType === "Other" || (!form.cargoType && form.cargo && !CARGO_TYPES.includes(form.cargo))) && (
+                    {(form.cargoType === "Other" || (!form.cargoType && form.cargo && !cargoTypes.includes(form.cargo))) && (
                         <div>
                             <FormLabel>Specify Cargo</FormLabel>
                             <input style={S.inp} value={form.cargo || ""} placeholder="Describe the cargo…"
@@ -1443,7 +1479,7 @@ export function GlobalModals(props) {
                     <Field label="Deposit Date" k="depositDate" type="date" form={form} setForm={setForm} S={S} />
                     <Field label="Final Payment Received (KES)" k="finalPaymentAmount" type="number" form={form} setForm={setForm} S={S} />
                     <Field label="Final Payment Date" k="finalPaymentDate" type="date" form={form} setForm={setForm} S={S} />
-                    <Field label="Status" k="status" options={STATUSES_JOURNEY} form={form} setForm={setForm} S={S} />
+                    <Field label="Status" k="status" options={journeyStatuses} form={form} setForm={setForm} S={S} />
 
                     <div style={{ gridColumn: "1/-1" }}>
                         <Field label="Notes" k="notes" full form={form} setForm={setForm} S={S} />
@@ -1528,7 +1564,6 @@ export function GlobalModals(props) {
        INCIDENT
     ═══════════════════════════════════════════════════════════════ */
     if (modal === "incident") {
-        const incidentTypes = readSettings()?.incidentTypes || ["Accident", "Breakdown", "Cargo Damage", "Road Delay", "Security", "Other"];
         const incidentErrors = {
             date: validators.required(form.date),
             incidentType: validators.required(form.incidentType),
@@ -1740,8 +1775,8 @@ export function GlobalModals(props) {
                     <Field label="Model / Version"   k="model"     form={form} setForm={setForm} S={S} T={T} placeholder="e.g. Hino 500, NPR 71, TGS 26" />
                     <Field label="Year"              k="year"      type="number" form={form} setForm={setForm} S={S} T={T} />
                     <Field label="Fuel Type"         k="fuelType"  options={["Diesel", "Petrol", "CNG", "Electric", "Other"]} form={form} setForm={setForm} S={S} T={T} />
-                    <Field label="Vehicle Type"      k="type"      options={TRUCK_TYPES} form={form} setForm={setForm} S={S} T={T} />
-                    <Field label="Status"            k="status"    options={STATUSES_TRUCK} form={form} setForm={setForm} S={S} T={T} />
+                    <Field label="Vehicle Type"      k="type"      options={truckTypes} form={form} setForm={setForm} S={S} T={T} />
+                    <Field label="Status"            k="status"    options={truckStatuses} form={form} setForm={setForm} S={S} T={T} />
 
                     <div style={{ alignSelf: "end", paddingBottom: 6 }}>
                         <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>

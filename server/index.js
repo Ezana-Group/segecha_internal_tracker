@@ -506,12 +506,33 @@ async function autoSeed() {
                 IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='tyre_logs' AND column_name='updated_at') THEN
                     ALTER TABLE tyre_logs ADD COLUMN updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
                 END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='incidents' AND column_name='updated_at') THEN
+                    ALTER TABLE incidents ADD COLUMN updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+                END IF;
                 -- status columns used by ADMIN_COLLECTIONS extract functions
                 IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='fuel_logs' AND column_name='status') THEN
                     ALTER TABLE fuel_logs ADD COLUMN status TEXT DEFAULT 'Pending';
                 END IF;
                 IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='expenses' AND column_name='status') THEN
                     ALTER TABLE expenses ADD COLUMN status TEXT DEFAULT 'Pending';
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='expenses' AND column_name='truck_id') THEN
+                    ALTER TABLE expenses ADD COLUMN truck_id TEXT REFERENCES trucks(id) ON DELETE SET NULL;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='journeys' AND column_name='deposit_amount') THEN
+                    ALTER TABLE journeys ADD COLUMN deposit_amount DECIMAL(14,2) DEFAULT 0;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='journeys' AND column_name='deposit_date') THEN
+                    ALTER TABLE journeys ADD COLUMN deposit_date DATE;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='journeys' AND column_name='final_payment_amount') THEN
+                    ALTER TABLE journeys ADD COLUMN final_payment_amount DECIMAL(14,2) DEFAULT 0;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='journeys' AND column_name='final_payment_date') THEN
+                    ALTER TABLE journeys ADD COLUMN final_payment_date DATE;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='invoices' AND column_name='paid_amount') THEN
+                    ALTER TABLE invoices ADD COLUMN paid_amount DECIMAL(14,2) DEFAULT 0;
                 END IF;
             END $$;
         `);
@@ -559,6 +580,26 @@ async function autoSeed() {
         `);
         await db.query(`CREATE INDEX IF NOT EXISTS idx_error_logs_created_at ON error_logs (created_at DESC);`);
         await db.query(`CREATE INDEX IF NOT EXISTS idx_error_logs_source ON error_logs (source);`);
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS mpesa_transactions (
+                id TEXT PRIMARY KEY,
+                txn_date DATE,
+                direction TEXT NOT NULL DEFAULT 'Incoming',
+                amount DECIMAL(14,2) DEFAULT 0,
+                reference TEXT,
+                counterparty_name TEXT,
+                counterparty_phone TEXT,
+                linked_type TEXT,
+                linked_id TEXT,
+                status TEXT DEFAULT 'Unreconciled',
+                notes TEXT,
+                metadata JSONB DEFAULT '{}',
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+        await db.query(`CREATE INDEX IF NOT EXISTS idx_mpesa_txn_date ON mpesa_transactions (txn_date DESC);`);
+        await db.query(`CREATE INDEX IF NOT EXISTS idx_mpesa_reference ON mpesa_transactions (reference);`);
 
         console.log(`[SEED] Ensuring superadmin exists (${initialAdminEmail})...`);
 
@@ -594,6 +635,14 @@ async function autoSeed() {
             ('defaultCurrency', '"KES"')
             ON CONFLICT (key) DO NOTHING
         `, [JSON.stringify(process.env.COMPANY_NAME), JSON.stringify(process.env.EMAIL_FROM)]);
+
+        const schemaHealth = await getSchemaHealth();
+        if (!schemaHealth.ok) {
+            console.warn('[SCHEMA] Missing tables:', schemaHealth.missingTables);
+            console.warn('[SCHEMA] Missing columns:', schemaHealth.missingColumns);
+        } else {
+            console.log('[SCHEMA] Health check passed: required tables/columns are present.');
+        }
 
         console.log(`[SEED] SUCCESS: Superadmin created (${initialAdminEmail}). Password is your ADMIN_KEY.`);
     } catch (e) {
@@ -683,6 +732,23 @@ app.get('/api/admin/error-logs', async (req, res) => {
     }
 });
 
+// Admin: verify schema completeness expected by frontend/backend flows
+app.get('/api/admin/schema-health', async (_req, res) => {
+    try {
+        const health = await getSchemaHealth();
+        res.json({ success: true, ...health });
+    } catch (e) {
+        await writeErrorLog({
+            source: 'database',
+            level: 'error',
+            message: e.message || 'Failed to compute schema health',
+            stack: e.stack || null,
+            meta: { endpoint: '/api/admin/schema-health' },
+        });
+        res.status(500).json({ error: e.message });
+    }
+});
+
 // Admin: pull M-Pesa transactions from external API (wire-up endpoint)
 app.get('/api/admin/mpesa/transactions', async (req, res) => {
     try {
@@ -718,6 +784,603 @@ app.get('/api/admin/mpesa/transactions', async (req, res) => {
             stack: e.stack || null,
             meta: { endpoint: '/api/admin/mpesa/transactions' },
         });
+        res.status(500).json({ error: e.message });
+    }
+});
+
+function inDateRange(dateLike, from, to) {
+    if (!dateLike) return true;
+    const d = new Date(dateLike);
+    if (Number.isNaN(d.getTime())) return true;
+    if (from) {
+        const f = new Date(from);
+        if (!Number.isNaN(f.getTime()) && d < f) return false;
+    }
+    if (to) {
+        const t = new Date(to);
+        if (!Number.isNaN(t.getTime()) && d > t) return false;
+    }
+    return true;
+}
+
+// Admin: tax summary foundation (VAT, WHT, corporate tax estimate)
+app.get('/api/admin/reports/tax-summary', async (req, res) => {
+    try {
+        const from = req.query.from ? String(req.query.from) : '';
+        const to = req.query.to ? String(req.query.to) : '';
+        const defaultVatRate = Number(req.query.vatRate || 0.16);
+
+        const invoices = (await db.query('SELECT amount, due_date, metadata FROM invoices')).rows || [];
+        const expenses = (await db.query('SELECT amount, date, metadata FROM expenses')).rows || [];
+
+        let outputVat = 0;
+        let vatableRevenue = 0;
+        let inputVat = 0;
+        let vatablePurchases = 0;
+        let whtResident3 = 0;
+        let whtNonResident5 = 0;
+
+        for (const inv of invoices) {
+            const meta = inv.metadata || {};
+            const rowDate = meta.invoiceDate || inv.due_date || meta.date;
+            if (!inDateRange(rowDate, from, to)) continue;
+            const amount = Number(meta.subtotal ?? inv.amount ?? 0);
+            const vatable = Boolean(meta.vatable === true || meta.vatApplicable === true);
+            const vatRate = Number(meta.vatRate ?? defaultVatRate);
+            if (vatable && amount > 0) {
+                vatableRevenue += amount;
+                outputVat += amount * vatRate;
+            }
+        }
+
+        for (const ex of expenses) {
+            const meta = ex.metadata || {};
+            const rowDate = meta.date || ex.date;
+            if (!inDateRange(rowDate, from, to)) continue;
+            const amount = Number(meta.amount ?? ex.amount ?? 0);
+            const vatable = Boolean(meta.vatable === true || meta.vatApplicable === true);
+            const vatRate = Number(meta.vatRate ?? defaultVatRate);
+            if (vatable && amount > 0) {
+                vatablePurchases += amount;
+                inputVat += amount * vatRate;
+            }
+
+            const whtClass = String(meta.whtClass || '').toLowerCase();
+            if (whtClass === 'resident') whtResident3 += amount * 0.03;
+            if (whtClass === 'non-resident' || whtClass === 'nonresident') whtNonResident5 += amount * 0.05;
+        }
+
+        const vatPayable = Math.max(0, outputVat - inputVat);
+        const netOperatingProfit = Number(req.query.netOperatingProfit || 0);
+        const corporateTaxProvision = Math.max(0, netOperatingProfit * 0.30);
+
+        res.json({
+            success: true,
+            period: { from: from || null, to: to || null },
+            vat: {
+                outputVat: Number(outputVat.toFixed(2)),
+                inputVat: Number(inputVat.toFixed(2)),
+                vatPayable: Number(vatPayable.toFixed(2)),
+                vatableRevenue: Number(vatableRevenue.toFixed(2)),
+                vatablePurchases: Number(vatablePurchases.toFixed(2)),
+            },
+            wht: {
+                resident3: Number(whtResident3.toFixed(2)),
+                nonResident5: Number(whtNonResident5.toFixed(2)),
+                total: Number((whtResident3 + whtNonResident5).toFixed(2)),
+            },
+            corporateTax: {
+                netOperatingProfit: Number(netOperatingProfit.toFixed(2)),
+                provision30pct: Number(corporateTaxProvision.toFixed(2)),
+            },
+        });
+    } catch (e) {
+        await writeErrorLog({
+            source: 'backend',
+            level: 'error',
+            message: e.message || 'Failed to generate tax summary report',
+            stack: e.stack || null,
+            meta: { endpoint: '/api/admin/reports/tax-summary' },
+        });
+        res.status(500).json({ error: e.message });
+    }
+});
+
+function daysBetween(a, b) {
+    const da = new Date(a);
+    const db = new Date(b);
+    if (Number.isNaN(da.getTime()) || Number.isNaN(db.getTime())) return 0;
+    return Math.floor((db.getTime() - da.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+function extractInvoicePaidAmount(invoice) {
+    const meta = invoice?.metadata || {};
+    const paidAmount =
+        Number(meta.paidAmount ?? invoice.paid_amount ?? invoice.paidAmount ?? 0) ||
+        Number(Array.isArray(meta.payments)
+            ? meta.payments.reduce((s, p) => s + Number(p?.amount || 0), 0)
+            : 0);
+    return Number.isFinite(paidAmount) ? paidAmount : 0;
+}
+
+function monthStartEnd(month) {
+    const m = String(month || '');
+    if (!/^\d{4}-\d{2}$/.test(m)) return null;
+    const start = `${m}-01`;
+    const d = new Date(`${m}-01T00:00:00.000Z`);
+    d.setUTCMonth(d.getUTCMonth() + 1);
+    d.setUTCDate(0);
+    const end = `${m}-${String(d.getUTCDate()).padStart(2, '0')}`;
+    return { start, end };
+}
+
+function toCsv(rows) {
+    if (!Array.isArray(rows) || rows.length === 0) return '';
+    const headers = Object.keys(rows[0]);
+    const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    return [headers.join(','), ...rows.map((r) => headers.map((h) => esc(r[h])).join(','))].join('\n');
+}
+
+app.get('/api/admin/reports/receivables-payables', async (req, res) => {
+    try {
+        const from = req.query.from ? String(req.query.from) : '';
+        const to = req.query.to ? String(req.query.to) : '';
+        const today = new Date().toISOString().slice(0, 10);
+
+        const invoiceRows = (await db.query('SELECT id, amount, due_date, customer_id, journey_id, metadata FROM invoices')).rows || [];
+        const expenseRows = (await db.query('SELECT id, amount, date, category, truck_id, metadata FROM expenses')).rows || [];
+        const payrollRows = (await db.query('SELECT id, entity_id, amount, month, status, metadata FROM payroll')).rows || [];
+
+        const receivables = [];
+        for (const inv of invoiceRows) {
+            const meta = inv.metadata || {};
+            const invDate = meta.invoiceDate || inv.due_date;
+            if (!inDateRange(invDate, from, to)) continue;
+            const total = Number(inv.amount || 0);
+            const paid = extractInvoicePaidAmount(inv);
+            const outstanding = Math.max(0, total - paid);
+            if (outstanding <= 0) continue;
+            receivables.push({
+                id: inv.id,
+                type: 'Invoice',
+                dueDate: inv.due_date || null,
+                daysOverdue: inv.due_date ? Math.max(0, daysBetween(inv.due_date, today)) : 0,
+                amount: Number(outstanding.toFixed(2)),
+                customerId: meta.customerId || inv.customer_id || '',
+                linkedJourneyId: meta.journey || inv.journey_id || '',
+            });
+        }
+
+        const payables = [];
+        for (const ex of expenseRows) {
+            const meta = ex.metadata || {};
+            const d = meta.date || ex.date;
+            if (!inDateRange(d, from, to)) continue;
+            const amount = Number(ex.amount || meta.amount || 0);
+            if (amount <= 0) continue;
+            if (String(meta.status || '').toLowerCase() === 'paid') continue;
+            payables.push({
+                id: ex.id,
+                type: `Expense:${meta.category || ex.category || 'General'}`,
+                dueDate: d || null,
+                daysOverdue: d ? Math.max(0, daysBetween(d, today)) : 0,
+                amount: Number(amount.toFixed(2)),
+                vendor: meta.vendor || meta.supplier || '',
+                linkedTruckId: meta.truck || ex.truck_id || '',
+            });
+        }
+
+        for (const p of payrollRows) {
+            const meta = p.metadata || {};
+            const d = meta.paidDate || (p.month ? `${String(p.month)}-28` : null);
+            if (!inDateRange(d, from, to)) continue;
+            if (String(meta.status || p.status || '').toLowerCase() === 'paid') continue;
+            const amount = Number(meta.netPay ?? meta.amount ?? p.amount ?? 0);
+            if (amount <= 0) continue;
+            payables.push({
+                id: p.id,
+                type: 'Payroll',
+                dueDate: d || null,
+                daysOverdue: d ? Math.max(0, daysBetween(d, today)) : 0,
+                amount: Number(amount.toFixed(2)),
+                vendor: meta.employeeName || meta.driverName || meta.driver || p.entity_id || '',
+                linkedTruckId: '',
+            });
+        }
+
+        const totalReceivables = receivables.reduce((s, r) => s + Number(r.amount || 0), 0);
+        const totalPayables = payables.reduce((s, r) => s + Number(r.amount || 0), 0);
+
+        res.json({
+            success: true,
+            period: { from: from || null, to: to || null },
+            totals: {
+                receivables: Number(totalReceivables.toFixed(2)),
+                payables: Number(totalPayables.toFixed(2)),
+                netWorkingCapitalGap: Number((totalReceivables - totalPayables).toFixed(2)),
+            },
+            receivables,
+            payables,
+        });
+    } catch (e) {
+        await writeErrorLog({
+            source: 'backend',
+            level: 'error',
+            message: e.message || 'Failed receivables/payables report',
+            stack: e.stack || null,
+            meta: { endpoint: '/api/admin/reports/receivables-payables' },
+        });
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.post('/api/admin/mpesa/transactions', async (req, res) => {
+    try {
+        const body = req.body || {};
+        const id = String(body.id || `MPESA-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`);
+        const txnDate = body.txnDate || body.date || new Date().toISOString().slice(0, 10);
+        const direction = body.direction === 'Outgoing' ? 'Outgoing' : 'Incoming';
+        const amount = Number(body.amount || 0);
+        const reference = String(body.reference || '');
+        const counterpartyName = String(body.counterpartyName || '');
+        const counterpartyPhone = String(body.counterpartyPhone || '');
+        const linkedType = body.linkedType ? String(body.linkedType) : null;
+        const linkedId = body.linkedId ? String(body.linkedId) : null;
+        const status = String(body.status || 'Unreconciled');
+        const notes = String(body.notes || '');
+        await db.query(
+            `INSERT INTO mpesa_transactions
+             (id, txn_date, direction, amount, reference, counterparty_name, counterparty_phone, linked_type, linked_id, status, notes, metadata)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb)
+             ON CONFLICT (id) DO UPDATE SET
+                txn_date=EXCLUDED.txn_date,
+                direction=EXCLUDED.direction,
+                amount=EXCLUDED.amount,
+                reference=EXCLUDED.reference,
+                counterparty_name=EXCLUDED.counterparty_name,
+                counterparty_phone=EXCLUDED.counterparty_phone,
+                linked_type=EXCLUDED.linked_type,
+                linked_id=EXCLUDED.linked_id,
+                status=EXCLUDED.status,
+                notes=EXCLUDED.notes,
+                metadata=EXCLUDED.metadata,
+                updated_at=NOW()`,
+            [id, txnDate, direction, amount, reference, counterpartyName, counterpartyPhone, linkedType, linkedId, status, notes, JSON.stringify(body.metadata || {})]
+        );
+        res.json({ success: true, id });
+    } catch (e) {
+        await writeErrorLog({
+            source: 'backend',
+            level: 'error',
+            message: e.message || 'Failed to upsert mpesa transaction',
+            stack: e.stack || null,
+            meta: { endpoint: '/api/admin/mpesa/transactions' },
+        });
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.get('/api/admin/mpesa/reconciliation', async (req, res) => {
+    try {
+        const rows = (await db.query('SELECT * FROM mpesa_transactions ORDER BY txn_date DESC, created_at DESC LIMIT 1000')).rows || [];
+        const invoices = (await db.query('SELECT id, amount, metadata FROM invoices')).rows || [];
+        const payroll = (await db.query('SELECT id, amount, metadata FROM payroll')).rows || [];
+
+        const invoiceById = new Map(invoices.map((i) => [String(i.id), i]));
+        const payrollById = new Map(payroll.map((p) => [String(p.id), p]));
+
+        const reconciled = [];
+        const unreconciled = [];
+        for (const tx of rows) {
+            const linkedType = String(tx.linked_type || '').toLowerCase();
+            const linkedId = String(tx.linked_id || '');
+            let matched = false;
+            let expectedAmount = null;
+            if (linkedType === 'invoice' && invoiceById.has(linkedId)) {
+                const inv = invoiceById.get(linkedId);
+                expectedAmount = Number(inv.amount || 0);
+                matched = true;
+            } else if (linkedType === 'payroll' && payrollById.has(linkedId)) {
+                const pr = payrollById.get(linkedId);
+                expectedAmount = Number((pr.metadata || {}).netPay ?? pr.amount ?? 0);
+                matched = true;
+            }
+
+            const item = {
+                id: tx.id,
+                txnDate: tx.txn_date,
+                direction: tx.direction,
+                amount: Number(tx.amount || 0),
+                reference: tx.reference,
+                linkedType: tx.linked_type || null,
+                linkedId: tx.linked_id || null,
+                status: tx.status || 'Unreconciled',
+                matchStatus: matched ? 'Matched' : 'Unmatched',
+                variance: matched && expectedAmount != null ? Number((Number(tx.amount || 0) - expectedAmount).toFixed(2)) : null,
+            };
+            if (matched) reconciled.push(item);
+            else unreconciled.push(item);
+        }
+
+        res.json({
+            success: true,
+            summary: {
+                total: rows.length,
+                reconciled: reconciled.length,
+                unreconciled: unreconciled.length,
+            },
+            reconciled,
+            unreconciled,
+        });
+    } catch (e) {
+        await writeErrorLog({
+            source: 'backend',
+            level: 'error',
+            message: e.message || 'Failed M-Pesa reconciliation report',
+            stack: e.stack || null,
+            meta: { endpoint: '/api/admin/mpesa/reconciliation' },
+        });
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.get('/api/admin/reports/p10', async (req, res) => {
+    try {
+        const month = String(req.query.month || '');
+        if (!monthStartEnd(month)) return res.status(400).json({ error: 'month must be YYYY-MM' });
+        const rows = (await db.query('SELECT id, entity_id, metadata, month FROM payroll WHERE month = $1 ORDER BY entity_id', [month])).rows || [];
+        const out = rows.map((r) => {
+            const m = r.metadata || {};
+            return {
+                month,
+                employeeId: r.entity_id,
+                grossPay: Number(m.grossPay ?? 0).toFixed(2),
+                taxablePay: Number(m.taxablePay ?? 0).toFixed(2),
+                paye: Number(m.paye ?? 0).toFixed(2),
+                personalRelief: Number(m.personalRelief ?? 2400).toFixed(2),
+                nssfEmployee: Number(m.nssfEmployee ?? 0).toFixed(2),
+                nhifShif: Number(m.nhif ?? 0).toFixed(2),
+                housingLevyEmployee: Number(m.housingLevyEmployee ?? 0).toFixed(2),
+                netPay: Number(m.netPay ?? 0).toFixed(2),
+            };
+        });
+        if (String(req.query.format || '').toLowerCase() === 'csv') {
+            res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+            return res.send(toCsv(out));
+        }
+        res.json({ success: true, month, records: out });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.get('/api/admin/reports/p9a', async (req, res) => {
+    try {
+        const year = Number(req.query.year || 0);
+        if (!Number.isInteger(year) || year < 2000) return res.status(400).json({ error: 'year required' });
+        const start = `${year}-01`;
+        const end = `${year}-12`;
+        const rows = (await db.query('SELECT id, entity_id, metadata, month FROM payroll WHERE month >= $1 AND month <= $2', [start, end])).rows || [];
+        const grouped = new Map();
+        for (const r of rows) {
+            const m = r.metadata || {};
+            const key = String(r.entity_id || '');
+            const prev = grouped.get(key) || {
+                employeeId: key,
+                year,
+                grossPay: 0,
+                taxablePay: 0,
+                paye: 0,
+                nssfEmployee: 0,
+                nhifShif: 0,
+                housingLevyEmployee: 0,
+                netPay: 0,
+            };
+            prev.grossPay += Number(m.grossPay ?? 0);
+            prev.taxablePay += Number(m.taxablePay ?? 0);
+            prev.paye += Number(m.paye ?? 0);
+            prev.nssfEmployee += Number(m.nssfEmployee ?? 0);
+            prev.nhifShif += Number(m.nhif ?? 0);
+            prev.housingLevyEmployee += Number(m.housingLevyEmployee ?? 0);
+            prev.netPay += Number(m.netPay ?? 0);
+            grouped.set(key, prev);
+        }
+        const out = Array.from(grouped.values()).map((r) => ({
+            ...r,
+            grossPay: Number(r.grossPay.toFixed(2)),
+            taxablePay: Number(r.taxablePay.toFixed(2)),
+            paye: Number(r.paye.toFixed(2)),
+            nssfEmployee: Number(r.nssfEmployee.toFixed(2)),
+            nhifShif: Number(r.nhifShif.toFixed(2)),
+            housingLevyEmployee: Number(r.housingLevyEmployee.toFixed(2)),
+            netPay: Number(r.netPay.toFixed(2)),
+        }));
+        if (String(req.query.format || '').toLowerCase() === 'csv') {
+            res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+            return res.send(toCsv(out));
+        }
+        res.json({ success: true, year, records: out });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.get('/api/admin/reports/vat3', async (req, res) => {
+    try {
+        const month = String(req.query.month || '');
+        const rng = monthStartEnd(month);
+        if (!rng) return res.status(400).json({ error: 'month must be YYYY-MM' });
+        const vatRate = Number(req.query.vatRate || 0.16);
+        const invoices = (await db.query('SELECT amount, due_date, metadata FROM invoices')).rows || [];
+        const expenses = (await db.query('SELECT amount, date, metadata FROM expenses')).rows || [];
+        let outputVat = 0;
+        let inputVat = 0;
+        for (const inv of invoices) {
+            const m = inv.metadata || {};
+            const d = m.invoiceDate || inv.due_date;
+            if (!inDateRange(d, rng.start, rng.end)) continue;
+            if (m.vatable === true || m.vatApplicable === true) outputVat += Number(inv.amount || 0) * Number(m.vatRate ?? vatRate);
+        }
+        for (const ex of expenses) {
+            const m = ex.metadata || {};
+            const d = m.date || ex.date;
+            if (!inDateRange(d, rng.start, rng.end)) continue;
+            if (m.vatable === true || m.vatApplicable === true) inputVat += Number(ex.amount || 0) * Number(m.vatRate ?? vatRate);
+        }
+        const payload = {
+            month,
+            outputVat: Number(outputVat.toFixed(2)),
+            inputVat: Number(inputVat.toFixed(2)),
+            vatPayable: Number(Math.max(0, outputVat - inputVat).toFixed(2)),
+        };
+        if (String(req.query.format || '').toLowerCase() === 'csv') {
+            res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+            return res.send(toCsv([payload]));
+        }
+        res.json({ success: true, ...payload });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.get('/api/admin/reports/wht-schedule', async (req, res) => {
+    try {
+        const month = String(req.query.month || '');
+        const rng = monthStartEnd(month);
+        if (!rng) return res.status(400).json({ error: 'month must be YYYY-MM' });
+        const expenses = (await db.query('SELECT id, amount, date, metadata FROM expenses')).rows || [];
+        const records = [];
+        for (const ex of expenses) {
+            const m = ex.metadata || {};
+            const d = m.date || ex.date;
+            if (!inDateRange(d, rng.start, rng.end)) continue;
+            const klass = String(m.whtClass || '').toLowerCase();
+            let rate = 0;
+            if (klass === 'resident') rate = 0.03;
+            if (klass === 'non-resident' || klass === 'nonresident') rate = 0.05;
+            if (!rate) continue;
+            const amount = Number(ex.amount || 0);
+            records.push({
+                expenseId: ex.id,
+                date: d || '',
+                supplier: m.vendor || m.supplier || '',
+                residencyClass: klass,
+                taxableBase: Number(amount.toFixed(2)),
+                rate: Number((rate * 100).toFixed(2)),
+                withholdingTax: Number((amount * rate).toFixed(2)),
+            });
+        }
+        if (String(req.query.format || '').toLowerCase() === 'csv') {
+            res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+            return res.send(toCsv(records));
+        }
+        res.json({
+            success: true,
+            month,
+            totalWithholdingTax: Number(records.reduce((s, r) => s + Number(r.withholdingTax || 0), 0).toFixed(2)),
+            records,
+        });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.get('/api/admin/reports/route-profitability', async (req, res) => {
+    try {
+        const from = req.query.from ? String(req.query.from) : '';
+        const to = req.query.to ? String(req.query.to) : '';
+        const journeys = (await db.query('SELECT id, origin, destination, start_date, metadata FROM journeys')).rows || [];
+        const fuel = (await db.query('SELECT journey_id, amount, date FROM fuel_logs')).rows || [];
+        const expenses = (await db.query('SELECT journey_id, amount, date, metadata FROM expenses')).rows || [];
+
+        const fuelByJourney = new Map();
+        for (const f of fuel) {
+            if (!inDateRange(f.date, from, to)) continue;
+            const key = String(f.journey_id || '');
+            fuelByJourney.set(key, (fuelByJourney.get(key) || 0) + Number(f.amount || 0));
+        }
+        const expenseByJourney = new Map();
+        for (const e of expenses) {
+            const d = e.date || (e.metadata || {}).date;
+            if (!inDateRange(d, from, to)) continue;
+            const key = String(e.journey_id || '');
+            expenseByJourney.set(key, (expenseByJourney.get(key) || 0) + Number(e.amount || 0));
+        }
+
+        const routeMap = new Map();
+        for (const j of journeys) {
+            const date = j.start_date || (j.metadata || {}).date;
+            if (!inDateRange(date, from, to)) continue;
+            const route = `${j.origin || 'Unknown'} -> ${j.destination || 'Unknown'}`;
+            const revenue = Number((j.metadata || {}).amount || 0);
+            const cost = Number(fuelByJourney.get(String(j.id)) || 0) + Number(expenseByJourney.get(String(j.id)) || 0);
+            const prev = routeMap.get(route) || { route, trips: 0, revenue: 0, directCost: 0, contribution: 0, marginPct: 0 };
+            prev.trips += 1;
+            prev.revenue += revenue;
+            prev.directCost += cost;
+            prev.contribution += (revenue - cost);
+            routeMap.set(route, prev);
+        }
+        const rows = Array.from(routeMap.values())
+            .map((r) => ({
+                ...r,
+                revenue: Number(r.revenue.toFixed(2)),
+                directCost: Number(r.directCost.toFixed(2)),
+                contribution: Number(r.contribution.toFixed(2)),
+                marginPct: r.revenue > 0 ? Number(((r.contribution / r.revenue) * 100).toFixed(2)) : 0,
+            }))
+            .sort((a, b) => b.contribution - a.contribution);
+        res.json({ success: true, period: { from: from || null, to: to || null }, routes: rows });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.get('/api/admin/reports/driver-costs', async (req, res) => {
+    try {
+        const from = req.query.from ? String(req.query.from) : '';
+        const to = req.query.to ? String(req.query.to) : '';
+        const payroll = (await db.query('SELECT entity_id, month, amount, metadata FROM payroll')).rows || [];
+        const journeys = (await db.query('SELECT id, driver_id, start_date, metadata FROM journeys')).rows || [];
+
+        const tripCountByDriver = new Map();
+        for (const j of journeys) {
+            const d = j.start_date || (j.metadata || {}).date;
+            if (!inDateRange(d, from, to)) continue;
+            const key = String(j.driver_id || (j.metadata || {}).driver || '');
+            if (!key) continue;
+            tripCountByDriver.set(key, (tripCountByDriver.get(key) || 0) + 1);
+        }
+
+        const costsByDriver = new Map();
+        for (const p of payroll) {
+            const m = String(p.month || '');
+            const key = String(p.entity_id || '');
+            if (!key || !m) continue;
+            const refDate = `${m}-15`;
+            if (!inDateRange(refDate, from, to)) continue;
+            const net = Number((p.metadata || {}).netPay ?? p.amount ?? 0);
+            const employerCost = Number((p.metadata || {}).employerCost ?? net);
+            const prev = costsByDriver.get(key) || { driverId: key, netPay: 0, employerCost: 0, payslips: 0, trips: 0, costPerTrip: 0 };
+            prev.netPay += net;
+            prev.employerCost += employerCost;
+            prev.payslips += 1;
+            costsByDriver.set(key, prev);
+        }
+
+        const rows = Array.from(costsByDriver.values()).map((r) => {
+            const trips = Number(tripCountByDriver.get(r.driverId) || 0);
+            return {
+                ...r,
+                trips,
+                netPay: Number(r.netPay.toFixed(2)),
+                employerCost: Number(r.employerCost.toFixed(2)),
+                costPerTrip: trips > 0 ? Number((r.employerCost / trips).toFixed(2)) : 0,
+            };
+        }).sort((a, b) => b.employerCost - a.employerCost);
+
+        res.json({ success: true, period: { from: from || null, to: to || null }, drivers: rows });
+    } catch (e) {
         res.status(500).json({ error: e.message });
     }
 });
@@ -795,7 +1458,7 @@ app.post('/api/admin/reset', async (req, res) => {
         console.log(`[${new Date().toISOString()}] SYSTEM RESET REQUESTED BY ADMIN`);
         const tables = [
             'invoices', 'payroll', 'fuel_logs', 'expenses', 'incidents', 'maintenance_logs', 'tyre_logs',
-            'documents', 'journeys', 'driver_auth', 'staff_auth',
+            'documents', 'journeys', 'assets', 'mpesa_transactions', 'error_logs', 'driver_auth', 'staff_auth',
             'trucks', 'trailers', 'drivers', 'staff', 'customers', 'admins', 'superadmins', 'system_settings'
         ];
         for (const table of tables) {
@@ -820,6 +1483,21 @@ app.post('/api/admin/reset', async (req, res) => {
             VALUES ($1, $2, $3, $4, 'active')
             ON CONFLICT (staff_id) DO UPDATE SET password_hash = EXCLUDED.password_hash
         `, [staffId, initialAdminEmail, initialAdminPhone, initialHash]);
+
+        // 2b. Re-create admin login principals after reset
+        await db.query(`
+            INSERT INTO admins (id, email, password_hash, role, display_name)
+            VALUES ($1, $2, $3, 'superadmin', 'System Admin')
+            ON CONFLICT (email) DO UPDATE SET
+                password_hash = EXCLUDED.password_hash,
+                role = EXCLUDED.role,
+                display_name = EXCLUDED.display_name
+        `, [staffId, initialAdminEmail, initialHash]);
+        await db.query(`
+            INSERT INTO superadmins (email, created_at)
+            VALUES ($1, CURRENT_TIMESTAMP)
+            ON CONFLICT (email) DO NOTHING
+        `, [initialAdminEmail]);
 
         // 3. Populate base settings
         await db.query(`
@@ -858,8 +1536,48 @@ const DB_TABLES = [
     'admins', 'superadmins', 'trucks', 'trailers', 'drivers',
     'staff', 'customers', 'journeys', 'fuel_logs', 'expenses',
     'invoices', 'payroll', 'maintenance_logs', 'tyre_logs',
-    'incidents', 'documents', 'assets', 'system_settings', 'staff_auth', 'driver_auth'
+    'incidents', 'documents', 'assets', 'mpesa_transactions', 'system_settings', 'staff_auth', 'driver_auth'
 ];
+
+const REQUIRED_SCHEMA = {
+    journeys: ['id', 'truck_id', 'driver_id', 'customer_id', 'start_date', 'status', 'metadata', 'deposit_amount', 'deposit_date', 'final_payment_amount', 'final_payment_date'],
+    expenses: ['id', 'journey_id', 'truck_id', 'category', 'amount', 'date', 'status', 'metadata'],
+    invoices: ['id', 'customer_id', 'journey_id', 'amount', 'paid_amount', 'status', 'due_date', 'metadata'],
+    payroll: ['id', 'entity_id', 'entity_type', 'amount', 'month', 'status', 'metadata'],
+    incidents: ['id', 'type', 'status', 'metadata', 'updated_at'],
+    documents: ['id', 'entity_type', 'entity_id', 'url', 'metadata'],
+    assets: ['id', 'name', 'category', 'cost', 'depreciation_method', 'metadata'],
+    mpesa_transactions: ['id', 'txn_date', 'direction', 'amount', 'reference', 'linked_type', 'linked_id', 'status', 'metadata'],
+};
+
+async function getSchemaHealth() {
+    const tablesRes = await db.query(
+        `SELECT table_name FROM information_schema.tables
+         WHERE table_schema = 'public'`
+    );
+    const existingTables = new Set((tablesRes.rows || []).map((r) => String(r.table_name)));
+    const missingTables = Object.keys(REQUIRED_SCHEMA).filter((t) => !existingTables.has(t));
+    const missingColumns = {};
+    for (const [table, cols] of Object.entries(REQUIRED_SCHEMA)) {
+        if (!existingTables.has(table)) {
+            missingColumns[table] = [...cols];
+            continue;
+        }
+        const colRes = await db.query(
+            `SELECT column_name FROM information_schema.columns
+             WHERE table_schema = 'public' AND table_name = $1`,
+            [table]
+        );
+        const existingCols = new Set((colRes.rows || []).map((r) => String(r.column_name)));
+        const absent = cols.filter((c) => !existingCols.has(c));
+        if (absent.length) missingColumns[table] = absent;
+    }
+    return {
+        ok: missingTables.length === 0 && Object.keys(missingColumns).length === 0,
+        missingTables,
+        missingColumns,
+    };
+}
 
 // Helper to get all data for a specific entity (replaces getData for JSON)
 async function getEntityData(table) {
@@ -1401,6 +2119,14 @@ const ADMIN_COLLECTIONS = {
             status:      item.status || 'Pending',
         }),
     },
+    incidents: {
+        table: 'incidents',
+        extract: (item) => ({
+            type:        item.incidentType || item.type || 'Other',
+            description: item.description || '',
+            status:      item.status || 'Open',
+        }),
+    },
     maintenanceLogs: {
         table: 'maintenance_logs',
         extract: (item) => ({
@@ -1493,7 +2219,15 @@ app.post('/api/admin/collection/:col', async (req, res) => {
         return res.status(400).json({ error: 'Missing required field: id' });
     }
     try {
-        await upsertCollectionRow(col, req.body);
+        const actor = req.admin?.email || req.admin?.id || 'system';
+        await upsertCollectionRow(col, {
+            ...req.body,
+            _createdBy: req.body?._createdBy || actor,
+            _updatedBy: actor,
+            _isDeleted: false,
+            deletedAt: null,
+            deletedBy: null,
+        });
         res.json({ success: true });
     } catch (e) {
         console.error(`[CRUD] POST ${col} failed:`, e.message);
@@ -1507,7 +2241,8 @@ app.put('/api/admin/collection/:col/:id', async (req, res) => {
     const { col } = req.params;
     if (!ADMIN_COLLECTIONS[col]) return res.status(400).json({ error: `Unknown collection: ${col}` });
     try {
-        await upsertCollectionRow(col, { ...req.body, id: req.params.id });
+        const actor = req.admin?.email || req.admin?.id || 'system';
+        await upsertCollectionRow(col, { ...req.body, id: req.params.id, _updatedBy: actor });
         res.json({ success: true });
     } catch (e) {
         console.error(`[CRUD] PUT ${col}/${req.params.id} failed:`, e.message);
@@ -1516,13 +2251,26 @@ app.put('/api/admin/collection/:col/:id', async (req, res) => {
     }
 });
 
-// DELETE /api/admin/collection/:col/:id — delete a record
+// DELETE /api/admin/collection/:col/:id — soft-delete a record (audit-safe)
 app.delete('/api/admin/collection/:col/:id', async (req, res) => {
     const { col, id } = req.params;
     const cfg = ADMIN_COLLECTIONS[col];
     if (!cfg) return res.status(400).json({ error: `Unknown collection: ${col}` });
     try {
-        await db.query(`DELETE FROM ${cfg.table} WHERE id = $1`, [id]);
+        const existing = await db.query(`SELECT metadata FROM ${cfg.table} WHERE id = $1`, [id]);
+        if (existing.rows.length === 0) return res.status(404).json({ error: 'Record not found' });
+        const nowIso = new Date().toISOString();
+        const actor = req.admin?.email || req.admin?.id || 'system';
+        const meta = { ...(existing.rows[0]?.metadata || {}) };
+        await upsertCollectionRow(col, {
+            ...meta,
+            id,
+            _isDeleted: true,
+            deletedAt: nowIso,
+            deletedBy: actor,
+            _updatedBy: actor,
+            status: meta.status || 'Deleted',
+        });
         res.json({ success: true });
     } catch (e) {
         console.error(`[CRUD] DELETE ${col}/${id} failed:`, e.message);
@@ -1541,7 +2289,8 @@ app.patch('/api/admin/collection/:col/:id', async (req, res) => {
         if (result.rows.length === 0) return res.status(404).json({ error: 'Record not found' });
         const existing = result.rows[0];
         const existingMeta = existing.metadata || {};
-        const merged = { ...existingMeta, ...req.body, id };
+        const actor = req.admin?.email || req.admin?.id || 'system';
+        const merged = { ...existingMeta, ...req.body, id, _updatedBy: actor };
         await upsertCollectionRow(col, merged);
         res.json({ success: true });
     } catch (e) {

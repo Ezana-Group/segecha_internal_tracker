@@ -33,6 +33,13 @@ import { useTableFilter } from "../hooks/useTableFilter";
 
 export function Invoices({ data, setData, dark, isMobile, modal, form, setForm, openModal, closeModal, saveItem, delItem, markInvoicePaid, invoicePreview, setInvoicePreview, customerName, ...props }) {
     const navigate = useNavigate();
+    const deriveStatus = (invoice) => {
+        const amount = Number(invoice?.amount || 0);
+        const paid = Number(invoice?.paidAmount || 0);
+        if (amount > 0 && paid >= amount) return "Paid";
+        if (paid > 0) return "Partial";
+        return invoice?.status || "Pending";
+    };
 
     const [paymentModal, setPaymentModal] = useState(null);
     const [payReqStatus, setPayReqStatus] = useState({});
@@ -45,11 +52,7 @@ export function Invoices({ data, setData, dark, isMobile, modal, form, setForm, 
         _client: i.client || customerName(i.customerId),
         _amount: Number(i.amount || 0),
         _balance: Math.max(0, Number(i.amount || 0) - Number(i.paidAmount || 0)),
-        _computedStatus: Number(i.paidAmount || 0) >= Number(i.amount || 0)
-            ? "Paid"
-            : Number(i.paidAmount || 0) > 0
-                ? "Partial"
-                : (i.status || "Pending"),
+        _computedStatus: deriveStatus(i),
         _contact: `${i.phone || ""} ${i.email || ""}`
     }));
 
@@ -79,9 +82,9 @@ export function Invoices({ data, setData, dark, isMobile, modal, form, setForm, 
         });
 
     // Summary totals (from all invoices, not just filtered)
-    const paidTotal    = data.invoices.filter(i => i.status === "Paid").reduce((s, i) => s + (+i.paidAmount || 0), 0);
-    const pendingTotal = data.invoices.filter(i => i.status !== "Paid").reduce((s, i) => s + (+i.amount - (+i.paidAmount || 0)), 0);
-    const overdueTotal = data.invoices.filter(i => i.status !== "Paid" && new Date(i.dueDate) < new Date()).reduce((s, i) => s + (+i.amount - (+i.paidAmount || 0)), 0);
+    const paidTotal = refinedInvoices.filter(i => i._computedStatus === "Paid").reduce((s, i) => s + (+i.paidAmount || 0), 0);
+    const pendingTotal = refinedInvoices.filter(i => i._computedStatus !== "Paid").reduce((s, i) => s + i._balance, 0);
+    const overdueTotal = refinedInvoices.filter(i => i._computedStatus !== "Paid" && new Date(i.dueDate) < new Date()).reduce((s, i) => s + i._balance, 0);
 
     return (
         <div className="page-shell">

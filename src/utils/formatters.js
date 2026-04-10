@@ -1,4 +1,5 @@
-export const fmt = (n) => `KES ${Number(n || 0).toLocaleString("en-KE", { minimumFractionDigits: 0 })}`;
+export const fmt = (n) =>
+    `KES ${Number(n || 0).toLocaleString("en-KE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 export const fmtN = (n, d = 1) => Number(n || 0).toFixed(d);
 export const fmtDate = (d) => {
     if (!d) return "—";

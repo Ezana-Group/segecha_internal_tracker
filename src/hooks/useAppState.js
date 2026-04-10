@@ -121,6 +121,8 @@ function ensurePrefixedUId(col, item, allRows) {
  */
 function transformDBTables(tables = {}) {
     const m = (row) => parseRowMetadata(row);
+    const stripSoftDeleted = (arr = []) =>
+        arr.filter((item) => !(item?.isDeleted || item?._isDeleted || item?._deleted || item?.deletedAt || item?.deleted_at));
     /**
      * Strip the time component from any DB date/timestamp so HTML <input type="date">
      * always receives a clean "YYYY-MM-DD" string (not "2026-03-30T00:00:00.000Z").
@@ -422,21 +424,21 @@ function transformDBTables(tables = {}) {
     });
 
     return {
-        trucks,
-        trailers,
-        drivers,
-        customers,
-        staff,
-        journeys,
-        fuel,
-        expenses,
-        invoices,
-        payroll,
-        incidents,
-        tyreLogs,
-        maintenanceLogs,
-        assets,
-        documents,
+        trucks: stripSoftDeleted(trucks),
+        trailers: stripSoftDeleted(trailers),
+        drivers: stripSoftDeleted(drivers),
+        customers: stripSoftDeleted(customers),
+        staff: stripSoftDeleted(staff),
+        journeys: stripSoftDeleted(journeys),
+        fuel: stripSoftDeleted(fuel),
+        expenses: stripSoftDeleted(expenses),
+        invoices: stripSoftDeleted(invoices),
+        payroll: stripSoftDeleted(payroll),
+        incidents: stripSoftDeleted(incidents),
+        tyreLogs: stripSoftDeleted(tyreLogs),
+        maintenanceLogs: stripSoftDeleted(maintenanceLogs),
+        assets: stripSoftDeleted(assets),
+        documents: stripSoftDeleted(documents),
     };
 }
 
@@ -802,7 +804,7 @@ export function useAppState() {
     // Frontend name → server collection slug (used in /api/admin/collection/:col)
     const SERVER_COLLECTIONS = new Set([
         'trucks', 'trailers', 'drivers', 'staff', 'customers',
-        'journeys', 'fuel', 'expenses', 'invoices', 'payroll', 'maintenanceLogs', 'tyreLogs', 'assets',
+        'journeys', 'fuel', 'expenses', 'invoices', 'payroll', 'maintenanceLogs', 'tyreLogs', 'assets', 'incidents', 'documents',
     ]);
 
     /**

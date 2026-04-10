@@ -52,6 +52,8 @@ export const DEFAULT_LICENCE_CLASSES = ["Class G", "Class CE", "Class C", "Class
 export const DEFAULT_TRUCK_TYPES = ["Prime Mover", "Tipper", "Tanker", "Flatbed", "Box Body", "Refrigerated", "Other"];
 export const DEFAULT_CARGO_TYPES = ["Electronics", "FMCG Goods", "Spare Parts", "Machinery", "Cement", "Fertiliser", "Fuel", "Timber", "Other"];
 export const DEFAULT_EXPENSE_CATEGORIES = ["Fuel", "Maintenance", "Toll", "Permit", "Tyre", "Allowance", "Salary", "Insurance", "Other"];
+export const DEFAULT_STATUSES_JOURNEY = ["Accepted", "Loading", "In Transit", "Awaiting Verification", "Completed", "Cancelled"];
+export const DEFAULT_STATUSES_TRUCK = ["Active", "Maintenance", "Off Road"];
 export const DEFAULT_INCIDENT_TYPES = [
     "Accident",
     "Breakdown",
@@ -263,6 +265,24 @@ export function getExpenseCategories() {
     const raw = s.expenseCategories;
     if (Array.isArray(raw)) return raw.filter(Boolean);
     return [...DEFAULT_EXPENSE_CATEGORIES];
+}
+
+export function getJourneyStatuses() {
+    const s = readSettings();
+    const raw = s.journeyStatuses;
+    if (Array.isArray(raw) && raw.length > 0) {
+        return raw.map((x) => String(x).trim()).filter(Boolean);
+    }
+    return [...DEFAULT_STATUSES_JOURNEY];
+}
+
+export function getTruckStatuses() {
+    const s = readSettings();
+    const raw = s.truckStatuses;
+    if (Array.isArray(raw) && raw.length > 0) {
+        return raw.map((x) => String(x).trim()).filter(Boolean);
+    }
+    return [...DEFAULT_STATUSES_TRUCK];
 }
 
 export function getIncidentTypes() {

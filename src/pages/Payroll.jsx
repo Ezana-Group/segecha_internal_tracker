@@ -26,6 +26,7 @@ import { TableRowActions } from "../components/TableRowActions";
 import { SortableTableHead } from "../components/SortableTableHead";
 import { useTableFilter } from "../hooks/useTableFilter";
 import { mileageAllowanceForDriverOnJourney } from "../utils/driverAllowance.js";
+import { computePayrollKRA } from "../utils/kenyaPayroll.js";
 
 export function Payroll({ data, setData, dark, isMobile, modal, form, setForm, openModal, closeModal, saveItem, delItem, markPayrollPaid, truckReg, customerName, driverName }) {
     const payrollRows = Array.isArray(data.payroll) ? data.payroll : [];
@@ -43,15 +44,20 @@ export function Payroll({ data, setData, dark, isMobile, modal, form, setForm, o
             if (j.turnboyId === p.driver) return s + (j.turnboyMileage || 0);
             return s;
         }, 0);
+        const statutory = computePayrollKRA(p);
+        const netPay = Number.isFinite(Number(p.netPay)) ? Number(p.netPay) : statutory.netPay;
+        const totalDeductions = Number.isFinite(Number(p.totalDeductions)) ? Number(p.totalDeductions) : statutory.totalDeductions;
+        const grossPay = Number.isFinite(Number(p.grossPay)) ? Number(p.grossPay) : statutory.grossPay;
 
         return {
             ...p,
             _name: drv?.name || p.driver,
             _role: drv?.role || 'Staff',
-            _net: Number(p.baseSalary || 0) + Number(p.allowance || 0) - Number(p.deductions || 0),
+            _net: netPay,
+            _gross: grossPay,
             _base: Number(p.baseSalary || 0),
             _allowance: Number(p.allowance || 0),
-            _deductions: Number(p.deductions || 0),
+            _deductions: totalDeductions,
             _calculatedMileage: calculatedMileage,
             _mpesa: p.mpesaRef || drv?.mpesa || ""
         };

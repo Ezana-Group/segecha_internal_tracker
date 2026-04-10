@@ -1,4 +1,5 @@
 import * as XLSX from 'xlsx';
+import { readSettings } from './settingsStore';
 
 /**
  * Generates a multi-sheet Excel workbook from the application data.
@@ -187,6 +188,73 @@ export const exportToExcel = (data) => {
             XLSX.utils.book_append_sheet(wb, ws, 'Employees');
         }
 
+        // 11. Incidents
+        if (data.incidents && data.incidents.length > 0) {
+            const incidentsData = data.incidents.map((i) => ({
+                'Incident ID': i.uId || i.id,
+                'Date': i.date || '',
+                'Type': i.incidentType || i.type || '',
+                'Truck': getTruck(i.truck),
+                'Driver': getDriver(i.driver),
+                'Status': i.status || '',
+                'Description': i.description || '',
+                'Location': i.location || '',
+            }));
+            const ws = XLSX.utils.json_to_sheet(incidentsData);
+            XLSX.utils.book_append_sheet(wb, ws, 'Incidents');
+        }
+
+        // 12. Assets
+        if (data.assets && data.assets.length > 0) {
+            const assetsData = data.assets.map((a) => ({
+                'Asset ID': a.uId || a.id,
+                'Name': a.name || '',
+                'Category': a.category || '',
+                'Purchase Date': a.purchaseDate || '',
+                'Cost': a.cost || 0,
+                'Depreciation Method': a.depreciationMethod || '',
+                'Useful Life (Years)': a.usefulLifeYears || '',
+                'Salvage Value': a.salvageValue || 0,
+                'Status': a.status || '',
+            }));
+            const ws = XLSX.utils.json_to_sheet(assetsData);
+            XLSX.utils.book_append_sheet(wb, ws, 'Assets');
+        }
+
+        // 13. Documents
+        if (data.documents && data.documents.length > 0) {
+            const docsData = data.documents.map((d) => ({
+                'Document ID': d.id,
+                'Entity Type': d.entityType || '',
+                'Entity ID': d.entityId || '',
+                'Type': d.docType || '',
+                'Label': d.label || '',
+                'URL': d.url || '',
+                'Expiry Date': d.expiryDate || '',
+            }));
+            const ws = XLSX.utils.json_to_sheet(docsData);
+            XLSX.utils.book_append_sheet(wb, ws, 'Documents');
+        }
+
+        // 14. M-Pesa ledger from settings snapshot
+        const settings = readSettings();
+        const mpesaRows = Array.isArray(settings.mpesaTransactions) ? settings.mpesaTransactions : [];
+        if (mpesaRows.length > 0) {
+            const mpesaData = mpesaRows.map((m) => ({
+                'Txn ID': m.id || '',
+                'Date': m.date || m.txnDate || m.txn_date || '',
+                'Direction': m.direction || '',
+                'Amount': m.amount || 0,
+                'Reference': m.reference || '',
+                'Counterparty': m.counterpartyName || m.counterpartyPhone || '',
+                'Linked Type': m.linkedType || '',
+                'Linked ID': m.linkedId || '',
+                'Status': m.status || '',
+            }));
+            const ws = XLSX.utils.json_to_sheet(mpesaData);
+            XLSX.utils.book_append_sheet(wb, ws, 'Mpesa');
+        }
+
         // Generate and download file
         const timestamp = new Date().toISOString().split('T')[0];
         XLSX.writeFile(wb, `Segecha_Tracker_Full_Export_${timestamp}.xlsx`);
@@ -238,7 +306,11 @@ export const exportAllToCSV = (data) => {
         { d: data.trailers, n: 'Trailers' },
         { d: data.maintenanceLogs || data.maintenance, n: 'Maintenance' },
         { d: data.payroll, n: 'Payroll' },
-        { d: data.turnboys, n: 'Turnboys' }
+        { d: data.turnboys, n: 'Turnboys' },
+        { d: data.incidents, n: 'Incidents' },
+        { d: data.assets, n: 'Assets' },
+        { d: data.documents, n: 'Documents' },
+        { d: (readSettings().mpesaTransactions || []), n: 'Mpesa_Transactions' },
     ];
 
     let count = 0;

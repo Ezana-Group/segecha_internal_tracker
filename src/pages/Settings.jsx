@@ -52,6 +52,7 @@ import {
     UserRoundCog,
     Pencil,
     Bug,
+    CheckCircle2,
 } from "lucide-react";
 
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -74,8 +75,13 @@ import {
     DEFAULT_LICENCE_CLASSES,
     DEFAULT_TRUCK_TYPES,
     DEFAULT_CARGO_TYPES,
+    DEFAULT_STATUSES_JOURNEY,
+    DEFAULT_STATUSES_TRUCK,
     DEFAULT_EXPENSE_CATEGORIES,
     DEFAULT_INCIDENT_TYPES,
+    DEFAULT_DOC_TYPES_TRUCK,
+    DEFAULT_DOC_TYPES_DRIVER,
+    DEFAULT_DOC_TYPES_JOURNEY,
     DEFAULT_COMMON_ROUTES,
     DEFAULT_CROSS_BORDER_RULES,
 } from "../utils/settingsStore.js";
@@ -111,7 +117,9 @@ const SETTINGS_MENU = [
         label: "Revenue & messages",
         items: [
             { id: "finance",   label: "Finance & payments",  icon: Wallet },
+            { id: "finance-reports", label: "Finance reports", icon: ClipboardList },
             { id: "mpesa",     label: "M-Pesa transactions", icon: CreditCard },
+            { id: "mpesa-recon", label: "M-Pesa reconciliation", icon: RefreshCw },
             { id: "templates", label: "Message templates",   icon: MessageSquare },
         ],
     },
@@ -349,6 +357,34 @@ export function Settings({
     const [sendTestPhone, setSendTestPhone] = useState("");
     const [localS, setLocalS] = useState(readSettings);
     const [mpesaSyncing, setMpesaSyncing] = useState(false);
+    const [financeReportingLoading, setFinanceReportingLoading] = useState(false);
+    const [financeReportRange, setFinanceReportRange] = useState({
+        from: "",
+        to: "",
+        month: new Date().toISOString().slice(0, 7),
+        year: new Date().getFullYear(),
+    });
+    const [receivablesSnapshot, setReceivablesSnapshot] = useState(null);
+    const [taxSnapshot, setTaxSnapshot] = useState(null);
+    const [opsReportLoading, setOpsReportLoading] = useState(false);
+    const [routeProfitRows, setRouteProfitRows] = useState([]);
+    const [driverCostRows, setDriverCostRows] = useState([]);
+    const [mpesaReconLoading, setMpesaReconLoading] = useState(false);
+    const [mpesaRecon, setMpesaRecon] = useState({ summary: null, reconciled: [], unreconciled: [] });
+    const [reportFilters, setReportFilters] = useState({
+        receivables: "",
+        routes: "",
+        drivers: "",
+        mpesaReconciled: "",
+        mpesaUnreconciled: "",
+    });
+    const [reportPages, setReportPages] = useState({
+        receivables: 1,
+        routes: 1,
+        drivers: 1,
+        mpesaReconciled: 1,
+        mpesaUnreconciled: 1,
+    });
     const [mpesaForm, setMpesaForm] = useState({
         direction: "Incoming",
         amount: "",
@@ -504,7 +540,7 @@ export function Settings({
         saveSettings({ mpesaTransactions: nextRows });
     }, [saveSettings]);
 
-    const addMpesaTransaction = useCallback(() => {
+    const addMpesaTransaction = useCallback(async () => {
         const amount = Number(mpesaForm.amount);
         if (!amount || amount <= 0) {
             showToast?.("Enter a valid M-Pesa amount.", "warning");
@@ -523,6 +559,17 @@ export function Settings({
             notes: (mpesaForm.notes || "").trim(),
             createdAt: new Date().toISOString(),
         };
+        try {
+            if (PAYMENT_API) {
+                await fetchWithAuth(`${PAYMENT_API}/api/admin/mpesa/transactions`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(tx),
+                });
+            }
+        } catch {
+            // Keep local append even if API is unavailable so operator can continue logging.
+        }
         saveMpesaTransactions([tx, ...mpesaTransactions]);
         setMpesaForm((f) => ({ ...f, amount: "", reference: "", counterpartyName: "", counterpartyPhone: "", linkedId: "", notes: "" }));
         showToast?.("M-Pesa transaction added.", "success");
@@ -542,7 +589,12 @@ export function Settings({
             const existingByRef = new Map(mpesaTransactions.map((t) => [String(t.reference || t.id), t]));
             for (const row of incoming) {
                 const key = String(row.reference || row.id || uid());
-                if (!existingByRef.has(key)) existingByRef.set(key, row);
+                if (!existingByRef.has(key)) {
+                    existingByRef.set(key, {
+                        ...row,
+                        date: row.date || row.txnDate || row.txn_date || row.createdAt || "",
+                    });
+                }
             }
             saveMpesaTransactions(Array.from(existingByRef.values()).sort((a, b) => new Date(b.date || b.createdAt || 0) - new Date(a.date || a.createdAt || 0)));
             showToast?.("M-Pesa transactions synced.", "success");
@@ -552,6 +604,173 @@ export function Settings({
             setMpesaSyncing(false);
         }
     }, [mpesaTransactions, saveMpesaTransactions, showToast]);
+
+    const runFinanceSnapshots = useCallback(async () => {
+        if (!PAYMENT_API) {
+            showToast?.("Set API URL first.", "warning");
+            return;
+        }
+        setFinanceReportingLoading(true);
+        try {
+            const qs = new URLSearchParams();
+            if (financeReportRange.from) qs.set("from", financeReportRange.from);
+            if (financeReportRange.to) qs.set("to", financeReportRange.to);
+            const [rpRes, taxRes] = await Promise.all([
+                fetchWithAuth(`${PAYMENT_API}/api/admin/reports/receivables-payables?${qs.toString()}`),
+                fetchWithAuth(`${PAYMENT_API}/api/admin/reports/tax-summary?${qs.toString()}`),
+            ]);
+            const rp = await rpRes.json().catch(() => ({}));
+            const tax = await taxRes.json().catch(() => ({}));
+            if (!rpRes.ok) throw new Error(rp.error || `Receivables report HTTP ${rpRes.status}`);
+            if (!taxRes.ok) throw new Error(tax.error || `Tax summary HTTP ${taxRes.status}`);
+            setReceivablesSnapshot(rp);
+            setTaxSnapshot(tax);
+            showToast?.("Finance reports refreshed.", "success");
+        } catch (e) {
+            showToast?.(`Finance report failed: ${e.message}`, "error");
+        } finally {
+            setFinanceReportingLoading(false);
+        }
+    }, [financeReportRange.from, financeReportRange.to, showToast]);
+
+    const downloadTaxCsv = useCallback(async (kind) => {
+        if (!PAYMENT_API) return showToast?.("Set API URL first.", "warning");
+        const kindToPath = {
+            p10: `/api/admin/reports/p10?month=${encodeURIComponent(financeReportRange.month)}&format=csv`,
+            p9a: `/api/admin/reports/p9a?year=${encodeURIComponent(financeReportRange.year)}&format=csv`,
+            vat3: `/api/admin/reports/vat3?month=${encodeURIComponent(financeReportRange.month)}&format=csv`,
+            wht: `/api/admin/reports/wht-schedule?month=${encodeURIComponent(financeReportRange.month)}&format=csv`,
+        };
+        const path = kindToPath[kind];
+        if (!path) return;
+        try {
+            const res = await fetchWithAuth(`${PAYMENT_API}${path}`);
+            if (!res.ok) {
+                const j = await res.json().catch(() => ({}));
+                throw new Error(j.error || `HTTP ${res.status}`);
+            }
+            const csv = await res.text();
+            const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `${kind}-${kind === "p9a" ? financeReportRange.year : financeReportRange.month}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+            showToast?.(`${kind.toUpperCase()} export downloaded.`, "success");
+        } catch (e) {
+            showToast?.(`Export failed: ${e.message}`, "error");
+        }
+    }, [financeReportRange.month, financeReportRange.year, showToast]);
+
+    const runOpsReports = useCallback(async () => {
+        if (!PAYMENT_API) return showToast?.("Set API URL first.", "warning");
+        setOpsReportLoading(true);
+        try {
+            const qs = new URLSearchParams();
+            if (financeReportRange.from) qs.set("from", financeReportRange.from);
+            if (financeReportRange.to) qs.set("to", financeReportRange.to);
+            const [routeRes, driverRes] = await Promise.all([
+                fetchWithAuth(`${PAYMENT_API}/api/admin/reports/route-profitability?${qs.toString()}`),
+                fetchWithAuth(`${PAYMENT_API}/api/admin/reports/driver-costs?${qs.toString()}`),
+            ]);
+            const routeJson = await routeRes.json().catch(() => ({}));
+            const driverJson = await driverRes.json().catch(() => ({}));
+            if (!routeRes.ok) throw new Error(routeJson.error || `Route report HTTP ${routeRes.status}`);
+            if (!driverRes.ok) throw new Error(driverJson.error || `Driver report HTTP ${driverRes.status}`);
+            setRouteProfitRows(Array.isArray(routeJson.routes) ? routeJson.routes : []);
+            setDriverCostRows(Array.isArray(driverJson.drivers) ? driverJson.drivers : []);
+            showToast?.("Route and driver reports refreshed.", "success");
+        } catch (e) {
+            showToast?.(`Ops report failed: ${e.message}`, "error");
+        } finally {
+            setOpsReportLoading(false);
+        }
+    }, [financeReportRange.from, financeReportRange.to, showToast]);
+
+    const runMpesaReconciliation = useCallback(async () => {
+        if (!PAYMENT_API) return showToast?.("Set API URL first.", "warning");
+        setMpesaReconLoading(true);
+        try {
+            const res = await fetchWithAuth(`${PAYMENT_API}/api/admin/mpesa/reconciliation`);
+            const j = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
+            setMpesaRecon({
+                summary: j.summary || null,
+                reconciled: Array.isArray(j.reconciled) ? j.reconciled : [],
+                unreconciled: Array.isArray(j.unreconciled) ? j.unreconciled : [],
+            });
+            showToast?.("M-Pesa reconciliation refreshed.", "success");
+        } catch (e) {
+            showToast?.(`Reconciliation failed: ${e.message}`, "error");
+        } finally {
+            setMpesaReconLoading(false);
+        }
+    }, [showToast]);
+
+    const REPORT_PAGE_SIZE = 10;
+    const paginateRows = useCallback((rows, page) => {
+        const totalPages = Math.max(1, Math.ceil((rows?.length || 0) / REPORT_PAGE_SIZE));
+        const safePage = Math.min(Math.max(1, Number(page || 1)), totalPages);
+        const start = (safePage - 1) * REPORT_PAGE_SIZE;
+        return {
+            totalPages,
+            page: safePage,
+            rows: (rows || []).slice(start, start + REPORT_PAGE_SIZE),
+        };
+    }, []);
+
+    const receivablesFiltered = useMemo(() => {
+        const q = reportFilters.receivables.trim().toLowerCase();
+        const rows = receivablesSnapshot?.receivables || [];
+        if (!q) return rows;
+        return rows.filter((r) =>
+            String(r.id || "").toLowerCase().includes(q) ||
+            String(r.customerId || "").toLowerCase().includes(q) ||
+            String(r.linkedJourneyId || "").toLowerCase().includes(q)
+        );
+    }, [receivablesSnapshot, reportFilters.receivables]);
+    const routeFiltered = useMemo(() => {
+        const q = reportFilters.routes.trim().toLowerCase();
+        if (!q) return routeProfitRows;
+        return routeProfitRows.filter((r) => String(r.route || "").toLowerCase().includes(q));
+    }, [routeProfitRows, reportFilters.routes]);
+    const driverFiltered = useMemo(() => {
+        const q = reportFilters.drivers.trim().toLowerCase();
+        if (!q) return driverCostRows;
+        return driverCostRows.filter((r) => String(r.driverId || "").toLowerCase().includes(q));
+    }, [driverCostRows, reportFilters.drivers]);
+    const mpesaReconciledFiltered = useMemo(() => {
+        const q = reportFilters.mpesaReconciled.trim().toLowerCase();
+        if (!q) return mpesaRecon.reconciled || [];
+        return (mpesaRecon.reconciled || []).filter((r) =>
+            String(r.reference || r.id || "").toLowerCase().includes(q) ||
+            String(r.linkedId || "").toLowerCase().includes(q)
+        );
+    }, [mpesaRecon.reconciled, reportFilters.mpesaReconciled]);
+    const mpesaUnreconciledFiltered = useMemo(() => {
+        const q = reportFilters.mpesaUnreconciled.trim().toLowerCase();
+        if (!q) return mpesaRecon.unreconciled || [];
+        return (mpesaRecon.unreconciled || []).filter((r) =>
+            String(r.reference || r.id || "").toLowerCase().includes(q)
+        );
+    }, [mpesaRecon.unreconciled, reportFilters.mpesaUnreconciled]);
+
+    const receivablesPage = paginateRows(receivablesFiltered, reportPages.receivables);
+    const routesPage = paginateRows(routeFiltered, reportPages.routes);
+    const driversPage = paginateRows(driverFiltered, reportPages.drivers);
+    const mpesaRecPage = paginateRows(mpesaReconciledFiltered, reportPages.mpesaReconciled);
+    const mpesaUnrecPage = paginateRows(mpesaUnreconciledFiltered, reportPages.mpesaUnreconciled);
+
+    const openLinkedRecord = useCallback((linkedType, linkedId) => {
+        if (!linkedId) return;
+        const t = String(linkedType || "").toLowerCase();
+        if (t === "invoice") return navigate("/invoices");
+        if (t === "journey") return navigate("/journeys");
+        if (t === "payroll") return navigate("/payroll");
+    }, [navigate]);
 
     const [workspaceTabEditable, setWorkspaceTabEditable] = useState(() => createWorkspaceEditableMap(false));
     const [templatesEditable, setTemplatesEditable] = useState(false);
@@ -612,6 +831,8 @@ export function Settings({
     const [newLicenceClass, setNewLicenceClass] = useState("");
     const [newTruckType, setNewTruckType] = useState("");
     const [newCargoType, setNewCargoType] = useState("");
+    const [newJourneyStatus, setNewJourneyStatus] = useState("");
+    const [newTruckStatus, setNewTruckStatus] = useState("");
     const [newIncidentType, setNewIncidentType] = useState("");
     const [newTruckDocType, setNewTruckDocType] = useState("");
     const [newDriverDocType, setNewDriverDocType] = useState("");
@@ -1573,6 +1794,52 @@ export function Settings({
                                 </SettingsShellField>
                             </div>
 
+                            <div style={{ marginTop: 26 }}>
+                                <SettingsShellSectionHeader title="Financial reporting & KRA exports" desc="Run receivables/payables and tax snapshots, then download P10/P9A/VAT3/WHT CSV outputs." icon={FileText} />
+                                <Card style={{ padding: 16, marginBottom: 14 }}>
+                                    <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 12 }}>
+                                        <SettingsShellField label="From">
+                                            <SettingsShellInput type="date" value={financeReportRange.from} onChange={(e) => setFinanceReportRange((s) => ({ ...s, from: e.target.value }))} />
+                                        </SettingsShellField>
+                                        <SettingsShellField label="To">
+                                            <SettingsShellInput type="date" value={financeReportRange.to} onChange={(e) => setFinanceReportRange((s) => ({ ...s, to: e.target.value }))} />
+                                        </SettingsShellField>
+                                        <SettingsShellField label="Tax month (P10/VAT3/WHT)">
+                                            <SettingsShellInput type="month" value={financeReportRange.month} onChange={(e) => setFinanceReportRange((s) => ({ ...s, month: e.target.value }))} />
+                                        </SettingsShellField>
+                                        <SettingsShellField label="Tax year (P9A)">
+                                            <SettingsShellInput type="number" value={financeReportRange.year} onChange={(e) => setFinanceReportRange((s) => ({ ...s, year: Number(e.target.value || new Date().getFullYear()) }))} />
+                                        </SettingsShellField>
+                                    </div>
+                                    <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+                                        <Button icon={RefreshCw} loading={financeReportingLoading} onClick={runFinanceSnapshots}>Refresh finance snapshots</Button>
+                                        <Button variant="secondary" icon={Download} onClick={() => downloadTaxCsv("p10")}>Export P10 CSV</Button>
+                                        <Button variant="secondary" icon={Download} onClick={() => downloadTaxCsv("p9a")}>Export P9A CSV</Button>
+                                        <Button variant="secondary" icon={Download} onClick={() => downloadTaxCsv("vat3")}>Export VAT3 CSV</Button>
+                                        <Button variant="secondary" icon={Download} onClick={() => downloadTaxCsv("wht")}>Export WHT CSV</Button>
+                                    </div>
+                                </Card>
+                                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                                    <Card style={{ padding: 16 }}>
+                                        <div style={{ fontSize: 11, color: "var(--text-dim)", textTransform: "uppercase", fontWeight: 800, letterSpacing: "0.08em" }}>Receivables / Payables</div>
+                                        <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
+                                            <div style={{ display: "flex", justifyContent: "space-between" }}><span>Total receivables</span><strong>{fmt(receivablesSnapshot?.totals?.receivables || 0)}</strong></div>
+                                            <div style={{ display: "flex", justifyContent: "space-between" }}><span>Total payables</span><strong>{fmt(receivablesSnapshot?.totals?.payables || 0)}</strong></div>
+                                            <div style={{ display: "flex", justifyContent: "space-between" }}><span>Working capital gap</span><strong>{fmt(receivablesSnapshot?.totals?.netWorkingCapitalGap || 0)}</strong></div>
+                                        </div>
+                                    </Card>
+                                    <Card style={{ padding: 16 }}>
+                                        <div style={{ fontSize: 11, color: "var(--text-dim)", textTransform: "uppercase", fontWeight: 800, letterSpacing: "0.08em" }}>Tax snapshot</div>
+                                        <div style={{ marginTop: 10, display: "grid", gap: 8 }}>
+                                            <div style={{ display: "flex", justifyContent: "space-between" }}><span>Output VAT</span><strong>{fmt(taxSnapshot?.vat?.outputVat || 0)}</strong></div>
+                                            <div style={{ display: "flex", justifyContent: "space-between" }}><span>Input VAT</span><strong>{fmt(taxSnapshot?.vat?.inputVat || 0)}</strong></div>
+                                            <div style={{ display: "flex", justifyContent: "space-between" }}><span>VAT payable</span><strong>{fmt(taxSnapshot?.vat?.vatPayable || 0)}</strong></div>
+                                            <div style={{ display: "flex", justifyContent: "space-between" }}><span>Total WHT</span><strong>{fmt(taxSnapshot?.wht?.total || 0)}</strong></div>
+                                        </div>
+                                    </Card>
+                                </div>
+                            </div>
+
                             <div style={{ marginTop: 32 }}>
                                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
                                     <div style={{ width: 36, height: 36, borderRadius: 10, background: "var(--brand-primary)12", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--brand-primary)" }}>
@@ -1752,9 +2019,213 @@ export function Settings({
                         </div>
                     )}
 
+                    {/* ── FINANCE REPORTS ── */}
+                    {activeTab === "finance-reports" && (
+                        <div style={{ animation: "fade-in 0.3s ease-out" }}>
+                            <SettingsShellSectionHeader
+                                title="Finance Reports"
+                                desc="Dedicated receivables, tax, route profitability, and driver cost reporting."
+                                icon={ClipboardList}
+                            />
+                            <Card style={{ padding: 16, marginBottom: 14 }}>
+                                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 12 }}>
+                                    <SettingsShellField label="From"><SettingsShellInput type="date" value={financeReportRange.from} onChange={(e) => setFinanceReportRange((s) => ({ ...s, from: e.target.value }))} /></SettingsShellField>
+                                    <SettingsShellField label="To"><SettingsShellInput type="date" value={financeReportRange.to} onChange={(e) => setFinanceReportRange((s) => ({ ...s, to: e.target.value }))} /></SettingsShellField>
+                                    <SettingsShellField label="Month"><SettingsShellInput type="month" value={financeReportRange.month} onChange={(e) => setFinanceReportRange((s) => ({ ...s, month: e.target.value }))} /></SettingsShellField>
+                                    <SettingsShellField label="Year"><SettingsShellInput type="number" value={financeReportRange.year} onChange={(e) => setFinanceReportRange((s) => ({ ...s, year: Number(e.target.value || new Date().getFullYear()) }))} /></SettingsShellField>
+                                </div>
+                                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                                    <Button icon={RefreshCw} loading={financeReportingLoading} onClick={runFinanceSnapshots}>Refresh receivables + tax</Button>
+                                    <Button icon={RefreshCw} loading={opsReportLoading} variant="secondary" onClick={runOpsReports}>Refresh route + driver reports</Button>
+                                    <Button variant="secondary" icon={Download} onClick={() => exportToCSV(receivablesSnapshot?.receivables || [], "Receivables_Aging")}>Export receivables CSV</Button>
+                                    <Button variant="secondary" icon={Download} onClick={() => exportToCSV(receivablesSnapshot?.payables || [], "Payables_Open")}>Export payables CSV</Button>
+                                    <Button variant="secondary" icon={Download} onClick={() => exportToCSV(routeProfitRows || [], "Route_Profitability")}>Export route profitability CSV</Button>
+                                    <Button variant="secondary" icon={Download} onClick={() => exportToCSV(driverCostRows || [], "Driver_Costs")}>Export driver costs CSV</Button>
+                                </div>
+                            </Card>
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                                <Card style={{ padding: 14 }}>
+                                    <div style={{ fontWeight: 800, marginBottom: 8 }}>Receivables Aging</div>
+                                    <SettingsShellInput
+                                        placeholder="Filter invoice/customer/journey…"
+                                        value={reportFilters.receivables}
+                                        onChange={(e) => { setReportFilters((s) => ({ ...s, receivables: e.target.value })); setReportPages((p) => ({ ...p, receivables: 1 })); }}
+                                        style={{ marginBottom: 8 }}
+                                    />
+                                    <div className="table-container">
+                                        <table className="table-modern">
+                                            <thead><tr><th>Invoice</th><th>Due</th><th>Days Overdue</th><th style={{ textAlign: "right" }}>Amount</th></tr></thead>
+                                            <tbody>
+                                                {receivablesPage.rows.map((r) => (
+                                                    <tr key={r.id}><td>{r.id}</td><td>{r.dueDate || "—"}</td><td>{r.daysOverdue || 0}</td><td style={{ textAlign: "right" }}>{fmt(r.amount)}</td></tr>
+                                                ))}
+                                                {receivablesFiltered.length === 0 && <tr><td colSpan={4} style={{ textAlign: "center", padding: 20, color: "var(--text-dim)" }}>No receivables in range.</td></tr>}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8 }}>
+                                        <Button variant="secondary" onClick={() => setReportPages((p) => ({ ...p, receivables: Math.max(1, p.receivables - 1) }))}>Prev</Button>
+                                        <span style={{ fontSize: 12, color: "var(--text-dim)" }}>Page {receivablesPage.page} / {receivablesPage.totalPages}</span>
+                                        <Button variant="secondary" onClick={() => setReportPages((p) => ({ ...p, receivables: Math.min(receivablesPage.totalPages, p.receivables + 1) }))}>Next</Button>
+                                    </div>
+                                </Card>
+                                <Card style={{ padding: 14 }}>
+                                    <div style={{ fontWeight: 800, marginBottom: 8 }}>Tax Snapshot</div>
+                                    <div style={{ display: "grid", gap: 8 }}>
+                                        <div style={{ display: "flex", justifyContent: "space-between" }}><span>Output VAT</span><strong>{fmt(taxSnapshot?.vat?.outputVat || 0)}</strong></div>
+                                        <div style={{ display: "flex", justifyContent: "space-between" }}><span>Input VAT</span><strong>{fmt(taxSnapshot?.vat?.inputVat || 0)}</strong></div>
+                                        <div style={{ display: "flex", justifyContent: "space-between" }}><span>VAT payable</span><strong>{fmt(taxSnapshot?.vat?.vatPayable || 0)}</strong></div>
+                                        <div style={{ display: "flex", justifyContent: "space-between" }}><span>WHT total</span><strong>{fmt(taxSnapshot?.wht?.total || 0)}</strong></div>
+                                    </div>
+                                </Card>
+                                <Card style={{ padding: 14 }}>
+                                    <div style={{ fontWeight: 800, marginBottom: 8 }}>Route Profitability (Top 10)</div>
+                                    <SettingsShellInput
+                                        placeholder="Filter route…"
+                                        value={reportFilters.routes}
+                                        onChange={(e) => { setReportFilters((s) => ({ ...s, routes: e.target.value })); setReportPages((p) => ({ ...p, routes: 1 })); }}
+                                        style={{ marginBottom: 8 }}
+                                    />
+                                    <div className="table-container">
+                                        <table className="table-modern">
+                                            <thead><tr><th>Route</th><th>Trips</th><th style={{ textAlign: "right" }}>Contribution</th><th style={{ textAlign: "right" }}>Margin %</th></tr></thead>
+                                            <tbody>
+                                                {routesPage.rows.map((r) => (
+                                                    <tr key={r.route}><td>{r.route}</td><td>{r.trips}</td><td style={{ textAlign: "right" }}>{fmt(r.contribution)}</td><td style={{ textAlign: "right" }}>{Number(r.marginPct || 0).toFixed(1)}%</td></tr>
+                                                ))}
+                                                {routeFiltered.length === 0 && <tr><td colSpan={4} style={{ textAlign: "center", padding: 20, color: "var(--text-dim)" }}>No route data in range.</td></tr>}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8 }}>
+                                        <Button variant="secondary" onClick={() => setReportPages((p) => ({ ...p, routes: Math.max(1, p.routes - 1) }))}>Prev</Button>
+                                        <span style={{ fontSize: 12, color: "var(--text-dim)" }}>Page {routesPage.page} / {routesPage.totalPages}</span>
+                                        <Button variant="secondary" onClick={() => setReportPages((p) => ({ ...p, routes: Math.min(routesPage.totalPages, p.routes + 1) }))}>Next</Button>
+                                    </div>
+                                </Card>
+                                <Card style={{ padding: 14 }}>
+                                    <div style={{ fontWeight: 800, marginBottom: 8 }}>Driver Cost Report (Top 10)</div>
+                                    <SettingsShellInput
+                                        placeholder="Filter driver ID…"
+                                        value={reportFilters.drivers}
+                                        onChange={(e) => { setReportFilters((s) => ({ ...s, drivers: e.target.value })); setReportPages((p) => ({ ...p, drivers: 1 })); }}
+                                        style={{ marginBottom: 8 }}
+                                    />
+                                    <div className="table-container">
+                                        <table className="table-modern">
+                                            <thead><tr><th>Driver ID</th><th>Trips</th><th style={{ textAlign: "right" }}>Employer Cost</th><th style={{ textAlign: "right" }}>Cost/Trip</th></tr></thead>
+                                            <tbody>
+                                                {driversPage.rows.map((r) => (
+                                                    <tr key={r.driverId}><td>{r.driverId}</td><td>{r.trips}</td><td style={{ textAlign: "right" }}>{fmt(r.employerCost)}</td><td style={{ textAlign: "right" }}>{fmt(r.costPerTrip)}</td></tr>
+                                                ))}
+                                                {driverFiltered.length === 0 && <tr><td colSpan={4} style={{ textAlign: "center", padding: 20, color: "var(--text-dim)" }}>No driver cost data in range.</td></tr>}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8 }}>
+                                        <Button variant="secondary" onClick={() => setReportPages((p) => ({ ...p, drivers: Math.max(1, p.drivers - 1) }))}>Prev</Button>
+                                        <span style={{ fontSize: 12, color: "var(--text-dim)" }}>Page {driversPage.page} / {driversPage.totalPages}</span>
+                                        <Button variant="secondary" onClick={() => setReportPages((p) => ({ ...p, drivers: Math.min(driversPage.totalPages, p.drivers + 1) }))}>Next</Button>
+                                    </div>
+                                </Card>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ── M-PESA RECONCILIATION ── */}
+                    {activeTab === "mpesa-recon" && (
+                        <div style={{ animation: "fade-in 0.3s ease-out" }}>
+                            <SettingsShellSectionHeader
+                                title="M-Pesa Reconciliation"
+                                desc="Reconciled versus unreconciled M-Pesa transactions against linked invoices and payroll."
+                                icon={RefreshCw}
+                            />
+                            <Card style={{ padding: 16, marginBottom: 14 }}>
+                                <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                                    <Button icon={RefreshCw} loading={mpesaReconLoading} onClick={runMpesaReconciliation}>Run reconciliation</Button>
+                                    <Button variant="secondary" icon={Download} onClick={() => exportToCSV(mpesaRecon.reconciled || [], "Mpesa_Reconciled")}>Export reconciled CSV</Button>
+                                    <Button variant="secondary" icon={Download} onClick={() => exportToCSV(mpesaRecon.unreconciled || [], "Mpesa_Unreconciled")}>Export unreconciled CSV</Button>
+                                </div>
+                                <div style={{ marginTop: 10, display: "flex", gap: 18, color: "var(--text-secondary)", fontSize: 13 }}>
+                                    <span>Total: <strong>{mpesaRecon.summary?.total || 0}</strong></span>
+                                    <span>Reconciled: <strong>{mpesaRecon.summary?.reconciled || 0}</strong></span>
+                                    <span>Unreconciled: <strong>{mpesaRecon.summary?.unreconciled || 0}</strong></span>
+                                </div>
+                            </Card>
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                                <Card style={{ padding: 14 }}>
+                                    <div style={{ fontWeight: 800, marginBottom: 8 }}>Reconciled</div>
+                                    <SettingsShellInput
+                                        placeholder="Filter reference/linked ID…"
+                                        value={reportFilters.mpesaReconciled}
+                                        onChange={(e) => { setReportFilters((s) => ({ ...s, mpesaReconciled: e.target.value })); setReportPages((p) => ({ ...p, mpesaReconciled: 1 })); }}
+                                        style={{ marginBottom: 8 }}
+                                    />
+                                    <div className="table-container">
+                                        <table className="table-modern">
+                                            <thead><tr><th>Ref</th><th>Linked</th><th style={{ textAlign: "right" }}>Amount</th><th style={{ textAlign: "right" }}>Variance</th></tr></thead>
+                                            <tbody>
+                                                {mpesaRecPage.rows.map((r) => (
+                                                    <tr key={r.id}>
+                                                        <td>{r.reference || r.id}</td>
+                                                        <td>
+                                                            {r.linkedType} {r.linkedId ? `· ${r.linkedId}` : ""}
+                                                            {r.linkedId && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => openLinkedRecord(r.linkedType, r.linkedId)}
+                                                                    style={{ marginLeft: 8, border: "none", background: "none", color: "var(--brand-primary)", cursor: "pointer", fontSize: 11, fontWeight: 700 }}
+                                                                >
+                                                                    Open
+                                                                </button>
+                                                            )}
+                                                        </td>
+                                                        <td style={{ textAlign: "right" }}>{fmt(r.amount)}</td>
+                                                        <td style={{ textAlign: "right" }}>{r.variance == null ? "—" : fmt(r.variance)}</td>
+                                                    </tr>
+                                                ))}
+                                                {mpesaReconciledFiltered.length === 0 && <tr><td colSpan={4} style={{ textAlign: "center", padding: 20, color: "var(--text-dim)" }}>No reconciled rows yet.</td></tr>}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8 }}>
+                                        <Button variant="secondary" onClick={() => setReportPages((p) => ({ ...p, mpesaReconciled: Math.max(1, p.mpesaReconciled - 1) }))}>Prev</Button>
+                                        <span style={{ fontSize: 12, color: "var(--text-dim)" }}>Page {mpesaRecPage.page} / {mpesaRecPage.totalPages}</span>
+                                        <Button variant="secondary" onClick={() => setReportPages((p) => ({ ...p, mpesaReconciled: Math.min(mpesaRecPage.totalPages, p.mpesaReconciled + 1) }))}>Next</Button>
+                                    </div>
+                                </Card>
+                                <Card style={{ padding: 14 }}>
+                                    <div style={{ fontWeight: 800, marginBottom: 8 }}>Unreconciled</div>
+                                    <SettingsShellInput
+                                        placeholder="Filter reference…"
+                                        value={reportFilters.mpesaUnreconciled}
+                                        onChange={(e) => { setReportFilters((s) => ({ ...s, mpesaUnreconciled: e.target.value })); setReportPages((p) => ({ ...p, mpesaUnreconciled: 1 })); }}
+                                        style={{ marginBottom: 8 }}
+                                    />
+                                    <div className="table-container">
+                                        <table className="table-modern">
+                                            <thead><tr><th>Ref</th><th>Date</th><th style={{ textAlign: "right" }}>Amount</th><th>Status</th></tr></thead>
+                                            <tbody>
+                                                {mpesaUnrecPage.rows.map((r) => (
+                                                    <tr key={r.id}><td>{r.reference || r.id}</td><td>{r.txnDate || "—"}</td><td style={{ textAlign: "right" }}>{fmt(r.amount)}</td><td><Badge status="Warning">{r.matchStatus || "Unmatched"}</Badge></td></tr>
+                                                ))}
+                                                {mpesaUnreconciledFiltered.length === 0 && <tr><td colSpan={4} style={{ textAlign: "center", padding: 20, color: "var(--text-dim)" }}>No unreconciled rows.</td></tr>}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8 }}>
+                                        <Button variant="secondary" onClick={() => setReportPages((p) => ({ ...p, mpesaUnreconciled: Math.max(1, p.mpesaUnreconciled - 1) }))}>Prev</Button>
+                                        <span style={{ fontSize: 12, color: "var(--text-dim)" }}>Page {mpesaUnrecPage.page} / {mpesaUnrecPage.totalPages}</span>
+                                        <Button variant="secondary" onClick={() => setReportPages((p) => ({ ...p, mpesaUnreconciled: Math.min(mpesaUnrecPage.totalPages, p.mpesaUnreconciled + 1) }))}>Next</Button>
+                                    </div>
+                                </Card>
+                            </div>
+                        </div>
+                    )}
+
                     {/* ── SYSTEM ERROR LOGS ── */}
                     {activeTab === "errors" && (
-                        <ErrorLogs S={S} />
+                        <ErrorLogs />
                     )}
 
                     {/* ── FLEET ── */}
@@ -1926,6 +2397,79 @@ export function Settings({
                                     })()}
                                 </div>
 
+                                {/* ── STATUS OPTIONS ── */}
+                                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, marginTop: 32 }}>
+                                    <div style={{ width: 36, height: 36, borderRadius: 10, background: "var(--brand-primary)12", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--brand-primary)" }}>
+                                        <CheckCircle2 size={18} aria-hidden />
+                                    </div>
+                                    <div>
+                                        <h4 style={{ fontSize: 16, fontWeight: 800, color: "var(--text-primary)", margin: 0 }}>Status options</h4>
+                                        <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "4px 0 0", fontWeight: 500 }}>
+                                            Manage journey and vehicle status dropdown values used in forms and tables.
+                                        </p>
+                                    </div>
+                                </div>
+                                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                                    <div className="s-block">
+                                        <div className="s-block-hd"><div className="s-block-title">Journey statuses</div></div>
+                                        {(() => {
+                                            const list = Array.isArray(localS.journeyStatuses) && localS.journeyStatuses.length > 0
+                                                ? localS.journeyStatuses
+                                                : [...DEFAULT_STATUSES_JOURNEY];
+                                            return (
+                                                <SettingsTagList
+                                                    items={list}
+                                                    onRemove={(i) => saveSettings({ journeyStatuses: list.filter((_, idx) => idx !== i) })}
+                                                    onAdd={() => {
+                                                        const t = newJourneyStatus.trim();
+                                                        if (!t) return;
+                                                        if (list.some((x) => String(x).toLowerCase() === t.toLowerCase())) return showToast?.("Status already exists.", "warning");
+                                                        saveSettings({ journeyStatuses: [...list, t] });
+                                                        setNewJourneyStatus("");
+                                                    }}
+                                                    addValue={newJourneyStatus}
+                                                    onAddChange={(e) => setNewJourneyStatus(e.target.value)}
+                                                    addPlaceholder="e.g. Awaiting Dispatch"
+                                                    onAddKeyDown={(e) => {
+                                                        if (e.key === "Enter") { e.preventDefault(); const t = newJourneyStatus.trim(); if (!t) return; if (list.some((x) => String(x).toLowerCase() === t.toLowerCase())) return showToast?.("Status already exists.", "warning"); saveSettings({ journeyStatuses: [...list, t] }); setNewJourneyStatus(""); }
+                                                    }}
+                                                    onResetDefaults={() => saveSettings({ journeyStatuses: [...DEFAULT_STATUSES_JOURNEY] })}
+                                                    disabled={!workspaceTabEditable.fleet || !canEditSettings}
+                                                />
+                                            );
+                                        })()}
+                                    </div>
+                                    <div className="s-block">
+                                        <div className="s-block-hd"><div className="s-block-title">Vehicle statuses</div></div>
+                                        {(() => {
+                                            const list = Array.isArray(localS.truckStatuses) && localS.truckStatuses.length > 0
+                                                ? localS.truckStatuses
+                                                : [...DEFAULT_STATUSES_TRUCK];
+                                            return (
+                                                <SettingsTagList
+                                                    items={list}
+                                                    onRemove={(i) => saveSettings({ truckStatuses: list.filter((_, idx) => idx !== i) })}
+                                                    onAdd={() => {
+                                                        const t = newTruckStatus.trim();
+                                                        if (!t) return;
+                                                        if (list.some((x) => String(x).toLowerCase() === t.toLowerCase())) return showToast?.("Status already exists.", "warning");
+                                                        saveSettings({ truckStatuses: [...list, t] });
+                                                        setNewTruckStatus("");
+                                                    }}
+                                                    addValue={newTruckStatus}
+                                                    onAddChange={(e) => setNewTruckStatus(e.target.value)}
+                                                    addPlaceholder="e.g. Reserved"
+                                                    onAddKeyDown={(e) => {
+                                                        if (e.key === "Enter") { e.preventDefault(); const t = newTruckStatus.trim(); if (!t) return; if (list.some((x) => String(x).toLowerCase() === t.toLowerCase())) return showToast?.("Status already exists.", "warning"); saveSettings({ truckStatuses: [...list, t] }); setNewTruckStatus(""); }
+                                                    }}
+                                                    onResetDefaults={() => saveSettings({ truckStatuses: [...DEFAULT_STATUSES_TRUCK] })}
+                                                    disabled={!workspaceTabEditable.fleet || !canEditSettings}
+                                                />
+                                            );
+                                        })()}
+                                    </div>
+                                </div>
+
                                 {/* ── INCIDENT TYPES ── */}
                                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, marginTop: 32 }}>
                                     <div style={{ width: 36, height: 36, borderRadius: 10, background: "var(--brand-primary)12", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--brand-primary)" }}>
@@ -1940,23 +2484,55 @@ export function Settings({
                                 </div>
                                 <div style={{ background: "var(--surface-subtle)", borderRadius: 12, border: "1px solid var(--border-subtle)", padding: 20 }}>
                                     {(() => {
-                                        const incidentTypeList = Array.isArray(localS.incidentTypesCustom) ? localS.incidentTypesCustom : [];
+                                        const defaultIncidentTypes = [...DEFAULT_INCIDENT_TYPES];
+                                        const customIncidentTypes = Array.isArray(localS.incidentTypesCustom) ? localS.incidentTypesCustom : [];
+                                        const seen = new Set(defaultIncidentTypes.map((x) => String(x).toLowerCase()));
+                                        const incidentTypeList = [
+                                            ...defaultIncidentTypes,
+                                            ...customIncidentTypes.filter((x) => {
+                                                const key = String(x || "").toLowerCase();
+                                                if (!key || seen.has(key)) return false;
+                                                seen.add(key);
+                                                return true;
+                                            }),
+                                        ];
                                         const persistIncidentTypes = (next) => saveSettings({ incidentTypesCustom: next });
                                         return (
                                             <SettingsTagList
                                                 items={incidentTypeList}
-                                                onRemove={(i) => persistIncidentTypes(incidentTypeList.filter((_, idx) => idx !== i))}
+                                                onRemove={(i) => {
+                                                    if (i < defaultIncidentTypes.length) {
+                                                        showToast?.("Default incident types are built-in and cannot be removed.", "warning");
+                                                        return;
+                                                    }
+                                                    const customIdx = i - defaultIncidentTypes.length;
+                                                    persistIncidentTypes(customIncidentTypes.filter((_, idx) => idx !== customIdx));
+                                                }}
                                                 onAdd={() => {
                                                     const t = newIncidentType.trim();
                                                     if (!t) return;
-                                                    persistIncidentTypes([...incidentTypeList, t]);
+                                                    if (incidentTypeList.some((x) => String(x).toLowerCase() === t.toLowerCase())) {
+                                                        showToast?.("That incident type already exists.", "warning");
+                                                        return;
+                                                    }
+                                                    persistIncidentTypes([...customIncidentTypes, t]);
                                                     setNewIncidentType("");
                                                 }}
                                                 addValue={newIncidentType}
                                                 onAddChange={(e) => setNewIncidentType(e.target.value)}
                                                 addPlaceholder="e.g. Border hold-up, Escort issue"
                                                 onAddKeyDown={(e) => {
-                                                    if (e.key === "Enter") { e.preventDefault(); const t = newIncidentType.trim(); if (!t) return; persistIncidentTypes([...incidentTypeList, t]); setNewIncidentType(""); }
+                                                    if (e.key === "Enter") {
+                                                        e.preventDefault();
+                                                        const t = newIncidentType.trim();
+                                                        if (!t) return;
+                                                        if (incidentTypeList.some((x) => String(x).toLowerCase() === t.toLowerCase())) {
+                                                            showToast?.("That incident type already exists.", "warning");
+                                                            return;
+                                                        }
+                                                        persistIncidentTypes([...customIncidentTypes, t]);
+                                                        setNewIncidentType("");
+                                                    }
                                                 }}
                                                 onResetDefaults={() => { persistIncidentTypes([]); showToast?.("Custom incident types cleared (defaults remain)", "success"); }}
                                                 disabled={!workspaceTabEditable.fleet || !canEditSettings}
@@ -1980,78 +2556,141 @@ export function Settings({
                                 <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 14 }}>
                                     <div className="s-block">
                                         <div className="s-block-hd"><div className="s-block-title">Vehicle document types</div></div>
-                                        <SettingsTagList
-                                            items={Array.isArray(localS.documentTypesTruckCustom) ? localS.documentTypesTruckCustom : []}
-                                            onRemove={(i) => {
-                                                const list = Array.isArray(localS.documentTypesTruckCustom) ? localS.documentTypesTruckCustom : [];
-                                                saveSettings({ documentTypesTruckCustom: list.filter((_, idx) => idx !== i) });
-                                            }}
-                                            onAdd={() => {
-                                                const t = newTruckDocType.trim();
-                                                if (!t) return;
-                                                const list = Array.isArray(localS.documentTypesTruckCustom) ? localS.documentTypesTruckCustom : [];
-                                                saveSettings({ documentTypesTruckCustom: [...list, t] });
-                                                setNewTruckDocType("");
-                                            }}
-                                            addValue={newTruckDocType}
-                                            onAddChange={(e) => setNewTruckDocType(e.target.value)}
-                                            addPlaceholder="e.g. Emissions Test Certificate"
-                                            onAddKeyDown={(e) => {
-                                                if (e.key === "Enter") { e.preventDefault(); const t = newTruckDocType.trim(); if (!t) return; const list = Array.isArray(localS.documentTypesTruckCustom) ? localS.documentTypesTruckCustom : []; saveSettings({ documentTypesTruckCustom: [...list, t] }); setNewTruckDocType(""); }
-                                            }}
-                                            onResetDefaults={() => saveSettings({ documentTypesTruckCustom: [] })}
-                                            disabled={!workspaceTabEditable.fleet || !canEditSettings}
-                                        />
+                                        {(() => {
+                                            const defaults = DEFAULT_DOC_TYPES_TRUCK.map((x) => x.label);
+                                            const custom = Array.isArray(localS.documentTypesTruckCustom) ? localS.documentTypesTruckCustom : [];
+                                            const seen = new Set(defaults.map((x) => String(x).toLowerCase()));
+                                            const merged = [...defaults, ...custom.filter((x) => {
+                                                const key = String(x || "").toLowerCase();
+                                                if (!key || seen.has(key)) return false;
+                                                seen.add(key);
+                                                return true;
+                                            })];
+                                            return (
+                                                <SettingsTagList
+                                                    items={merged}
+                                                    onRemove={(i) => {
+                                                        if (i < defaults.length) return showToast?.("Default vehicle document types are built-in.", "warning");
+                                                        const customIdx = i - defaults.length;
+                                                        saveSettings({ documentTypesTruckCustom: custom.filter((_, idx) => idx !== customIdx) });
+                                                    }}
+                                                    onAdd={() => {
+                                                        const t = newTruckDocType.trim();
+                                                        if (!t) return;
+                                                        if (merged.some((x) => String(x).toLowerCase() === t.toLowerCase())) return showToast?.("Document type already exists.", "warning");
+                                                        saveSettings({ documentTypesTruckCustom: [...custom, t] });
+                                                        setNewTruckDocType("");
+                                                    }}
+                                                    addValue={newTruckDocType}
+                                                    onAddChange={(e) => setNewTruckDocType(e.target.value)}
+                                                    addPlaceholder="e.g. Emissions Test Certificate"
+                                                    onAddKeyDown={(e) => {
+                                                        if (e.key === "Enter") {
+                                                            e.preventDefault();
+                                                            const t = newTruckDocType.trim();
+                                                            if (!t) return;
+                                                            if (merged.some((x) => String(x).toLowerCase() === t.toLowerCase())) return showToast?.("Document type already exists.", "warning");
+                                                            saveSettings({ documentTypesTruckCustom: [...custom, t] });
+                                                            setNewTruckDocType("");
+                                                        }
+                                                    }}
+                                                    onResetDefaults={() => saveSettings({ documentTypesTruckCustom: [] })}
+                                                    disabled={!workspaceTabEditable.fleet || !canEditSettings}
+                                                />
+                                            );
+                                        })()}
                                     </div>
                                     <div className="s-block">
                                         <div className="s-block-hd"><div className="s-block-title">Driver document types</div></div>
-                                        <SettingsTagList
-                                            items={Array.isArray(localS.documentTypesDriverCustom) ? localS.documentTypesDriverCustom : []}
-                                            onRemove={(i) => {
-                                                const list = Array.isArray(localS.documentTypesDriverCustom) ? localS.documentTypesDriverCustom : [];
-                                                saveSettings({ documentTypesDriverCustom: list.filter((_, idx) => idx !== i) });
-                                            }}
-                                            onAdd={() => {
-                                                const t = newDriverDocType.trim();
-                                                if (!t) return;
-                                                const list = Array.isArray(localS.documentTypesDriverCustom) ? localS.documentTypesDriverCustom : [];
-                                                saveSettings({ documentTypesDriverCustom: [...list, t] });
-                                                setNewDriverDocType("");
-                                            }}
-                                            addValue={newDriverDocType}
-                                            onAddChange={(e) => setNewDriverDocType(e.target.value)}
-                                            addPlaceholder="e.g. Defensive Driving Certificate"
-                                            onAddKeyDown={(e) => {
-                                                if (e.key === "Enter") { e.preventDefault(); const t = newDriverDocType.trim(); if (!t) return; const list = Array.isArray(localS.documentTypesDriverCustom) ? localS.documentTypesDriverCustom : []; saveSettings({ documentTypesDriverCustom: [...list, t] }); setNewDriverDocType(""); }
-                                            }}
-                                            onResetDefaults={() => saveSettings({ documentTypesDriverCustom: [] })}
-                                            disabled={!workspaceTabEditable.fleet || !canEditSettings}
-                                        />
+                                        {(() => {
+                                            const defaults = DEFAULT_DOC_TYPES_DRIVER.map((x) => x.label);
+                                            const custom = Array.isArray(localS.documentTypesDriverCustom) ? localS.documentTypesDriverCustom : [];
+                                            const seen = new Set(defaults.map((x) => String(x).toLowerCase()));
+                                            const merged = [...defaults, ...custom.filter((x) => {
+                                                const key = String(x || "").toLowerCase();
+                                                if (!key || seen.has(key)) return false;
+                                                seen.add(key);
+                                                return true;
+                                            })];
+                                            return (
+                                                <SettingsTagList
+                                                    items={merged}
+                                                    onRemove={(i) => {
+                                                        if (i < defaults.length) return showToast?.("Default driver document types are built-in.", "warning");
+                                                        const customIdx = i - defaults.length;
+                                                        saveSettings({ documentTypesDriverCustom: custom.filter((_, idx) => idx !== customIdx) });
+                                                    }}
+                                                    onAdd={() => {
+                                                        const t = newDriverDocType.trim();
+                                                        if (!t) return;
+                                                        if (merged.some((x) => String(x).toLowerCase() === t.toLowerCase())) return showToast?.("Document type already exists.", "warning");
+                                                        saveSettings({ documentTypesDriverCustom: [...custom, t] });
+                                                        setNewDriverDocType("");
+                                                    }}
+                                                    addValue={newDriverDocType}
+                                                    onAddChange={(e) => setNewDriverDocType(e.target.value)}
+                                                    addPlaceholder="e.g. Defensive Driving Certificate"
+                                                    onAddKeyDown={(e) => {
+                                                        if (e.key === "Enter") {
+                                                            e.preventDefault();
+                                                            const t = newDriverDocType.trim();
+                                                            if (!t) return;
+                                                            if (merged.some((x) => String(x).toLowerCase() === t.toLowerCase())) return showToast?.("Document type already exists.", "warning");
+                                                            saveSettings({ documentTypesDriverCustom: [...custom, t] });
+                                                            setNewDriverDocType("");
+                                                        }
+                                                    }}
+                                                    onResetDefaults={() => saveSettings({ documentTypesDriverCustom: [] })}
+                                                    disabled={!workspaceTabEditable.fleet || !canEditSettings}
+                                                />
+                                            );
+                                        })()}
                                     </div>
                                     <div className="s-block">
                                         <div className="s-block-hd"><div className="s-block-title">Journey document types</div></div>
-                                        <SettingsTagList
-                                            items={Array.isArray(localS.documentTypesJourneyCustom) ? localS.documentTypesJourneyCustom : []}
-                                            onRemove={(i) => {
-                                                const list = Array.isArray(localS.documentTypesJourneyCustom) ? localS.documentTypesJourneyCustom : [];
-                                                saveSettings({ documentTypesJourneyCustom: list.filter((_, idx) => idx !== i) });
-                                            }}
-                                            onAdd={() => {
-                                                const t = newJourneyDocType.trim();
-                                                if (!t) return;
-                                                const list = Array.isArray(localS.documentTypesJourneyCustom) ? localS.documentTypesJourneyCustom : [];
-                                                saveSettings({ documentTypesJourneyCustom: [...list, t] });
-                                                setNewJourneyDocType("");
-                                            }}
-                                            addValue={newJourneyDocType}
-                                            onAddChange={(e) => setNewJourneyDocType(e.target.value)}
-                                            addPlaceholder="e.g. Port Release Note"
-                                            onAddKeyDown={(e) => {
-                                                if (e.key === "Enter") { e.preventDefault(); const t = newJourneyDocType.trim(); if (!t) return; const list = Array.isArray(localS.documentTypesJourneyCustom) ? localS.documentTypesJourneyCustom : []; saveSettings({ documentTypesJourneyCustom: [...list, t] }); setNewJourneyDocType(""); }
-                                            }}
-                                            onResetDefaults={() => saveSettings({ documentTypesJourneyCustom: [] })}
-                                            disabled={!workspaceTabEditable.fleet || !canEditSettings}
-                                        />
+                                        {(() => {
+                                            const defaults = DEFAULT_DOC_TYPES_JOURNEY.map((x) => x.label);
+                                            const custom = Array.isArray(localS.documentTypesJourneyCustom) ? localS.documentTypesJourneyCustom : [];
+                                            const seen = new Set(defaults.map((x) => String(x).toLowerCase()));
+                                            const merged = [...defaults, ...custom.filter((x) => {
+                                                const key = String(x || "").toLowerCase();
+                                                if (!key || seen.has(key)) return false;
+                                                seen.add(key);
+                                                return true;
+                                            })];
+                                            return (
+                                                <SettingsTagList
+                                                    items={merged}
+                                                    onRemove={(i) => {
+                                                        if (i < defaults.length) return showToast?.("Default journey document types are built-in.", "warning");
+                                                        const customIdx = i - defaults.length;
+                                                        saveSettings({ documentTypesJourneyCustom: custom.filter((_, idx) => idx !== customIdx) });
+                                                    }}
+                                                    onAdd={() => {
+                                                        const t = newJourneyDocType.trim();
+                                                        if (!t) return;
+                                                        if (merged.some((x) => String(x).toLowerCase() === t.toLowerCase())) return showToast?.("Document type already exists.", "warning");
+                                                        saveSettings({ documentTypesJourneyCustom: [...custom, t] });
+                                                        setNewJourneyDocType("");
+                                                    }}
+                                                    addValue={newJourneyDocType}
+                                                    onAddChange={(e) => setNewJourneyDocType(e.target.value)}
+                                                    addPlaceholder="e.g. Port Release Note"
+                                                    onAddKeyDown={(e) => {
+                                                        if (e.key === "Enter") {
+                                                            e.preventDefault();
+                                                            const t = newJourneyDocType.trim();
+                                                            if (!t) return;
+                                                            if (merged.some((x) => String(x).toLowerCase() === t.toLowerCase())) return showToast?.("Document type already exists.", "warning");
+                                                            saveSettings({ documentTypesJourneyCustom: [...custom, t] });
+                                                            setNewJourneyDocType("");
+                                                        }
+                                                    }}
+                                                    onResetDefaults={() => saveSettings({ documentTypesJourneyCustom: [] })}
+                                                    disabled={!workspaceTabEditable.fleet || !canEditSettings}
+                                                />
+                                            );
+                                        })()}
                                     </div>
                                 </div>
                             </div>

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useTableFilter } from "../hooks/useTableFilter";
 import {
     Route as RouteIcon,
@@ -22,7 +22,6 @@ import {
     AlertTriangle
 } from "lucide-react";
 import { fmt, today, uid, fmtDate } from "../utils/formatters";
-import { STATUSES_JOURNEY, CARGO_TYPES } from "../constants/nav";
 import { validators } from "../utils/validators";
 import { useNavigate } from "react-router-dom";
 import { Card } from "../components/Card";
@@ -32,9 +31,13 @@ import { PageHeader } from "../components/PageHeader";
 import { TableRowActions } from "../components/TableRowActions";
 import { SortableTableHead } from "../components/SortableTableHead";
 import { mergeFlatPermissionOverrides, useMergedProfilePermissions } from "../utils/profilePermissions.js";
+import { getJourneyStatuses, subscribeSettings } from "../utils/settingsStore.js";
 
 export function Journeys({ data, isMobile, modal, form, setForm, openModal, closeModal, saveItem, delItem, filterTruck, setFilterTruck, driverName, truckReg, customerName, setVerifyModal, openWaybillGenerator, previewMode }) {
     const navigate = useNavigate();
+    const [, bumpSettingsDerived] = useState(0);
+    useEffect(() => subscribeSettings(() => bumpSettingsDerived((n) => n + 1)), []);
+    const journeyStatuses = getJourneyStatuses();
     const isDriverPreview = previewMode?.role === "driver";
     const mergedPerm = useMergedProfilePermissions();
     const previewDriver = isDriverPreview ? data.drivers?.find((d) => d.id === previewMode.entityId) : null;
@@ -336,7 +339,7 @@ export function Journeys({ data, isMobile, modal, form, setForm, openModal, clos
                                     onChange={(e) => setForm((f) => ({ ...f, _jStatusFilter: e.target.value }))}
                                 >
                                     <option value="ALL">All statuses</option>
-                                    {["Loading", "In Transit", "Awaiting Start Verification", "Awaiting Verification", "Completed", "Cancelled"].map((s) => (
+                                    {journeyStatuses.map((s) => (
                                         <option key={s} value={s}>{s}</option>
                                     ))}
                                 </select>
