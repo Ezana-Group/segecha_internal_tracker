@@ -499,4 +499,52 @@ body{font-family:'Helvetica Neue',Arial,sans-serif;background:#f4f4f4;padding:20
     });
 }
 
-module.exports = { sendInvoiceEmail, sendDriverWelcomeEmail, sendPasswordResetEmail, sendPaymentReceiptEmail };
+async function sendPayslipEmail({
+    to,
+    employeeName,
+    month,
+    payrollId,
+    companyName,
+    netPay,
+    grossPay,
+    deductions,
+    payslipUrl,
+    settings,
+}) {
+    const rootSettings = { ...loadServerSettings(), ...(settings || {}) };
+    const identity = resolveDriverPortalEmailIdentity(rootSettings);
+    const subject = `Payslip ${month} — ${employeeName} — ${companyName}`;
+    const html = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+body{font-family:Arial,sans-serif;background:#f4f4f4;padding:20px;color:#1f2937}
+.wrap{max-width:560px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,.08)}
+.hdr{background:linear-gradient(135deg,#1B3A6B,#0d2347);padding:28px 32px;color:#fff}
+.body{padding:28px 32px}
+.row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #e5e7eb;font-size:14px}
+.cta{display:inline-block;background:#E8501A;color:#fff!important;text-decoration:none;padding:12px 18px;border-radius:8px;font-weight:700;margin-top:16px}
+</style></head><body>
+<div class="wrap">
+  <div class="hdr"><h2 style="margin:0">Payslip Ready</h2><div style="opacity:.85;margin-top:6px">${companyName}</div></div>
+  <div class="body">
+    <p>Hello <b>${employeeName}</b>, your payslip for <b>${month}</b> is ready.</p>
+    <div class="row"><span>Payroll ID</span><b>${payrollId}</b></div>
+    <div class="row"><span>Gross Pay</span><b>KES ${Number(grossPay || 0).toLocaleString('en-KE')}</b></div>
+    <div class="row"><span>Total Deductions</span><b>KES ${Number(deductions || 0).toLocaleString('en-KE')}</b></div>
+    <div class="row"><span>Net Pay</span><b>KES ${Number(netPay || 0).toLocaleString('en-KE')}</b></div>
+    <a class="cta" href="${payslipUrl}">Open Payslip</a>
+  </div>
+</div>
+</body></html>`;
+    const text = `Payslip ready for ${employeeName} (${month}). Net pay: KES ${Number(netPay || 0).toLocaleString('en-KE')}. Open: ${payslipUrl}`;
+    await sendWithFromCandidates({
+        to,
+        subject,
+        html,
+        text,
+        fromCandidates: identity.fromCandidates,
+        replyTo: identity.replyTo,
+    });
+}
+
+module.exports = { sendInvoiceEmail, sendDriverWelcomeEmail, sendPasswordResetEmail, sendPaymentReceiptEmail, sendPayslipEmail };

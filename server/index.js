@@ -74,7 +74,11 @@ const {
     listR2Backups,
     getR2ObjectBuffer,
     BACKUPS_PREFIX,
+    uploadToR2,
+    buildKey,
 } = require('./r2');
+const PDFDocument = require('pdfkit');
+const { sendPayslipEmail } = require('./email');
 
 
 // 1. Security headers — must come before routes (HIGH-01)
@@ -479,8 +483,32 @@ async function autoSeed() {
                 IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='drivers' AND column_name='updated_at') THEN
                     ALTER TABLE drivers ADD COLUMN updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
                 END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='drivers' AND column_name='email') THEN
+                    ALTER TABLE drivers ADD COLUMN email TEXT;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='drivers' AND column_name='national_id') THEN
+                    ALTER TABLE drivers ADD COLUMN national_id TEXT;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='drivers' AND column_name='date_of_birth') THEN
+                    ALTER TABLE drivers ADD COLUMN date_of_birth DATE;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='drivers' AND column_name='employee_number') THEN
+                    ALTER TABLE drivers ADD COLUMN employee_number TEXT;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='drivers' AND column_name='kra_pin') THEN
+                    ALTER TABLE drivers ADD COLUMN kra_pin TEXT;
+                END IF;
                 IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='staff' AND column_name='updated_at') THEN
                     ALTER TABLE staff ADD COLUMN updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='staff' AND column_name='national_id') THEN
+                    ALTER TABLE staff ADD COLUMN national_id TEXT;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='staff' AND column_name='employee_number') THEN
+                    ALTER TABLE staff ADD COLUMN employee_number TEXT;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='staff' AND column_name='kra_pin') THEN
+                    ALTER TABLE staff ADD COLUMN kra_pin TEXT;
                 END IF;
                 IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='customers' AND column_name='updated_at') THEN
                     ALTER TABLE customers ADD COLUMN updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
@@ -499,6 +527,18 @@ async function autoSeed() {
                 END IF;
                 IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='payroll' AND column_name='updated_at') THEN
                     ALTER TABLE payroll ADD COLUMN updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='payroll' AND column_name='payment_reference') THEN
+                    ALTER TABLE payroll ADD COLUMN payment_reference TEXT;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='payroll' AND column_name='payment_date') THEN
+                    ALTER TABLE payroll ADD COLUMN payment_date DATE;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='payroll' AND column_name='payment_confirmed_at') THEN
+                    ALTER TABLE payroll ADD COLUMN payment_confirmed_at TIMESTAMP WITH TIME ZONE;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='payroll' AND column_name='payslip_dispatch_allowed') THEN
+                    ALTER TABLE payroll ADD COLUMN payslip_dispatch_allowed BOOLEAN DEFAULT FALSE;
                 END IF;
                 IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='maintenance_logs' AND column_name='updated_at') THEN
                     ALTER TABLE maintenance_logs ADD COLUMN updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
@@ -600,6 +640,95 @@ async function autoSeed() {
         `);
         await db.query(`CREATE INDEX IF NOT EXISTS idx_mpesa_txn_date ON mpesa_transactions (txn_date DESC);`);
         await db.query(`CREATE INDEX IF NOT EXISTS idx_mpesa_reference ON mpesa_transactions (reference);`);
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS payroll_statutory_configs (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                config_type TEXT NOT NULL,
+                formula JSONB DEFAULT '{}',
+                effective_date DATE NOT NULL,
+                is_active BOOLEAN DEFAULT TRUE,
+                created_by TEXT,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS payroll_statutory_change_log (
+                id BIGSERIAL PRIMARY KEY,
+                config_name TEXT NOT NULL,
+                old_value JSONB,
+                new_value JSONB,
+                changed_by TEXT,
+                changed_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                effective_date DATE
+            );
+        `);
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS deduction_templates (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                default_amount DECIMAL(12,2) DEFAULT 0,
+                default_type TEXT DEFAULT 'fixed',
+                requires_authorization BOOLEAN DEFAULT FALSE,
+                metadata JSONB DEFAULT '{}',
+                created_by TEXT,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS employee_deductions (
+                id TEXT PRIMARY KEY,
+                entity_id TEXT NOT NULL,
+                entity_type TEXT NOT NULL,
+                deduction_type TEXT NOT NULL,
+                name TEXT NOT NULL,
+                amount DECIMAL(12,2) DEFAULT 0,
+                amount_type TEXT DEFAULT 'fixed',
+                start_month TEXT,
+                end_month TEXT,
+                remaining_balance DECIMAL(12,2) DEFAULT 0,
+                authorization_ref TEXT,
+                employee_acknowledged BOOLEAN DEFAULT FALSE,
+                employee_acknowledged_at TIMESTAMPTZ,
+                metadata JSONB DEFAULT '{}',
+                created_by TEXT,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS payslip_dispatch_queue (
+                id TEXT PRIMARY KEY,
+                payroll_id TEXT NOT NULL REFERENCES payroll(id) ON DELETE CASCADE,
+                recipient_email TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'pending',
+                attempts INTEGER DEFAULT 0,
+                last_error TEXT,
+                scheduled_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                sent_at TIMESTAMPTZ,
+                metadata JSONB DEFAULT '{}',
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+        await db.query(`
+            CREATE TABLE IF NOT EXISTS ledger_entries (
+                id TEXT PRIMARY KEY,
+                entry_date DATE NOT NULL,
+                source_type TEXT NOT NULL,
+                source_id TEXT NOT NULL,
+                account_code TEXT NOT NULL,
+                account_name TEXT NOT NULL,
+                debit DECIMAL(14,2) DEFAULT 0,
+                credit DECIMAL(14,2) DEFAULT 0,
+                currency TEXT DEFAULT 'KES',
+                notes TEXT,
+                metadata JSONB DEFAULT '{}',
+                created_by TEXT,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
 
         console.log(`[SEED] Ensuring superadmin exists (${initialAdminEmail})...`);
 
@@ -1128,12 +1257,24 @@ app.get('/api/admin/reports/p10', async (req, res) => {
     try {
         const month = String(req.query.month || '');
         if (!monthStartEnd(month)) return res.status(400).json({ error: 'month must be YYYY-MM' });
-        const rows = (await db.query('SELECT id, entity_id, metadata, month FROM payroll WHERE month = $1 ORDER BY entity_id', [month])).rows || [];
+        const rows = (await db.query('SELECT id, entity_id, entity_type, metadata, month FROM payroll WHERE month = $1 ORDER BY entity_id', [month])).rows || [];
+        const driverRows = (await db.query('SELECT id, name, kra_pin, nssf_number, nhif_number FROM drivers')).rows || [];
+        const staffRows = (await db.query('SELECT id, name, kra_pin, nssf_number, nhif_number FROM staff')).rows || [];
+        const ref = new Map();
+        for (const r of driverRows) ref.set(`driver:${r.id}`, r);
+        for (const r of staffRows) ref.set(`staff:${r.id}`, r);
         const out = rows.map((r) => {
-            const m = r.metadata || {};
+            const m = parseJsonObj(r.metadata);
+            const typ = String(r.entity_type || m.entityType || 'driver').toLowerCase() === 'staff' ? 'staff' : 'driver';
+            const emp = ref.get(`${typ}:${r.entity_id}`) || {};
             return {
                 month,
                 employeeId: r.entity_id,
+                employeeType: typ,
+                employeeName: emp.name || m._name || '',
+                kraPin: emp.kra_pin || m.kraPin || '',
+                nssfNumber: emp.nssf_number || m.nssfNumber || '',
+                nhifNumber: emp.nhif_number || m.nhifNumber || '',
                 grossPay: Number(m.grossPay ?? 0).toFixed(2),
                 taxablePay: Number(m.taxablePay ?? 0).toFixed(2),
                 paye: Number(m.paye ?? 0).toFixed(2),
@@ -1160,13 +1301,23 @@ app.get('/api/admin/reports/p9a', async (req, res) => {
         if (!Number.isInteger(year) || year < 2000) return res.status(400).json({ error: 'year required' });
         const start = `${year}-01`;
         const end = `${year}-12`;
-        const rows = (await db.query('SELECT id, entity_id, metadata, month FROM payroll WHERE month >= $1 AND month <= $2', [start, end])).rows || [];
+        const rows = (await db.query('SELECT id, entity_id, entity_type, metadata, month FROM payroll WHERE month >= $1 AND month <= $2', [start, end])).rows || [];
+        const driverRows = (await db.query('SELECT id, name, kra_pin FROM drivers')).rows || [];
+        const staffRows = (await db.query('SELECT id, name, kra_pin FROM staff')).rows || [];
+        const ref = new Map();
+        for (const r of driverRows) ref.set(`driver:${r.id}`, r);
+        for (const r of staffRows) ref.set(`staff:${r.id}`, r);
         const grouped = new Map();
         for (const r of rows) {
-            const m = r.metadata || {};
-            const key = String(r.entity_id || '');
+            const m = parseJsonObj(r.metadata);
+            const typ = String(r.entity_type || m.entityType || 'driver').toLowerCase() === 'staff' ? 'staff' : 'driver';
+            const key = `${typ}:${String(r.entity_id || '')}`;
+            const emp = ref.get(key) || {};
             const prev = grouped.get(key) || {
                 employeeId: key,
+                employeeType: typ,
+                employeeName: emp.name || '',
+                kraPin: emp.kra_pin || m.kraPin || '',
                 year,
                 grossPay: 0,
                 taxablePay: 0,
@@ -1187,6 +1338,7 @@ app.get('/api/admin/reports/p9a', async (req, res) => {
         }
         const out = Array.from(grouped.values()).map((r) => ({
             ...r,
+            employeeId: String(r.employeeId || '').split(':')[1] || r.employeeId,
             grossPay: Number(r.grossPay.toFixed(2)),
             taxablePay: Number(r.taxablePay.toFixed(2)),
             paye: Number(r.paye.toFixed(2)),
@@ -1279,6 +1431,239 @@ app.get('/api/admin/reports/wht-schedule', async (req, res) => {
             month,
             totalWithholdingTax: Number(records.reduce((s, r) => s + Number(r.withholdingTax || 0), 0).toFixed(2)),
             records,
+        });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.get('/api/admin/reports/nssf-schedule', async (req, res) => {
+    try {
+        const month = String(req.query.month || '');
+        if (!monthStartEnd(month)) return res.status(400).json({ error: 'month must be YYYY-MM' });
+        const rows = (await db.query('SELECT entity_id, entity_type, metadata, month FROM payroll WHERE month = $1 ORDER BY entity_id', [month])).rows || [];
+        const driverRows = (await db.query('SELECT id, name, kra_pin, nssf_number FROM drivers')).rows || [];
+        const staffRows = (await db.query('SELECT id, name, kra_pin, nssf_number FROM staff')).rows || [];
+        const ref = new Map();
+        for (const r of driverRows) ref.set(`driver:${r.id}`, r);
+        for (const r of staffRows) ref.set(`staff:${r.id}`, r);
+        const records = rows.map((r) => {
+            const m = parseJsonObj(r.metadata);
+            const typ = String(r.entity_type || m.entityType || 'driver').toLowerCase() === 'staff' ? 'staff' : 'driver';
+            const emp = ref.get(`${typ}:${r.entity_id}`) || {};
+            const nssfEmployee = Number(m.nssfEmployee ?? 0);
+            const nssfEmployer = Number(m.nssfEmployer ?? nssfEmployee);
+            return {
+                month,
+                employeeId: r.entity_id,
+                employeeType: typ,
+                employeeName: emp.name || m._name || '',
+                kraPin: emp.kra_pin || m.kraPin || '',
+                nssfNumber: emp.nssf_number || m.nssfNumber || '',
+                pensionablePay: Number(m.pensionablePay ?? m.basicSalary ?? m.baseSalary ?? 0).toFixed(2),
+                nssfEmployee: nssfEmployee.toFixed(2),
+                nssfEmployer: nssfEmployer.toFixed(2),
+                totalNssf: Number(nssfEmployee + nssfEmployer).toFixed(2),
+            };
+        });
+        const totals = records.reduce((acc, r) => {
+            acc.nssfEmployee += Number(r.nssfEmployee || 0);
+            acc.nssfEmployer += Number(r.nssfEmployer || 0);
+            return acc;
+        }, { nssfEmployee: 0, nssfEmployer: 0 });
+        const payload = {
+            success: true,
+            month,
+            totals: {
+                nssfEmployee: Number(totals.nssfEmployee.toFixed(2)),
+                nssfEmployer: Number(totals.nssfEmployer.toFixed(2)),
+                totalNssf: Number((totals.nssfEmployee + totals.nssfEmployer).toFixed(2)),
+            },
+            records,
+        };
+        if (String(req.query.format || '').toLowerCase() === 'csv') {
+            res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+            return res.send(toCsv(records));
+        }
+        res.json(payload);
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.get('/api/admin/reports/nhif-schedule', async (req, res) => {
+    try {
+        const month = String(req.query.month || '');
+        if (!monthStartEnd(month)) return res.status(400).json({ error: 'month must be YYYY-MM' });
+        const rows = (await db.query('SELECT entity_id, entity_type, metadata, month FROM payroll WHERE month = $1 ORDER BY entity_id', [month])).rows || [];
+        const driverRows = (await db.query('SELECT id, name, kra_pin, nhif_number FROM drivers')).rows || [];
+        const staffRows = (await db.query('SELECT id, name, kra_pin, nhif_number FROM staff')).rows || [];
+        const ref = new Map();
+        for (const r of driverRows) ref.set(`driver:${r.id}`, r);
+        for (const r of staffRows) ref.set(`staff:${r.id}`, r);
+        const records = rows.map((r) => {
+            const m = parseJsonObj(r.metadata);
+            const typ = String(r.entity_type || m.entityType || 'driver').toLowerCase() === 'staff' ? 'staff' : 'driver';
+            const emp = ref.get(`${typ}:${r.entity_id}`) || {};
+            const nhifShif = Number(m.nhif ?? 0);
+            return {
+                month,
+                employeeId: r.entity_id,
+                employeeType: typ,
+                employeeName: emp.name || m._name || '',
+                kraPin: emp.kra_pin || m.kraPin || '',
+                nhifNumber: emp.nhif_number || m.nhifNumber || '',
+                grossPay: Number(m.grossPay ?? 0).toFixed(2),
+                nhifShif: nhifShif.toFixed(2),
+            };
+        });
+        const total = Number(records.reduce((s, r) => s + Number(r.nhifShif || 0), 0).toFixed(2));
+        if (String(req.query.format || '').toLowerCase() === 'csv') {
+            res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+            return res.send(toCsv(records));
+        }
+        res.json({ success: true, month, totalNhifShif: total, records });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.get('/api/admin/reports/housing-levy-schedule', async (req, res) => {
+    try {
+        const month = String(req.query.month || '');
+        if (!monthStartEnd(month)) return res.status(400).json({ error: 'month must be YYYY-MM' });
+        const rows = (await db.query('SELECT entity_id, entity_type, metadata, month FROM payroll WHERE month = $1 ORDER BY entity_id', [month])).rows || [];
+        const driverRows = (await db.query('SELECT id, name, kra_pin FROM drivers')).rows || [];
+        const staffRows = (await db.query('SELECT id, name, kra_pin FROM staff')).rows || [];
+        const ref = new Map();
+        for (const r of driverRows) ref.set(`driver:${r.id}`, r);
+        for (const r of staffRows) ref.set(`staff:${r.id}`, r);
+        const records = rows.map((r) => {
+            const m = parseJsonObj(r.metadata);
+            const typ = String(r.entity_type || m.entityType || 'driver').toLowerCase() === 'staff' ? 'staff' : 'driver';
+            const emp = ref.get(`${typ}:${r.entity_id}`) || {};
+            const employee = Number(m.housingLevyEmployee ?? 0);
+            const employer = Number(m.housingLevyEmployer ?? employee);
+            return {
+                month,
+                employeeId: r.entity_id,
+                employeeType: typ,
+                employeeName: emp.name || m._name || '',
+                kraPin: emp.kra_pin || m.kraPin || '',
+                grossPay: Number(m.grossPay ?? 0).toFixed(2),
+                housingLevyEmployee: employee.toFixed(2),
+                housingLevyEmployer: employer.toFixed(2),
+                totalHousingLevy: Number(employee + employer).toFixed(2),
+            };
+        });
+        const totals = records.reduce((acc, r) => {
+            acc.employee += Number(r.housingLevyEmployee || 0);
+            acc.employer += Number(r.housingLevyEmployer || 0);
+            return acc;
+        }, { employee: 0, employer: 0 });
+        if (String(req.query.format || '').toLowerCase() === 'csv') {
+            res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+            return res.send(toCsv(records));
+        }
+        res.json({
+            success: true,
+            month,
+            totals: {
+                housingLevyEmployee: Number(totals.employee.toFixed(2)),
+                housingLevyEmployer: Number(totals.employer.toFixed(2)),
+                totalHousingLevy: Number((totals.employee + totals.employer).toFixed(2)),
+            },
+            records,
+        });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.get('/api/admin/reports/ledger-summary', async (req, res) => {
+    try {
+        const from = String(req.query.from || '').trim();
+        const to = String(req.query.to || '').trim();
+        let params = [];
+        let where = '';
+        if (from && to) {
+            where = 'WHERE entry_date >= $1 AND entry_date <= $2';
+            params = [from, to];
+        }
+        const rows = (await db.query(
+            `SELECT account_code, account_name, SUM(debit) AS debit_total, SUM(credit) AS credit_total
+             FROM ledger_entries
+             ${where}
+             GROUP BY account_code, account_name
+             ORDER BY account_code`,
+            params
+        )).rows || [];
+        const totals = rows.reduce((acc, r) => {
+            acc.debit += Number(r.debit_total || 0);
+            acc.credit += Number(r.credit_total || 0);
+            return acc;
+        }, { debit: 0, credit: 0 });
+        res.json({
+            success: true,
+            from: from || null,
+            to: to || null,
+            totals: {
+                debit: Number(totals.debit.toFixed(2)),
+                credit: Number(totals.credit.toFixed(2)),
+            },
+            rows: rows.map((r) => ({
+                accountCode: r.account_code,
+                accountName: r.account_name,
+                debit: Number(r.debit_total || 0),
+                credit: Number(r.credit_total || 0),
+                net: Number((Number(r.debit_total || 0) - Number(r.credit_total || 0)).toFixed(2)),
+            })),
+        });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.get('/api/admin/reports/ledger-entries', async (req, res) => {
+    try {
+        const from = String(req.query.from || '').trim();
+        const to = String(req.query.to || '').trim();
+        const lim = Math.min(1000, Math.max(1, Number(req.query.limit || 300)));
+        let where = '';
+        const params = [];
+        if (from && to) {
+            where = 'WHERE entry_date >= $1 AND entry_date <= $2';
+            params.push(from, to);
+        }
+        params.push(lim);
+        const limitPos = params.length;
+        const rows = (await db.query(
+            `SELECT id, entry_date, source_type, source_id, account_code, account_name, debit, credit, currency, notes, metadata, created_by, created_at
+             FROM ledger_entries
+             ${where}
+             ORDER BY entry_date DESC, created_at DESC
+             LIMIT $${limitPos}`,
+            params
+        )).rows || [];
+        res.json({
+            success: true,
+            from: from || null,
+            to: to || null,
+            rows: rows.map((r) => ({
+                id: r.id,
+                entryDate: r.entry_date,
+                sourceType: r.source_type,
+                sourceId: r.source_id,
+                accountCode: r.account_code,
+                accountName: r.account_name,
+                debit: Number(r.debit || 0),
+                credit: Number(r.credit || 0),
+                currency: r.currency || 'KES',
+                notes: r.notes || '',
+                metadata: parseJsonObj(r.metadata),
+                createdBy: r.created_by || '',
+                createdAt: r.created_at || null,
+            })),
         });
     } catch (e) {
         res.status(500).json({ error: e.message });
@@ -1458,7 +1843,9 @@ app.post('/api/admin/reset', async (req, res) => {
         console.log(`[${new Date().toISOString()}] SYSTEM RESET REQUESTED BY ADMIN`);
         const tables = [
             'invoices', 'payroll', 'fuel_logs', 'expenses', 'incidents', 'maintenance_logs', 'tyre_logs',
-            'documents', 'journeys', 'assets', 'mpesa_transactions', 'error_logs', 'driver_auth', 'staff_auth',
+            'documents', 'journeys', 'assets', 'mpesa_transactions', 'payslip_dispatch_queue', 'ledger_entries',
+            'payroll_statutory_configs', 'payroll_statutory_change_log', 'deduction_templates', 'employee_deductions',
+            'error_logs', 'driver_auth', 'staff_auth',
             'trucks', 'trailers', 'drivers', 'staff', 'customers', 'admins', 'superadmins', 'system_settings'
         ];
         for (const table of tables) {
@@ -1536,18 +1923,27 @@ const DB_TABLES = [
     'admins', 'superadmins', 'trucks', 'trailers', 'drivers',
     'staff', 'customers', 'journeys', 'fuel_logs', 'expenses',
     'invoices', 'payroll', 'maintenance_logs', 'tyre_logs',
-    'incidents', 'documents', 'assets', 'mpesa_transactions', 'system_settings', 'staff_auth', 'driver_auth'
+    'incidents', 'documents', 'assets', 'mpesa_transactions', 'payroll_statutory_configs', 'payroll_statutory_change_log',
+    'deduction_templates', 'employee_deductions', 'payslip_dispatch_queue', 'ledger_entries', 'system_settings', 'staff_auth', 'driver_auth'
 ];
 
 const REQUIRED_SCHEMA = {
     journeys: ['id', 'truck_id', 'driver_id', 'customer_id', 'start_date', 'status', 'metadata', 'deposit_amount', 'deposit_date', 'final_payment_amount', 'final_payment_date'],
     expenses: ['id', 'journey_id', 'truck_id', 'category', 'amount', 'date', 'status', 'metadata'],
     invoices: ['id', 'customer_id', 'journey_id', 'amount', 'paid_amount', 'status', 'due_date', 'metadata'],
-    payroll: ['id', 'entity_id', 'entity_type', 'amount', 'month', 'status', 'metadata'],
+    payroll: ['id', 'entity_id', 'entity_type', 'amount', 'month', 'status', 'payment_reference', 'payment_date', 'payment_confirmed_at', 'payslip_dispatch_allowed', 'metadata'],
+    drivers: ['id', 'name', 'phone', 'email', 'national_id', 'employee_number', 'kra_pin', 'status', 'metadata'],
+    staff: ['id', 'name', 'email', 'phone', 'employee_number', 'department_name', 'kra_pin', 'status', 'metadata'],
     incidents: ['id', 'type', 'status', 'metadata', 'updated_at'],
     documents: ['id', 'entity_type', 'entity_id', 'url', 'metadata'],
     assets: ['id', 'name', 'category', 'cost', 'depreciation_method', 'metadata'],
     mpesa_transactions: ['id', 'txn_date', 'direction', 'amount', 'reference', 'linked_type', 'linked_id', 'status', 'metadata'],
+    payroll_statutory_configs: ['id', 'name', 'config_type', 'formula', 'effective_date', 'is_active'],
+    payroll_statutory_change_log: ['id', 'config_name', 'old_value', 'new_value', 'changed_by', 'changed_at', 'effective_date'],
+    deduction_templates: ['id', 'name', 'default_amount', 'default_type', 'requires_authorization', 'metadata'],
+    employee_deductions: ['id', 'entity_id', 'entity_type', 'deduction_type', 'name', 'amount', 'amount_type', 'metadata'],
+    payslip_dispatch_queue: ['id', 'payroll_id', 'recipient_email', 'status', 'attempts', 'scheduled_at', 'metadata'],
+    ledger_entries: ['id', 'entry_date', 'source_type', 'source_id', 'account_code', 'account_name', 'debit', 'credit', 'currency'],
 };
 
 async function getSchemaHealth() {
@@ -1597,6 +1993,67 @@ async function getSettings() {
     res.rows.forEach(r => settings[r.key] = r.value);
     return settings;
 }
+
+const DEFAULT_PAYROLL_SETTINGS = {
+    personalRelief: 2400,
+    payeBands: [
+        { lowerLimit: 0, upperLimit: 24000, ratePercent: 10 },
+        { lowerLimit: 24001, upperLimit: 32333, ratePercent: 25 },
+        { lowerLimit: 32334, upperLimit: 40667, ratePercent: 30 },
+        { lowerLimit: 40668, upperLimit: 57333, ratePercent: 32.5 },
+        { lowerLimit: 57334, upperLimit: null, ratePercent: 35 },
+    ],
+    nssfTier1Ceiling: 7000,
+    nssfTier2Ceiling: 36000,
+    nssfEmployeeRate: 6,
+    nssfEmployerRate: 6,
+    shifEnabled: true,
+    shifRatePercent: 2.75,
+    housingLevyEmployeeRate: 1.5,
+    housingLevyEmployerRate: 1.5,
+    driverAllowanceDefaults: {
+        nightOutPerNight: 2000,
+        tripAllowancePerTrip: 1500,
+        overtimePerHour: 300,
+    },
+};
+
+app.get('/api/admin/payroll/settings', async (_req, res) => {
+    try {
+        const settings = await getSettings();
+        const stored = settings?.payrollSettings || {};
+        res.json({ success: true, payrollSettings: { ...DEFAULT_PAYROLL_SETTINGS, ...(stored || {}) } });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.put('/api/admin/payroll/settings', async (req, res) => {
+    try {
+        const actor = req.admin?.email || req.admin?.id || 'system';
+        const current = await getSettings();
+        const previous = current?.payrollSettings || {};
+        const next = req.body?.payrollSettings && typeof req.body.payrollSettings === 'object'
+            ? req.body.payrollSettings
+            : {};
+        const merged = { ...DEFAULT_PAYROLL_SETTINGS, ...previous, ...next };
+        await saveSetting('payrollSettings', merged);
+        await db.query(
+            `INSERT INTO payroll_statutory_change_log (config_name, old_value, new_value, changed_by, effective_date)
+             VALUES ($1, $2::jsonb, $3::jsonb, $4, $5)`,
+            [
+                'payrollSettings',
+                JSON.stringify(previous || {}),
+                JSON.stringify(merged || {}),
+                String(actor),
+                req.body?.effectiveDate || null,
+            ]
+        );
+        res.json({ success: true, payrollSettings: merged });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
 
 // Ensure directories exist
 if (!existsSync(__dirname)) mkdirSync(__dirname);
@@ -2004,6 +2461,146 @@ const normalizeDateInput = (value) => {
     return null;
 };
 
+const randomId = (prefix = 'id') => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+const round2 = (n) => Math.round((Number(n || 0) + Number.EPSILON) * 100) / 100;
+
+function buildPayslipPdfBuffer({ companyName, employeeName, employeeId, role, month, payrollId, grossPay, totalDeductions, netPay, paidDate, paymentReference }) {
+    return new Promise((resolve, reject) => {
+        const doc = new PDFDocument({ size: 'A4', margin: 40 });
+        const chunks = [];
+        doc.on('data', (c) => chunks.push(c));
+        doc.on('end', () => resolve(Buffer.concat(chunks)));
+        doc.on('error', reject);
+
+        doc.fontSize(20).text(companyName || 'Segecha Group Ltd', { align: 'left' });
+        doc.moveDown(0.3);
+        doc.fontSize(12).fillColor('#555').text('Monthly Payslip', { align: 'left' }).fillColor('#000');
+        doc.moveDown();
+
+        doc.fontSize(11);
+        doc.text(`Employee: ${employeeName || 'N/A'}`);
+        doc.text(`Employee ID: ${employeeId || 'N/A'}`);
+        doc.text(`Role: ${role || 'N/A'}`);
+        doc.text(`Month: ${month || 'N/A'}`);
+        doc.text(`Payroll Ref: ${payrollId || 'N/A'}`);
+        doc.moveDown();
+
+        doc.fontSize(12).text('Earnings & Deductions', { underline: true });
+        doc.moveDown(0.5);
+        doc.fontSize(11).text(`Gross Pay: KES ${Number(grossPay || 0).toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+        doc.text(`Total Deductions: KES ${Number(totalDeductions || 0).toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+        doc.fontSize(13).text(`Net Pay: KES ${Number(netPay || 0).toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, { underline: true });
+        doc.moveDown();
+        doc.fontSize(11).text(`Payment Date: ${paidDate || 'Pending'}`);
+        doc.text(`Payment Reference: ${paymentReference || 'Pending'}`);
+        doc.moveDown();
+        doc.fontSize(9).fillColor('#666').text('System generated payslip. For disputes, contact payroll office.');
+        doc.end();
+    });
+}
+
+async function postPayrollLedgerEntries({ payrollId, amount = 0, paidDate, actor = 'system', metadata = {} }) {
+    const src = String(payrollId || '');
+    if (!src) return;
+    const rows = await db.query('SELECT id FROM ledger_entries WHERE source_type = $1 AND source_id = $2 LIMIT 1', ['payroll', src]);
+    if ((rows.rows || []).length > 0) return;
+    const amt = round2(amount);
+    if (amt <= 0) return;
+    const entryDate = normalizeDateInput(paidDate) || new Date().toISOString().slice(0, 10);
+    await db.query(
+        `INSERT INTO ledger_entries
+         (id, entry_date, source_type, source_id, account_code, account_name, debit, credit, currency, notes, metadata, created_by)
+         VALUES
+         ($1,$2,'payroll',$3,'5000','Payroll Expense',$4,0,'KES',$5,$6::jsonb,$7),
+         ($8,$2,'payroll',$3,'1001','Cash / M-Pesa Float',0,$4,'KES',$5,$6::jsonb,$7)`,
+        [
+            randomId('led'),
+            entryDate,
+            src,
+            amt,
+            'Payroll disbursement posting',
+            JSON.stringify(metadata || {}),
+            actor,
+            randomId('led'),
+        ]
+    );
+}
+
+function parseJsonObj(v) {
+    if (!v) return {};
+    if (typeof v === 'object') return v;
+    try { return JSON.parse(v); } catch { return {}; }
+}
+
+async function getPayrollContext(payrollId) {
+    const res = await db.query('SELECT * FROM payroll WHERE id = $1', [payrollId]);
+    if (!(res.rows || []).length) return null;
+    const row = res.rows[0];
+    const meta = parseJsonObj(row.metadata);
+    const entityId = row.entity_id || meta.driver || '';
+    const entityType = String(row.entity_type || meta.entityType || 'driver').toLowerCase();
+    const table = entityType === 'staff' ? 'staff' : 'drivers';
+    const empRes = entityId ? await db.query(`SELECT * FROM ${table} WHERE id = $1`, [entityId]) : { rows: [] };
+    const employee = (empRes.rows || [])[0] || {};
+    return { row, meta, entityId, entityType, employee };
+}
+
+async function generatePayslipDocument({ payrollId, actor = 'system' }) {
+    const ctx = await getPayrollContext(payrollId);
+    if (!ctx) throw new Error('Payroll record not found');
+    const { row, meta, entityId, entityType, employee } = ctx;
+    const settings = await getSettings();
+    const companyName = settings.companyName || process.env.COMPANY_NAME || 'Segecha Group Ltd';
+    const employeeName = employee.name || meta._name || entityId || 'Employee';
+    const role = employee.role || meta._role || (entityType === 'staff' ? 'Staff' : 'Driver');
+    const grossPay = Number(meta.grossPay ?? ((meta.baseSalary || 0) + (meta.allowance || 0)));
+    const totalDeductions = Number(meta.totalDeductions ?? meta.deductions ?? 0);
+    const netPay = Number(meta.netPay ?? (grossPay - totalDeductions));
+    const paidDate = row.payment_date || meta.paidDate || null;
+    const paymentReference = row.payment_reference || meta.mpesaRef || null;
+    const fileName = `payslip_${String(entityId || 'employee')}_${String(row.month || 'month')}.pdf`;
+    const pdfBuffer = await buildPayslipPdfBuffer({
+        companyName,
+        employeeName,
+        employeeId: entityId,
+        role,
+        month: row.month || meta.month,
+        payrollId: row.id,
+        grossPay,
+        totalDeductions,
+        netPay,
+        paidDate,
+        paymentReference,
+    });
+    const key = buildKey(entityType || 'payroll', entityId || 'unknown', 'payslips', fileName);
+    const payslipUrl = await uploadToR2(pdfBuffer, key, 'application/pdf');
+    const docId = randomId('doc');
+    const label = `Payslip ${row.month || ''}`.trim();
+    const metaDoc = {
+        docType: 'Payslip',
+        payrollId: row.id,
+        month: row.month || null,
+        filename: fileName,
+        mimeType: 'application/pdf',
+        fileSize: pdfBuffer.length,
+        uploadedBy: actor,
+        uploadedAt: new Date().toISOString(),
+    };
+    await db.query(
+        `INSERT INTO documents (id, entity_type, entity_id, label, url, metadata)
+         VALUES ($1,$2,$3,$4,$5,$6::jsonb)`,
+        [docId, entityType, entityId, label, payslipUrl, JSON.stringify(metaDoc)]
+    );
+    const mergedMeta = { ...meta, payslipUrl, payslipDocId: docId, payslipGeneratedAt: new Date().toISOString() };
+    await db.query(
+        `UPDATE payroll
+         SET metadata = $2::jsonb, updated_at = NOW(), payslip_dispatch_allowed = CASE WHEN status = 'Paid' THEN TRUE ELSE payslip_dispatch_allowed END
+         WHERE id = $1`,
+        [row.id, JSON.stringify(mergedMeta)]
+    );
+    return { payslipUrl, docId, entityType, entityId, employeeName, month: row.month, netPay, grossPay, totalDeductions };
+}
+
 const ADMIN_COLLECTIONS = {
     trucks: {
         table: 'trucks',
@@ -2032,9 +2629,32 @@ const ADMIN_COLLECTIONS = {
         extract: (item) => ({
             name:           item.name    || '',
             phone:          item.phone   || '',
+            email:          item.email   || '',
+            national_id:    item.nationalId || item.national_id || '',
+            date_of_birth:  normalizeDateInput(item.dateOfBirth || item.date_of_birth),
+            gender:         item.gender || '',
+            physical_address: item.physicalAddress || item.physical_address || '',
+            next_of_kin_name: item.nextOfKinName || item.next_of_kin_name || '',
+            next_of_kin_relationship: item.nextOfKinRelationship || item.next_of_kin_relationship || '',
+            next_of_kin_phone: item.nextOfKinPhone || item.next_of_kin_phone || '',
+            employee_number: item.employeeNumber || item.employee_number || '',
+            employment_type: item.employmentType || item.employment_type || '',
+            date_of_hire: normalizeDateInput(item.dateOfHire || item.date_of_hire),
+            department: item.department || 'Operations',
+            job_title: item.jobTitle || item.job_title || 'Driver',
             license_number: item.license || item.license_number || '',
+            bank_name: item.bankName || item.bank_name || '',
+            bank_account_number: item.bankAccountNumber || item.bank_account_number || '',
+            bank_branch: item.bankBranch || item.bank_branch || '',
+            kra_pin: item.kraPin || item.kra_pin || '',
+            nssf_number: item.nssfNumber || item.nssf_number || '',
+            nhif_number: item.nhifNumber || item.nhif_number || '',
+            night_out_rate: Number(item.nightOutRate || item.night_out_rate) || 0,
+            trip_allowance_rate: Number(item.tripAllowanceRate || item.trip_allowance_rate) || 0,
+            overtime_rate: Number(item.overtimeRate || item.overtime_rate) || 0,
             status:         item.status  || 'Active',
             truck_id:       item.truck   || item.truck_id || null,
+            lock_vehicle_assignment: Boolean(item.lockVehicleAssignment ?? item.lock_vehicle_assignment ?? false),
         }),
     },
     staff: {
@@ -2044,6 +2664,32 @@ const ADMIN_COLLECTIONS = {
             role:   item.role   || '',
             email:  item.email  || '',
             phone:  item.phone  || '',
+            national_id: item.nationalId || item.national_id || '',
+            date_of_birth: normalizeDateInput(item.dateOfBirth || item.date_of_birth),
+            gender: item.gender || '',
+            physical_address: item.physicalAddress || item.physical_address || '',
+            next_of_kin_name: item.nextOfKinName || item.next_of_kin_name || '',
+            next_of_kin_relationship: item.nextOfKinRelationship || item.next_of_kin_relationship || '',
+            next_of_kin_phone: item.nextOfKinPhone || item.next_of_kin_phone || '',
+            employee_number: item.employeeNumber || item.employee_number || '',
+            employment_type: item.employmentType || item.employment_type || '',
+            date_of_hire: normalizeDateInput(item.dateOfHire || item.date_of_hire),
+            department_name: item.department || item.department_name || '',
+            job_title: item.jobTitle || item.job_title || item.role || '',
+            reports_to_staff_id: item.reportsTo || item.reports_to_staff_id || null,
+            bank_name: item.bankName || item.bank_name || '',
+            bank_account_number: item.bankAccountNumber || item.bank_account_number || '',
+            bank_branch: item.bankBranch || item.bank_branch || '',
+            mpesa_number: item.mpesa || item.mpesa_number || '',
+            kra_pin: item.kraPin || item.kra_pin || '',
+            nssf_number: item.nssfNumber || item.nssf_number || '',
+            nhif_number: item.nhifNumber || item.nhif_number || '',
+            basic_salary: Number(item.basicSalary || item.baseSalary || item.basic_salary || item.salary) || 0,
+            house_allowance: Number(item.houseAllowance || item.house_allowance) || 0,
+            transport_allowance: Number(item.transportAllowance || item.transport_allowance) || 0,
+            airtime_allowance: Number(item.airtimeAllowance || item.airtime_allowance) || 0,
+            other_allowance_name: item.otherAllowanceName || item.other_allowance_name || '',
+            other_allowance_amount: Number(item.otherAllowanceAmount || item.other_allowance_amount) || 0,
             status: item.status || 'Active',
         }),
     },
@@ -2117,6 +2763,11 @@ const ADMIN_COLLECTIONS = {
             amount:      Number(item.amount || item.baseSalary) || 0,
             month:       item.month  || '',
             status:      item.status || 'Pending',
+            payment_reference: item.paymentReference || item.payment_reference || item.mpesaRef || '',
+            payment_date: normalizeDateInput(item.paymentDate || item.payment_date || item.paidDate),
+            payment_confirmed_at: item.paymentConfirmedAt || item.payment_confirmed_at || null,
+            confirmed_by: item.confirmedBy || item.confirmed_by || null,
+            payslip_dispatch_allowed: Boolean(item.payslipDispatchAllowed ?? item.payslip_dispatch_allowed ?? false),
         }),
     },
     incidents: {
@@ -2880,6 +3531,164 @@ app.post('/api/documents/driver-upload', driverAuth.authMiddleware, upload.any()
     }
 });
 
+app.post('/api/admin/payroll/:id/mark-paid', async (req, res) => {
+    try {
+        const payrollId = req.params.id;
+        const actor = req.admin?.email || req.admin?.id || 'system';
+        const ctx = await getPayrollContext(payrollId);
+        if (!ctx) return res.status(404).json({ error: 'Payroll record not found' });
+        const paidDate = normalizeDateInput(req.body?.paidDate) || new Date().toISOString().slice(0, 10);
+        const paymentReference = String(req.body?.paymentReference || req.body?.mpesaRef || `MPESA-${Date.now()}`).slice(0, 60);
+        const meta = {
+            ...ctx.meta,
+            status: 'Paid',
+            paidDate,
+            mpesaRef: paymentReference,
+            paymentReference,
+        };
+        await db.query(
+            `UPDATE payroll
+             SET status = 'Paid',
+                 payment_date = $2,
+                 payment_reference = $3,
+                 payment_confirmed_at = NOW(),
+                 confirmed_by = $4,
+                 payslip_dispatch_allowed = TRUE,
+                 metadata = $5::jsonb,
+                 updated_at = NOW()
+             WHERE id = $1`,
+            [payrollId, paidDate, paymentReference, actor, JSON.stringify(meta)]
+        );
+        const amount = Number(meta.netPay ?? meta.amount ?? ctx.row.amount ?? 0);
+        await postPayrollLedgerEntries({
+            payrollId,
+            amount,
+            paidDate,
+            actor,
+            metadata: { entryKind: 'payroll-disbursement', paymentReference },
+        });
+        const updated = await db.query('SELECT * FROM payroll WHERE id = $1', [payrollId]);
+        res.json({ success: true, row: updated.rows?.[0] || null });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.post('/api/admin/payroll/:id/generate-payslip', async (req, res) => {
+    try {
+        const payrollId = req.params.id;
+        const actor = req.admin?.email || req.admin?.id || 'system';
+        const out = await generatePayslipDocument({ payrollId, actor });
+        res.json({ success: true, ...out });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.post('/api/admin/payroll/:id/queue-dispatch', async (req, res) => {
+    try {
+        const payrollId = req.params.id;
+        const actor = req.admin?.email || req.admin?.id || 'system';
+        const ctx = await getPayrollContext(payrollId);
+        if (!ctx) return res.status(404).json({ error: 'Payroll record not found' });
+        if (String(ctx.row.status || '').toLowerCase() !== 'paid') {
+            return res.status(400).json({ error: 'Payslip dispatch allowed only after payment confirmation' });
+        }
+        const email = String(ctx.employee.email || ctx.meta.email || '').trim();
+        if (!email) return res.status(400).json({ error: 'No recipient email configured for this employee' });
+        let payslipUrl = ctx.meta.payslipUrl || '';
+        if (!payslipUrl) {
+            const generated = await generatePayslipDocument({ payrollId, actor });
+            payslipUrl = generated.payslipUrl;
+        }
+        const queueId = randomId('psq');
+        await db.query(
+            `INSERT INTO payslip_dispatch_queue (id, payroll_id, recipient_email, status, metadata)
+             VALUES ($1,$2,$3,'pending',$4::jsonb)`,
+            [queueId, payrollId, email, JSON.stringify({ payslipUrl, queuedBy: actor })]
+        );
+        res.json({ success: true, queueId, payslipUrl });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+async function processPayslipDispatchQueue(limit = 20) {
+    const lim = Math.min(50, Math.max(1, Number(limit || 20)));
+    const rows = (await db.query(
+            `SELECT * FROM payslip_dispatch_queue
+             WHERE status = 'pending'
+             ORDER BY scheduled_at ASC
+             LIMIT $1`,
+            [lim]
+        )).rows || [];
+    let sent = 0;
+    let failed = 0;
+    for (const q of rows) {
+        try {
+            const ctx = await getPayrollContext(q.payroll_id);
+            if (!ctx) throw new Error('Payroll record missing');
+            const metaQ = parseJsonObj(q.metadata);
+            const payslipUrl = metaQ.payslipUrl || ctx.meta.payslipUrl;
+            if (!payslipUrl) throw new Error('Missing payslip URL');
+            const settings = await getSettings();
+            await sendPayslipEmail({
+                to: q.recipient_email,
+                employeeName: ctx.employee.name || ctx.entityId,
+                month: ctx.row.month,
+                payrollId: ctx.row.id,
+                companyName: settings.companyName || process.env.COMPANY_NAME || 'Segecha Group Ltd',
+                netPay: Number(ctx.meta.netPay ?? 0),
+                grossPay: Number(ctx.meta.grossPay ?? 0),
+                deductions: Number(ctx.meta.totalDeductions ?? ctx.meta.deductions ?? 0),
+                payslipUrl,
+                settings,
+            });
+            await db.query(
+                `UPDATE payslip_dispatch_queue
+                 SET status = 'sent', attempts = attempts + 1, sent_at = NOW(), updated_at = NOW(), last_error = NULL
+                 WHERE id = $1`,
+                [q.id]
+            );
+            sent += 1;
+        } catch (err) {
+            await db.query(
+                `UPDATE payslip_dispatch_queue
+                 SET status = CASE WHEN attempts + 1 >= 5 THEN 'failed' ELSE 'pending' END,
+                     attempts = attempts + 1,
+                     last_error = $2,
+                     updated_at = NOW()
+                 WHERE id = $1`,
+                [q.id, String(err.message || 'Dispatch failed').slice(0, 500)]
+            );
+            failed += 1;
+        }
+    }
+    return { sent, failed, processed: rows.length };
+}
+
+app.post('/api/admin/payroll/dispatch/process', async (req, res) => {
+    try {
+        const result = await processPayslipDispatchQueue(req.body?.limit || 20);
+        res.json({ success: true, ...result });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.get('/api/admin/payroll/dispatch-queue', async (_req, res) => {
+    try {
+        const rows = (await db.query(
+            `SELECT * FROM payslip_dispatch_queue
+             ORDER BY created_at DESC
+             LIMIT 500`
+        )).rows || [];
+        res.json({ success: true, rows });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 // --- DRIVER LOGIN & AUTH ---
 // Rate-limited (CRIT-04) — 20 attempts per 15 min per IP
 app.post('/api/driver/login', authLimiter, async (req, res) => {
@@ -2971,6 +3780,23 @@ app.use((err, req, res, next) => {
 
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on port ${PORT} (JSON body limit: ${JSON_BODY_LIMIT})`);
+    const cronEnabled = String(process.env.PAYSLIP_DISPATCH_CRON_ENABLED || 'true').toLowerCase() !== 'false';
+    const intervalMs = Math.max(15000, Number(process.env.PAYSLIP_DISPATCH_CRON_MS || 60000));
+    if (cronEnabled) {
+        setInterval(async () => {
+            try {
+                const { sent, failed, processed } = await processPayslipDispatchQueue(Number(process.env.PAYSLIP_DISPATCH_BATCH_SIZE || 20));
+                if (processed > 0) {
+                    console.log(`[PAYSLIP_QUEUE_CRON] processed=${processed} sent=${sent} failed=${failed}`);
+                }
+            } catch (err) {
+                console.warn('[PAYSLIP_QUEUE_CRON] failed:', err.message);
+            }
+        }, intervalMs);
+        console.log(`[PAYSLIP_QUEUE_CRON] enabled interval=${intervalMs}ms`);
+    } else {
+        console.log('[PAYSLIP_QUEUE_CRON] disabled');
+    }
 });
 
 process.on('unhandledRejection', (reason) => {

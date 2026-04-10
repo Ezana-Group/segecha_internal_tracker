@@ -94,13 +94,30 @@ export function Dashboard({ data, dark, truckStats, tyreStatus, truckReg, driver
     const totalFuelCost = data.fuel.filter(f => f.date?.startsWith(latestMonth)).reduce((s, f) => s + f.litres * f.pricePerL, 0);
     // Exclude cat='Fuel' expenses — fuel cost is already counted from data.fuel (fuel_logs).
     const totalOtherExp = data.expenses.filter(e => e.date?.startsWith(latestMonth) && e.cat !== 'Fuel').reduce((s, e) => s + +e.amount, 0);
-    const totalExpenses = totalFuelCost + totalOtherExp;
+    const totalPayrollCost = payrollRows
+        .filter((p) => p.month === latestMonth)
+        .reduce((s, p) => s + (+p.grossPay || (+p.baseSalary || 0) + (+p.allowance || 0)), 0);
+    const monthlyDepreciation = (data.assets || []).reduce((sum, asset) => {
+        const cost = Number(asset.cost) || 0;
+        if (cost <= 0) return sum;
+        const salvage = Math.max(0, Math.min(Number(asset.salvageValue) || 0, cost));
+        const lifeYears = Math.max(1, Number(asset.usefulLifeYears) || 5);
+        return sum + (cost - salvage) / (lifeYears * 12);
+    }, 0);
+    const totalExpenses = totalFuelCost + totalOtherExp + totalPayrollCost + monthlyDepreciation;
     const netProfit = totalRevenue - totalExpenses;
     const invList = Array.isArray(data.invoices) ? data.invoices : [];
     const invOutstanding = (i) => Math.max(0, +i.amount - (+i.paidAmount || 0));
-    const invPaidList = invList.filter((i) => i.status === "Paid" && i.date?.startsWith(latestMonth));
-    const invPendingList = invList.filter((i) => i.status === "Pending" && i.date?.startsWith(latestMonth));
-    const invOverdueList = invList.filter((i) => i.status === "Overdue" && i.date?.startsWith(latestMonth));
+    const deriveInvoiceStatus = (i) => {
+        const paid = Number(i.paidAmount || 0);
+        const amount = Number(i.amount || 0);
+        if (paid >= amount && amount > 0) return "Paid";
+        if (paid > 0 && paid < amount) return "Partial";
+        return i.status || "Pending";
+    };
+    const invPaidList = invList.filter((i) => deriveInvoiceStatus(i) === "Paid" && i.date?.startsWith(latestMonth));
+    const invPendingList = invList.filter((i) => ["Pending", "Partial"].includes(deriveInvoiceStatus(i)) && i.date?.startsWith(latestMonth));
+    const invOverdueList = invList.filter((i) => deriveInvoiceStatus(i) === "Overdue" && i.date?.startsWith(latestMonth));
     const invPaidTotal = invPaidList.reduce((s, i) => s + (+i.amount || 0), 0);
     const invPendingTotal = invPendingList.reduce((s, i) => s + invOutstanding(i), 0);
     const invOverdueTotal = invOverdueList.reduce((s, i) => s + invOutstanding(i), 0);
@@ -174,7 +191,7 @@ export function Dashboard({ data, dark, truckStats, tyreStatus, truckReg, driver
         {
             label: "Revenue",
             value: fmt(totalRevenue),
-            sub: `${fmt(invPendingTotal)} outstanding`,
+            sub: `${fmt(invPendingTotal + invOverdueTotal)} receivables`,
             icon: Wallet,
             accent: "var(--brand-primary)",
             spark: [5, 12, 18, 14, 20, 25, 30],
@@ -183,7 +200,7 @@ export function Dashboard({ data, dark, truckStats, tyreStatus, truckReg, driver
         {
             label: "Fuel Cost",
             value: fmt(totalFuelCost),
-            sub: `${totalLitres.toLocaleString()} L consumed`,
+            sub: `${totalLitres.toLocaleString()} L consumed (${fmt(totalExpenses)} total cost base)`,
             icon: Droplet,
             accent: "#f59e0b",
             spark: [20, 18, 22, 15, 12, 10, 8],
@@ -212,35 +229,40 @@ export function Dashboard({ data, dark, truckStats, tyreStatus, truckReg, driver
                     </>
                 }
                 actions={
-                    !fleetActiveWarning ? (
-                        <div style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 8,
-                            background: "rgba(16, 185, 129, 0.08)",
-                            padding: "6px 14px",
-                            borderRadius: 10,
-                            border: "1px solid rgba(16, 185, 129, 0.18)",
-                        }}>
-                            <div style={{ width: 7, height: 7, borderRadius: "50%", background: "#10b981" }} />
-                            <span style={{ fontSize: 12, fontWeight: 700, color: "#10b981" }}>Fleet healthy</span>
-                        </div>
-                    ) : (
-                        <div style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 8,
-                            background: "rgba(245, 158, 11, 0.08)",
-                            padding: "6px 14px",
-                            borderRadius: 10,
-                            border: "1px solid rgba(245, 158, 11, 0.22)",
-                        }}>
-                            <AlertTriangle size={14} color="#f59e0b" />
-                            <span style={{ fontSize: 12, fontWeight: 700, color: "#f59e0b" }}>
-                                {Math.round(fleetActivePct)}% active
-                            </span>
-                        </div>
-                    )
+                    <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                        <Button size="sm" variant="secondary" icon={CreditCard} onClick={() => navigate("/pnl")}>
+                            Finance and Payments
+                        </Button>
+                        {!fleetActiveWarning ? (
+                            <div style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 8,
+                                background: "rgba(16, 185, 129, 0.08)",
+                                padding: "6px 14px",
+                                borderRadius: 10,
+                                border: "1px solid rgba(16, 185, 129, 0.18)",
+                            }}>
+                                <div style={{ width: 7, height: 7, borderRadius: "50%", background: "#10b981" }} />
+                                <span style={{ fontSize: 12, fontWeight: 700, color: "#10b981" }}>Fleet healthy</span>
+                            </div>
+                        ) : (
+                            <div style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 8,
+                                background: "rgba(245, 158, 11, 0.08)",
+                                padding: "6px 14px",
+                                borderRadius: 10,
+                                border: "1px solid rgba(245, 158, 11, 0.22)",
+                            }}>
+                                <AlertTriangle size={14} color="#f59e0b" />
+                                <span style={{ fontSize: 12, fontWeight: 700, color: "#f59e0b" }}>
+                                    {Math.round(fleetActivePct)}% active
+                                </span>
+                            </div>
+                        )}
+                    </div>
                 }
             />
 
@@ -527,7 +549,7 @@ export function Dashboard({ data, dark, truckStats, tyreStatus, truckReg, driver
 
                         {[
                             { key: "paid", label: "Paid", list: invPaidList, total: invPaidTotal, color: "#22c55e", badge: "Paid" },
-                            { key: "pend", label: "Pending", list: invPendingList, total: invPendingTotal, color: "#ca8a04", badge: "Pending" },
+                            { key: "pend", label: "Pending/Partial", list: invPendingList, total: invPendingTotal, color: "#ca8a04", badge: "Pending" },
                             { key: "due", label: "Overdue", list: invOverdueList, total: invOverdueTotal, color: "#dc2626", badge: "Overdue" },
                         ].map((row, idx) => (
                             <div

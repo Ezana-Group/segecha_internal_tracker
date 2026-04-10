@@ -183,14 +183,36 @@ function transformDBTables(tables = {}) {
         uId:     m(row).uId || m(row).uid || row.id,
         name:    row.name    || '',
         phone:   row.phone   || m(row).phone || '',
+        nationalId: row.national_id || m(row).nationalId || '',
+        dateOfBirth: d(row.date_of_birth || m(row).dateOfBirth),
+        gender: row.gender || m(row).gender || '',
+        physicalAddress: row.physical_address || m(row).physicalAddress || '',
+        nextOfKinName: row.next_of_kin_name || m(row).nextOfKinName || '',
+        nextOfKinRelationship: row.next_of_kin_relationship || m(row).nextOfKinRelationship || '',
+        nextOfKinPhone: row.next_of_kin_phone || m(row).nextOfKinPhone || '',
+        employeeNumber: row.employee_number || m(row).employeeNumber || '',
+        employmentType: row.employment_type || m(row).employmentType || '',
+        dateOfHire: d(row.date_of_hire || m(row).dateOfHire),
+        department: row.department || m(row).department || 'Operations',
+        jobTitle: row.job_title || m(row).jobTitle || 'Driver',
         license: row.license_number || m(row).license || '',
         class:   m(row).class   || '',
         status:  row.status     || 'Active',
         truck:   row.truck_id   || m(row).truck || '',
+        bankName: row.bank_name || m(row).bankName || '',
+        bankAccountNumber: row.bank_account_number || m(row).bankAccountNumber || '',
+        bankBranch: row.bank_branch || m(row).bankBranch || '',
+        kraPin: row.kra_pin || m(row).kraPin || '',
+        nssfNumber: row.nssf_number || m(row).nssfNumber || '',
+        nhifNumber: row.nhif_number || m(row).nhifNumber || '',
+        nightOutRate: Number(row.night_out_rate ?? m(row).nightOutRate ?? 0),
+        tripAllowanceRate: Number(row.trip_allowance_rate ?? m(row).tripAllowanceRate ?? 0),
+        overtimeRate: Number(row.overtime_rate ?? m(row).overtimeRate ?? 0),
+        lockVehicleAssignment: Boolean(row.lock_vehicle_assignment ?? m(row).lockVehicleAssignment ?? false),
         joined:  d(m(row).joined),
         salary:  m(row).salary  || 0,
         mpesa:   m(row).mpesa   || '',
-        email:   m(row).email   || row.email || '',
+        email:   row.email || m(row).email || '',
     }));
 
     const customers = (tables.customers || []).map(row => ({
@@ -213,8 +235,33 @@ function transformDBTables(tables = {}) {
         email:      row.email  || '',
         phone:      row.phone  || '',
         role:       row.role   || '',
+        nationalId: row.national_id || m(row).nationalId || '',
+        dateOfBirth: d(row.date_of_birth || m(row).dateOfBirth),
+        gender: row.gender || m(row).gender || '',
+        physicalAddress: row.physical_address || m(row).physicalAddress || '',
+        nextOfKinName: row.next_of_kin_name || m(row).nextOfKinName || '',
+        nextOfKinRelationship: row.next_of_kin_relationship || m(row).nextOfKinRelationship || '',
+        nextOfKinPhone: row.next_of_kin_phone || m(row).nextOfKinPhone || '',
+        employeeNumber: row.employee_number || m(row).employeeNumber || '',
+        employmentType: row.employment_type || m(row).employmentType || '',
+        dateOfHire: d(row.date_of_hire || m(row).dateOfHire),
+        department: row.department_name || m(row).department || '',
+        jobTitle: row.job_title || m(row).jobTitle || row.role || '',
+        reportsTo: row.reports_to_staff_id || m(row).reportsTo || '',
+        bankName: row.bank_name || m(row).bankName || '',
+        bankAccountNumber: row.bank_account_number || m(row).bankAccountNumber || '',
+        bankBranch: row.bank_branch || m(row).bankBranch || '',
+        mpesa: row.mpesa_number || m(row).mpesa || '',
+        kraPin: row.kra_pin || m(row).kraPin || '',
+        nssfNumber: row.nssf_number || m(row).nssfNumber || '',
+        nhifNumber: row.nhif_number || m(row).nhifNumber || '',
+        houseAllowance: Number(row.house_allowance ?? m(row).houseAllowance ?? 0),
+        transportAllowance: Number(row.transport_allowance ?? m(row).transportAllowance ?? 0),
+        airtimeAllowance: Number(row.airtime_allowance ?? m(row).airtimeAllowance ?? 0),
+        otherAllowanceName: row.other_allowance_name || m(row).otherAllowanceName || '',
+        otherAllowanceAmount: Number(row.other_allowance_amount ?? m(row).otherAllowanceAmount ?? 0),
         status:     row.status || 'Active',
-        salary:     m(row).salary || 0,
+        salary:     Number(row.basic_salary ?? m(row).salary ?? 0),
         joined:     d(m(row).joined),
         firstLogin: m(row).firstLogin ?? true,
     }));
@@ -332,8 +379,13 @@ function transformDBTables(tables = {}) {
         deductions:          m(row).deductions || 0,
         amount:              Number(row.amount) || 0,
         status:              row.status     || '',
-        mpesaRef:            m(row).mpesaRef || '',
-        paidDate:            d(m(row).paidDate),
+        mpesaRef:            row.payment_reference || m(row).mpesaRef || '',
+        paymentReference:    row.payment_reference || m(row).paymentReference || m(row).mpesaRef || '',
+        paymentDate:         d(row.payment_date || m(row).paymentDate || m(row).paidDate),
+        paidDate:            d(row.payment_date || m(row).paidDate),
+        paymentConfirmedAt:  row.payment_confirmed_at || m(row).paymentConfirmedAt || null,
+        payslipDispatchAllowed: Boolean(row.payslip_dispatch_allowed ?? m(row).payslipDispatchAllowed ?? false),
+        payslipUrl:          m(row).payslipUrl || '',
         _calculatedMileage:  m(row)._calculatedMileage || 0,
     }));
 
@@ -424,6 +476,30 @@ function transformDBTables(tables = {}) {
             doc_type: row.doc_type || meta.doc_type || row.doc_type,
         };
     });
+    const payslipDispatchQueue = (tables.payslip_dispatch_queue || []).map((row) => ({
+        ...m(row),
+        id: row.id,
+        payrollId: row.payroll_id || m(row).payrollId || '',
+        recipientEmail: row.recipient_email || m(row).recipientEmail || '',
+        status: row.status || 'pending',
+        attempts: Number(row.attempts || 0),
+        lastError: row.last_error || '',
+        scheduledAt: row.scheduled_at || '',
+        sentAt: row.sent_at || '',
+    }));
+    const ledgerEntries = (tables.ledger_entries || []).map((row) => ({
+        ...m(row),
+        id: row.id,
+        entryDate: row.entry_date || m(row).entryDate || '',
+        sourceType: row.source_type || m(row).sourceType || '',
+        sourceId: row.source_id || m(row).sourceId || '',
+        accountCode: row.account_code || m(row).accountCode || '',
+        accountName: row.account_name || m(row).accountName || '',
+        debit: Number(row.debit || 0),
+        credit: Number(row.credit || 0),
+        currency: row.currency || 'KES',
+        notes: row.notes || '',
+    }));
 
     return {
         trucks: stripSoftDeleted(trucks),
@@ -441,6 +517,8 @@ function transformDBTables(tables = {}) {
         maintenanceLogs: stripSoftDeleted(maintenanceLogs),
         assets: stripSoftDeleted(assets),
         documents: stripSoftDeleted(documents),
+        payslipDispatchQueue: stripSoftDeleted(payslipDispatchQueue),
+        ledgerEntries: stripSoftDeleted(ledgerEntries),
     };
 }
 
@@ -467,6 +545,7 @@ export function useAppState() {
         journeys: [], fuel: [], expenses: [], incidents: [],
         staff: [], payroll: [], invoices: [], documents: [],
         tyreLogs: [], maintenanceLogs: [], assets: [],
+        payslipDispatchQueue: [], ledgerEntries: [],
     };
     const [data, setData] = useState(() => {
         try {
@@ -974,10 +1053,10 @@ export function useAppState() {
         const mpesaRef = "MPESA" + uid().slice(0, 8);
         if (PAYMENT_API) {
             try {
-                const res = await fetchWithAuth(`${PAYMENT_API}/api/admin/collection/payroll/${id}`, {
-                    method: 'PATCH',
+                const res = await fetchWithAuth(`${PAYMENT_API}/api/admin/payroll/${id}/mark-paid`, {
+                    method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ status: 'Paid', paidDate, mpesaRef }),
+                    body: JSON.stringify({ paidDate, paymentReference: mpesaRef }),
                 });
                 const j = await res.json().catch(() => ({}));
                 if (!res.ok) {
@@ -991,7 +1070,7 @@ export function useAppState() {
         }
         setData(d => ({
             ...d,
-            payroll: d.payroll.map(p => p.id === id ? { ...p, status: "Paid", paidDate, mpesaRef } : p)
+            payroll: d.payroll.map(p => p.id === id ? { ...p, status: "Paid", paidDate, mpesaRef, paymentDate: paidDate, paymentReference: mpesaRef, payslipDispatchAllowed: true } : p)
         }));
         showToast("Payroll marked as paid", "success");
     };

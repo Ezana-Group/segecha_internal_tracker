@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
     Users,
     DollarSign,
@@ -18,6 +18,8 @@ import {
     ChevronRight,
 } from "lucide-react";
 import { fmt, monthLabel } from "../utils/formatters";
+import { PAYMENT_API } from "../utils/env";
+import { fetchWithAuth } from "../utils/api";
 import { Card } from "../components/Card";
 import { Badge } from "../components/Badge";
 import { Button } from "../components/Button";
@@ -28,12 +30,68 @@ import { useTableFilter } from "../hooks/useTableFilter";
 import { mileageAllowanceForDriverOnJourney } from "../utils/driverAllowance.js";
 import { computePayrollKRA } from "../utils/kenyaPayroll.js";
 
-export function Payroll({ data, setData, dark, isMobile, modal, form, setForm, openModal, closeModal, saveItem, delItem, markPayrollPaid, truckReg, customerName, driverName }) {
+export function Payroll({ data, setData, dark, isMobile, modal, form, setForm, openModal, closeModal, saveItem, delItem, markPayrollPaid, truckReg, customerName, driverName, showToast }) {
     const payrollRows = Array.isArray(data.payroll) ? data.payroll : [];
     const months = [...new Set(payrollRows.map((p) => p.month))].sort().reverse();
     const [selMonth, setSelMonth] = useState(months[0] || new Date().toISOString().slice(0, 7));
+    const [dispatchQueue, setDispatchQueue] = useState([]);
 
     const monthPayroll = payrollRows.filter((p) => p.month === selMonth);
+
+    useEffect(() => {
+        if (!PAYMENT_API) return;
+        fetchWithAuth(`${PAYMENT_API}/api/admin/payroll/dispatch-queue`)
+            .then((r) => r.json())
+            .then((d) => setDispatchQueue(d.rows || []))
+            .catch(() => setDispatchQueue([]));
+    }, [payrollRows.length]);
+
+    const generatePayslip = async (payrollId) => {
+        if (!PAYMENT_API) return;
+        try {
+            const res = await fetchWithAuth(`${PAYMENT_API}/api/admin/payroll/${payrollId}/generate-payslip`, { method: "POST" });
+            const j = await res.json();
+            if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
+            showToast?.("Payslip generated", "success");
+            if (j.payslipUrl) window.open(j.payslipUrl, "_blank", "noopener,noreferrer");
+        } catch (e) {
+            showToast?.(`Payslip generation failed: ${e.message}`, "error");
+        }
+    };
+
+    const queuePayslipDispatch = async (payrollId) => {
+        if (!PAYMENT_API) return;
+        try {
+            const res = await fetchWithAuth(`${PAYMENT_API}/api/admin/payroll/${payrollId}/queue-dispatch`, { method: "POST" });
+            const j = await res.json();
+            if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
+            showToast?.("Payslip queued for dispatch", "success");
+            const qRes = await fetchWithAuth(`${PAYMENT_API}/api/admin/payroll/dispatch-queue`);
+            const qJson = await qRes.json();
+            setDispatchQueue(qJson.rows || []);
+        } catch (e) {
+            showToast?.(`Queue failed: ${e.message}`, "error");
+        }
+    };
+
+    const processDispatchQueue = async () => {
+        if (!PAYMENT_API) return;
+        try {
+            const res = await fetchWithAuth(`${PAYMENT_API}/api/admin/payroll/dispatch/process`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ limit: 25 }),
+            });
+            const j = await res.json();
+            if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
+            showToast?.(`Dispatch run complete: ${j.sent} sent, ${j.failed} failed`, j.failed ? "warning" : "success");
+            const qRes = await fetchWithAuth(`${PAYMENT_API}/api/admin/payroll/dispatch-queue`);
+            const qJson = await qRes.json();
+            setDispatchQueue(qJson.rows || []);
+        } catch (e) {
+            showToast?.(`Dispatch process failed: ${e.message}`, "error");
+        }
+    };
 
     // Refine payroll for sorting and filtering
     const refinedPayroll = monthPayroll.map(p => {
@@ -95,6 +153,9 @@ export function Payroll({ data, setData, dark, isMobile, modal, form, setForm, o
                 description="Monthly runs, disbursements, and pay status."
                 actions={
                     <>
+                        <Button variant="secondary" icon={FileText} onClick={processDispatchQueue}>
+                            Process payslip queue
+                        </Button>
                         <Button variant="secondary" icon={Download}>Export paysheets</Button>
                         <Button
                             variant="premium"
@@ -268,6 +329,20 @@ export function Payroll({ data, setData, dark, isMobile, modal, form, setForm, o
                                                       }]
                                                     : []),
                                                 {
+                                                    id: "payslip-generate",
+                                                    label: "Generate payslip PDF",
+                                                    icon: FileText,
+                                                    onClick: () => generatePayslip(p.id),
+                                                },
+                                                ...(p.status === "Paid"
+                                                    ? [{
+                                                        id: "payslip-queue",
+                                                        label: "Queue payslip email",
+                                                        icon: Clock,
+                                                        onClick: () => queuePayslipDispatch(p.id),
+                                                    }]
+                                                    : []),
+                                                {
                                                     id: "edit",
                                                     label: "Edit payroll",
                                                     icon: Edit2,
@@ -321,6 +396,36 @@ export function Payroll({ data, setData, dark, isMobile, modal, form, setForm, o
                     </div>
                 </div>
             )}
+
+            <Card style={{ marginTop: 16 }} title="Payslip Dispatch Queue" subtitle="Queued, sent, and failed payslip email jobs">
+                <div className="table-container">
+                    <table className="table-modern">
+                        <thead>
+                            <tr>
+                                <th>Payroll ID</th>
+                                <th>Recipient</th>
+                                <th>Status</th>
+                                <th>Attempts</th>
+                                <th>Last error</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {(dispatchQueue || []).slice(0, 40).map((q) => (
+                                <tr key={q.id}>
+                                    <td>{q.payroll_id}</td>
+                                    <td>{q.recipient_email}</td>
+                                    <td><Badge status={q.status === "sent" ? "Paid" : q.status === "failed" ? "Overdue" : "Pending"}>{q.status}</Badge></td>
+                                    <td>{q.attempts || 0}</td>
+                                    <td style={{ maxWidth: 320, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{q.last_error || "-"}</td>
+                                </tr>
+                            ))}
+                            {(dispatchQueue || []).length === 0 && (
+                                <tr><td colSpan={5} style={{ textAlign: "center", color: "var(--text-dim)", padding: 18 }}>No dispatch jobs yet.</td></tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </Card>
         </div>
     );
 }

@@ -463,6 +463,11 @@ export function StaffProfile({ data, setData, dark, isMobile, openModal, showToa
                                 <Phone size={12} color="var(--text-dim)" /> {staff.phone}
                             </span>
                         )}
+                        {!staff.email && (
+                            <span style={{ fontSize: 12, color: "#f59e0b", display: "flex", alignItems: "center", gap: 5, fontWeight: 700 }}>
+                                <AlertCircle size={12} color="#f59e0b" /> Missing personal email (payslip dispatch risk)
+                            </span>
+                        )}
                     </div>
                 </div>
                 <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
@@ -1093,6 +1098,35 @@ export function StaffProfile({ data, setData, dark, isMobile, openModal, showToa
                                                             })()}
                                                         </table>
                                                     </div>
+                                                )}
+                                                {(!isStaffSelfView || s.payOpenPayslips !== false) && (
+                                                <div style={{ marginTop: 20 }}>
+                                                    <h4 style={{ fontSize: 15, fontWeight: 800, color: "var(--text-primary)", marginBottom: 10 }}>Payslip Documents</h4>
+                                                    {(() => {
+                                                        const payslipDocs = (data.documents || [])
+                                                            .filter((doc) => (doc.entityType || doc.entity_type) === "staff" && (doc.entityId || doc.entity_id) === staff.id)
+                                                            .filter((doc) => String(doc.docType || doc.doc_type || '').toLowerCase().includes('payslip'))
+                                                            .sort((a, b) => String(b.createdAt || b.created_at || '').localeCompare(String(a.createdAt || a.created_at || '')));
+                                                        if (payslipDocs.length === 0) {
+                                                            return <div style={{ fontSize: 12, color: "var(--text-dim)" }}>No payslips generated yet.</div>;
+                                                        }
+                                                        return (
+                                                            <div style={{ display: "grid", gap: 8 }}>
+                                                                {payslipDocs.slice(0, 8).map((doc) => (
+                                                                    <div key={doc.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", border: "1px solid var(--border-subtle)", borderRadius: 12, padding: "10px 12px" }}>
+                                                                        <div>
+                                                                            <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>{doc.label || "Payslip"}</div>
+                                                                            <div style={{ fontSize: 11, color: "var(--text-dim)" }}>{fmtDate(doc.createdAt || doc.created_at)}</div>
+                                                                        </div>
+                                                                        <Button size="sm" variant="secondary" icon={Eye} onClick={() => window.open(doc.url, "_blank", "noopener,noreferrer")}>
+                                                                            Open
+                                                                        </Button>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        );
+                                                    })()}
+                                                </div>
                                                 )}
                                             </>
                                         )}

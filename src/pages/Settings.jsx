@@ -84,6 +84,7 @@ import {
     DEFAULT_DOC_TYPES_JOURNEY,
     DEFAULT_COMMON_ROUTES,
     DEFAULT_CROSS_BORDER_RULES,
+    getPayrollSettings,
 } from "../utils/settingsStore.js";
 import { buildSmsUrl } from "../utils/contactLinks.js";
 import { expandMessageTemplateContext } from "../utils/templateContext.js";
@@ -355,6 +356,7 @@ export function Settings({
     const [editingTemplate, setEditingTemplate] = useState(null);
     const [sendTestPhone, setSendTestPhone] = useState("");
     const [localS, setLocalS] = useState(readSettings);
+    const [payrollSettingsDraft, setPayrollSettingsDraft] = useState(() => getPayrollSettings());
     const [mpesaSyncing, setMpesaSyncing] = useState(false);
     const [financeReportingLoading, setFinanceReportingLoading] = useState(false);
     const [financeReportRange, setFinanceReportRange] = useState({
@@ -506,6 +508,10 @@ export function Settings({
     useEffect(() => {
         return subscribeSettings(setLocalS);
     }, []);
+
+    useEffect(() => {
+        setPayrollSettingsDraft(getPayrollSettings());
+    }, [localS.payrollSettings]);
 
     useEffect(() => {
         const t = searchParams.get("tab");
@@ -1852,6 +1858,92 @@ export function Settings({
                                 <SettingsShellField label="Invoice/Payment Terms (Days)" sub="Grace period before invoice is marked overdue.">
                                     <SettingsShellInput type="number" value={localS.paymentTermsDays || 14} onChange={e => saveSettings({ paymentTermsDays: +e.target.value })} />
                                 </SettingsShellField>
+                            </div>
+
+                            <div style={{ marginTop: 26 }}>
+                                <SettingsShellSectionHeader title="Payroll Settings" desc="Configure statutory rates and allowance defaults with effective-date-aware settings." icon={CreditCard} />
+                                <Card style={{ padding: 16, marginBottom: 14 }}>
+                                    <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, minmax(0, 1fr))", gap: 12 }}>
+                                        <SettingsShellField label="Personal relief (KES / month)">
+                                            <SettingsShellInput type="number" value={payrollSettingsDraft.personalRelief || 0} onChange={(e) => setPayrollSettingsDraft((s) => ({ ...s, personalRelief: Number(e.target.value || 0) }))} />
+                                        </SettingsShellField>
+                                        <SettingsShellField label="SHIF Enabled">
+                                            <SettingsShellSelect value={String(payrollSettingsDraft.shifEnabled !== false)} onChange={(e) => setPayrollSettingsDraft((s) => ({ ...s, shifEnabled: e.target.value === "true" }))}>
+                                                <option value="true">Enabled</option>
+                                                <option value="false">Disabled</option>
+                                            </SettingsShellSelect>
+                                        </SettingsShellField>
+                                        <SettingsShellField label="SHIF Rate (%)">
+                                            <SettingsShellInput type="number" value={payrollSettingsDraft.shifRatePercent || 0} onChange={(e) => setPayrollSettingsDraft((s) => ({ ...s, shifRatePercent: Number(e.target.value || 0) }))} />
+                                        </SettingsShellField>
+                                        <SettingsShellField label="NSSF Tier I Ceiling (KES)">
+                                            <SettingsShellInput type="number" value={payrollSettingsDraft.nssfTier1Ceiling || 0} onChange={(e) => setPayrollSettingsDraft((s) => ({ ...s, nssfTier1Ceiling: Number(e.target.value || 0) }))} />
+                                        </SettingsShellField>
+                                        <SettingsShellField label="NSSF Tier II Ceiling (KES)">
+                                            <SettingsShellInput type="number" value={payrollSettingsDraft.nssfTier2Ceiling || 0} onChange={(e) => setPayrollSettingsDraft((s) => ({ ...s, nssfTier2Ceiling: Number(e.target.value || 0) }))} />
+                                        </SettingsShellField>
+                                        <SettingsShellField label="NSSF Employee Rate (%)">
+                                            <SettingsShellInput type="number" value={payrollSettingsDraft.nssfEmployeeRate || 0} onChange={(e) => setPayrollSettingsDraft((s) => ({ ...s, nssfEmployeeRate: Number(e.target.value || 0) }))} />
+                                        </SettingsShellField>
+                                        <SettingsShellField label="NSSF Employer Rate (%)">
+                                            <SettingsShellInput type="number" value={payrollSettingsDraft.nssfEmployerRate || 0} onChange={(e) => setPayrollSettingsDraft((s) => ({ ...s, nssfEmployerRate: Number(e.target.value || 0) }))} />
+                                        </SettingsShellField>
+                                        <SettingsShellField label="Housing Levy Employee Rate (%)">
+                                            <SettingsShellInput type="number" value={payrollSettingsDraft.housingLevyEmployeeRate || 0} onChange={(e) => setPayrollSettingsDraft((s) => ({ ...s, housingLevyEmployeeRate: Number(e.target.value || 0) }))} />
+                                        </SettingsShellField>
+                                        <SettingsShellField label="Housing Levy Employer Rate (%)">
+                                            <SettingsShellInput type="number" value={payrollSettingsDraft.housingLevyEmployerRate || 0} onChange={(e) => setPayrollSettingsDraft((s) => ({ ...s, housingLevyEmployerRate: Number(e.target.value || 0) }))} />
+                                        </SettingsShellField>
+                                    </div>
+                                    <div style={{ marginTop: 10, display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, minmax(0, 1fr))", gap: 12 }}>
+                                        <SettingsShellField label="Driver Night-Out default (KES/night)">
+                                            <SettingsShellInput type="number" value={payrollSettingsDraft.driverAllowanceDefaults?.nightOutPerNight || 0} onChange={(e) => setPayrollSettingsDraft((s) => ({ ...s, driverAllowanceDefaults: { ...(s.driverAllowanceDefaults || {}), nightOutPerNight: Number(e.target.value || 0) } }))} />
+                                        </SettingsShellField>
+                                        <SettingsShellField label="Driver Trip Allowance default (KES/trip)">
+                                            <SettingsShellInput type="number" value={payrollSettingsDraft.driverAllowanceDefaults?.tripAllowancePerTrip || 0} onChange={(e) => setPayrollSettingsDraft((s) => ({ ...s, driverAllowanceDefaults: { ...(s.driverAllowanceDefaults || {}), tripAllowancePerTrip: Number(e.target.value || 0) } }))} />
+                                        </SettingsShellField>
+                                        <SettingsShellField label="Driver Overtime default (KES/hour)">
+                                            <SettingsShellInput type="number" value={payrollSettingsDraft.driverAllowanceDefaults?.overtimePerHour || 0} onChange={(e) => setPayrollSettingsDraft((s) => ({ ...s, driverAllowanceDefaults: { ...(s.driverAllowanceDefaults || {}), overtimePerHour: Number(e.target.value || 0) } }))} />
+                                        </SettingsShellField>
+                                    </div>
+                                    <div style={{ marginTop: 10 }}>
+                                        <SettingsShellField label="PAYE Tax Bands (JSON array: lowerLimit, upperLimit, ratePercent)">
+                                            <textarea
+                                                className="input-premium"
+                                                style={{ width: "100%", minHeight: 120, padding: 12 }}
+                                                value={JSON.stringify(payrollSettingsDraft.payeBands || [], null, 2)}
+                                                onChange={(e) => {
+                                                    try {
+                                                        const parsed = JSON.parse(e.target.value || "[]");
+                                                        setPayrollSettingsDraft((s) => ({ ...s, payeBands: Array.isArray(parsed) ? parsed : s.payeBands }));
+                                                    } catch {
+                                                        // Keep editing buffer local without blowing up state parse.
+                                                    }
+                                                }}
+                                            />
+                                        </SettingsShellField>
+                                    </div>
+                                    <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                                        <Button
+                                            icon={Save}
+                                            onClick={async () => {
+                                                saveSettings({ payrollSettings: payrollSettingsDraft });
+                                                try {
+                                                    await fetchWithAuth(`${PAYMENT_API}/api/admin/payroll/settings`, {
+                                                        method: "PUT",
+                                                        headers: { "Content-Type": "application/json" },
+                                                        body: JSON.stringify({ payrollSettings: payrollSettingsDraft, effectiveDate: today() }),
+                                                    });
+                                                } catch {
+                                                    // Local settings remain source of truth if API save fails.
+                                                }
+                                                showToast?.("Payroll settings saved", "success");
+                                            }}
+                                        >
+                                            Save payroll settings
+                                        </Button>
+                                    </div>
+                                </Card>
                             </div>
 
                             <div style={{ marginTop: 26 }}>

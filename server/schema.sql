@@ -59,7 +59,29 @@ CREATE TABLE IF NOT EXISTS drivers (
     id                      TEXT PRIMARY KEY,
     name                    TEXT NOT NULL,
     phone                   TEXT,
+    email                   TEXT,
+    national_id             TEXT,
+    date_of_birth           DATE,
+    gender                  TEXT,
+    physical_address        TEXT,
+    next_of_kin_name        TEXT,
+    next_of_kin_relationship TEXT,
+    next_of_kin_phone       TEXT,
+    employee_number         TEXT,
+    employment_type         TEXT,
+    date_of_hire            DATE,
+    department              TEXT,
+    job_title               TEXT,
     license_number          TEXT,
+    bank_name               TEXT,
+    bank_account_number     TEXT,
+    bank_branch             TEXT,
+    kra_pin                 TEXT,
+    nssf_number             TEXT,
+    nhif_number             TEXT,
+    night_out_rate          DECIMAL(12,2) DEFAULT 0,
+    trip_allowance_rate     DECIMAL(12,2) DEFAULT 0,
+    overtime_rate           DECIMAL(12,2) DEFAULT 0,
     status                  TEXT DEFAULT 'Active',
     truck_id                TEXT REFERENCES trucks(id) ON DELETE SET NULL,   -- Current vehicle assignment
     lock_vehicle_assignment BOOLEAN DEFAULT FALSE,
@@ -74,6 +96,32 @@ CREATE TABLE IF NOT EXISTS staff (
     role       TEXT,
     email      TEXT,
     phone      TEXT,
+    national_id TEXT,
+    date_of_birth DATE,
+    gender TEXT,
+    physical_address TEXT,
+    next_of_kin_name TEXT,
+    next_of_kin_relationship TEXT,
+    next_of_kin_phone TEXT,
+    employee_number TEXT,
+    employment_type TEXT,
+    date_of_hire DATE,
+    department_name TEXT,
+    job_title TEXT,
+    reports_to_staff_id TEXT REFERENCES staff(id) ON DELETE SET NULL,
+    bank_name TEXT,
+    bank_account_number TEXT,
+    bank_branch TEXT,
+    mpesa_number TEXT,
+    kra_pin TEXT,
+    nssf_number TEXT,
+    nhif_number TEXT,
+    basic_salary DECIMAL(12,2) DEFAULT 0,
+    house_allowance DECIMAL(12,2) DEFAULT 0,
+    transport_allowance DECIMAL(12,2) DEFAULT 0,
+    airtime_allowance DECIMAL(12,2) DEFAULT 0,
+    other_allowance_name TEXT,
+    other_allowance_amount DECIMAL(12,2) DEFAULT 0,
     status     TEXT DEFAULT 'Active',
     metadata   JSONB DEFAULT '{}',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -169,9 +217,97 @@ CREATE TABLE IF NOT EXISTS payroll (
     amount      DECIMAL(12,2),
     month       TEXT,                       -- YYYY-MM
     status      TEXT DEFAULT 'Pending',
+    payment_reference TEXT,
+    payment_date DATE,
+    payment_confirmed_at TIMESTAMP WITH TIME ZONE,
+    confirmed_by TEXT,
+    payslip_dispatch_allowed BOOLEAN DEFAULT FALSE,
     metadata    JSONB DEFAULT '{}',
     created_at  TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at  TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS payroll_statutory_configs (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    config_type TEXT NOT NULL,
+    formula JSONB DEFAULT '{}',
+    effective_date DATE NOT NULL,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_by TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS payroll_statutory_change_log (
+    id BIGSERIAL PRIMARY KEY,
+    config_name TEXT NOT NULL,
+    old_value JSONB,
+    new_value JSONB,
+    changed_by TEXT,
+    changed_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    effective_date DATE
+);
+
+CREATE TABLE IF NOT EXISTS deduction_templates (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    default_amount DECIMAL(12,2) DEFAULT 0,
+    default_type TEXT DEFAULT 'fixed',
+    requires_authorization BOOLEAN DEFAULT FALSE,
+    metadata JSONB DEFAULT '{}',
+    created_by TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS employee_deductions (
+    id TEXT PRIMARY KEY,
+    entity_id TEXT NOT NULL,
+    entity_type TEXT NOT NULL,
+    deduction_type TEXT NOT NULL, -- recurring | one-off
+    name TEXT NOT NULL,
+    amount DECIMAL(12,2) DEFAULT 0,
+    amount_type TEXT DEFAULT 'fixed', -- fixed | percent
+    start_month TEXT,
+    end_month TEXT,
+    remaining_balance DECIMAL(12,2) DEFAULT 0,
+    authorization_ref TEXT,
+    employee_acknowledged BOOLEAN DEFAULT FALSE,
+    employee_acknowledged_at TIMESTAMP WITH TIME ZONE,
+    metadata JSONB DEFAULT '{}',
+    created_by TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS payslip_dispatch_queue (
+    id TEXT PRIMARY KEY,
+    payroll_id TEXT NOT NULL REFERENCES payroll(id) ON DELETE CASCADE,
+    recipient_email TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    attempts INTEGER DEFAULT 0,
+    last_error TEXT,
+    scheduled_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    sent_at TIMESTAMP WITH TIME ZONE,
+    metadata JSONB DEFAULT '{}',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS ledger_entries (
+    id TEXT PRIMARY KEY,
+    entry_date DATE NOT NULL,
+    source_type TEXT NOT NULL,
+    source_id TEXT NOT NULL,
+    account_code TEXT NOT NULL,
+    account_name TEXT NOT NULL,
+    debit DECIMAL(14,2) DEFAULT 0,
+    credit DECIMAL(14,2) DEFAULT 0,
+    currency TEXT DEFAULT 'KES',
+    notes TEXT,
+    metadata JSONB DEFAULT '{}',
+    created_by TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 -- ──────────────────────────────────────────────────────────────────────────────
@@ -305,6 +441,8 @@ CREATE INDEX IF NOT EXISTS idx_fuel_logs_journey   ON fuel_logs(journey_id);
 CREATE INDEX IF NOT EXISTS idx_expenses_journey    ON expenses(journey_id);
 CREATE INDEX IF NOT EXISTS idx_incidents_journey   ON incidents(journey_id);
 CREATE INDEX IF NOT EXISTS idx_payroll_entity      ON payroll(entity_id, entity_type);
+CREATE INDEX IF NOT EXISTS idx_payslip_dispatch_status ON payslip_dispatch_queue(status, scheduled_at);
+CREATE INDEX IF NOT EXISTS idx_ledger_source ON ledger_entries(source_type, source_id);
 CREATE INDEX IF NOT EXISTS idx_documents_entity    ON documents(entity_type, entity_id);
 CREATE INDEX IF NOT EXISTS idx_admins_email        ON admins(email);
 CREATE INDEX IF NOT EXISTS idx_drivers_status      ON drivers(status);
@@ -337,6 +475,72 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns
                    WHERE table_name='drivers' AND column_name='lock_vehicle_assignment') THEN
         ALTER TABLE drivers ADD COLUMN lock_vehicle_assignment BOOLEAN DEFAULT FALSE;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='drivers' AND column_name='email') THEN
+        ALTER TABLE drivers ADD COLUMN email TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='drivers' AND column_name='national_id') THEN
+        ALTER TABLE drivers ADD COLUMN national_id TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='drivers' AND column_name='date_of_birth') THEN
+        ALTER TABLE drivers ADD COLUMN date_of_birth DATE;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='drivers' AND column_name='gender') THEN
+        ALTER TABLE drivers ADD COLUMN gender TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='drivers' AND column_name='physical_address') THEN
+        ALTER TABLE drivers ADD COLUMN physical_address TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='drivers' AND column_name='next_of_kin_name') THEN
+        ALTER TABLE drivers ADD COLUMN next_of_kin_name TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='drivers' AND column_name='next_of_kin_relationship') THEN
+        ALTER TABLE drivers ADD COLUMN next_of_kin_relationship TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='drivers' AND column_name='next_of_kin_phone') THEN
+        ALTER TABLE drivers ADD COLUMN next_of_kin_phone TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='drivers' AND column_name='employee_number') THEN
+        ALTER TABLE drivers ADD COLUMN employee_number TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='drivers' AND column_name='employment_type') THEN
+        ALTER TABLE drivers ADD COLUMN employment_type TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='drivers' AND column_name='date_of_hire') THEN
+        ALTER TABLE drivers ADD COLUMN date_of_hire DATE;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='drivers' AND column_name='department') THEN
+        ALTER TABLE drivers ADD COLUMN department TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='drivers' AND column_name='job_title') THEN
+        ALTER TABLE drivers ADD COLUMN job_title TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='drivers' AND column_name='bank_name') THEN
+        ALTER TABLE drivers ADD COLUMN bank_name TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='drivers' AND column_name='bank_account_number') THEN
+        ALTER TABLE drivers ADD COLUMN bank_account_number TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='drivers' AND column_name='bank_branch') THEN
+        ALTER TABLE drivers ADD COLUMN bank_branch TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='drivers' AND column_name='kra_pin') THEN
+        ALTER TABLE drivers ADD COLUMN kra_pin TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='drivers' AND column_name='nssf_number') THEN
+        ALTER TABLE drivers ADD COLUMN nssf_number TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='drivers' AND column_name='nhif_number') THEN
+        ALTER TABLE drivers ADD COLUMN nhif_number TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='drivers' AND column_name='night_out_rate') THEN
+        ALTER TABLE drivers ADD COLUMN night_out_rate DECIMAL(12,2) DEFAULT 0;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='drivers' AND column_name='trip_allowance_rate') THEN
+        ALTER TABLE drivers ADD COLUMN trip_allowance_rate DECIMAL(12,2) DEFAULT 0;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='drivers' AND column_name='overtime_rate') THEN
+        ALTER TABLE drivers ADD COLUMN overtime_rate DECIMAL(12,2) DEFAULT 0;
     END IF;
 
     -- journeys: delivery_customer_id, trailer_id, updated_at
@@ -378,6 +582,84 @@ BEGIN
                    WHERE table_name='staff' AND column_name='updated_at') THEN
         ALTER TABLE staff     ADD COLUMN updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
     END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='staff' AND column_name='national_id') THEN
+        ALTER TABLE staff ADD COLUMN national_id TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='staff' AND column_name='date_of_birth') THEN
+        ALTER TABLE staff ADD COLUMN date_of_birth DATE;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='staff' AND column_name='gender') THEN
+        ALTER TABLE staff ADD COLUMN gender TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='staff' AND column_name='physical_address') THEN
+        ALTER TABLE staff ADD COLUMN physical_address TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='staff' AND column_name='next_of_kin_name') THEN
+        ALTER TABLE staff ADD COLUMN next_of_kin_name TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='staff' AND column_name='next_of_kin_relationship') THEN
+        ALTER TABLE staff ADD COLUMN next_of_kin_relationship TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='staff' AND column_name='next_of_kin_phone') THEN
+        ALTER TABLE staff ADD COLUMN next_of_kin_phone TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='staff' AND column_name='employee_number') THEN
+        ALTER TABLE staff ADD COLUMN employee_number TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='staff' AND column_name='employment_type') THEN
+        ALTER TABLE staff ADD COLUMN employment_type TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='staff' AND column_name='date_of_hire') THEN
+        ALTER TABLE staff ADD COLUMN date_of_hire DATE;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='staff' AND column_name='department_name') THEN
+        ALTER TABLE staff ADD COLUMN department_name TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='staff' AND column_name='job_title') THEN
+        ALTER TABLE staff ADD COLUMN job_title TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='staff' AND column_name='reports_to_staff_id') THEN
+        ALTER TABLE staff ADD COLUMN reports_to_staff_id TEXT REFERENCES staff(id) ON DELETE SET NULL;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='staff' AND column_name='bank_name') THEN
+        ALTER TABLE staff ADD COLUMN bank_name TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='staff' AND column_name='bank_account_number') THEN
+        ALTER TABLE staff ADD COLUMN bank_account_number TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='staff' AND column_name='bank_branch') THEN
+        ALTER TABLE staff ADD COLUMN bank_branch TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='staff' AND column_name='mpesa_number') THEN
+        ALTER TABLE staff ADD COLUMN mpesa_number TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='staff' AND column_name='kra_pin') THEN
+        ALTER TABLE staff ADD COLUMN kra_pin TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='staff' AND column_name='nssf_number') THEN
+        ALTER TABLE staff ADD COLUMN nssf_number TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='staff' AND column_name='nhif_number') THEN
+        ALTER TABLE staff ADD COLUMN nhif_number TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='staff' AND column_name='basic_salary') THEN
+        ALTER TABLE staff ADD COLUMN basic_salary DECIMAL(12,2) DEFAULT 0;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='staff' AND column_name='house_allowance') THEN
+        ALTER TABLE staff ADD COLUMN house_allowance DECIMAL(12,2) DEFAULT 0;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='staff' AND column_name='transport_allowance') THEN
+        ALTER TABLE staff ADD COLUMN transport_allowance DECIMAL(12,2) DEFAULT 0;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='staff' AND column_name='airtime_allowance') THEN
+        ALTER TABLE staff ADD COLUMN airtime_allowance DECIMAL(12,2) DEFAULT 0;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='staff' AND column_name='other_allowance_name') THEN
+        ALTER TABLE staff ADD COLUMN other_allowance_name TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='staff' AND column_name='other_allowance_amount') THEN
+        ALTER TABLE staff ADD COLUMN other_allowance_amount DECIMAL(12,2) DEFAULT 0;
+    END IF;
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns
                    WHERE table_name='customers' AND column_name='updated_at') THEN
         ALTER TABLE customers ADD COLUMN updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
@@ -389,6 +671,21 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns
                    WHERE table_name='payroll' AND column_name='updated_at') THEN
         ALTER TABLE payroll   ADD COLUMN updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='payroll' AND column_name='payment_reference') THEN
+        ALTER TABLE payroll ADD COLUMN payment_reference TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='payroll' AND column_name='payment_date') THEN
+        ALTER TABLE payroll ADD COLUMN payment_date DATE;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='payroll' AND column_name='payment_confirmed_at') THEN
+        ALTER TABLE payroll ADD COLUMN payment_confirmed_at TIMESTAMP WITH TIME ZONE;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='payroll' AND column_name='confirmed_by') THEN
+        ALTER TABLE payroll ADD COLUMN confirmed_by TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='payroll' AND column_name='payslip_dispatch_allowed') THEN
+        ALTER TABLE payroll ADD COLUMN payslip_dispatch_allowed BOOLEAN DEFAULT FALSE;
     END IF;
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns
                    WHERE table_name='maintenance_logs' AND column_name='updated_at') THEN

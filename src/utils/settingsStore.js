@@ -140,6 +140,30 @@ export const DEFAULT_EMAIL_IDENTITIES = {
     backupFrequency: "Disabled",
 };
 
+export const DEFAULT_PAYROLL_SETTINGS = {
+    personalRelief: 2400,
+    payeBands: [
+        { lowerLimit: 0, upperLimit: 24000, ratePercent: 10 },
+        { lowerLimit: 24001, upperLimit: 32333, ratePercent: 25 },
+        { lowerLimit: 32334, upperLimit: 40667, ratePercent: 30 },
+        { lowerLimit: 40668, upperLimit: 57333, ratePercent: 32.5 },
+        { lowerLimit: 57334, upperLimit: null, ratePercent: 35 },
+    ],
+    nssfTier1Ceiling: 7000,
+    nssfTier2Ceiling: 36000,
+    nssfEmployeeRate: 6,
+    nssfEmployerRate: 6,
+    shifEnabled: true,
+    shifRatePercent: 2.75,
+    housingLevyEmployeeRate: 1.5,
+    housingLevyEmployerRate: 1.5,
+    driverAllowanceDefaults: {
+        nightOutPerNight: 2000,
+        tripAllowancePerTrip: 1500,
+        overtimePerHour: 300,
+    },
+};
+
 function mergeEmailIdentities(base, next) {
     const b = base || {};
     const n = next || {};
@@ -283,6 +307,20 @@ export function getTruckStatuses() {
         return raw.map((x) => String(x).trim()).filter(Boolean);
     }
     return [...DEFAULT_STATUSES_TRUCK];
+}
+
+export function getPayrollSettings() {
+    const s = readSettings();
+    const raw = s.payrollSettings && typeof s.payrollSettings === "object" ? s.payrollSettings : {};
+    return {
+        ...DEFAULT_PAYROLL_SETTINGS,
+        ...raw,
+        driverAllowanceDefaults: {
+            ...DEFAULT_PAYROLL_SETTINGS.driverAllowanceDefaults,
+            ...(raw.driverAllowanceDefaults || {}),
+        },
+        payeBands: Array.isArray(raw.payeBands) && raw.payeBands.length > 0 ? raw.payeBands : DEFAULT_PAYROLL_SETTINGS.payeBands,
+    };
 }
 
 export function getIncidentTypes() {

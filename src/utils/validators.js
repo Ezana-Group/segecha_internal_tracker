@@ -18,6 +18,18 @@ export const validators = {
         return /^07\d{8}$/.test(clean) ? null : 'M-Pesa number must be in format 07XXXXXXXX';
     },
 
+    nationalId8: (v) => {
+        const clean = String(v || "").trim();
+        if (!clean) return null;
+        return /^\d{8}$/.test(clean) ? null : "National ID must be exactly 8 digits";
+    },
+
+    kraPin: (v) => {
+        const clean = String(v || "").trim().toUpperCase();
+        if (!clean) return null;
+        return /^[A-Z]\d{9}[A-Z]$/.test(clean) ? null : "KRA PIN must match format A123456789Z";
+    },
+
     truckReg: (v) => {
         return /^[A-Z]{3}\s\d{3}[A-Z]$/.test(String(v).toUpperCase()) ? null : 'Format must be KCB 100A';
     },

@@ -255,6 +255,40 @@ export const exportToExcel = (data) => {
             XLSX.utils.book_append_sheet(wb, ws, 'Mpesa');
         }
 
+        // 15. Payslip Dispatch Queue
+        if (data.payslipDispatchQueue && data.payslipDispatchQueue.length > 0) {
+            const qData = data.payslipDispatchQueue.map((q) => ({
+                'Queue ID': q.id,
+                'Payroll ID': q.payrollId,
+                'Recipient Email': q.recipientEmail,
+                'Status': q.status,
+                'Attempts': q.attempts || 0,
+                'Scheduled At': q.scheduledAt || '',
+                'Sent At': q.sentAt || '',
+                'Last Error': q.lastError || '',
+            }));
+            const ws = XLSX.utils.json_to_sheet(qData);
+            XLSX.utils.book_append_sheet(wb, ws, 'Payslip_Queue');
+        }
+
+        // 16. Ledger Entries
+        if (data.ledgerEntries && data.ledgerEntries.length > 0) {
+            const lData = data.ledgerEntries.map((l) => ({
+                'Entry ID': l.id,
+                'Entry Date': l.entryDate,
+                'Source Type': l.sourceType,
+                'Source ID': l.sourceId,
+                'Account Code': l.accountCode,
+                'Account Name': l.accountName,
+                'Debit': l.debit || 0,
+                'Credit': l.credit || 0,
+                'Currency': l.currency || 'KES',
+                'Notes': l.notes || '',
+            }));
+            const ws = XLSX.utils.json_to_sheet(lData);
+            XLSX.utils.book_append_sheet(wb, ws, 'Ledger');
+        }
+
         // Generate and download file
         const timestamp = new Date().toISOString().split('T')[0];
         XLSX.writeFile(wb, `Segecha_Tracker_Full_Export_${timestamp}.xlsx`);
@@ -311,6 +345,8 @@ export const exportAllToCSV = (data) => {
         { d: data.assets, n: 'Assets' },
         { d: data.documents, n: 'Documents' },
         { d: (readSettings().mpesaTransactions || []), n: 'Mpesa_Transactions' },
+        { d: data.payslipDispatchQueue, n: 'Payslip_Dispatch_Queue' },
+        { d: data.ledgerEntries, n: 'Ledger_Entries' },
     ];
 
     let count = 0;

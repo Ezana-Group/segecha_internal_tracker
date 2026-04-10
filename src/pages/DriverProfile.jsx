@@ -27,6 +27,7 @@ import {
     Download,
     Trash2,
     KeyRound,
+    Eye,
 } from "lucide-react";
 import { fmt, fmtDate, today, displayRecordId } from "../utils/formatters";
 import { Card } from "../components/Card";
@@ -320,6 +321,11 @@ export function DriverProfile({ data, setData, dark, isMobile, truckReg, openMod
                         {driver.email && (
                             <span style={{ fontSize: 13, color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: 5 }}>
                                 <Mail size={12} color="var(--text-dim)" /> {driver.email}
+                            </span>
+                        )}
+                        {!driver.email && (
+                            <span style={{ fontSize: 12, color: "#f59e0b", display: "flex", alignItems: "center", gap: 5, fontWeight: 700 }}>
+                                <Shield size={12} color="#f59e0b" /> Missing personal email (payslip dispatch risk)
                             </span>
                         )}
                     </div>
@@ -921,6 +927,35 @@ export function DriverProfile({ data, setData, dark, isMobile, truckReg, openMod
                                         })()}
                                     </table>
                                 </div>
+                                {(!isDriverPreview || d.finPayslipDocuments !== false) && (
+                                <div style={{ marginTop: 20 }}>
+                                    <h4 style={{ fontSize: 15, fontWeight: 800, color: "var(--text-primary)", marginBottom: 10 }}>Payslip Documents</h4>
+                                    {(() => {
+                                        const payslipDocs = (data.documents || [])
+                                            .filter((doc) => (doc.entityType || doc.entity_type) === "driver" && (doc.entityId || doc.entity_id) === driver.id)
+                                            .filter((doc) => String(doc.docType || doc.doc_type || '').toLowerCase().includes('payslip'))
+                                            .sort((a, b) => String(b.createdAt || b.created_at || '').localeCompare(String(a.createdAt || a.created_at || '')));
+                                        if (payslipDocs.length === 0) {
+                                            return <div style={{ fontSize: 12, color: "var(--text-dim)" }}>No payslips generated yet.</div>;
+                                        }
+                                        return (
+                                            <div style={{ display: "grid", gap: 8 }}>
+                                                {payslipDocs.slice(0, 8).map((doc) => (
+                                                    <div key={doc.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", border: "1px solid var(--border-subtle)", borderRadius: 12, padding: "10px 12px" }}>
+                                                        <div>
+                                                            <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>{doc.label || "Payslip"}</div>
+                                                            <div style={{ fontSize: 11, color: "var(--text-dim)" }}>{fmtDate(doc.createdAt || doc.created_at)}</div>
+                                                        </div>
+                                                        <Button size="sm" variant="secondary" icon={Eye} onClick={() => window.open(doc.url, "_blank", "noopener,noreferrer")}>
+                                                            Open
+                                                        </Button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        );
+                                    })()}
+                                </div>
+                                )}
                             </div>
                         )}
                     </div>

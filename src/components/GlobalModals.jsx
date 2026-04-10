@@ -7,7 +7,7 @@ import { validators } from "../utils/validators";
 import { PAYMENT_API } from "../utils/env";
 import { fetchWithAuth } from "../utils/api";
 import { DEFAULT_FUEL_PRICE, INVOICE_PREFIX, PAYMENT_TERMS_DAYS } from "../constants/nav";
-import { getLicenceClasses, getCommonRoutes, getCargoTypes, getTruckTypes, getIncidentTypes, getJourneyStatuses, getTruckStatuses, subscribeSettings, readSettings } from "../utils/settingsStore.js";
+import { getLicenceClasses, getCommonRoutes, getCargoTypes, getTruckTypes, getIncidentTypes, getJourneyStatuses, getTruckStatuses, subscribeSettings, readSettings, getPayrollSettings } from "../utils/settingsStore.js";
 import { computePayrollKRA } from "../utils/kenyaPayroll.js";
 
 /** Blur focused input then run save on the next microtask so number fields commit. */
@@ -712,7 +712,7 @@ export function GlobalModals(props) {
         const errors = {};
         errors.baseSalary = validators.required(form.baseSalary) || validators.positiveNumber(form.baseSalary);
         const hasErrors = Object.values(errors).some(Boolean);
-        const payrollPreview = computePayrollKRA(form, readSettings());
+        const payrollPreview = computePayrollKRA(form, { payrollSettings: getPayrollSettings() });
 
         return (
             <Modal
@@ -1812,10 +1812,14 @@ export function GlobalModals(props) {
        DRIVER
     ═══════════════════════════════════════════════════════════════ */
     if (modal === "driver") {
-        const toSegechaEmail = (rawEmail, fallbackName) => {
-            const source = String(rawEmail || fallbackName || "").trim().toLowerCase();
-            const local  = (source.includes("@") ? source.split("@")[0] : source).replace(/[^a-z0-9._-]/g, ".").replace(/\.{2,}/g, ".").replace(/^\.+|\.+$/g, "");
-            return `${local || "driver"}@example.com`;
+        const nextEmployeeNo = (prefix = "SG-DRV-") => {
+            const max = (data.drivers || []).reduce((acc, d) => {
+                const raw = String(d.employeeNumber || "");
+                if (!raw.startsWith(prefix)) return acc;
+                const n = parseInt(raw.slice(prefix.length), 10);
+                return Number.isFinite(n) ? Math.max(acc, n) : acc;
+            }, 0);
+            return `${prefix}${String(max + 1).padStart(3, "0")}`;
         };
         const assignedElsewhere  = new Set(data.drivers.filter((d) => d.id !== form.id && d.truck).map((d) => d.truck));
         const driverTruckOptions = data.trucks.filter((t) => !assignedElsewhere.has(t.id) || t.id === form.truck).map((t) => ({ v: t.id, l: t.reg }));
@@ -1827,6 +1831,8 @@ export function GlobalModals(props) {
             e.license = validators.required(form.license);
             e.salary  = validators.required(form.salary) || validators.positiveNumber(form.salary);
             if (form.email) e.email = validators.email(form.email);
+            if (form.nationalId) e.nationalId = validators.nationalId8(form.nationalId);
+            if (form.kraPin) e.kraPin = validators.kraPin(form.kraPin);
             return e;
         };
         const errors   = getErrors();
@@ -1836,9 +1842,16 @@ export function GlobalModals(props) {
             const isNew       = !form.id;
             const driverId    = form.id || uid();
             const driverName  = form.name;
-            const driverEmail = toSegechaEmail(form.email, driverName);
+            const driverEmail = String(form.email || "").trim();
             const otp         = form.otp || Math.floor(100000 + Math.random() * 900000).toString();
-            saveItem("drivers", { ...form, id: driverId, email: driverEmail, otp, firstLogin: isNew ? true : form.firstLogin });
+            saveItem("drivers", {
+                ...form,
+                id: driverId,
+                email: driverEmail,
+                employeeNumber: form.employeeNumber || nextEmployeeNo(),
+                otp,
+                firstLogin: isNew ? true : form.firstLogin,
+            });
             if (isNew && driverEmail && driverEmail.includes("@")) {
                 try {
                     const res    = await fetchWithAuth(`${PAYMENT_API}/api/driver/create-account`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ driverId, email: driverEmail, phone: form.phone, driverName }) });
@@ -1863,9 +1876,20 @@ export function GlobalModals(props) {
                     <div style={{ gridColumn: "1/-1" }}>
                         <Field label="Full Name" k="name" full form={form} setForm={setForm} S={S} T={T} error={errors.name} />
                     </div>
+                    <Field label="National ID No." k="nationalId" type="text" placeholder="8 digits" form={form} setForm={setForm} S={S} T={T} error={errors.nationalId} />
+                    <Field label="Date of Birth" k="dateOfBirth" type="date" form={form} setForm={setForm} S={S} T={T} />
+                    <Field label="Gender" k="gender" options={["Male", "Female", "Other"]} form={form} setForm={setForm} S={S} T={T} />
                     <Field label="Phone"         k="phone" form={form} setForm={setForm} S={S} T={T} error={errors.phone} />
                     <Field label="Email Address" k="email" type="email" placeholder="driver@email.com" form={form} setForm={setForm} S={S} T={T} error={errors.email} />
                     <Field label="M-Pesa Number" k="mpesa" placeholder="07XXXXXXXX" form={form} setForm={setForm} S={S} T={T} error={errors.mpesa} />
+                    <div style={{ gridColumn: "1/-1" }}>
+                        <Field label="Physical / Postal Address" k="physicalAddress" full form={form} setForm={setForm} S={S} T={T} />
+                    </div>
+
+                    <SectionDivider title="Next Of Kin" />
+                    <Field label="Next of Kin Name" k="nextOfKinName" form={form} setForm={setForm} S={S} T={T} />
+                    <Field label="Relationship" k="nextOfKinRelationship" form={form} setForm={setForm} S={S} T={T} />
+                    <Field label="Next of Kin Phone" k="nextOfKinPhone" form={form} setForm={setForm} S={S} T={T} />
 
                     <SectionDivider title="Licence &amp; Compliance" />
 
@@ -1876,8 +1900,16 @@ export function GlobalModals(props) {
 
                     <SectionDivider title="Employment" />
 
+                    <Field label="Employee Number" k="employeeNumber" placeholder="Auto (e.g. SG-DRV-001)" form={form} setForm={setForm} S={S} T={T} />
+                    <Field label="Employment Type" k="employmentType" options={["Permanent", "Contract", "Casual"]} form={form} setForm={setForm} S={S} T={T} />
+                    <Field label="Date of Hire" k="dateOfHire" type="date" form={form} setForm={setForm} S={S} T={T} />
+                    <Field label="Department" k="department" options={["Operations", "Finance", "Logistics", "HR", "Management"]} form={form} setForm={setForm} S={S} T={T} />
+                    <Field label="Job Title" k="jobTitle" form={form} setForm={setForm} S={S} T={T} />
                     <Field label="Monthly Salary (KES)" k="salary" type="number" form={form} setForm={setForm} S={S} T={T} error={errors.salary} />
                     <Field label="Date Joined"          k="joined" type="date"   form={form} setForm={setForm} S={S} T={T} />
+                    <Field label="Night-Out Rate / Night (KES)" k="nightOutRate" type="number" form={form} setForm={setForm} S={S} T={T} />
+                    <Field label="Trip Allowance Rate / Trip (KES)" k="tripAllowanceRate" type="number" form={form} setForm={setForm} S={S} T={T} />
+                    <Field label="Overtime Rate / Hour (KES)" k="overtimeRate" type="number" form={form} setForm={setForm} S={S} T={T} />
 
                     <div>
                         <Field label="Assigned Truck" k="truck" options={driverTruckOptions} form={form} setForm={setForm} S={S} T={T} />
@@ -1905,6 +1937,14 @@ export function GlobalModals(props) {
                     </div>
 
                     <Field label="Status" k="status" options={["Active", "Inactive", "Suspended"]} form={form} setForm={setForm} S={S} T={T} />
+
+                    <SectionDivider title="Banking & Statutory Compliance" />
+                    <Field label="Bank Name" k="bankName" form={form} setForm={setForm} S={S} T={T} />
+                    <Field label="Bank Account Number" k="bankAccountNumber" form={form} setForm={setForm} S={S} T={T} />
+                    <Field label="Bank Branch" k="bankBranch" form={form} setForm={setForm} S={S} T={T} />
+                    <Field label="KRA PIN" k="kraPin" placeholder="A123456789Z" form={form} setForm={setForm} S={S} T={T} error={errors.kraPin} />
+                    <Field label="NSSF Membership No." k="nssfNumber" form={form} setForm={setForm} S={S} T={T} />
+                    <Field label="NHIF / SHIF Membership No." k="nhifNumber" form={form} setForm={setForm} S={S} T={T} />
 
                 </div>
             </Modal>
@@ -1992,10 +2032,14 @@ export function GlobalModals(props) {
        STAFF
     ═══════════════════════════════════════════════════════════════ */
     if (modal === "staff") {
-        const toSegechaEmail = (rawEmail, fallbackName) => {
-            const source = String(rawEmail || fallbackName || "").trim().toLowerCase();
-            const local  = (source.includes("@") ? source.split("@")[0] : source).replace(/[^a-z0-9._-]/g, ".").replace(/\.{2,}/g, ".").replace(/^\.+|\.+$/g, "");
-            return `${local || "staff"}@example.com`;
+        const nextEmployeeNo = (prefix = "SG-STF-") => {
+            const max = (data.staff || []).reduce((acc, s) => {
+                const raw = String(s.employeeNumber || "");
+                if (!raw.startsWith(prefix)) return acc;
+                const n = parseInt(raw.slice(prefix.length), 10);
+                return Number.isFinite(n) ? Math.max(acc, n) : acc;
+            }, 0);
+            return `${prefix}${String(max + 1).padStart(3, "0")}`;
         };
         const isDrivingRole = form.role === "Driver" || form.role === "Turnboy";
         const getErrors = () => {
@@ -2007,6 +2051,9 @@ export function GlobalModals(props) {
                 e.mpesa   = validators.required(form.mpesa)  || validators.mpesa(form.mpesa);
                 e.license = validators.required(form.license);
             }
+            if (form.email) e.email = validators.email(form.email);
+            if (form.nationalId) e.nationalId = validators.nationalId8(form.nationalId);
+            if (form.kraPin) e.kraPin = validators.kraPin(form.kraPin);
             e.salary = validators.required(form.salary) || validators.positiveNumber(form.salary);
             return e;
         };
@@ -2019,9 +2066,9 @@ export function GlobalModals(props) {
         const handleStaffSave = async () => {
             const isNew   = !form.id;
             const name    = form.name || "";
-            const email   = toSegechaEmail(form.email, name);
+            const email   = String(form.email || "").trim();
             const staffId = form.id || uid();
-            let next = { ...form, id: staffId, email };
+            let next = { ...form, id: staffId, email, employeeNumber: form.employeeNumber || nextEmployeeNo() };
             if (isNew) { next = { ...next, firstLogin: true, otp: next.otp || Math.floor(100000 + Math.random() * 900000).toString(), tempPassword: next.tempPassword || "" }; }
             saveItem("staff", next);
             if (isNew && email.includes("@")) {
@@ -2092,10 +2139,21 @@ export function GlobalModals(props) {
                         <div style={{ gridColumn: "1/-1" }}>
                             <Field label="Full Name" k="name" full form={form} setForm={setForm} S={S} T={T} error={errors.name} />
                         </div>
+                        <Field label="National ID No." k="nationalId" type="text" placeholder="8 digits" form={form} setForm={setForm} S={S} T={T} error={errors.nationalId} />
+                        <Field label="Date of Birth" k="dateOfBirth" type="date" form={form} setForm={setForm} S={S} T={T} />
+                        <Field label="Gender" k="gender" options={["Male", "Female", "Other"]} form={form} setForm={setForm} S={S} T={T} />
                         <Field label="Role / Title"   k="role"       options={ROLES_LIST} form={form} setForm={setForm} S={S} T={T} error={errors.role} />
                         <Field label="Department"     k="department" options={DEPTS_LIST} form={form} setForm={setForm} S={S} T={T} />
                         <Field label="Phone Number"   k="phone" placeholder={isDrivingRole ? "07XXXXXXXX" : undefined} form={form} setForm={setForm} S={S} T={T} error={errors.phone} />
-                        <Field label="Email Address"  k="email" type="email" placeholder="name@example.com" form={form} setForm={setForm} S={S} T={T} />
+                        <Field label="Personal Email (Payslip Delivery)"  k="email" type="email" placeholder="name@example.com" form={form} setForm={setForm} S={S} T={T} error={errors.email} />
+                        <div style={{ gridColumn: "1/-1" }}>
+                            <Field label="Physical / Postal Address" k="physicalAddress" full form={form} setForm={setForm} S={S} T={T} />
+                        </div>
+
+                        <SectionDivider title="Next Of Kin" />
+                        <Field label="Next of Kin Name" k="nextOfKinName" form={form} setForm={setForm} S={S} T={T} />
+                        <Field label="Relationship" k="nextOfKinRelationship" form={form} setForm={setForm} S={S} T={T} />
+                        <Field label="Next of Kin Phone" k="nextOfKinPhone" form={form} setForm={setForm} S={S} T={T} />
 
                         {isDrivingRole && (
                             <>
@@ -2111,9 +2169,27 @@ export function GlobalModals(props) {
 
                         <SectionDivider title="Employment" />
 
+                        <Field label="Employee Number" k="employeeNumber" placeholder="Auto (e.g. SG-STF-001)" form={form} setForm={setForm} S={S} T={T} />
+                        <Field label="Employment Type" k="employmentType" options={["Permanent", "Contract", "Casual"]} form={form} setForm={setForm} S={S} T={T} />
+                        <Field label="Date of Hire" k="dateOfHire" type="date" form={form} setForm={setForm} S={S} T={T} />
+                        <Field label="Reports To (Staff)" k="reportsTo" options={(data.staff || []).filter((s) => s.id !== form.id).map((s) => ({ v: s.id, l: s.name }))} form={form} setForm={setForm} S={S} T={T} />
                         <Field label="Monthly Salary (KES)" k="salary" type="number" form={form} setForm={setForm} S={S} T={T} error={errors.salary} />
+                        <Field label="House Allowance (KES)" k="houseAllowance" type="number" form={form} setForm={setForm} S={S} T={T} />
+                        <Field label="Transport Allowance (KES)" k="transportAllowance" type="number" form={form} setForm={setForm} S={S} T={T} />
+                        <Field label="Airtime Allowance (KES)" k="airtimeAllowance" type="number" form={form} setForm={setForm} S={S} T={T} />
+                        <Field label="Other Allowance Name" k="otherAllowanceName" form={form} setForm={setForm} S={S} T={T} />
+                        <Field label="Other Allowance Amount (KES)" k="otherAllowanceAmount" type="number" form={form} setForm={setForm} S={S} T={T} />
                         <Field label="Date Joined"          k="joined" type="date"   form={form} setForm={setForm} S={S} T={T} />
                         <Field label="Status"               k="status" options={["Active", "On Leave", "Inactive"]} form={form} setForm={setForm} S={S} T={T} />
+
+                        <SectionDivider title="Banking & Statutory Compliance" />
+                        <Field label="Bank Name" k="bankName" form={form} setForm={setForm} S={S} T={T} />
+                        <Field label="Bank Account Number" k="bankAccountNumber" form={form} setForm={setForm} S={S} T={T} />
+                        <Field label="Bank Branch" k="bankBranch" form={form} setForm={setForm} S={S} T={T} />
+                        <Field label="M-Pesa Number" k="mpesa" placeholder="07XXXXXXXX" form={form} setForm={setForm} S={S} T={T} />
+                        <Field label="KRA PIN" k="kraPin" placeholder="A123456789Z" form={form} setForm={setForm} S={S} T={T} error={errors.kraPin} />
+                        <Field label="NSSF Membership No." k="nssfNumber" form={form} setForm={setForm} S={S} T={T} />
+                        <Field label="NHIF / SHIF Membership No." k="nhifNumber" form={form} setForm={setForm} S={S} T={T} />
 
                         {form.firstLogin && (
                             <div style={{

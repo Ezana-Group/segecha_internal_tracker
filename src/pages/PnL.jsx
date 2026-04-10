@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import DOMPurify from "dompurify";
 import {
@@ -31,11 +31,44 @@ import { PageHeader } from "../components/PageHeader";
 import { TableRowActions } from "../components/TableRowActions";
 import { SortableTableHead } from "../components/SortableTableHead";
 import { useTableFilter } from "../hooks/useTableFilter";
+import { PAYMENT_API } from "../utils/env";
+import { fetchWithAuth } from "../utils/api";
 
 export function PnL({ data, dark, isMobile, truckStats, truckReg, customerName, driverName, showToast }) {
     const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState('analytics'); // 'analytics' | 'statement' | 'finance-payments'
     const [analyticsBasis, setAnalyticsBasis] = useState('operating'); // 'operating' | 'contribution'
+    const [financeSubTab, setFinanceSubTab] = useState("reports");
+    const [financeRange, setFinanceRange] = useState(() => {
+        const end = new Date();
+        const start = new Date();
+        start.setMonth(start.getMonth() - 1);
+        return {
+            from: start.toISOString().slice(0, 10),
+            to: end.toISOString().slice(0, 10),
+            month: end.toISOString().slice(0, 7),
+            year: end.getFullYear(),
+        };
+    });
+    const [financeLoading, setFinanceLoading] = useState(false);
+    const [taxSnapshot, setTaxSnapshot] = useState(null);
+    const [receivablesSnapshot, setReceivablesSnapshot] = useState(null);
+    const [mpesaRows, setMpesaRows] = useState([]);
+    const [mpesaRecon, setMpesaRecon] = useState(null);
+    const [ledgerSummary, setLedgerSummary] = useState(null);
+    const [ledgerEntries, setLedgerEntries] = useState([]);
+    const [mpesaForm, setMpesaForm] = useState({
+        txnDate: new Date().toISOString().slice(0, 10),
+        direction: "Incoming",
+        amount: "",
+        reference: "",
+        counterpartyName: "",
+        counterpartyPhone: "",
+        linkedType: "",
+        linkedId: "",
+        status: "Unreconciled",
+        notes: "",
+    });
 
     const totalSalaries = data.payroll.filter(p => p.status === "Paid").reduce((s, p) => s + +p.baseSalary + +p.allowance - +p.deductions, 0);
     const invoicesPaid = data.invoices.filter(i => i.status === "Paid").reduce((s, i) => s + (+i.paidAmount || 0), 0);
@@ -156,6 +189,109 @@ export function PnL({ data, dark, isMobile, truckStats, truckReg, customerName, 
         { id: 'statement', label: 'P&L Statement', icon: FileText },
         { id: 'finance-payments', label: 'Finance & Payments', icon: CreditCard }
     ];
+    const financeTabs = [
+        { id: "reports", label: "Financial reporting & KRA exports", icon: FileText },
+        { id: "mpesa", label: "M-Pesa transactions", icon: CreditCard },
+        { id: "recon", label: "M-Pesa reconciliation", icon: Activity },
+        { id: "ledger", label: "Ledger summary", icon: PieChart },
+        { id: "settings", label: "Finance settings", icon: DollarSign },
+    ];
+    const financeSummary = useMemo(() => ({
+        receivables: Number(receivablesSnapshot?.totals?.receivables || 0),
+        payables: Number(receivablesSnapshot?.totals?.payables || 0),
+        vatPayable: Number(taxSnapshot?.vat?.vatPayable || 0),
+        whtTotal: Number(taxSnapshot?.wht?.total || 0),
+    }), [receivablesSnapshot, taxSnapshot]);
+
+    const refreshFinanceData = useCallback(async () => {
+        setFinanceLoading(true);
+        try {
+            const [taxRes, recvRes, mpesaRes, reconRes] = await Promise.all([
+                fetchWithAuth(`${PAYMENT_API}/api/admin/reports/tax-summary?from=${financeRange.from}&to=${financeRange.to}`),
+                fetchWithAuth(`${PAYMENT_API}/api/admin/reports/receivables-payables?from=${financeRange.from}&to=${financeRange.to}`),
+                fetchWithAuth(`${PAYMENT_API}/api/admin/mpesa/transactions`),
+                fetchWithAuth(`${PAYMENT_API}/api/admin/mpesa/reconciliation?from=${financeRange.from}&to=${financeRange.to}`),
+            ]);
+            const [taxJson, recvJson, mpesaJson, reconJson] = await Promise.all([
+                taxRes.json(), recvRes.json(), mpesaRes.json(), reconRes.json(),
+            ]);
+            const ledgerRes = await fetchWithAuth(`${PAYMENT_API}/api/admin/reports/ledger-summary?from=${financeRange.from}&to=${financeRange.to}`);
+            const ledgerJson = await ledgerRes.json().catch(() => null);
+            const ledgerEntriesRes = await fetchWithAuth(`${PAYMENT_API}/api/admin/reports/ledger-entries?from=${financeRange.from}&to=${financeRange.to}&limit=250`);
+            const ledgerEntriesJson = await ledgerEntriesRes.json().catch(() => null);
+            setTaxSnapshot(taxJson || null);
+            setReceivablesSnapshot(recvJson || null);
+            setMpesaRows(Array.isArray(mpesaJson?.rows) ? mpesaJson.rows : []);
+            setMpesaRecon(reconJson || null);
+            setLedgerSummary(ledgerJson || null);
+            setLedgerEntries(Array.isArray(ledgerEntriesJson?.rows) ? ledgerEntriesJson.rows : []);
+        } catch {
+            showToast?.("Unable to refresh finance data", "error");
+        } finally {
+            setFinanceLoading(false);
+        }
+    }, [financeRange.from, financeRange.to, showToast]);
+
+    const downloadTaxCsv = useCallback(async (kind) => {
+        const endpointMap = {
+            p10: `${PAYMENT_API}/api/admin/reports/p10?month=${financeRange.month}&format=csv`,
+            p9a: `${PAYMENT_API}/api/admin/reports/p9a?year=${financeRange.year}&format=csv`,
+            vat3: `${PAYMENT_API}/api/admin/reports/vat3?month=${financeRange.month}&format=csv`,
+            wht: `${PAYMENT_API}/api/admin/reports/wht-schedule?month=${financeRange.month}&format=csv`,
+            nssf: `${PAYMENT_API}/api/admin/reports/nssf-schedule?month=${financeRange.month}&format=csv`,
+            nhif: `${PAYMENT_API}/api/admin/reports/nhif-schedule?month=${financeRange.month}&format=csv`,
+            housing: `${PAYMENT_API}/api/admin/reports/housing-levy-schedule?month=${financeRange.month}&format=csv`,
+        };
+        const target = endpointMap[kind];
+        if (!target) return;
+        try {
+            const res = await fetchWithAuth(target);
+            const text = await res.text();
+            const blob = new Blob([text], { type: "text/csv;charset=utf-8" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `${kind}-${new Date().toISOString().slice(0, 10)}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+        } catch {
+            showToast?.("CSV export failed", "error");
+        }
+    }, [financeRange.month, financeRange.year, showToast]);
+
+    const downloadKraFilingPack = useCallback(async () => {
+        const kinds = ["p10", "p9a", "vat3", "wht", "nssf", "nhif", "housing"];
+        for (const kind of kinds) {
+            // eslint-disable-next-line no-await-in-loop
+            await downloadTaxCsv(kind);
+            // small stagger so browser handles each download reliably
+            // eslint-disable-next-line no-await-in-loop
+            await new Promise((resolve) => setTimeout(resolve, 180));
+        }
+        showToast?.("KRA filing pack downloads started", "success");
+    }, [downloadTaxCsv, showToast]);
+
+    const saveMpesa = useCallback(async () => {
+        if (!mpesaForm.amount || !mpesaForm.reference) {
+            showToast?.("Amount and reference are required", "warning");
+            return;
+        }
+        try {
+            await fetchWithAuth(`${PAYMENT_API}/api/admin/mpesa/transactions`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(mpesaForm),
+            });
+            showToast?.("M-Pesa transaction saved", "success");
+            await refreshFinanceData();
+        } catch {
+            showToast?.("Failed to save M-Pesa transaction", "error");
+        }
+    }, [mpesaForm, refreshFinanceData, showToast]);
+
+    useEffect(() => {
+        if (activeTab === "finance-payments") refreshFinanceData();
+    }, [activeTab, refreshFinanceData]);
 
     const marginNum = Number(marginFiltered);
     const insightHeadline = netProfitFiltered >= 0 ? "Above break-even" : "Below break-even";
@@ -670,21 +806,216 @@ export function PnL({ data, dark, isMobile, truckStats, truckReg, customerName, 
                         <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 16 }}>
                             Open the dedicated finance workspaces for KRA exports, M-Pesa ledger, reconciliation, and payment configuration.
                         </div>
-                        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                            <Button variant="premium" icon={FileText} onClick={() => navigate("/settings?tab=finance-reports")}>
-                                Finance reporting & KRA exports
-                            </Button>
-                            <Button variant="secondary" icon={CreditCard} onClick={() => navigate("/settings?tab=mpesa")}>
-                                M-Pesa transactions
-                            </Button>
-                            <Button variant="secondary" icon={Activity} onClick={() => navigate("/settings?tab=mpesa-recon")}>
-                                M-Pesa reconciliation
-                            </Button>
-                            <Button variant="secondary" icon={DollarSign} onClick={() => navigate("/settings?tab=finance")}>
-                                Finance settings
-                            </Button>
+                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
+                            {financeTabs.map((tab) => (
+                                <button
+                                    key={tab.id}
+                                    type="button"
+                                    onClick={() => setFinanceSubTab(tab.id)}
+                                    style={{
+                                        border: "none",
+                                        cursor: "pointer",
+                                        display: "inline-flex",
+                                        alignItems: "center",
+                                        gap: 6,
+                                        borderRadius: 999,
+                                        padding: "8px 12px",
+                                        fontSize: 12,
+                                        fontWeight: 700,
+                                        background: financeSubTab === tab.id ? "var(--brand-primary)" : "var(--surface-subtle)",
+                                        color: financeSubTab === tab.id ? "#fff" : "var(--text-secondary)",
+                                    }}
+                                >
+                                    <tab.icon size={13} />
+                                    {tab.label}
+                                </button>
+                            ))}
+                        </div>
+
+                        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, minmax(0, 1fr))", gap: 10 }}>
+                            <Card style={{ padding: 12 }}>
+                                <div style={{ fontSize: 11, color: "var(--text-dim)" }}>Receivables</div>
+                                <div style={{ fontSize: 18, fontWeight: 900 }}>{fmt(financeSummary.receivables)}</div>
+                            </Card>
+                            <Card style={{ padding: 12 }}>
+                                <div style={{ fontSize: 11, color: "var(--text-dim)" }}>Payables</div>
+                                <div style={{ fontSize: 18, fontWeight: 900 }}>{fmt(financeSummary.payables)}</div>
+                            </Card>
+                            <Card style={{ padding: 12 }}>
+                                <div style={{ fontSize: 11, color: "var(--text-dim)" }}>VAT Payable</div>
+                                <div style={{ fontSize: 18, fontWeight: 900 }}>{fmt(financeSummary.vatPayable)}</div>
+                            </Card>
+                            <Card style={{ padding: 12 }}>
+                                <div style={{ fontSize: 11, color: "var(--text-dim)" }}>WHT Total</div>
+                                <div style={{ fontSize: 18, fontWeight: 900 }}>{fmt(financeSummary.whtTotal)}</div>
+                            </Card>
                         </div>
                     </Card>
+
+                    {financeSubTab === "reports" && (
+                        <Card style={{ padding: isMobile ? 16 : 20, marginBottom: 12 }}>
+                            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(4, minmax(0, 1fr))", gap: 10 }}>
+                                <input className="input-premium" type="date" value={financeRange.from} onChange={(e) => setFinanceRange((s) => ({ ...s, from: e.target.value }))} />
+                                <input className="input-premium" type="date" value={financeRange.to} onChange={(e) => setFinanceRange((s) => ({ ...s, to: e.target.value }))} />
+                                <input className="input-premium" type="month" value={financeRange.month} onChange={(e) => setFinanceRange((s) => ({ ...s, month: e.target.value }))} />
+                                <input className="input-premium" type="number" value={financeRange.year} onChange={(e) => setFinanceRange((s) => ({ ...s, year: Number(e.target.value || new Date().getFullYear()) }))} />
+                            </div>
+                            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
+                                <Button icon={Activity} loading={financeLoading} onClick={refreshFinanceData}>Refresh</Button>
+                                <Button variant="secondary" icon={Download} onClick={() => downloadTaxCsv("p10")}>Export P10</Button>
+                                <Button variant="secondary" icon={Download} onClick={() => downloadTaxCsv("p9a")}>Export P9A</Button>
+                                <Button variant="secondary" icon={Download} onClick={() => downloadTaxCsv("vat3")}>Export VAT3</Button>
+                                <Button variant="secondary" icon={Download} onClick={() => downloadTaxCsv("wht")}>Export WHT</Button>
+                                <Button variant="secondary" icon={Download} onClick={() => downloadTaxCsv("nssf")}>Export NSSF</Button>
+                                <Button variant="secondary" icon={Download} onClick={() => downloadTaxCsv("nhif")}>Export NHIF/SHIF</Button>
+                                <Button variant="secondary" icon={Download} onClick={() => downloadTaxCsv("housing")}>Export Housing Levy</Button>
+                                <Button icon={Download} onClick={downloadKraFilingPack}>Download KRA Filing Pack</Button>
+                            </div>
+                        </Card>
+                    )}
+
+                    {financeSubTab === "mpesa" && (
+                        <Card style={{ padding: isMobile ? 16 : 20, marginBottom: 12 }}>
+                            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(4, minmax(0, 1fr))", gap: 10 }}>
+                                <input className="input-premium" type="date" value={mpesaForm.txnDate} onChange={(e) => setMpesaForm((s) => ({ ...s, txnDate: e.target.value }))} />
+                                <select className="input-premium" value={mpesaForm.direction} onChange={(e) => setMpesaForm((s) => ({ ...s, direction: e.target.value }))}>
+                                    <option>Incoming</option>
+                                    <option>Outgoing</option>
+                                </select>
+                                <input className="input-premium" type="number" placeholder="Amount" value={mpesaForm.amount} onChange={(e) => setMpesaForm((s) => ({ ...s, amount: e.target.value }))} />
+                                <input className="input-premium" placeholder="Reference" value={mpesaForm.reference} onChange={(e) => setMpesaForm((s) => ({ ...s, reference: e.target.value }))} />
+                                <input className="input-premium" placeholder="Counterparty name" value={mpesaForm.counterpartyName} onChange={(e) => setMpesaForm((s) => ({ ...s, counterpartyName: e.target.value }))} />
+                                <input className="input-premium" placeholder="Counterparty phone" value={mpesaForm.counterpartyPhone} onChange={(e) => setMpesaForm((s) => ({ ...s, counterpartyPhone: e.target.value }))} />
+                                <input className="input-premium" placeholder="Linked type (invoice, payroll...)" value={mpesaForm.linkedType} onChange={(e) => setMpesaForm((s) => ({ ...s, linkedType: e.target.value }))} />
+                                <input className="input-premium" placeholder="Linked ID" value={mpesaForm.linkedId} onChange={(e) => setMpesaForm((s) => ({ ...s, linkedId: e.target.value }))} />
+                            </div>
+                            <div style={{ marginTop: 10, display: "flex", gap: 10 }}>
+                                <Button icon={CreditCard} onClick={saveMpesa}>Save transaction</Button>
+                                <Button variant="secondary" icon={Activity} onClick={refreshFinanceData}>Refresh list</Button>
+                            </div>
+                            <div className="table-container" style={{ marginTop: 12 }}>
+                                <table className="table-modern">
+                                    <thead><tr><th>Date</th><th>Direction</th><th>Reference</th><th>Linked</th><th style={{ textAlign: "right" }}>Amount</th></tr></thead>
+                                    <tbody>
+                                        {(mpesaRows || []).slice(0, 200).map((r) => (
+                                            <tr key={r.id}>
+                                                <td>{fmtDate(r.txnDate || r.txn_date)}</td>
+                                                <td>{r.direction}</td>
+                                                <td>{r.reference || "-"}</td>
+                                                <td>{[r.linkedType || r.linked_type, r.linkedId || r.linked_id].filter(Boolean).join(": ") || "-"}</td>
+                                                <td style={{ textAlign: "right", fontWeight: 700 }}>{fmt(r.amount || 0)}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </Card>
+                    )}
+
+                    {financeSubTab === "recon" && (
+                        <Card style={{ padding: isMobile ? 16 : 20, marginBottom: 12 }}>
+                            <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 8 }}>M-Pesa Reconciliation</div>
+                            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, minmax(0, 1fr))", gap: 10 }}>
+                                <Card style={{ padding: 12 }}>
+                                    <div style={{ fontSize: 11, color: "var(--text-dim)" }}>Matched</div>
+                                    <div style={{ fontSize: 18, fontWeight: 900 }}>{fmt(mpesaRecon?.matchedAmount || 0)}</div>
+                                </Card>
+                                <Card style={{ padding: 12 }}>
+                                    <div style={{ fontSize: 11, color: "var(--text-dim)" }}>Unreconciled</div>
+                                    <div style={{ fontSize: 18, fontWeight: 900 }}>{fmt(mpesaRecon?.unreconciledAmount || 0)}</div>
+                                </Card>
+                                <Card style={{ padding: 12 }}>
+                                    <div style={{ fontSize: 11, color: "var(--text-dim)" }}>Transactions</div>
+                                    <div style={{ fontSize: 18, fontWeight: 900 }}>{fmtN(mpesaRecon?.rows?.length || 0, 0)}</div>
+                                </Card>
+                            </div>
+                        </Card>
+                    )}
+
+                    {financeSubTab === "settings" && (
+                        <Card style={{ padding: isMobile ? 16 : 20, marginBottom: 12 }}>
+                            <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 8 }}>Finance Settings Location Updated</div>
+                            <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 10 }}>
+                                Core finance settings remain editable in Settings for now, while finance operations now run directly in this page.
+                            </div>
+                            <Button variant="secondary" icon={ArrowUpRight} onClick={() => navigate("/settings?tab=finance")}>
+                                Open advanced finance settings
+                            </Button>
+                        </Card>
+                    )}
+                    {financeSubTab === "ledger" && (
+                        <Card style={{ padding: isMobile ? 16 : 20, marginBottom: 12 }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                                <div style={{ fontSize: 14, fontWeight: 800 }}>Ledger Summary</div>
+                                <Button variant="secondary" icon={Activity} onClick={refreshFinanceData}>Refresh</Button>
+                            </div>
+                            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 10, marginBottom: 12 }}>
+                                <Card style={{ padding: 12 }}>
+                                    <div style={{ fontSize: 11, color: "var(--text-dim)" }}>Total Debits</div>
+                                    <div style={{ fontSize: 18, fontWeight: 900 }}>{fmt(ledgerSummary?.totals?.debit || 0)}</div>
+                                </Card>
+                                <Card style={{ padding: 12 }}>
+                                    <div style={{ fontSize: 11, color: "var(--text-dim)" }}>Total Credits</div>
+                                    <div style={{ fontSize: 18, fontWeight: 900 }}>{fmt(ledgerSummary?.totals?.credit || 0)}</div>
+                                </Card>
+                            </div>
+                            <div className="table-container">
+                                <table className="table-modern">
+                                    <thead>
+                                        <tr>
+                                            <th>Account</th>
+                                            <th style={{ textAlign: "right" }}>Debit</th>
+                                            <th style={{ textAlign: "right" }}>Credit</th>
+                                            <th style={{ textAlign: "right" }}>Net</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {(ledgerSummary?.rows || []).map((r) => (
+                                            <tr key={`${r.accountCode}-${r.accountName}`}>
+                                                <td>{r.accountCode} - {r.accountName}</td>
+                                                <td style={{ textAlign: "right" }}>{fmt(r.debit || 0)}</td>
+                                                <td style={{ textAlign: "right" }}>{fmt(r.credit || 0)}</td>
+                                                <td style={{ textAlign: "right", fontWeight: 700 }}>{fmt(r.net || 0)}</td>
+                                            </tr>
+                                        ))}
+                                        {(ledgerSummary?.rows || []).length === 0 && (
+                                            <tr><td colSpan={4} style={{ textAlign: "center", color: "var(--text-dim)", padding: 18 }}>No ledger entries in selected period.</td></tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div style={{ marginTop: 14, fontSize: 12, fontWeight: 700, color: "var(--text-secondary)" }}>Posting Audit Trail</div>
+                            <div className="table-container" style={{ marginTop: 8 }}>
+                                <table className="table-modern">
+                                    <thead>
+                                        <tr>
+                                            <th>Date</th>
+                                            <th>Source</th>
+                                            <th>Account</th>
+                                            <th style={{ textAlign: "right" }}>Debit</th>
+                                            <th style={{ textAlign: "right" }}>Credit</th>
+                                            <th>Created by</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {(ledgerEntries || []).slice(0, 120).map((e) => (
+                                            <tr key={e.id}>
+                                                <td>{fmtDate(e.entryDate)}</td>
+                                                <td>{e.sourceType}:{e.sourceId}</td>
+                                                <td>{e.accountCode} - {e.accountName}</td>
+                                                <td style={{ textAlign: "right" }}>{fmt(e.debit || 0)}</td>
+                                                <td style={{ textAlign: "right" }}>{fmt(e.credit || 0)}</td>
+                                                <td>{e.createdBy || "-"}</td>
+                                            </tr>
+                                        ))}
+                                        {(ledgerEntries || []).length === 0 && (
+                                            <tr><td colSpan={6} style={{ textAlign: "center", color: "var(--text-dim)", padding: 16 }}>No ledger postings found for period.</td></tr>
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </Card>
+                    )}
                 </div>
             )}
         </div>
