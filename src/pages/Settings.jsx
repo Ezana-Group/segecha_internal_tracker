@@ -51,6 +51,7 @@ import {
     Send,
     UserRoundCog,
     Pencil,
+    Bug,
 } from "lucide-react";
 
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -84,6 +85,7 @@ import { SettingsProfilePermissions } from "../components/SettingsProfilePermiss
 import { adminAuth } from "../utils/adminAuth";
 import { applyBrandColor } from "../utils/brandColor";
 import { TemplateEditor } from "./TemplateEditor.jsx";
+import { ErrorLogs } from "./ErrorLogs.jsx";
 
 const SETTINGS_MENU = [
     {
@@ -109,6 +111,7 @@ const SETTINGS_MENU = [
         label: "Revenue & messages",
         items: [
             { id: "finance",   label: "Finance & payments",  icon: Wallet },
+            { id: "mpesa",     label: "M-Pesa transactions", icon: CreditCard },
             { id: "templates", label: "Message templates",   icon: MessageSquare },
         ],
     },
@@ -117,6 +120,7 @@ const SETTINGS_MENU = [
         label: "Data & Access",
         items: [
             { id: "permissions", label: "Profile permissions", icon: UserRoundCog },
+            { id: "errors",      label: "Error logs",          icon: Bug },
             { id: "data",        label: "Backup & import",     icon: Database },
         ],
     },
@@ -344,6 +348,18 @@ export function Settings({
     const [editingTemplate, setEditingTemplate] = useState(null);
     const [sendTestPhone, setSendTestPhone] = useState("");
     const [localS, setLocalS] = useState(readSettings);
+    const [mpesaSyncing, setMpesaSyncing] = useState(false);
+    const [mpesaForm, setMpesaForm] = useState({
+        direction: "Incoming",
+        amount: "",
+        reference: "",
+        counterpartyName: "",
+        counterpartyPhone: "",
+        linkedType: "invoice",
+        linkedId: "",
+        date: new Date().toISOString().slice(0, 10),
+        notes: "",
+    });
     const [logoDragOver, setLogoDragOver] = useState(false);
     const [faviconDragOver, setFaviconDragOver] = useState(false);
     const [backupDragOver, setBackupDragOver] = useState(false);
@@ -482,6 +498,60 @@ export function Settings({
         setLastSaved(new Date());
         window.setTimeout(() => setSaving(false), 550);
     };
+
+    const mpesaTransactions = Array.isArray(localS.mpesaTransactions) ? localS.mpesaTransactions : [];
+    const saveMpesaTransactions = useCallback((nextRows) => {
+        saveSettings({ mpesaTransactions: nextRows });
+    }, [saveSettings]);
+
+    const addMpesaTransaction = useCallback(() => {
+        const amount = Number(mpesaForm.amount);
+        if (!amount || amount <= 0) {
+            showToast?.("Enter a valid M-Pesa amount.", "warning");
+            return;
+        }
+        const tx = {
+            id: uid(),
+            direction: mpesaForm.direction || "Incoming",
+            amount,
+            reference: (mpesaForm.reference || "").trim(),
+            counterpartyName: (mpesaForm.counterpartyName || "").trim(),
+            counterpartyPhone: (mpesaForm.counterpartyPhone || "").trim(),
+            linkedType: mpesaForm.linkedType || "",
+            linkedId: mpesaForm.linkedId || "",
+            date: mpesaForm.date || new Date().toISOString().slice(0, 10),
+            notes: (mpesaForm.notes || "").trim(),
+            createdAt: new Date().toISOString(),
+        };
+        saveMpesaTransactions([tx, ...mpesaTransactions]);
+        setMpesaForm((f) => ({ ...f, amount: "", reference: "", counterpartyName: "", counterpartyPhone: "", linkedId: "", notes: "" }));
+        showToast?.("M-Pesa transaction added.", "success");
+    }, [mpesaForm, mpesaTransactions, saveMpesaTransactions, showToast]);
+
+    const syncMpesaTransactions = useCallback(async () => {
+        if (!PAYMENT_API) {
+            showToast?.("Set API URL first.", "warning");
+            return;
+        }
+        setMpesaSyncing(true);
+        try {
+            const res = await fetchWithAuth(`${PAYMENT_API}/api/admin/mpesa/transactions?limit=200`);
+            const payload = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(payload.error || `HTTP ${res.status}`);
+            const incoming = Array.isArray(payload.transactions) ? payload.transactions : [];
+            const existingByRef = new Map(mpesaTransactions.map((t) => [String(t.reference || t.id), t]));
+            for (const row of incoming) {
+                const key = String(row.reference || row.id || uid());
+                if (!existingByRef.has(key)) existingByRef.set(key, row);
+            }
+            saveMpesaTransactions(Array.from(existingByRef.values()).sort((a, b) => new Date(b.date || b.createdAt || 0) - new Date(a.date || a.createdAt || 0)));
+            showToast?.("M-Pesa transactions synced.", "success");
+        } catch (e) {
+            showToast?.(`M-Pesa sync failed: ${e.message}`, "error");
+        } finally {
+            setMpesaSyncing(false);
+        }
+    }, [mpesaTransactions, saveMpesaTransactions, showToast]);
 
     const [workspaceTabEditable, setWorkspaceTabEditable] = useState(() => createWorkspaceEditableMap(false));
     const [templatesEditable, setTemplatesEditable] = useState(false);
@@ -1588,6 +1658,105 @@ export function Settings({
                         </fieldset>
                     )}
 
+                    {/* ── M-PESA TRANSACTIONS ── */}
+                    {activeTab === "mpesa" && (
+                        <div style={{ animation: "fade-in 0.3s ease-out" }}>
+                            <SettingsShellSectionHeader
+                                title="M-Pesa Ledger"
+                                desc="Track incoming/outgoing M-Pesa transactions and link each record to invoices, payroll, deposits, refunds, and other operations."
+                                icon={CreditCard}
+                            />
+                            <Card style={{ padding: 20, marginBottom: 16 }}>
+                                <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 12 }}>
+                                    <SettingsShellField label="Direction">
+                                        <select className="input-premium" value={mpesaForm.direction} onChange={(e) => setMpesaForm((f) => ({ ...f, direction: e.target.value }))}>
+                                            <option value="Incoming">Incoming</option>
+                                            <option value="Outgoing">Outgoing</option>
+                                        </select>
+                                    </SettingsShellField>
+                                    <SettingsShellField label="Amount (KES)">
+                                        <SettingsShellInput type="number" value={mpesaForm.amount} onChange={(e) => setMpesaForm((f) => ({ ...f, amount: e.target.value }))} />
+                                    </SettingsShellField>
+                                    <SettingsShellField label="Transaction Date">
+                                        <SettingsShellInput type="date" value={mpesaForm.date} onChange={(e) => setMpesaForm((f) => ({ ...f, date: e.target.value }))} />
+                                    </SettingsShellField>
+                                    <SettingsShellField label="M-Pesa Reference">
+                                        <SettingsShellInput value={mpesaForm.reference} onChange={(e) => setMpesaForm((f) => ({ ...f, reference: e.target.value }))} placeholder="e.g. QJK1234567" />
+                                    </SettingsShellField>
+                                    <SettingsShellField label="Counterparty Name">
+                                        <SettingsShellInput value={mpesaForm.counterpartyName} onChange={(e) => setMpesaForm((f) => ({ ...f, counterpartyName: e.target.value }))} />
+                                    </SettingsShellField>
+                                    <SettingsShellField label="Counterparty Phone">
+                                        <SettingsShellInput value={mpesaForm.counterpartyPhone} onChange={(e) => setMpesaForm((f) => ({ ...f, counterpartyPhone: e.target.value }))} />
+                                    </SettingsShellField>
+                                    <SettingsShellField label="Link Type">
+                                        <select className="input-premium" value={mpesaForm.linkedType} onChange={(e) => setMpesaForm((f) => ({ ...f, linkedType: e.target.value, linkedId: "" }))}>
+                                            <option value="invoice">Invoice</option>
+                                            <option value="journey">Journey Deposit/Final</option>
+                                            <option value="payroll">Driver Payroll</option>
+                                            <option value="refund">Refund</option>
+                                            <option value="expense">Expense</option>
+                                            <option value="other">Other</option>
+                                        </select>
+                                    </SettingsShellField>
+                                    <SettingsShellField label="Linked Record">
+                                        <select className="input-premium" value={mpesaForm.linkedId} onChange={(e) => setMpesaForm((f) => ({ ...f, linkedId: e.target.value }))}>
+                                            <option value="">Select…</option>
+                                            {(mpesaForm.linkedType === "invoice" ? data.invoices : mpesaForm.linkedType === "journey" ? data.journeys : mpesaForm.linkedType === "payroll" ? data.payroll : mpesaForm.linkedType === "expense" ? data.expenses : []).map((row) => (
+                                                <option key={row.id} value={row.id}>{row.id}</option>
+                                            ))}
+                                        </select>
+                                    </SettingsShellField>
+                                    <SettingsShellField label="Notes">
+                                        <SettingsShellInput value={mpesaForm.notes} onChange={(e) => setMpesaForm((f) => ({ ...f, notes: e.target.value }))} />
+                                    </SettingsShellField>
+                                </div>
+                                <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
+                                    <Button icon={Plus} onClick={addMpesaTransaction}>Add transaction</Button>
+                                    <Button variant="secondary" icon={RefreshCw} loading={mpesaSyncing} onClick={syncMpesaTransactions}>
+                                        Sync from API
+                                    </Button>
+                                </div>
+                            </Card>
+
+                            <Card style={{ padding: 0, overflow: "hidden" }}>
+                                <div className="table-container">
+                                    <table className="table-modern">
+                                        <thead>
+                                            <tr>
+                                                <th>Date</th>
+                                                <th>Direction</th>
+                                                <th>Reference</th>
+                                                <th>Counterparty</th>
+                                                <th style={{ textAlign: "right" }}>Amount</th>
+                                                <th>Linked To</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {mpesaTransactions.length === 0 ? (
+                                                <tr><td colSpan={6} style={{ textAlign: "center", padding: 32, color: "var(--text-dim)" }}>No M-Pesa transactions yet.</td></tr>
+                                            ) : mpesaTransactions.map((tx) => (
+                                                <tr key={tx.id}>
+                                                    <td>{tx.date || "—"}</td>
+                                                    <td><Badge status={tx.direction === "Incoming" ? "Active" : "Warning"}>{tx.direction}</Badge></td>
+                                                    <td style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}>{tx.reference || "—"}</td>
+                                                    <td>{tx.counterpartyName || tx.counterpartyPhone || "—"}</td>
+                                                    <td style={{ textAlign: "right", fontWeight: 800 }}>{fmt(Number(tx.amount || 0))}</td>
+                                                    <td>{tx.linkedType ? `${tx.linkedType}${tx.linkedId ? ` · ${tx.linkedId}` : ""}` : "—"}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </Card>
+                        </div>
+                    )}
+
+                    {/* ── SYSTEM ERROR LOGS ── */}
+                    {activeTab === "errors" && (
+                        <ErrorLogs S={S} />
+                    )}
+
                     {/* ── FLEET ── */}
                     {activeTab === 'fleet' && (
                         <fieldset disabled={!workspaceTabEditable.fleet || !canEditSettings} className="settings-workspace-fieldset">
@@ -2557,6 +2726,8 @@ export function Settings({
                                 <TemplateEditor
                                     template={editingTemplate}
                                     companyName={localS.companyName}
+                                    orgEmail={localS.operatorWorkEmail || localS.email || ""}
+                                    orgWhatsApp={localS.companyWhatsApp || localS.phone || ""}
                                     fillTemplate={fillTemplate}
                                     showToast={showToast}
                                     onClose={() => {

@@ -1992,10 +1992,14 @@ export function useAppState() {
         let result = templateStr;
         const settings = readSettings();
         const co = settings.companyName || "Segecha Group";
+        const supportEmail = settings.operatorWorkEmail || settings.email || "";
+        const supportPhone = settings.companyWhatsApp || settings.companyPhone || settings.phone || "";
         const finalContext = expandMessageTemplateContext({
             company_name: co,
             businessName: co,
             today: today(),
+            supportEmail,
+            supportPhone,
             ...context,
         });
 

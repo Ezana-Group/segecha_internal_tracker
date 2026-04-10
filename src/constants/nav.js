@@ -26,7 +26,6 @@ export const NAV = [
     { id: "incidents", path: "/incidents", label: "Incidents" },
     { id: "documents", path: "/documents", label: "Documents" },
     { id: "import", path: "/import", label: "Import" },
-    { id: "error-logs", path: "/error-logs", label: "Error logs" },
     { id: "settings", path: "/settings", label: "Settings" },
 ];
 

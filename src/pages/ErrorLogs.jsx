@@ -4,7 +4,7 @@ import { fetchWithAuth } from "../utils/api";
 import { Button } from "../components/Button";
 import { Card } from "../components/Card";
 
-const SOURCES = ["", "admin", "driver", "track", "payment", "server"];
+const SOURCES = ["", "admin", "driver", "track", "payment", "server", "backend", "frontend", "database"];
 
 export function ErrorLogs({ S }) {
     const [logs, setLogs] = useState([]);
@@ -44,7 +44,7 @@ export function ErrorLogs({ S }) {
                         Error logs
                     </h1>
                     <p style={{ color: "var(--text-muted)", margin: "8px 0 0", fontSize: 14 }}>
-                        Client-side errors from the dashboard, driver portal, track portal, and payment portal.
+                        Unified error stream: frontend, backend, API, and database related failures.
                     </p>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>

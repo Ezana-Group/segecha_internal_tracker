@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { Routes, Route, useLocation, useNavigate } from "react-router-dom";
+import { Routes, Route, useLocation, useNavigate, Navigate } from "react-router-dom";
 import { isPathAllowedInPreview, defaultPreviewPath } from "./constants/previewNav.js";
 import { PreviewModeBanner } from "./components/PreviewModeBanner.jsx";
 import { useWindowWidth } from "./hooks/useWindowWidth";
@@ -31,7 +31,6 @@ import { CustomerProfile } from "./pages/CustomerProfile";
 import { StaffProfile } from "./pages/StaffProfile";
 import { Incidents } from "./pages/Incidents";
 import { ImportReview } from "./pages/ImportReview";
-import { ErrorLogs } from "./pages/ErrorLogs";
 import { TyreMonitor } from "./pages/TyreMonitor";
 import { Assets } from "./pages/Assets";
 import { GlobalModals } from "./components/GlobalModals";
@@ -262,7 +261,7 @@ export default function App() {
                                     <Route path="/documents" element={<ErrorBoundary><Documents {...p} /></ErrorBoundary>} />
                                     <Route path="/settings" element={<ErrorBoundary><Settings {...p} /></ErrorBoundary>} />
                                     <Route path="/import" element={<ErrorBoundary><ImportReview {...p} /></ErrorBoundary>} />
-                                    <Route path="/error-logs" element={<ErrorBoundary><ErrorLogs {...p} /></ErrorBoundary>} />
+                                    <Route path="/error-logs" element={<Navigate to="/settings?tab=errors" replace />} />
                                 </Routes>
                             ) : (
                                 <ErrorBoundary>

@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { uid, canonicalTemplateType } from "../utils/formatters";
 import { expandMessageTemplateContext } from "../utils/templateContext";
+import { buildMailtoUrl, buildWhatsAppUrl } from "../utils/contactLinks";
 
 /* ─── Placeholder groups ─────────────────────────────────────────────── */
 const PLACEHOLDER_GROUPS = [
@@ -179,6 +180,11 @@ function slugify(str) {
         .replace(/-+/g, "-");
 }
 
+function retitleForType(text, nextType) {
+    const current = String(text || "");
+    return current.replace(/^(Email|WhatsApp|PDF)\s+/i, `${nextType} `);
+}
+
 /* ─── Sample preview context ─────────────────────────────────────────── */
 function buildSampleContext(companyName = "Segecha Group Ltd") {
     return expandMessageTemplateContext({
@@ -230,7 +236,7 @@ function fillPreview(text, ctx) {
 }
 
 /* ─── Main component ─────────────────────────────────────────────────── */
-export function TemplateEditor({ template, onSave, onClose, companyName, fillTemplate, showToast }) {
+export function TemplateEditor({ template, onSave, onClose, companyName, orgEmail = "", orgWhatsApp = "", fillTemplate, showToast }) {
     const isNew = !template;
 
     const [localT, setLocalT] = useState(() => {
@@ -255,6 +261,8 @@ export function TemplateEditor({ template, onSave, onClose, companyName, fillTem
     const [activeType, setActiveType] = useState(() => canonicalTemplateType((template?.type) || "Email"));
     const [phSearch, setPhSearch] = useState("");
     const [slugManuallyEdited, setSlugManuallyEdited] = useState(!!template?.slug);
+    const [testEmail, setTestEmail] = useState(orgEmail || "");
+    const [testPhone, setTestPhone] = useState(orgWhatsApp || "");
 
     const subjectRef = useRef(null);
     const bodyRef = useRef(null);
@@ -290,9 +298,39 @@ export function TemplateEditor({ template, onSave, onClose, companyName, fillTem
         setActiveType(type);
         patch({
             type,
+            name: retitleForType(localT.name, type),
+            description: retitleForType(localT.description, type),
+            ...(slugManuallyEdited ? {} : { slug: slugify(retitleForType(localT.name, type)) }),
             ...(type === "PDF" ? { _editorMode: "HTML" } : {}),
         });
-    }, [patch]);
+    }, [patch, localT.name, localT.description, slugManuallyEdited]);
+
+    const handleSendTest = useCallback((channel) => {
+        const messageText = rendered.body || localT.body || "";
+        const subject = rendered.subject || localT.subject || localT.name || "Template Test";
+        if (channel === "email") {
+            const recipient = (testEmail || "").trim();
+            const href = buildMailtoUrl(recipient, subject, messageText);
+            if (!href) {
+                showToast?.("Enter a test email first.", "warning");
+                return;
+            }
+            window.location.href = href;
+            showToast?.("Opening email client for test send.", "success");
+            return;
+        }
+        if (channel === "whatsapp") {
+            const recipient = (testPhone || "").trim();
+            const wa = buildWhatsAppUrl(recipient, messageText);
+            if (!wa) {
+                showToast?.("Enter a valid test WhatsApp number first.", "warning");
+                return;
+            }
+            window.open(wa, "_blank", "noopener,noreferrer");
+            showToast?.("Opening WhatsApp for test send.", "success");
+            return;
+        }
+    }, [localT.body, localT.name, localT.subject, rendered.body, rendered.subject, showToast, testEmail, testPhone]);
 
     /* ── Cursor tracking for placeholder insert ─── */
     const rememberCursor = useCallback((field) => {
@@ -380,6 +418,44 @@ export function TemplateEditor({ template, onSave, onClose, companyName, fillTem
                     </div>
                 </div>
                 <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                    {(activeType === "Email" || activeType === "PDF") && (
+                        <input
+                            value={testEmail}
+                            onChange={(e) => setTestEmail(e.target.value)}
+                            placeholder="Test email"
+                            className="tpl-editor-input"
+                            style={{ width: 190, height: 34 }}
+                        />
+                    )}
+                    {(activeType === "WhatsApp" || activeType === "PDF") && (
+                        <input
+                            value={testPhone}
+                            onChange={(e) => setTestPhone(e.target.value)}
+                            placeholder="Test WhatsApp no."
+                            className="tpl-editor-input"
+                            style={{ width: 170, height: 34 }}
+                        />
+                    )}
+                    {activeType === "Email" && (
+                        <button type="button" onClick={() => handleSendTest("email")} className="tpl-editor-cancel-btn">
+                            Send test email
+                        </button>
+                    )}
+                    {activeType === "WhatsApp" && (
+                        <button type="button" onClick={() => handleSendTest("whatsapp")} className="tpl-editor-cancel-btn">
+                            Send test WhatsApp
+                        </button>
+                    )}
+                    {activeType === "PDF" && (
+                        <>
+                            <button type="button" onClick={() => handleSendTest("email")} className="tpl-editor-cancel-btn">
+                                Test PDF via email
+                            </button>
+                            <button type="button" onClick={() => handleSendTest("whatsapp")} className="tpl-editor-cancel-btn">
+                                Test PDF via WhatsApp
+                            </button>
+                        </>
+                    )}
                     <button type="button" onClick={onClose} className="tpl-editor-cancel-btn">
                         <X size={15} strokeWidth={2} /> Cancel
                     </button>

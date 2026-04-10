@@ -604,11 +604,39 @@ autoSeed();
 
 // --- AUTHENTICATED ENDPOINTS ---
 
+async function writeErrorLog({
+    source = 'server',
+    level = 'error',
+    message = '(no message)',
+    stack = null,
+    url = null,
+    userAgent = null,
+    meta = {},
+} = {}) {
+    try {
+        await db.query(
+            `INSERT INTO error_logs (source, level, message, stack, url, user_agent, meta)
+             VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)`,
+            [
+                String(source).slice(0, 32),
+                String(level).slice(0, 24),
+                String(message).slice(0, 4000),
+                stack != null ? String(stack).slice(0, 12000) : null,
+                url != null ? String(url).slice(0, 2000) : null,
+                userAgent != null ? String(userAgent).slice(0, 500) : null,
+                JSON.stringify(meta && typeof meta === 'object' ? meta : {}),
+            ]
+        );
+    } catch (e) {
+        console.warn('[error-log-write-failed]', e.message);
+    }
+}
+
 // Public client error reporting (all SPAs: dash, driver, track, payment)
 app.post('/api/client-error', clientErrorLimiter, async (req, res) => {
     try {
         const body = req.body || {};
-        const allowed = new Set(['admin', 'driver', 'track', 'payment', 'server', 'unknown']);
+        const allowed = new Set(['admin', 'driver', 'track', 'payment', 'server', 'backend', 'frontend', 'database', 'unknown']);
         const source = allowed.has(String(body.source)) ? body.source : 'unknown';
         const level = String(body.level || 'error').slice(0, 24);
         const message = String(body.message || '(no message)').slice(0, 4000);
@@ -621,11 +649,7 @@ app.post('/api/client-error', clientErrorLimiter, async (req, res) => {
                 meta = JSON.parse(JSON.stringify(body.meta));
             } catch { /* ignore */ }
         }
-        await db.query(
-            `INSERT INTO error_logs (source, level, message, stack, url, user_agent, meta)
-             VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)`,
-            [source, level, message, stack, url, userAgent, JSON.stringify(meta)]
-        );
+        await writeErrorLog({ source, level, message, stack, url, userAgent, meta });
         res.json({ success: true });
     } catch (e) {
         console.warn('[client-error] insert failed:', e.message);
@@ -655,6 +679,45 @@ app.get('/api/admin/error-logs', async (req, res) => {
         res.json({ success: true, logs: rows.rows });
     } catch (e) {
         console.error('[error-logs]', e.message);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// Admin: pull M-Pesa transactions from external API (wire-up endpoint)
+app.get('/api/admin/mpesa/transactions', async (req, res) => {
+    try {
+        const providerUrl = process.env.MPESA_TRANSACTIONS_URL || '';
+        if (!providerUrl) {
+            return res.json({ success: true, transactions: [] });
+        }
+        const qs = new URLSearchParams();
+        if (req.query.limit) qs.set('limit', String(req.query.limit));
+        if (req.query.from) qs.set('from', String(req.query.from));
+        if (req.query.to) qs.set('to', String(req.query.to));
+        const url = `${providerUrl}${providerUrl.includes('?') ? '&' : '?'}${qs.toString()}`;
+        const headers = {};
+        if (process.env.MPESA_API_KEY) headers['Authorization'] = `Bearer ${process.env.MPESA_API_KEY}`;
+        const upstream = await fetch(url, { headers });
+        const payload = await upstream.json().catch(() => ({}));
+        if (!upstream.ok) {
+            await writeErrorLog({
+                source: 'backend',
+                level: 'error',
+                message: `M-Pesa upstream error: ${upstream.status}`,
+                meta: { providerUrl, status: upstream.status, payload },
+            });
+            return res.status(502).json({ error: payload.error || `Upstream HTTP ${upstream.status}` });
+        }
+        const tx = Array.isArray(payload.transactions) ? payload.transactions : (Array.isArray(payload.data) ? payload.data : []);
+        res.json({ success: true, transactions: tx });
+    } catch (e) {
+        await writeErrorLog({
+            source: 'backend',
+            level: 'error',
+            message: e.message || 'Failed to fetch M-Pesa transactions',
+            stack: e.stack || null,
+            meta: { endpoint: '/api/admin/mpesa/transactions' },
+        });
         res.status(500).json({ error: e.message });
     }
 });
@@ -1434,6 +1497,7 @@ app.post('/api/admin/collection/:col', async (req, res) => {
         res.json({ success: true });
     } catch (e) {
         console.error(`[CRUD] POST ${col} failed:`, e.message);
+        await writeErrorLog({ source: 'database', level: 'error', message: `[CRUD] POST ${col} failed: ${e.message}`, stack: e.stack || null, meta: { col, op: 'post' } });
         res.status(500).json({ error: e.message });
     }
 });
@@ -1447,6 +1511,7 @@ app.put('/api/admin/collection/:col/:id', async (req, res) => {
         res.json({ success: true });
     } catch (e) {
         console.error(`[CRUD] PUT ${col}/${req.params.id} failed:`, e.message);
+        await writeErrorLog({ source: 'database', level: 'error', message: `[CRUD] PUT ${col}/${req.params.id} failed: ${e.message}`, stack: e.stack || null, meta: { col, id: req.params.id, op: 'put' } });
         res.status(500).json({ error: e.message });
     }
 });
@@ -2142,12 +2207,41 @@ app.use((err, req, res, next) => {
     }
     const isDev = process.env.NODE_ENV !== 'production';
     console.error(`[SERVER_ERROR] ${req.method} ${req.url}:`, err);
+    writeErrorLog({
+        source: err?.type === 'entity.too.large' || err?.status === 413 ? 'backend' : 'server',
+        level: 'error',
+        message: `[SERVER_ERROR] ${req.method} ${req.url}: ${err?.message || 'Unhandled error'}`,
+        stack: err?.stack || null,
+        url: req.url,
+        userAgent: req.headers['user-agent'] || null,
+        meta: { method: req.method, status: err?.status || 500 },
+    });
     const clientMessage = isDev ? err.message : 'An unexpected error occurred. Please try again.';
     res.status(err.status || 500).json({ error: clientMessage });
 });
 
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on port ${PORT} (JSON body limit: ${JSON_BODY_LIMIT})`);
+});
+
+process.on('unhandledRejection', (reason) => {
+    writeErrorLog({
+        source: 'backend',
+        level: 'error',
+        message: `Unhandled promise rejection: ${reason?.message || String(reason)}`,
+        stack: reason?.stack || null,
+        meta: { kind: 'unhandledRejection' },
+    });
+});
+
+process.on('uncaughtException', (error) => {
+    writeErrorLog({
+        source: 'backend',
+        level: 'error',
+        message: `Uncaught exception: ${error?.message || String(error)}`,
+        stack: error?.stack || null,
+        meta: { kind: 'uncaughtException' },
+    });
 });
 
 module.exports = { app, db };
