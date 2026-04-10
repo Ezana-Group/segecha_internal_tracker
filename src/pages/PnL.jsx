@@ -34,6 +34,7 @@ import { useTableFilter } from "../hooks/useTableFilter";
 export function PnL({ data, dark, isMobile, truckStats, truckReg, customerName, driverName, showToast }) {
     const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState('analytics'); // 'analytics' | 'statement'
+    const [analyticsBasis, setAnalyticsBasis] = useState('operating'); // 'operating' | 'contribution'
 
     const totalSalaries = data.payroll.filter(p => p.status === "Paid").reduce((s, p) => s + +p.baseSalary + +p.allowance - +p.deductions, 0);
     const invoicesPaid = data.invoices.filter(i => i.status === "Paid").reduce((s, i) => s + (+i.paidAmount || 0), 0);
@@ -101,8 +102,13 @@ export function PnL({ data, dark, isMobile, truckStats, truckReg, customerName, 
     const totalFuelCostFiltered = sortedMatrix.reduce((s, t) => s + t._fuel, 0);
     const totalOtherExpFiltered = sortedMatrix.reduce((s, t) => s + t._other, 0);
     const totalExpensesFiltered = totalFuelCostFiltered + totalOtherExpFiltered;
-    const netProfitFiltered = totalRevenueFiltered - totalExpensesFiltered;
+    const netContributionFiltered = totalRevenueFiltered - totalExpensesFiltered;
+    // Analytics can be viewed in two accounting bases:
+    // - operating: includes payroll + depreciation (aligned with statement)
+    // - contribution: trip-level contribution (fuel + variable costs only)
+    const netProfitFiltered = analyticsBasis === 'operating' ? stmtNetProfit : netContributionFiltered;
     const marginFiltered = totalRevenueFiltered > 0 ? (netProfitFiltered / totalRevenueFiltered * 100).toFixed(1) : 0;
+    const contributionMarginFiltered = totalRevenueFiltered > 0 ? (netContributionFiltered / totalRevenueFiltered * 100).toFixed(1) : 0;
 
     const handlePrint = () => {
         const printContent = document.getElementById(activeTab === 'statement' ? "pnl-statement-view" : "pnl-analytics-print");
@@ -152,11 +158,17 @@ export function PnL({ data, dark, isMobile, truckStats, truckReg, customerName, 
     const marginNum = Number(marginFiltered);
     const insightHeadline = netProfitFiltered >= 0 ? "Above break-even" : "Below break-even";
     const insightCopy =
-        marginNum >= 15
-            ? `Operating margin is ${marginFiltered}%. Revenue is covering costs with room to reinvest.`
-            : marginNum >= 0
-              ? `Operating margin is ${marginFiltered}%. Watch fuel and maintenance to lift contribution per vehicle.`
-              : `Operating margin is ${marginFiltered}%. Review high-cost vehicles in the matrix and trip pricing.`;
+        analyticsBasis === 'operating'
+            ? (marginNum >= 15
+                ? `Operating margin is ${marginFiltered}%. Revenue is covering full cost base with room to reinvest.`
+                : marginNum >= 0
+                  ? `Operating margin is ${marginFiltered}%. Watch payroll, depreciation, and overhead mix.`
+                  : `Operating margin is ${marginFiltered}%. Review pricing and total cost structure.`)
+            : (Number(contributionMarginFiltered) >= 15
+                ? `Trip contribution margin is ${contributionMarginFiltered}%. Direct trip economics are healthy.`
+                : Number(contributionMarginFiltered) >= 0
+                  ? `Trip contribution margin is ${contributionMarginFiltered}%. Tighten fuel and variable costs.`
+                  : `Trip contribution margin is ${contributionMarginFiltered}%. Trips are not covering variable costs.`);
 
     const catBreakdown = CATS.filter(c => c !== "Fuel").map(c => ({
         cat: c,
@@ -217,6 +229,46 @@ export function PnL({ data, dark, isMobile, truckStats, truckReg, customerName, 
 
             {activeTab === 'analytics' ? (
                 <>
+                    <Card style={{ padding: 12, marginBottom: 14 }}>
+                        <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                            <span style={{ fontSize: 11, fontWeight: 800, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                                Accounting Basis
+                            </span>
+                            <button
+                                type="button"
+                                onClick={() => setAnalyticsBasis('operating')}
+                                style={{
+                                    border: "none",
+                                    cursor: "pointer",
+                                    borderRadius: 999,
+                                    padding: "6px 12px",
+                                    fontSize: 12,
+                                    fontWeight: 700,
+                                    background: analyticsBasis === 'operating' ? "var(--brand-primary)" : "var(--surface-subtle)",
+                                    color: analyticsBasis === 'operating' ? "#fff" : "var(--text-secondary)",
+                                }}
+                            >
+                                Operating (P&L Statement)
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setAnalyticsBasis('contribution')}
+                                style={{
+                                    border: "none",
+                                    cursor: "pointer",
+                                    borderRadius: 999,
+                                    padding: "6px 12px",
+                                    fontSize: 12,
+                                    fontWeight: 700,
+                                    background: analyticsBasis === 'contribution' ? "var(--brand-primary)" : "var(--surface-subtle)",
+                                    color: analyticsBasis === 'contribution' ? "#fff" : "var(--text-secondary)",
+                                }}
+                            >
+                                Trip Contribution
+                            </button>
+                        </div>
+                    </Card>
+
                     {/* ── KPI Row ── */}
                     <div style={{
                         display: "grid",
@@ -262,7 +314,7 @@ export function PnL({ data, dark, isMobile, truckStats, truckReg, customerName, 
                             </div>
                         </Card>
 
-                        {/* Net Profit */}
+                        {/* Net card (basis-aware) */}
                         <Card accent={isProfit ? "#10b981" : "#ef4444"} style={{ padding: 20 }}>
                             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
                                 <div style={{ width: 36, height: 36, borderRadius: "var(--radius-md)", background: isProfit ? "rgba(16,185,129,0.12)" : "rgba(239,68,68,0.12)", display: "flex", alignItems: "center", justifyContent: "center", color: isProfit ? "#10b981" : "#ef4444" }}>
@@ -271,7 +323,7 @@ export function PnL({ data, dark, isMobile, truckStats, truckReg, customerName, 
                                 <span style={{ fontSize: 12, fontWeight: 800, color: isProfit ? "#10b981" : "#ef4444" }}>{marginFiltered}% margin</span>
                             </div>
                             <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>
-                                Net Profit / Loss
+                                {analyticsBasis === 'operating' ? 'Net Operating Profit / Loss' : 'Trip Contribution / Loss'}
                             </div>
                             <div style={{ fontSize: 22, fontWeight: 900, color: isProfit ? "#10b981" : "#ef4444", fontVariantNumeric: "tabular-nums", letterSpacing: "-0.02em" }}>
                                 {fmt(netProfitFiltered)}
@@ -451,6 +503,11 @@ export function PnL({ data, dark, isMobile, truckStats, truckReg, customerName, 
                                 <p style={{ fontSize: 12, color: "var(--text-secondary)", lineHeight: 1.6, margin: 0 }}>
                                     {insightCopy}
                                 </p>
+                                <div style={{ marginTop: 10, fontSize: 11, color: "var(--text-dim)", fontWeight: 600 }}>
+                                    {analyticsBasis === 'operating'
+                                        ? `Trip contribution reference: ${fmt(netContributionFiltered)} (${contributionMarginFiltered}%)`
+                                        : `Operating reference: ${fmt(stmtNetProfit)} (${stmtMargin}%)`}
+                                </div>
                             </Card>
                         </div>
                     </div>
@@ -576,13 +633,13 @@ export function PnL({ data, dark, isMobile, truckStats, truckReg, customerName, 
                                 <div style={{ fontSize: 11, fontWeight: 800, color: isStmtProfit ? "#10b981" : "#ef4444", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>
                                     Net Operating {isStmtProfit ? "Profit" : "Loss"}
                                 </div>
-                                <div style={{ fontSize: 36, fontWeight: 900, color: isStmtProfit ? "#10b981" : "#ef4444", fontVariantNumeric: "tabular-nums", letterSpacing: "-0.03em", lineHeight: 1 }}>
+                                <div style={{ fontSize: 30, fontWeight: 900, color: isStmtProfit ? "#10b981" : "#ef4444", fontVariantNumeric: "tabular-nums", letterSpacing: "-0.03em", lineHeight: 1 }}>
                                     {fmt(stmtNetProfit)}
                                 </div>
                             </div>
                             <div style={{ textAlign: "right" }}>
                                 <div style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 700, marginBottom: 4 }}>Operating Margin</div>
-                                <div style={{ fontSize: 24, fontWeight: 900, color: isStmtProfit ? "#10b981" : "#ef4444" }}>{stmtMargin}%</div>
+                                <div style={{ fontSize: 20, fontWeight: 900, color: isStmtProfit ? "#10b981" : "#ef4444" }}>{stmtMargin}%</div>
                             </div>
                         </div>
                         <div style={{ marginTop: 14, display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12 }}>
