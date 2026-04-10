@@ -358,6 +358,10 @@ export function Settings({
     const [localS, setLocalS] = useState(readSettings);
     const [payrollSettingsDraft, setPayrollSettingsDraft] = useState(() => getPayrollSettings());
     const [financePanel, setFinancePanel] = useState("basics");
+    const [fleetPanel, setFleetPanel] = useState("operations");
+    const [generalPanel, setGeneralPanel] = useState("profile");
+    const [routesPanel, setRoutesPanel] = useState("rates");
+    const [waybillPanel, setWaybillPanel] = useState("defaults");
     const [deductionTemplates, setDeductionTemplates] = useState([]);
     const [deductionTemplateDraft, setDeductionTemplateDraft] = useState({
         name: "",
@@ -562,6 +566,18 @@ export function Settings({
 
     useEffect(() => {
         if (activeTab === "finance") setFinancePanel("basics");
+    }, [activeTab]);
+    useEffect(() => {
+        if (activeTab === "fleet") setFleetPanel("operations");
+    }, [activeTab]);
+    useEffect(() => {
+        if (activeTab === "general") setGeneralPanel("profile");
+    }, [activeTab]);
+    useEffect(() => {
+        if (activeTab === "routes") setRoutesPanel("rates");
+    }, [activeTab]);
+    useEffect(() => {
+        if (activeTab === "waybill") setWaybillPanel("defaults");
     }, [activeTab]);
 
     useEffect(() => {
@@ -1453,10 +1469,31 @@ export function Settings({
 
                     {/* ── GENERAL ── */}
                     {activeTab === 'general' && (
+                        <>
+                        <div className="settings-subtabs" role="tablist" aria-label="Organization sections">
+                            {[
+                                { id: "profile", label: "Company profile" },
+                                { id: "security", label: "Security & session" },
+                                { id: "ids", label: "ID prefixes" },
+                            ].map((tab) => (
+                                <button
+                                    key={tab.id}
+                                    type="button"
+                                    role="tab"
+                                    aria-selected={generalPanel === tab.id}
+                                    className={`settings-subtab${generalPanel === tab.id ? " is-active" : ""}`}
+                                    onClick={() => setGeneralPanel(tab.id)}
+                                >
+                                    {tab.label}
+                                </button>
+                            ))}
+                        </div>
                         <fieldset disabled={!workspaceTabEditable.general || !canEditSettings} className="settings-workspace-fieldset">
                             <legend className="settings-fieldset-sr-only">Organization settings</legend>
                             <SettingsShellSectionHeader title="Organization Profile" desc="Configure your company details and contact information for documents." icon={Building2} />
                             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+                                {generalPanel === "profile" && (
+                                <>
                                 <SettingsShellField label="Company Name">
                                     <SettingsShellInput value={localS.companyName || ''} onChange={e => saveSettings({ companyName: e.target.value })} placeholder="e.g. Segecha Logistics Ltd" />
                                 </SettingsShellField>
@@ -1540,6 +1577,9 @@ export function Settings({
                                         />
                                     </SettingsShellField>
                                 </div>
+                                </>
+                                )}
+                                {generalPanel === "security" && (
                                 <div style={{ gridColumn: "1/-1", marginTop: 24, padding: 24, borderRadius: 16, border: "1px solid var(--border-subtle)", background: "var(--surface-subtle)" }}>
                                     <SettingsShellSectionHeader title="Security & Session" desc="Configure automatic safeguards for your workspace." icon={ShieldCheck} />
                                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
@@ -1567,7 +1607,9 @@ export function Settings({
                                         </SettingsShellField>
                                     </div>
                                 </div>
+                                )}
 
+                                {generalPanel === "ids" && (
                                 <div style={{ gridColumn: "1/-1", marginTop: 12 }}>
                                     <div style={{ background: "var(--brand-primary)08", borderRadius: 16, padding: 24, border: "1px solid var(--brand-primary)20" }}>
                                         <h4 style={{ fontSize: 15, fontWeight: 800, color: "var(--brand-primary)", marginBottom: 16 }}>Internal System Identifiers</h4>
@@ -1631,8 +1673,10 @@ export function Settings({
                                         </div>
                                     </div>
                                 </div>
+                                )}
                             </div>
                         </fieldset>
+                        </>
                     )}
 
                     {/* ── APPEARANCE ── */}
@@ -1861,28 +1905,29 @@ export function Settings({
 
                     {/* ── FINANCE ── */}
                     {activeTab === 'finance' && (
+                        <>
+                        <div className="settings-subtabs" role="tablist" aria-label="Finance sections">
+                            {[
+                                { id: "basics", label: "Basics" },
+                                { id: "payroll", label: "Payroll" },
+                                { id: "reporting", label: "Reporting & KRA" },
+                                { id: "lists", label: "Categories & teams" },
+                            ].map((tab) => (
+                                <button
+                                    key={tab.id}
+                                    type="button"
+                                    role="tab"
+                                    aria-selected={financePanel === tab.id}
+                                    className={`settings-subtab${financePanel === tab.id ? " is-active" : ""}`}
+                                    onClick={() => setFinancePanel(tab.id)}
+                                >
+                                    {tab.label}
+                                </button>
+                            ))}
+                        </div>
                         <fieldset disabled={!workspaceTabEditable.finance || !canEditSettings} className="settings-workspace-fieldset">
                             <legend className="settings-fieldset-sr-only">Finance settings</legend>
                             <SettingsShellSectionHeader title="Finance & M-Pesa" desc="Configure payment automation and invoice defaults." icon={Wallet} />
-                            <div className="settings-subtabs" role="tablist" aria-label="Finance sections">
-                                {[
-                                    { id: "basics", label: "Basics" },
-                                    { id: "payroll", label: "Payroll" },
-                                    { id: "reporting", label: "Reporting & KRA" },
-                                    { id: "lists", label: "Categories & teams" },
-                                ].map((tab) => (
-                                    <button
-                                        key={tab.id}
-                                        type="button"
-                                        role="tab"
-                                        aria-selected={financePanel === tab.id}
-                                        className={`settings-subtab${financePanel === tab.id ? " is-active" : ""}`}
-                                        onClick={() => setFinancePanel(tab.id)}
-                                    >
-                                        {tab.label}
-                                    </button>
-                                ))}
-                            </div>
                             <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "0 0 20px", lineHeight: 1.55 }}>
                                 Select a section above to avoid long scrolling. All values still save the same way.
                             </p>
@@ -2270,6 +2315,7 @@ export function Settings({
                             </>
                             )}
                         </fieldset>
+                        </>
                     )}
 
                     {/* ── M-PESA TRANSACTIONS ── */}
@@ -2577,8 +2623,28 @@ export function Settings({
 
                     {/* ── FLEET ── */}
                     {activeTab === 'fleet' && (
+                        <>
+                        <div className="settings-subtabs" role="tablist" aria-label="Fleet sections">
+                            {[
+                                { id: "operations", label: "Operations thresholds" },
+                                { id: "catalogs", label: "Dropdown catalogs" },
+                            ].map((tab) => (
+                                <button
+                                    key={tab.id}
+                                    type="button"
+                                    role="tab"
+                                    aria-selected={fleetPanel === tab.id}
+                                    className={`settings-subtab${fleetPanel === tab.id ? " is-active" : ""}`}
+                                    onClick={() => setFleetPanel(tab.id)}
+                                >
+                                    {tab.label}
+                                </button>
+                            ))}
+                        </div>
                         <fieldset disabled={!workspaceTabEditable.fleet || !canEditSettings} className="settings-workspace-fieldset">
                             <legend className="settings-fieldset-sr-only">Fleet settings</legend>
+                            {fleetPanel === "operations" && (
+                            <>
                             <SettingsShellSectionHeader title="Fleet Intelligence" desc="Set default fuel pricing and maintenance intervals." icon={Truck} />
                             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
                                 <SettingsShellField label="Default Fuel Price (KES/L)">
@@ -2613,6 +2679,9 @@ export function Settings({
                                     </div>
                                 </div>
                             </div>
+                            </>
+                            )}
+                            {fleetPanel === "catalogs" && (
                             <div style={{ gridColumn: "1/-1", marginTop: 8 }}>
                                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
                                     <div style={{ width: 36, height: 36, borderRadius: 10, background: "var(--brand-primary)12", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--brand-primary)" }}>
@@ -3041,15 +3110,38 @@ export function Settings({
                                     </div>
                                 </div>
                             </div>
+                            )}
                         </fieldset>
+                        </>
                     )}
 
                     {/* ── ROUTES & RATES ── */}
                     {activeTab === 'routes' && (
+                        <>
+                        <div className="settings-subtabs" role="tablist" aria-label="Routes and rates sections">
+                            {[
+                                { id: "rates", label: "Mileage & rates" },
+                                { id: "quick", label: "Quick routes" },
+                                { id: "overrides", label: "Route overrides" },
+                            ].map((tab) => (
+                                <button
+                                    key={tab.id}
+                                    type="button"
+                                    role="tab"
+                                    aria-selected={routesPanel === tab.id}
+                                    className={`settings-subtab${routesPanel === tab.id ? " is-active" : ""}`}
+                                    onClick={() => setRoutesPanel(tab.id)}
+                                >
+                                    {tab.label}
+                                </button>
+                            ))}
+                        </div>
                         <fieldset disabled={!workspaceTabEditable.routes || !canEditSettings} className="settings-workspace-fieldset">
                             <legend className="settings-fieldset-sr-only">Routes and rates</legend>
+                            {routesPanel === "rates" && (
+                            <>
                             <SettingsShellSectionHeader title="Mileage & Allowances" desc="Define standard pay rates per kilometer." icon={Navigation} />
-                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginBottom: 32 }}>
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18, marginBottom: 20 }}>
                                 <SettingsShellField label="Driver Rate (KES/km)" sub="Set to 0 for flat-rate journeys">
                                     <SettingsShellInput type="number" min="0" value={localS.driverPerKm ?? 10} onChange={e => saveSettings({ driverPerKm: +e.target.value })} />
                                 </SettingsShellField>
@@ -3059,7 +3151,7 @@ export function Settings({
                             </div>
 
                             <h4 style={{ fontSize: 16, fontWeight: 800, color: "var(--text-primary)", marginBottom: 16 }}>International and Domestic Flat Rates</h4>
-                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginBottom: 32, padding: 20, background: "var(--surface-subtle)", borderRadius: 12, border: "1px solid var(--border-subtle)" }}>
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18, marginBottom: 20, padding: 16, background: "var(--surface-subtle)", borderRadius: 12, border: "1px solid var(--border-subtle)" }}>
                                 <div>
                                     <p style={{ fontSize: 13, fontWeight: 700, color: "var(--brand-primary)", marginBottom: 12 }}>Inside Kenya (Domestic)</p>
                                     <div style={{ display: "grid", gap: 12 }}>
@@ -3085,7 +3177,7 @@ export function Settings({
                             </div>
 
                             <h4 style={{ fontSize: 16, fontWeight: 800, color: "var(--text-primary)", marginBottom: 16 }}>Road User Allowance</h4>
-                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginBottom: 32, padding: 20, background: "var(--surface-subtle)", borderRadius: 12, border: "1px solid var(--border-subtle)" }}>
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18, marginBottom: 20, padding: 16, background: "var(--surface-subtle)", borderRadius: 12, border: "1px solid var(--border-subtle)" }}>
                                 <SettingsShellField label="Standard Road User Allowance (KES)" desc="Added to journey completion expenses automatically.">
                                     <SettingsShellInput type="number" value={localS.roadUserAllowance || 0} onChange={e => saveSettings({ roadUserAllowance: +e.target.value })} />
                                 </SettingsShellField>
@@ -3093,12 +3185,16 @@ export function Settings({
                                     <SettingsShellInput type="number" value={localS.roadUserAllowanceReturn || 0} onChange={e => saveSettings({ roadUserAllowanceReturn: +e.target.value })} />
                                 </SettingsShellField>
                             </div>
+                            </>
+                            )}
 
+                            {routesPanel === "quick" && (
+                            <>
                             <h4 style={{ fontSize: 16, fontWeight: 800, color: "var(--text-primary)", marginBottom: 8 }}>Quick routes (journey modal)</h4>
                             <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 16, lineHeight: 1.55, fontWeight: 500 }}>
                                 These presets fill the <strong>Quick route</strong> dropdown when you log or edit a journey (origin, destination, and distance). They are stored in this browser under workspace settings.
                             </p>
-                            <div style={{ background: "var(--surface-subtle)", borderRadius: 12, border: "1px solid var(--border-subtle)", padding: 20, marginBottom: 32 }}>
+                            <div style={{ background: "var(--surface-subtle)", borderRadius: 12, border: "1px solid var(--border-subtle)", padding: 16, marginBottom: 20 }}>
                                 {(() => {
                                     const quickList = Array.isArray(localS.commonRoutes) ? localS.commonRoutes : [...DEFAULT_COMMON_ROUTES];
                                     const persistQuick = (next) => saveSettings({ commonRoutes: next });
@@ -3198,7 +3294,11 @@ export function Settings({
                                     );
                                 })()}
                             </div>
+                            </>
+                            )}
                             
+                            {routesPanel === "overrides" && (
+                            <>
                             <h4 style={{ fontSize: 16, fontWeight: 800, color: "var(--text-primary)", marginBottom: 16 }}>Route-Specific Overrides</h4>
                             <div style={{ background: "var(--surface-subtle)", borderRadius: 12, border: "1px solid var(--border-subtle)", padding: 20 }}>
                                 {(Array.isArray(localS.routeOverrides) ? localS.routeOverrides : []).map((ro, i) => (
@@ -3251,15 +3351,40 @@ export function Settings({
                                 </div>
 
                             </div>
+                            </>
+                            )}
                         </fieldset>
+                        </>
                     )}
 
                     {/* ── WAYBILL DEFAULTS ── */}
                     {activeTab === 'waybill' && (
+                        <>
+                        <div className="settings-subtabs" role="tablist" aria-label="Waybill sections">
+                            {[
+                                { id: "defaults", label: "Carrier defaults" },
+                                { id: "numbering", label: "Numbering" },
+                                { id: "crossborder", label: "Cross-border rules" },
+                                { id: "ops", label: "Ops & alerts" },
+                            ].map((tab) => (
+                                <button
+                                    key={tab.id}
+                                    type="button"
+                                    role="tab"
+                                    aria-selected={waybillPanel === tab.id}
+                                    className={`settings-subtab${waybillPanel === tab.id ? " is-active" : ""}`}
+                                    onClick={() => setWaybillPanel(tab.id)}
+                                >
+                                    {tab.label}
+                                </button>
+                            ))}
+                        </div>
                         <fieldset disabled={!workspaceTabEditable.waybill || !canEditSettings} className="settings-workspace-fieldset">
                             <legend className="settings-fieldset-sr-only">Waybill defaults</legend>
+                            {waybillPanel === "defaults" && (
+                            <>
                             <SettingsShellSectionHeader title="Waybill defaults" desc="These values pre-fill every new road freight waybill. Trip-specific fields are filled per journey." icon={ClipboardList} />
-                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginBottom: 32 }}>
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18, marginBottom: 20 }}>
                                 <SettingsShellField label="Carrier / company name" sub="Defaults to organization name if left blank">
                                     <SettingsShellInput value={localS.wbCarrierName || ''} onChange={e => saveSettings({ wbCarrierName: e.target.value })} placeholder="Segecha Group Ltd" />
                                 </SettingsShellField>
@@ -3282,7 +3407,11 @@ export function Settings({
                                     <SettingsShellInput type="email" value={localS.wbCarrierEmail || ''} onChange={e => saveSettings({ wbCarrierEmail: e.target.value })} placeholder="operations@example.com" />
                                 </SettingsShellField>
                             </div>
+                            </>
+                            )}
 
+                            {waybillPanel === "numbering" && (
+                            <>
                             <SettingsShellSectionHeader title="Waybill numbering" desc="Numbers auto-increment when a waybill is first saved from the journey modal." icon={ClipboardList} />
                             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginBottom: 16 }}>
                                 <SettingsShellField label="Waybill number prefix" sub="e.g. WB → WB-2025-00001">
@@ -3310,12 +3439,16 @@ export function Settings({
                                 </span>
                             </div>
 
-                            <div style={{ marginBottom: 32 }}>
+                            <div style={{ marginBottom: 20 }}>
                                 <SettingsShellField label="Stale Transit Warning (Days)" sub="Journeys in transit longer than this will be flagged as stale.">
                                     <SettingsShellInput type="number" value={localS.staleTransitDays || 5} onChange={e => saveSettings({ staleTransitDays: +e.target.value })} />
                                 </SettingsShellField>
                             </div>
+                            </>
+                            )}
 
+                            {waybillPanel === "crossborder" && (
+                            <>
                             <SettingsShellSectionHeader
                                 title="Cross-border routes"
                                 desc="When a journey destination contains any keyword below, the waybill opens in cross-border mode and fills the suggested border crossing (you can still edit it in the modal)."
@@ -3423,14 +3556,18 @@ export function Settings({
                                     </Button>
                                 </div>
                             </div>
+                            </>
+                            )}
+                            {waybillPanel === "ops" && (
+                            <>
                             {/* ── MAINTENANCE SCHEDULE ── */}
                             <SettingsShellSectionHeader title="Preventive Maintenance Schedule" desc="Define recurring service tasks and their kilometer intervals." icon={Wrench} />
-                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginBottom: 32 }}>
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18, marginBottom: 20 }}>
                                 <SettingsShellField label="Maintenance Overdue Threshold (Days)" sub="Grace period after scheduled service date before status turns critical.">
                                     <SettingsShellInput type="number" value={localS.maintenanceOverdueDays || 7} onChange={e => saveSettings({ maintenanceOverdueDays: +e.target.value })} />
                                 </SettingsShellField>
                             </div>
-                            <div style={{ background: "var(--surface-subtle)", borderRadius: 16, border: "1px solid var(--border-subtle)", padding: 24, marginBottom: 32 }}>
+                            <div style={{ background: "var(--surface-subtle)", borderRadius: 16, border: "1px solid var(--border-subtle)", padding: 18, marginBottom: 20 }}>
                                 <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 16, marginBottom: 12, padding: "0 12px", fontSize: 11, fontWeight: 800, color: "var(--text-dim)", textTransform: "uppercase" }}>
                                     <div>Service Task</div>
                                     <div>Interval (KM)</div>
@@ -3520,7 +3657,10 @@ export function Settings({
                                     <SettingsShellInput type="number" value={localS.lateThreshold || 4} onChange={e => saveSettings({ lateThreshold: +e.target.value })} />
                                 </SettingsShellField>
                             </div>
+                            </>
+                            )}
                         </fieldset>
+                        </>
                     )}
 
                     {/* ── MESSAGE TEMPLATES ── */}
