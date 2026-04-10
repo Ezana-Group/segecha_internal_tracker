@@ -86,6 +86,8 @@ function ensurePrefixedUId(col, item, allRows) {
         tyreLogs: settings.tyreLogIdPrefix || 'TYR-',
         assets: settings.assetIdPrefix || 'AST-',
         journeys: settings.journeyIdPrefix || 'JRN-',
+        incidents: settings.incidentIdPrefix || 'INC-',
+        documents: settings.documentIdPrefix || 'DOC-',
     };
     const raw = prefixes[col];
     if (!raw || !item?.id) return item;
@@ -1167,7 +1169,7 @@ export function useAppState() {
     const syncToServer = useCallback(async () => {
         try {
             const s = readSettings();
-            const res = await fetchWithAuth(`${PAYMENT_API}/api/tracker/data`, {
+            const res = await fetchWithAuth(`${PAYMENT_API}/api/tracker/snapshot`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -1995,13 +1997,16 @@ export function useAppState() {
         const settings = readSettings();
         const co = settings.companyName || "Segecha Group";
         const supportEmail = settings.operatorWorkEmail || settings.email || "";
-        const supportPhone = settings.companyWhatsApp || settings.companyPhone || settings.phone || "";
+        const supportPhone = settings.companyWhatsApp || settings.whatsappNumber || settings.companyPhone || settings.phone || "";
+        const companyRegistrationNumber = settings.companyRegistrationNumber || settings.registrationNumber || "";
         const finalContext = expandMessageTemplateContext({
             company_name: co,
             businessName: co,
             today: today(),
             supportEmail,
             supportPhone,
+            companyRegistrationNumber,
+            companyRegNo: companyRegistrationNumber,
             ...context,
         });
 

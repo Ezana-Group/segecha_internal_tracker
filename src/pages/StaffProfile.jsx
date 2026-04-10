@@ -82,6 +82,7 @@ export function StaffProfile({ data, setData, dark, isMobile, openModal, showToa
         showToast?.(err?.message || fallback, "error");
     };
     const mergedPerms = useMergedProfilePermissions();
+    const adminPerm = mergedPerms.adminTracker || {};
 
     const staff = data.staff?.find((s) => s.id === id);
 
@@ -133,6 +134,8 @@ export function StaffProfile({ data, setData, dark, isMobile, openModal, showToa
     const s = isStaffSelfView
         ? mergeFlatPermissionOverrides(baseStaffTracker, staff?.permissionOverrides?.staffTracker)
         : baseStaffTracker;
+    const canManageStaffAccounts = !isStaffSelfView && (adminPerm.adminManageUsers !== false || adminPerm.staffEdit !== false);
+    const canManagePermissionOverrides = !isStaffSelfView && adminPerm.settingsEditPermissions !== false;
 
     const allTabs = useMemo(
         () => [
@@ -146,8 +149,14 @@ export function StaffProfile({ data, setData, dark, isMobile, openModal, showToa
     );
 
     const visibleTabs = useMemo(
-        () => allTabs.filter((t) => (isStaffSelfView ? s[TAB_PERM[t.id]] !== false : true)),
-        [allTabs, isStaffSelfView, s]
+        () =>
+            allTabs.filter((t) => {
+                if (isStaffSelfView) return s[TAB_PERM[t.id]] !== false;
+                if (t.id === "account") return canManageStaffAccounts;
+                if (t.id === "settings") return canManagePermissionOverrides || adminPerm.staffEdit !== false;
+                return true;
+            }),
+        [allTabs, isStaffSelfView, s, canManageStaffAccounts, canManagePermissionOverrides, adminPerm.staffEdit]
     );
 
     useEffect(() => {
@@ -741,16 +750,16 @@ export function StaffProfile({ data, setData, dark, isMobile, openModal, showToa
                                             Superadmins use the admins table — these endpoints
                                             only touch staff_auth and would not affect their
                                             admin dashboard login. */}
-                                        {!isTargetSuperAdmin && (
+                                        {!isTargetSuperAdmin && canManageStaffAccounts && (
                                             <>
                                                 <Button variant="secondary" icon={Key} onClick={regenerateOtpAndTemp} disabled={accountBusy}>Create New OTP + Temp Password</Button>
                                                 <Button variant="secondary" icon={Key} onClick={handleResetPassword} disabled={accountBusy}>Reset Password</Button>
                                             </>
                                         )}
-                                        <Button variant="ghost" icon={Download} onClick={exportAccount} disabled={accountBusy}>Download Account</Button>
+                                        <Button variant="ghost" icon={Download} onClick={exportAccount} disabled={accountBusy || !canManageStaffAccounts}>Download Account</Button>
                                         {/* Don't show Delete for the currently logged-in superadmin
                                             — deleting your own account would lock you out */}
-                                        {!(isActuallyMe && isTargetSuperAdmin) && (
+                                        {!(isActuallyMe && isTargetSuperAdmin) && canManageStaffAccounts && (
                                             <Button variant="danger" icon={Trash2} onClick={handleDeleteAccount} disabled={accountBusy}>Delete Account</Button>
                                         )}
                                     </div>
@@ -861,29 +870,9 @@ export function StaffProfile({ data, setData, dark, isMobile, openModal, showToa
                                 </h3>
                                 <div style={{ background: "var(--bg-surface)", padding: 24, borderRadius: 20, border: "1px solid var(--border-subtle)", maxWidth: 600 }}>
                                     <div style={{ marginBottom: 32 }}>
-                                        {(!isStaffSelfView || s.accessPasswordReset !== false) && (
-                                            <>
-                                                <div
-                                                    style={{
-                                                        fontSize: 15,
-                                                        fontWeight: 800,
-                                                        color: "var(--text-primary)",
-                                                        marginBottom: 8,
-                                                        display: "flex",
-                                                        alignItems: "center",
-                                                        gap: 8,
-                                                    }}
-                                                >
-                                                    <Lock size={16} /> Password & Security
-                                                </div>
-                                                <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 16 }}>
-                                                    Reset this employee&apos;s password. They will be logged out of active sessions and required to set a new password using a temporary OTP.
-                                                </div>
-                                                <Button variant="secondary" icon={Key} onClick={handleResetPassword}>
-                                                    Force Password Reset
-                                                </Button>
-                                            </>
-                                        )}
+                                        <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 12 }}>
+                                            Password and credential actions are managed in the <b>Account Settings</b> tab to avoid duplicate controls.
+                                        </div>
                                         {(!isStaffSelfView || s.accessShowPendingOtp !== false) && staff.firstLogin && staff.otp && (
                                             <div
                                                 style={{
@@ -930,7 +919,7 @@ export function StaffProfile({ data, setData, dark, isMobile, openModal, showToa
                                     )}
                                 </div>
 
-                                {!isStaffSelfView && (
+                                {!isStaffSelfView && canManagePermissionOverrides && (
                                     <div
                                         style={{
                                             background: "var(--bg-surface)",

@@ -43,6 +43,8 @@ export function expandMessageTemplateContext(ctx = {}) {
     mirror("loginUrl", "login_url");
     mirror("supportEmail", "support_email");
     mirror("supportPhone", "support_phone");
+    mirror("companyRegistrationNumber", "company_registration_number");
+    mirror("companyRegNo", "company_reg_no");
     mirror("docLabel", "doc_label");
     mirror("docType", "doc_type");
     mirror("expiryDate", "expiry_date");

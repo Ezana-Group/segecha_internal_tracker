@@ -88,6 +88,7 @@ import {
 import { buildSmsUrl } from "../utils/contactLinks.js";
 import { expandMessageTemplateContext } from "../utils/templateContext.js";
 import { SettingsProfilePermissions } from "../components/SettingsProfilePermissions.jsx";
+import { mergeProfilePermissions } from "../utils/profilePermissions.js";
 import { adminAuth } from "../utils/adminAuth";
 import { applyBrandColor } from "../utils/brandColor";
 import { TemplateEditor } from "./TemplateEditor.jsx";
@@ -117,9 +118,6 @@ const SETTINGS_MENU = [
         label: "Revenue & messages",
         items: [
             { id: "finance",   label: "Finance & payments",  icon: Wallet },
-            { id: "finance-reports", label: "Finance reports", icon: ClipboardList },
-            { id: "mpesa",     label: "M-Pesa transactions", icon: CreditCard },
-            { id: "mpesa-recon", label: "M-Pesa reconciliation", icon: RefreshCw },
             { id: "templates", label: "Message templates",   icon: MessageSquare },
         ],
     },
@@ -134,7 +132,8 @@ const SETTINGS_MENU = [
     },
 ];
 
-const SETTINGS_TAB_IDS = SETTINGS_MENU.flatMap((g) => g.items.map((i) => i.id));
+const HIDDEN_SETTINGS_TAB_IDS = ["finance-reports", "mpesa", "mpesa-recon"];
+const SETTINGS_TAB_IDS = [...SETTINGS_MENU.flatMap((g) => g.items.map((i) => i.id)), ...HIDDEN_SETTINGS_TAB_IDS];
 /** Tabs whose fields write to `segecha_settings` (auto-save on change) */
 const SETTINGS_WORKSPACE_TABS = new Set([
     "profile",
@@ -428,7 +427,10 @@ export function Settings({
     const isAdmin =
         isSuperAdmin ||
         (!!operatorEmail && configuredAdminUsers.some((u) => String(u?.email || "").trim().toLowerCase() === operatorEmail));
-    const canEditSettings = !hasConfiguredAccessLists || isAdmin;
+    const mergedProfilePerms = mergeProfilePermissions(localS.profilePermissions);
+    const adminPerm = mergedProfilePerms.adminTracker || {};
+    const canViewSettingsArea = (!hasConfiguredAccessLists || isAdmin) && adminPerm.navSettings !== false;
+    const canEditSettings = (!hasConfiguredAccessLists || isAdmin) && adminPerm.settingsEdit !== false;
 
 
     const handlePasswordChange = async (e) => {
@@ -478,7 +480,28 @@ export function Settings({
             fetchBackups();
         }
     }, [activeTab, fetchBackups]);
-    const canRunSuperAdminActions = !hasConfiguredAccessLists || isSuperAdmin;
+    const canViewPermissionsPanel = canViewSettingsArea && adminPerm.settingsViewPermissions !== false;
+    const canEditPermissionsPanel = canEditSettings && adminPerm.settingsEditPermissions !== false;
+    const canPushSnapshots = canViewSettingsArea && adminPerm.dataPushSnapshot !== false;
+    const canImportData = canViewSettingsArea && adminPerm.dataImport !== false;
+    const canExportData = canViewSettingsArea && adminPerm.dataExport !== false;
+    const canUseBackups = canViewSettingsArea && adminPerm.dataBackup !== false;
+    const canRunSuperAdminActions = (!hasConfiguredAccessLists || isSuperAdmin) && adminPerm.dataHardReset !== false;
+    const canViewDataTab = canViewSettingsArea && (
+        canPushSnapshots || canImportData || canExportData || canUseBackups || canRunSuperAdminActions
+    );
+    const visibleSettingsMenu = useMemo(
+        () =>
+            SETTINGS_MENU.map((group) => ({
+                ...group,
+                items: group.items.filter((item) => {
+                    if (item.id === "permissions") return canViewPermissionsPanel;
+                    if (item.id === "data") return canViewDataTab;
+                    return canViewSettingsArea;
+                }),
+            })).filter((group) => group.items.length > 0),
+        [canViewPermissionsPanel, canViewDataTab, canViewSettingsArea]
+    );
 
     useEffect(() => {
         return subscribeSettings(setLocalS);
@@ -1117,6 +1140,18 @@ export function Settings({
     );
 
     const currentSection = SECTION_BY_ID[activeTab];
+    useEffect(() => {
+        const allowedTabIds = new Set(visibleSettingsMenu.flatMap((g) => g.items.map((i) => i.id)));
+        if (canViewSettingsArea) {
+            allowedTabIds.add("finance-reports");
+            allowedTabIds.add("mpesa");
+            allowedTabIds.add("mpesa-recon");
+        }
+        if (!allowedTabIds.has(activeTab)) {
+            const fallback = visibleSettingsMenu[0]?.items?.[0]?.id || "general";
+            if (fallback !== activeTab) navigateTab(fallback);
+        }
+    }, [activeTab, visibleSettingsMenu, navigateTab, canViewSettingsArea]);
 
     return (
         <div className={`page-shell settings-layout ${isMobile ? "settings-layout--stack" : ""}`}>
@@ -1145,7 +1180,7 @@ export function Settings({
                         </button>
                     </div>
                     <nav className="settings-nav" aria-label="Settings sections">
-                        {SETTINGS_MENU.map((group) => (
+                        {visibleSettingsMenu.map((group) => (
                             <div key={group.id} className="settings-nav-group">
                                 {!settingsMenuCollapsed ? <div className="settings-nav-group-label">{group.label}</div> : null}
                                 {group.items.map((item) => {
@@ -1181,7 +1216,7 @@ export function Settings({
                             value={activeTab}
                             onChange={(e) => navigateTab(e.target.value)}
                         >
-                            {SETTINGS_MENU.flatMap((g) =>
+                            {visibleSettingsMenu.flatMap((g) =>
                                 g.items.map((it) => (
                                     <option key={it.id} value={it.id}>
                                         {g.label}: {it.label}
@@ -1192,6 +1227,14 @@ export function Settings({
                     </div>
                 )}
                 <div className="settings-content-card">
+                    {!canViewSettingsArea && (
+                        <Card style={{ padding: 20, marginBottom: 14 }}>
+                            <div style={{ fontSize: 15, fontWeight: 800, color: "var(--text-primary)", marginBottom: 6 }}>Settings access restricted</div>
+                            <div style={{ fontSize: 13, color: "var(--text-muted)" }}>
+                                Your account does not currently have Settings access. Ask a Super Admin to enable the Settings permissions for your role.
+                            </div>
+                        </Card>
+                    )}
                     {currentSection && (
                         <div className="settings-toolbar" role="status" aria-live="polite">
                             <div className="settings-toolbar-crumb">
@@ -1372,6 +1415,13 @@ export function Settings({
                                 <SettingsShellField label="Legal Entity ID / PIN">
                                     <SettingsShellInput value={localS.pinNumber || ''} onChange={e => saveSettings({ pinNumber: e.target.value })} placeholder="KRA PIN" />
                                 </SettingsShellField>
+                                <SettingsShellField label="Company Registration Number">
+                                    <SettingsShellInput
+                                        value={localS.companyRegistrationNumber || ''}
+                                        onChange={e => saveSettings({ companyRegistrationNumber: e.target.value })}
+                                        placeholder="e.g. CPR/2019/123456"
+                                    />
+                                </SettingsShellField>
                                 <SettingsShellField label="Email Address">
                                     <SettingsShellInput value={localS.email || ''} onChange={e => saveSettings({ email: e.target.value })} placeholder="ops@example.com" />
                                 </SettingsShellField>
@@ -1379,7 +1429,11 @@ export function Settings({
                                     <SettingsShellInput value={localS.phone || ''} onChange={e => saveSettings({ phone: e.target.value })} placeholder="+254 7XX XXX XXX" />
                                 </SettingsShellField>
                                 <SettingsShellField label="Corporate WhatsApp No.">
-                                    <SettingsShellInput value={localS.whatsappNumber || ''} onChange={e => saveSettings({ whatsappNumber: e.target.value })} placeholder="2547XXXXXXXX" />
+                                    <SettingsShellInput
+                                        value={localS.whatsappNumber || ''}
+                                        onChange={e => saveSettings({ whatsappNumber: e.target.value, companyWhatsApp: e.target.value })}
+                                        placeholder="2547XXXXXXXX"
+                                    />
                                 </SettingsShellField>
 
                                 <div style={{ gridColumn: "1/-1", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, background: "var(--brand-primary)05", padding: 20, borderRadius: 16, border: "1px dashed var(--brand-primary)30" }}>
@@ -1519,6 +1573,12 @@ export function Settings({
                                             </SettingsShellField>
                                             <SettingsShellField label="Asset ID prefix" sub="e.g. AST- (Result: AST-001)">
                                                 <SettingsShellInput value={localS.assetIdPrefix || 'AST-'} onChange={e => saveSettings({ assetIdPrefix: e.target.value })} />
+                                            </SettingsShellField>
+                                            <SettingsShellField label="Incident ID prefix" sub="e.g. INC- (Result: INC-001)">
+                                                <SettingsShellInput value={localS.incidentIdPrefix || 'INC-'} onChange={e => saveSettings({ incidentIdPrefix: e.target.value })} />
+                                            </SettingsShellField>
+                                            <SettingsShellField label="Document ID prefix" sub="e.g. DOC- (Result: DOC-001)">
+                                                <SettingsShellInput value={localS.documentIdPrefix || 'DOC-'} onChange={e => saveSettings({ documentIdPrefix: e.target.value })} />
                                             </SettingsShellField>
                                         </div>
                                     </div>
@@ -2027,8 +2087,8 @@ export function Settings({
                                 desc="Dedicated receivables, tax, route profitability, and driver cost reporting."
                                 icon={ClipboardList}
                             />
-                            <Card style={{ padding: 16, marginBottom: 14 }}>
-                                <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 12 }}>
+                            <Card style={{ padding: 16, marginBottom: 14, overflow: "hidden" }}>
+                                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(4, minmax(160px, 1fr))", gap: 12 }}>
                                     <SettingsShellField label="From"><SettingsShellInput type="date" value={financeReportRange.from} onChange={(e) => setFinanceReportRange((s) => ({ ...s, from: e.target.value }))} /></SettingsShellField>
                                     <SettingsShellField label="To"><SettingsShellInput type="date" value={financeReportRange.to} onChange={(e) => setFinanceReportRange((s) => ({ ...s, to: e.target.value }))} /></SettingsShellField>
                                     <SettingsShellField label="Month"><SettingsShellInput type="month" value={financeReportRange.month} onChange={(e) => setFinanceReportRange((s) => ({ ...s, month: e.target.value }))} /></SettingsShellField>
@@ -2043,8 +2103,8 @@ export function Settings({
                                     <Button variant="secondary" icon={Download} onClick={() => exportToCSV(driverCostRows || [], "Driver_Costs")}>Export driver costs CSV</Button>
                                 </div>
                             </Card>
-                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                                <Card style={{ padding: 14 }}>
+                            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, minmax(0, 1fr))", gap: 12 }}>
+                                <Card style={{ padding: 14, minWidth: 0 }}>
                                     <div style={{ fontWeight: 800, marginBottom: 8 }}>Receivables Aging</div>
                                     <SettingsShellInput
                                         placeholder="Filter invoice/customer/journey…"
@@ -2069,7 +2129,7 @@ export function Settings({
                                         <Button variant="secondary" onClick={() => setReportPages((p) => ({ ...p, receivables: Math.min(receivablesPage.totalPages, p.receivables + 1) }))}>Next</Button>
                                     </div>
                                 </Card>
-                                <Card style={{ padding: 14 }}>
+                                <Card style={{ padding: 14, minWidth: 0 }}>
                                     <div style={{ fontWeight: 800, marginBottom: 8 }}>Tax Snapshot</div>
                                     <div style={{ display: "grid", gap: 8 }}>
                                         <div style={{ display: "flex", justifyContent: "space-between" }}><span>Output VAT</span><strong>{fmt(taxSnapshot?.vat?.outputVat || 0)}</strong></div>
@@ -2078,7 +2138,7 @@ export function Settings({
                                         <div style={{ display: "flex", justifyContent: "space-between" }}><span>WHT total</span><strong>{fmt(taxSnapshot?.wht?.total || 0)}</strong></div>
                                     </div>
                                 </Card>
-                                <Card style={{ padding: 14 }}>
+                                <Card style={{ padding: 14, minWidth: 0 }}>
                                     <div style={{ fontWeight: 800, marginBottom: 8 }}>Route Profitability (Top 10)</div>
                                     <SettingsShellInput
                                         placeholder="Filter route…"
@@ -2103,7 +2163,7 @@ export function Settings({
                                         <Button variant="secondary" onClick={() => setReportPages((p) => ({ ...p, routes: Math.min(routesPage.totalPages, p.routes + 1) }))}>Next</Button>
                                     </div>
                                 </Card>
-                                <Card style={{ padding: 14 }}>
+                                <Card style={{ padding: 14, minWidth: 0 }}>
                                     <div style={{ fontWeight: 800, marginBottom: 8 }}>Driver Cost Report (Top 10)</div>
                                     <SettingsShellInput
                                         placeholder="Filter driver ID…"
@@ -3365,8 +3425,8 @@ export function Settings({
                                 <TemplateEditor
                                     template={editingTemplate}
                                     companyName={localS.companyName}
-                                    orgEmail={localS.operatorWorkEmail || localS.email || ""}
-                                    orgWhatsApp={localS.companyWhatsApp || localS.phone || ""}
+                                    orgEmail={localS.emailIdentities?.client?.fromEmail || localS.operatorWorkEmail || localS.email || ""}
+                                    orgWhatsApp={localS.companyWhatsApp || localS.whatsappNumber || localS.phone || ""}
                                     fillTemplate={fillTemplate}
                                     showToast={showToast}
                                     onClose={() => {
@@ -3388,14 +3448,18 @@ export function Settings({
                     )}
 
                     {/* ── PROFILE PERMISSIONS ── */}
-                    {activeTab === "permissions" && (
+                    {activeTab === "permissions" && canViewPermissionsPanel && (
                         <div role="region" aria-label="Profile permissions" className="settings-workspace-fieldset">
                             <SettingsProfilePermissions
                                 localProfilePermissions={localS.profilePermissions}
-                                disabled={!workspaceTabEditable.permissions || !canEditSettings}
-                                locked={!workspaceTabEditable.permissions || !canEditSettings}
+                                disabled={!workspaceTabEditable.permissions || !canEditPermissionsPanel}
+                                locked={!workspaceTabEditable.permissions || !canEditPermissionsPanel}
                                 onRequestUnlock={unlockWorkspaceTab}
                                 onCommit={(next) => {
+                                    if (!canEditPermissionsPanel) {
+                                        showToast?.("You don't have permission to edit profile permissions.", "error");
+                                        return;
+                                    }
                                     saveSettings({ profilePermissions: next });
                                 }}
                             />
@@ -3403,7 +3467,7 @@ export function Settings({
                     )}
 
                     {/* ── DATA INTEGRITY ── */}
-                    {activeTab === 'data' && (
+                    {activeTab === 'data' && canViewDataTab && (
                         <div>
                             <SettingsShellSectionHeader title="System Maintenance" desc="Local-first workspace: your browser is the source of truth. Push snapshots to the API for the driver portal and server-side jobs." icon={Database} />
                             <div style={{ background: "var(--surface-subtle)", borderRadius: 16, padding: 24, border: "1px solid var(--border-subtle)", marginBottom: 24 }}>
@@ -3417,7 +3481,7 @@ export function Settings({
                                     <Button
                                         icon={RefreshCw}
                                         variant="ghost"
-                                        disabled={!canRunSuperAdminActions}
+                                        disabled={!canPushSnapshots}
                                         onClick={async () => {
                                             try {
                                                 const r = await fetch(`${PAYMENT_API}/health`);
@@ -3442,9 +3506,9 @@ export function Settings({
                                         <Button
                                             icon={RefreshCw}
                                             loading={syncing}
-                                            disabled={!canRunSuperAdminActions}
+                                            disabled={!canPushSnapshots}
                                             onClick={async () => {
-                                                if (!canRunSuperAdminActions) return showToast?.("Only Super Admin can push snapshots.", "error");
+                                                if (!canPushSnapshots) return showToast?.("You don't have permission to push snapshots.", "error");
                                                 setSyncing(true);
                                                 await syncToServer();
                                                 setSyncing(false);
@@ -3479,17 +3543,19 @@ export function Settings({
                                             <option value="Daily">Daily</option>
                                             <option value="Weekly">Weekly</option>
                                         </select>
-                                        <Button icon={Plus} variant="secondary" onClick={createManualBackup}>Backup Now</Button>
+                                        <Button icon={Plus} variant="secondary" onClick={createManualBackup} disabled={!canUseBackups}>Backup Now</Button>
                                         <label style={{ cursor: "pointer", display: "inline-block", border: backupDragOver ? "1px dashed var(--brand-primary)" : undefined, borderRadius: 10 }}
                                             onDragOver={(e) => { e.preventDefault(); setBackupDragOver(true); }}
                                             onDragLeave={() => setBackupDragOver(false)}
                                             onDrop={(e) => {
                                                 e.preventDefault();
                                                 setBackupDragOver(false);
+                                                if (!canUseBackups) return;
                                                 if (e.dataTransfer?.files?.[0]) uploadBackup(e.dataTransfer.files[0]);
                                             }}
                                         >
                                             <input type="file" accept=".json" style={{ display: "none" }} onChange={(e) => {
+                                                if (!canUseBackups) return;
                                                 if (e.target.files && e.target.files[0]) uploadBackup(e.target.files[0]);
                                                 e.target.value = null;
                                             }} />
@@ -3563,8 +3629,8 @@ export function Settings({
                                 <Card accent="var(--brand-primary)" title="Universal Export">
                                     <p style={{ fontSize: 13, color: "var(--text-dim)", marginBottom: 16 }}>Download all tables in your preferred format.</p>
                                     <div style={{ display: "flex", gap: 12 }}>
-                                        <Button icon={FileText} onClick={() => exportToExcel(data)}>Excel (.xlsx)</Button>
-                                        <Button variant="secondary" icon={Download} onClick={() => exportAllToCSV(data)}>Bulk CSV (.csv)</Button>
+                                        <Button icon={FileText} onClick={() => exportToExcel(data)} disabled={!canExportData}>Excel (.xlsx)</Button>
+                                        <Button variant="secondary" icon={Download} onClick={() => exportAllToCSV(data)} disabled={!canExportData}>Bulk CSV (.csv)</Button>
                                     </div>
                                 </Card>
                                 <Card accent="#10b981" title="JSON Snapshot">
@@ -3576,25 +3642,25 @@ export function Settings({
                                         a.href = url;
                                         a.download = `segecha_backup_${new Date().toISOString().slice(0,10)}.json`;
                                         a.click();
-                                    }}>Export JSON</Button>
+                                    }} disabled={!canExportData}>Export JSON</Button>
                                 </Card>
                             </div>
                             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, marginBottom: 32 }}>
                                 <Card accent="#f59e0b" title="CSV Exports">
                                     <p style={{ fontSize: 13, color: "var(--text-dim)", marginBottom: 16 }}>Download specific tables as CSV files.</p>
                                     <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                                        <Button size="sm" variant="ghost" onClick={() => exportToCSV(data.journeys, 'Journeys')}>Journeys</Button>
-                                        <Button size="sm" variant="ghost" onClick={() => exportToCSV(data.invoices, 'Invoices')}>Invoices</Button>
-                                        <Button size="sm" variant="ghost" onClick={() => exportToCSV(data.expenses, 'Expenses')}>Expenses</Button>
-                                        <Button size="sm" variant="ghost" onClick={() => exportToCSV(data.fuel, 'Fuel_Logs')}>Fuel Logs</Button>
-                                        <Button size="sm" variant="ghost" onClick={() => exportToCSV(data.drivers, 'Drivers')}>Drivers</Button>
-                                        <Button size="sm" variant="ghost" onClick={() => exportToCSV(data.staff, 'Staff')}>Staff</Button>
-                                        <Button size="sm" variant="ghost" onClick={() => exportToCSV(data.customers, 'Customers')}>Customers</Button>
-                                        <Button size="sm" variant="ghost" onClick={() => exportToCSV(data.trucks, 'Fleet')}>Fleet</Button>
-                                        <Button size="sm" variant="ghost" onClick={() => exportToCSV(data.trailers, 'Trailers')}>Trailers</Button>
-                                        <Button size="sm" variant="ghost" onClick={() => exportToCSV(data.maintenanceLogs, 'Maintenance')}>Maintenance</Button>
-                                        <Button size="sm" variant="ghost" onClick={() => exportToCSV(data.payroll, 'Payroll')}>Payroll</Button>
-                                        <Button size="sm" variant="ghost" onClick={() => exportToCSV(data.turnboys, 'Turnboys')}>Turnboys</Button>
+                                        <Button size="sm" variant="ghost" onClick={() => exportToCSV(data.journeys, 'Journeys')} disabled={!canExportData}>Journeys</Button>
+                                        <Button size="sm" variant="ghost" onClick={() => exportToCSV(data.invoices, 'Invoices')} disabled={!canExportData}>Invoices</Button>
+                                        <Button size="sm" variant="ghost" onClick={() => exportToCSV(data.expenses, 'Expenses')} disabled={!canExportData}>Expenses</Button>
+                                        <Button size="sm" variant="ghost" onClick={() => exportToCSV(data.fuel, 'Fuel_Logs')} disabled={!canExportData}>Fuel Logs</Button>
+                                        <Button size="sm" variant="ghost" onClick={() => exportToCSV(data.drivers, 'Drivers')} disabled={!canExportData}>Drivers</Button>
+                                        <Button size="sm" variant="ghost" onClick={() => exportToCSV(data.staff, 'Staff')} disabled={!canExportData}>Staff</Button>
+                                        <Button size="sm" variant="ghost" onClick={() => exportToCSV(data.customers, 'Customers')} disabled={!canExportData}>Customers</Button>
+                                        <Button size="sm" variant="ghost" onClick={() => exportToCSV(data.trucks, 'Fleet')} disabled={!canExportData}>Fleet</Button>
+                                        <Button size="sm" variant="ghost" onClick={() => exportToCSV(data.trailers, 'Trailers')} disabled={!canExportData}>Trailers</Button>
+                                        <Button size="sm" variant="ghost" onClick={() => exportToCSV(data.maintenanceLogs, 'Maintenance')} disabled={!canExportData}>Maintenance</Button>
+                                        <Button size="sm" variant="ghost" onClick={() => exportToCSV(data.payroll, 'Payroll')} disabled={!canExportData}>Payroll</Button>
+                                        <Button size="sm" variant="ghost" onClick={() => exportToCSV(data.turnboys, 'Turnboys')} disabled={!canExportData}>Turnboys</Button>
                                     </div>
                                 </Card>
                                 <Card accent="#ef4444" title="Hard Reset">
@@ -3614,6 +3680,7 @@ export function Settings({
                                 runExcelImport={runExcelImport}
                                 setImportSession={setImportSession}
                                 onNavigate={() => navigate('/import')}
+                                disabled={!canImportData}
                             />
                             {importSession && !importSession.committed && (
                                 <div style={{ marginTop: 16, background: 'rgba(245, 158, 11, 0.1)', border: `1px solid rgba(245, 158, 11, 0.3)`, borderRadius: 8, padding: '12px 16px', fontSize: 13, color: '#f59e0b', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>

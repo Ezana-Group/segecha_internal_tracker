@@ -27,7 +27,7 @@ export const NAV = [
     { id: "payroll", path: "/payroll", label: "Payroll" },
     { id: "maintenance", path: "/maintenance", label: "Maintenance" },
     { id: "tyres", path: "/tyres", label: "Tyre health" },
-    { id: "pnl", path: "/pnl", label: "P&L report" },
+    { id: "pnl", path: "/pnl", label: "Finance and Payments" },
     { id: "incidents", path: "/incidents", label: "Incidents" },
     { id: "documents", path: "/documents", label: "Documents" },
     { id: "import", path: "/import", label: "Import" },

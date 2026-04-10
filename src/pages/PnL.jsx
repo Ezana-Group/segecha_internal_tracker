@@ -19,7 +19,8 @@ import {
     BarChart3,
     Activity,
     Target,
-    Search as SearchIcon
+    Search as SearchIcon,
+    CreditCard,
 } from "lucide-react";
 import { CATS } from "../constants/nav";
 import { fmt, fmtN, fmtDate } from "../utils/formatters";
@@ -33,7 +34,7 @@ import { useTableFilter } from "../hooks/useTableFilter";
 
 export function PnL({ data, dark, isMobile, truckStats, truckReg, customerName, driverName, showToast }) {
     const navigate = useNavigate();
-    const [activeTab, setActiveTab] = useState('analytics'); // 'analytics' | 'statement'
+    const [activeTab, setActiveTab] = useState('analytics'); // 'analytics' | 'statement' | 'finance-payments'
     const [analyticsBasis, setAnalyticsBasis] = useState('operating'); // 'operating' | 'contribution'
 
     const totalSalaries = data.payroll.filter(p => p.status === "Paid").reduce((s, p) => s + +p.baseSalary + +p.allowance - +p.deductions, 0);
@@ -152,7 +153,8 @@ export function PnL({ data, dark, isMobile, truckStats, truckReg, customerName, 
 
     const tabs = [
         { id: 'analytics', label: 'Performance Analytics', icon: BarChart3 },
-        { id: 'statement', label: 'P&L Statement', icon: FileText }
+        { id: 'statement', label: 'P&L Statement', icon: FileText },
+        { id: 'finance-payments', label: 'Finance & Payments', icon: CreditCard }
     ];
 
     const marginNum = Number(marginFiltered);
@@ -183,8 +185,8 @@ export function PnL({ data, dark, isMobile, truckStats, truckReg, customerName, 
         <div className="page-shell">
             <PageHeader
                 icon={BarChart3}
-                title="Profit & Loss"
-                description="Fleet performance analytics and a printable P&L statement."
+                title="Finance and Payments"
+                description="Fleet performance analytics, P&L statement, and finance operations hub."
                 actions={
                     <div style={{ display: "flex", gap: 8 }}>
                         <Button variant="secondary" icon={Download} onClick={handleExportCSV}>
@@ -512,7 +514,7 @@ export function PnL({ data, dark, isMobile, truckStats, truckReg, customerName, 
                         </div>
                     </div>
                 </>
-            ) : (
+            ) : activeTab === "statement" ? (
                 /* ── P&L Statement view ── */
                 <div id="pnl-statement-view">
                     <Card style={{ padding: isMobile ? 20 : 36 }}>
@@ -656,6 +658,31 @@ export function PnL({ data, dark, isMobile, truckStats, truckReg, customerName, 
                         </div>
                         <div style={{ marginTop: 10, padding: "12px 14px", borderRadius: 10, background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", fontSize: 12, color: "var(--text-secondary)" }}>
                             Asset purchases are treated as capital investment (capex) for payoff analysis; P&amp;L uses depreciation expense for accounting realism.
+                        </div>
+                    </Card>
+                </div>
+            ) : (
+                <div>
+                    <Card style={{ padding: isMobile ? 18 : 24, marginBottom: 14 }}>
+                        <div style={{ fontSize: 18, fontWeight: 900, color: "var(--text-primary)", marginBottom: 8 }}>
+                            Finance Operations
+                        </div>
+                        <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 16 }}>
+                            Open the dedicated finance workspaces for KRA exports, M-Pesa ledger, reconciliation, and payment configuration.
+                        </div>
+                        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                            <Button variant="premium" icon={FileText} onClick={() => navigate("/settings?tab=finance-reports")}>
+                                Finance reporting & KRA exports
+                            </Button>
+                            <Button variant="secondary" icon={CreditCard} onClick={() => navigate("/settings?tab=mpesa")}>
+                                M-Pesa transactions
+                            </Button>
+                            <Button variant="secondary" icon={Activity} onClick={() => navigate("/settings?tab=mpesa-recon")}>
+                                M-Pesa reconciliation
+                            </Button>
+                            <Button variant="secondary" icon={DollarSign} onClick={() => navigate("/settings?tab=finance")}>
+                                Finance settings
+                            </Button>
                         </div>
                     </Card>
                 </div>

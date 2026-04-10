@@ -63,6 +63,7 @@ export function DriverProfile({ data, setData, dark, isMobile, truckReg, openMod
     const [tab, setTab] = useState('overview');
     const [finTab, setFinTab] = useState('ledger'); // 'ledger' or 'payroll'
     const mergedPerms = useMergedProfilePermissions();
+    const adminPerm = mergedPerms.adminTracker || {};
 
     const driver = data.drivers.find(d => d.id === id);
     const isDriverPreview = previewMode?.role === "driver" && previewMode.entityId === driver?.id;
@@ -70,6 +71,8 @@ export function DriverProfile({ data, setData, dark, isMobile, truckReg, openMod
     const d = isDriverPreview
         ? mergeFlatPermissionOverrides(baseDriverTracker, driver?.permissionOverrides?.driverTracker)
         : baseDriverTracker;
+    const canManageDriverAccounts = !isDriverPreview && (adminPerm.adminManageUsers !== false || adminPerm.driverEdit !== false);
+    const canManageDriverOverrides = !isDriverPreview && adminPerm.settingsEditPermissions !== false;
 
     if (!driver) return (
         <div style={{ padding: 80, textAlign: 'center' }}>
@@ -95,10 +98,12 @@ export function DriverProfile({ data, setData, dark, isMobile, truckReg, openMod
         () =>
             allTabs.filter((t) => {
                 if (t.adminOnly) return !isDriverPreview;
+                if (t.id === "account" && !canManageDriverAccounts) return false;
+                if (t.id === "access" && !canManageDriverOverrides) return false;
                 if (!isDriverPreview) return true;
                 return d[DRIVER_TAB_PERM[t.id]] !== false;
             }),
-        [allTabs, isDriverPreview, d]
+        [allTabs, isDriverPreview, d, canManageDriverAccounts, canManageDriverOverrides]
     );
     useEffect(() => {
         if (!tabs.length) return;
@@ -921,7 +926,7 @@ export function DriverProfile({ data, setData, dark, isMobile, truckReg, openMod
                     </div>
                 )}
 
-                {tab === "account" && !isDriverPreview && (
+                {tab === "account" && !isDriverPreview && canManageDriverAccounts && (
                     <div style={{ padding: isMobile ? 16 : 32 }}>
                         <h3 style={{ fontSize: 18, fontWeight: 800, color: "var(--text-primary)", marginBottom: 10, display: "flex", alignItems: "center", gap: 10 }}>
                             <Settings size={20} color="var(--brand-primary)" /> Account Settings
@@ -939,10 +944,10 @@ export function DriverProfile({ data, setData, dark, isMobile, truckReg, openMod
                             )}
                         </div>
                         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
-                            <Button icon={KeyRound} onClick={() => regenerateCredentials(false)} disabled={accountBusy}>Create New OTP + Temp Password</Button>
-                            <Button variant="secondary" icon={KeyRound} onClick={() => regenerateCredentials(true)} disabled={accountBusy}>Reset Password</Button>
-                            <Button variant="ghost" icon={Download} onClick={exportAccount} disabled={accountBusy}>Download Account</Button>
-                            <Button variant="danger" icon={Trash2} onClick={deleteAccount} disabled={accountBusy}>Delete Account</Button>
+                            <Button icon={KeyRound} onClick={() => regenerateCredentials(false)} disabled={accountBusy || !canManageDriverAccounts}>Create New OTP + Temp Password</Button>
+                            <Button variant="secondary" icon={KeyRound} onClick={() => regenerateCredentials(true)} disabled={accountBusy || !canManageDriverAccounts}>Reset Password</Button>
+                            <Button variant="ghost" icon={Download} onClick={exportAccount} disabled={accountBusy || !canManageDriverAccounts}>Download Account</Button>
+                            <Button variant="danger" icon={Trash2} onClick={deleteAccount} disabled={accountBusy || !canManageDriverAccounts}>Delete Account</Button>
                         </div>
                         {lastCreds && (
                             <div style={{ background: "rgba(245, 158, 11, 0.10)", border: "1px solid rgba(245, 158, 11, 0.25)", borderRadius: 12, padding: 12, fontSize: 13 }}>
@@ -970,7 +975,7 @@ export function DriverProfile({ data, setData, dark, isMobile, truckReg, openMod
                     </div>
                 )}
 
-                {tab === "access" && !isDriverPreview && (
+                {tab === "access" && !isDriverPreview && canManageDriverOverrides && (
                     <div style={{ padding: isMobile ? 16 : 32 }}>
                         <h3
                             style={{
