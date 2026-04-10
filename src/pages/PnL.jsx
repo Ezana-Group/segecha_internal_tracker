@@ -40,6 +40,10 @@ export function PnL({ data, dark, isMobile, truckStats, truckReg, customerName, 
     // Pre-compute statement totals once for reuse in JSX
     const COUNTABLE_STATUSES = ["Accepted", "Loading", "In Transit", "Awaiting Start Verification", "Awaiting Verification", "Completed"];
     const stmtFreightRevenue = data.journeys.filter(j => COUNTABLE_STATUSES.includes(j.status)).reduce((s, j) => s + +j.revenue, 0);
+    const stmtJourneyDeposits = data.journeys.filter(j => COUNTABLE_STATUSES.includes(j.status)).reduce((s, j) => s + (Number(j.depositAmount) || 0), 0);
+    const stmtJourneyFinalPayments = data.journeys.filter(j => COUNTABLE_STATUSES.includes(j.status)).reduce((s, j) => s + (Number(j.finalPaymentAmount) || 0), 0);
+    const stmtJourneyCashCollected = stmtJourneyDeposits + stmtJourneyFinalPayments;
+    const stmtJourneyOutstanding = Math.max(0, stmtFreightRevenue - stmtJourneyCashCollected);
     const stmtFuelCost = data.fuel.reduce((s, f) => s + f.litres * f.pricePerL, 0);
     // Exclude cat='Fuel' expenses — already counted in stmtFuelCost from fuel_logs
     const stmtOtherExp = data.expenses.filter(e => e.cat !== 'Fuel').reduce((s, e) => s + +e.amount, 0);
@@ -487,6 +491,14 @@ export function PnL({ data, dark, isMobile, truckStats, truckReg, customerName, 
                                         <span style={{ fontSize: 13, fontWeight: 800, color: "#10b981", fontVariantNumeric: "tabular-nums" }}>{fmt(stmtFreightRevenue)}</span>
                                     </div>
                                     {/* Row: Cash Collected */}
+                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "11px 0", borderBottom: "1px solid var(--border-subtle)" }}>
+                                        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)" }}>Cash Collected (Journey payments)</span>
+                                        <span style={{ fontSize: 13, fontWeight: 800, color: "#10b981", fontVariantNumeric: "tabular-nums" }}>{fmt(stmtJourneyCashCollected)}</span>
+                                    </div>
+                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "11px 0", borderBottom: "1px solid var(--border-subtle)" }}>
+                                        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)" }}>Outstanding Receivables (Journey basis)</span>
+                                        <span style={{ fontSize: 13, fontWeight: 800, color: "#f59e0b", fontVariantNumeric: "tabular-nums" }}>{fmt(stmtJourneyOutstanding)}</span>
+                                    </div>
                                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "11px 0", borderBottom: "1px solid var(--border-subtle)" }}>
                                         <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)" }}>Cash Collected (Invoices paid)</span>
                                         <span style={{ fontSize: 13, fontWeight: 800, color: "#10b981", fontVariantNumeric: "tabular-nums" }}>{fmt(invoicesPaid)}</span>

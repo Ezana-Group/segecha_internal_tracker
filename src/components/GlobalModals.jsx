@@ -291,6 +291,15 @@ export function GlobalModals(props) {
         openWaybillGenerator,
     } = props;
     const [creationResult, setCreationResult] = useState(null);
+    const [journeyCustomerTarget, setJourneyCustomerTarget] = useState(null); // 'billing' | 'delivery' | null
+    const [journeyCustomerForm, setJourneyCustomerForm] = useState({
+        type: "Company",
+        name: "",
+        contactPerson: "",
+        phone: "",
+        email: "",
+        address: "",
+    });
     const [, bumpSettingsDerived] = useState(0);
 
     useEffect(() => subscribeSettings(() => bumpSettingsDerived((n) => n + 1)), []);
@@ -302,6 +311,42 @@ export function GlobalModals(props) {
     if (!modal) return null;
 
     const modalGrid = isMobile ? gridFull : grid2;
+    const toNum = (v) => Math.max(0, Number(v) || 0);
+    const deriveInvoiceStatus = (amount, paid) => {
+        const total = toNum(amount);
+        const settled = toNum(paid);
+        if (settled >= total && total > 0) return "Paid";
+        if (settled > 0) return "Partial";
+        return "Pending";
+    };
+    const buildJourneySchedulePayments = (journeyLike, fallbackDate = today()) => {
+        const dep = toNum(journeyLike.depositAmount);
+        const fin = toNum(journeyLike.finalPaymentAmount);
+        const payments = [];
+        if (dep > 0) {
+            payments.push({
+                id: uid().slice(0, 8),
+                date: journeyLike.depositDate || fallbackDate,
+                amount: dep,
+                method: "Journey Deposit",
+                ref: "",
+                notes: "Synced from journey financial schedule",
+                source: "journey-schedule",
+            });
+        }
+        if (fin > 0) {
+            payments.push({
+                id: uid().slice(0, 8),
+                date: journeyLike.finalPaymentDate || fallbackDate,
+                amount: fin,
+                method: "Journey Final Payment",
+                ref: "",
+                notes: "Synced from journey financial schedule",
+                source: "journey-schedule",
+            });
+        }
+        return payments;
+    };
 
     const uploadViaAdminApi = async (file) => {
         const fd = new FormData();
@@ -515,8 +560,16 @@ export function GlobalModals(props) {
 
         return (
             <Modal title={form.id ? "Edit Invoice" : "Generate New Invoice"} onSave={() => flushModalSave(() => {
-                if (!form.id) form.id = INVOICE_PREFIX + "-" + uid().slice(0, 5);
-                saveItem("invoices", form);
+                const amount = toNum(form.amount);
+                const paidAmount = toNum(form.paidAmount);
+                const normalized = {
+                    ...form,
+                    id: form.id || (INVOICE_PREFIX + "-" + uid().slice(0, 5)),
+                    amount,
+                    paidAmount,
+                    status: deriveInvoiceStatus(amount, paidAmount),
+                };
+                saveItem("invoices", normalized);
             })} S={S} closeModal={closeModal} saveDisabled={hasErrors}>
                 <div style={modalGrid}>
 
@@ -589,7 +642,7 @@ export function GlobalModals(props) {
                 const newPayments = [...(inv.payments || []), payment];
                 const newPaidAmount = newPayments.reduce((s, p) => s + Number(p.amount || 0), 0);
                 const amt = Number(inv.amount || 0);
-                const newStatus = newPaidAmount >= amt ? "Paid" : "Partial";
+                const newStatus = deriveInvoiceStatus(amt, newPaidAmount);
                 const invEmail = (inv.email || "").trim();
                 saveItem("invoices", {
                     ...inv,
@@ -612,6 +665,21 @@ export function GlobalModals(props) {
                         }).catch((err) => console.warn("Receipt email failed:", err.message));
                     },
                 });
+                const linkedJourneyId = inv.journey || inv.journeyId;
+                if (linkedJourneyId) {
+                    const linkedJourney = data.journeys.find((j) => j.id === linkedJourneyId);
+                    if (linkedJourney) {
+                        const journeyRevenue = toNum(linkedJourney.revenue);
+                        const boundedPaid = Math.min(journeyRevenue, toNum(newPaidAmount));
+                        const syncedDeposit = Math.min(toNum(linkedJourney.depositAmount), boundedPaid);
+                        const syncedFinal = Math.max(0, boundedPaid - syncedDeposit);
+                        saveItem("journeys", {
+                            ...linkedJourney,
+                            depositAmount: syncedDeposit,
+                            finalPaymentAmount: syncedFinal,
+                        }, { skipClose: true, silent: true });
+                    }
+                }
             })} S={S} closeModal={closeModal}>
                 <div style={modalGrid}>
 
@@ -831,7 +899,23 @@ export function GlobalModals(props) {
             const driverMileage  = rates.isFlatRate ? rates.driver  : Math.round(dist * rates.driver);
             const turnboyMileage = (form.turnboyId || form.turnboyName) ? (rates.isFlatRate ? rates.turnboy : Math.round(dist * rates.turnboy)) : 0;
             const roadUserAllowance = rates.roadUserAllowance || 0;
-            const enrichedForm = { ...form, id: form.id || uid(), driverMileage, turnboyMileage, roadUserAllowance, mileageRateUsed: rates.driver, turnboyMileageRateUsed: rates.turnboy, mileageRouteOverride: rates.isOverride, isFlatRate: rates.isFlatRate };
+            const revenueAmount = Math.max(0, Number(form.revenue) || 0);
+            const depositAmount = Math.max(0, Number(form.depositAmount) || 0);
+            const finalPaymentAmount = Math.max(0, Number(form.finalPaymentAmount) || Math.max(0, revenueAmount - depositAmount));
+            const enrichedForm = {
+                ...form,
+                id: form.id || uid(),
+                revenue: revenueAmount,
+                depositAmount,
+                finalPaymentAmount,
+                driverMileage,
+                turnboyMileage,
+                roadUserAllowance,
+                mileageRateUsed: rates.driver,
+                turnboyMileageRateUsed: rates.turnboy,
+                mileageRouteOverride: rates.isOverride,
+                isFlatRate: rates.isFlatRate,
+            };
             saveItem("journeys", enrichedForm, { skipClose: true, silent: true });
             const ensureJourneyDocument = (url, docType, label) => {
                 if (!url) return;
@@ -868,18 +952,35 @@ export function GlobalModals(props) {
             if (roadUserAllowance > 0 && !form.id) {
                 saveItem("expenses", { date: form.date || today(), truck: form.truck, driver: form.driver || "", cat: "Allowance", category: "Allowance", amount: roadUserAllowance, desc: `Road User Allowance${form.returningEmpty ? " (Return)" : ""} — ${form.origin} → ${form.dest}`, journey: enrichedForm.id, status: "Unpaid" }, { skipClose: true, silent: true });
             }
-            if (!form.returningEmpty && (enrichedForm.status === "Accepted" || enrichedForm.status === "Loading")) {
-                const existingInvoice = data.invoices?.find(inv => inv.journey === enrichedForm.id);
-                if (!existingInvoice) {
-                    const invoiceId  = (INVOICE_PREFIX || "INV") + "-" + uid().slice(0, 5);
-                    const issuedDate = today();
-                    const dueDate    = new Date();
-                    dueDate.setDate(dueDate.getDate() + (PAYMENT_TERMS_DAYS || 14));
-                    const dueDateStr  = dueDate.toISOString().split("T")[0];
-                    const billingCust = data.customers.find(c => c.id === form.customerId);
-                    saveItem("invoices", { id: invoiceId, customerId: form.customerId, client: billingCust?.name || "", phone: billingCust?.phone || "", journey: enrichedForm.id, amount: enrichedForm.revenue, issued: issuedDate, due: dueDateStr, status: "Pending", notes: `Automated invoice for journey ${enrichedForm.origin} → ${enrichedForm.dest}. Cargo: ${enrichedForm.cargo || "N/A"}` }, { skipClose: true, silent: true });
-                    showToast?.(`Invoice ${invoiceId} generated automatically.`, "success");
-                }
+            if (!form.returningEmpty && (enrichedForm.status === "Accepted" || enrichedForm.status === "Loading" || enrichedForm.status === "In Transit" || enrichedForm.status === "Completed")) {
+                const existingInvoice = data.invoices?.find(inv => (inv.journey || inv.journeyId) === enrichedForm.id);
+                const issuedDate = today();
+                const dueDate = new Date();
+                dueDate.setDate(dueDate.getDate() + (PAYMENT_TERMS_DAYS || 14));
+                const dueDateStr = dueDate.toISOString().split("T")[0];
+                const billingCust = data.customers.find(c => c.id === form.customerId);
+                const schedulePayments = buildJourneySchedulePayments(enrichedForm, issuedDate);
+                const manualPayments = (existingInvoice?.payments || []).filter((p) => p?.source !== "journey-schedule");
+                const mergedPayments = [...manualPayments, ...schedulePayments];
+                const paidAmount = mergedPayments.reduce((s, p) => s + toNum(p.amount), 0);
+                const nextInvoice = {
+                    ...(existingInvoice || {}),
+                    id: existingInvoice?.id || (INVOICE_PREFIX || "INV") + "-" + uid().slice(0, 5),
+                    customerId: form.customerId,
+                    client: billingCust?.name || "",
+                    phone: billingCust?.phone || "",
+                    email: billingCust?.email || existingInvoice?.email || "",
+                    journey: enrichedForm.id,
+                    amount: enrichedForm.revenue,
+                    issued: existingInvoice?.issued || issuedDate,
+                    due: existingInvoice?.due || dueDateStr,
+                    paidAmount,
+                    payments: mergedPayments,
+                    status: deriveInvoiceStatus(enrichedForm.revenue, paidAmount),
+                    notes: `Automated invoice for journey ${enrichedForm.origin} → ${enrichedForm.dest}. Cargo: ${enrichedForm.cargo || "N/A"}`,
+                };
+                saveItem("invoices", nextInvoice, { skipClose: true, silent: true });
+                if (!existingInvoice) showToast?.(`Invoice ${nextInvoice.id} generated automatically.`, "success");
             }
             showToast?.("Record saved", "success");
             closeModal();
@@ -890,9 +991,42 @@ export function GlobalModals(props) {
             }
         });
 
+        const journeyCustomerErrors = {
+            name: validators.required(journeyCustomerForm.name),
+            phone: validators.required(journeyCustomerForm.phone) || validators.kenyaPhone(journeyCustomerForm.phone),
+        };
+        const hasJourneyCustomerErrors = Object.values(journeyCustomerErrors).some(Boolean);
+        const saveJourneyCustomer = () => flushModalSave(() => {
+            if (hasJourneyCustomerErrors) return;
+            const normalizedName = journeyCustomerForm.name.trim().toLowerCase();
+            const existing = (data.customers || []).find((c) => c.name?.trim().toLowerCase() === normalizedName);
+            const customerId = existing?.id || uid();
+            if (!existing) {
+                saveItem("customers", {
+                    id: customerId,
+                    type: journeyCustomerForm.type || "Company",
+                    name: journeyCustomerForm.name?.trim(),
+                    contactPerson: journeyCustomerForm.contactPerson?.trim() || "",
+                    phone: journeyCustomerForm.phone?.trim() || "",
+                    email: journeyCustomerForm.email?.trim() || "",
+                    address: journeyCustomerForm.address?.trim() || "",
+                    status: "Active",
+                }, { skipClose: true, silent: true });
+            }
+            setForm((f) => ({
+                ...f,
+                ...(journeyCustomerTarget === "billing"
+                    ? { customerId }
+                    : { deliveryCustomerId: customerId }),
+            }));
+            setJourneyCustomerTarget(null);
+            showToast?.(existing ? "Customer selected." : "Customer created and selected.", "success");
+        });
+
         return (
-            <Modal title={form.id ? "Edit Journey" : "Log New Journey"} onSave={onSave} S={S} closeModal={closeModal} saveDisabled={hasErrors} wide>
-                <div style={modalGrid}>
+            <>
+                <Modal title={form.id ? "Edit Journey" : "Log New Journey"} onSave={onSave} S={S} closeModal={closeModal} saveDisabled={hasErrors} wide>
+                    <div style={modalGrid}>
 
                     {/* Quick route selector */}
                     <div style={{ gridColumn: "1/-1" }}>
@@ -1175,36 +1309,27 @@ export function GlobalModals(props) {
                                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                                     <FormLabel required>Billing Customer (Consignor)</FormLabel>
                                     <button type="button"
-                                        onClick={() => setForm((f) => ({ ...f, _quickAddBill: !f._quickAddBill, _quickAddDel: false }))}
+                                        onClick={() => {
+                                            setJourneyCustomerTarget("billing");
+                                            setJourneyCustomerForm({
+                                                type: "Company",
+                                                name: "",
+                                                contactPerson: "",
+                                                phone: "",
+                                                email: "",
+                                                address: "",
+                                            });
+                                        }}
                                         style={{ border: "none", background: "none", color: "var(--brand-primary)", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
-                                        {form._quickAddBill ? "Cancel" : "+ Add new"}
+                                        + Add new
                                     </button>
                                 </div>
-                                {form._quickAddBill ? (
-                                    <div style={{ background: "var(--bg-main)", padding: 12, borderRadius: "var(--radius-md)", border: "1px solid var(--border-subtle)", marginBottom: 8, display: "grid", gap: 8 }}>
-                                        <input style={S.inp} placeholder="Company or person name…" id="qa-bill-name" />
-                                        <div style={{ display: "flex", gap: 8 }}>
-                                            <input style={{ ...S.inp, flex: 1 }} placeholder="Phone…" id="qa-bill-phone" />
-                                            <button type="button" style={{ padding: "0 14px", borderRadius: 8, background: "var(--brand-primary)", color: "white", border: "none", fontWeight: 700, fontSize: 12, cursor: "pointer" }}
-                                                onClick={() => {
-                                                    const name  = document.getElementById("qa-bill-name")?.value;
-                                                    const phone = document.getElementById("qa-bill-phone")?.value;
-                                                    if (!name?.trim())  return alert("Consignor name is required");
-                                                    if (!phone?.trim()) return alert("Consignor phone is required");
-                                                    const existing = data.customers.find(c => c.name.trim().toLowerCase() === name.trim().toLowerCase());
-                                                    if (existing) { setForm((f) => ({ ...f, customerId: existing.id, _quickAddBill: false })); }
-                                                    else { const id = uid(); saveItem("customers", { id, name: name.trim(), phone: phone || "", type: "Individual", status: "Active" }); setForm((f) => ({ ...f, customerId: id, _quickAddBill: false })); }
-                                                }}>Save</button>
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <select style={{ ...S.inp, border: errors.customerId ? "1px solid #DC2626" : S.inp.border }}
-                                        value={form.customerId || ""}
-                                        onChange={(e) => setForm((f) => ({ ...f, customerId: e.target.value }))}>
-                                        <option value="">Select billing customer…</option>
-                                        {data.customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                                    </select>
-                                )}
+                                <select style={{ ...S.inp, border: errors.customerId ? "1px solid #DC2626" : S.inp.border }}
+                                    value={form.customerId || ""}
+                                    onChange={(e) => setForm((f) => ({ ...f, customerId: e.target.value }))}>
+                                    <option value="">Select billing customer…</option>
+                                    {data.customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                </select>
                                 {errors.customerId && <p style={{ color: "#DC2626", fontSize: 11, marginTop: 4 }}>{errors.customerId}</p>}
                             </div>
 
@@ -1213,36 +1338,27 @@ export function GlobalModals(props) {
                                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                                     <FormLabel required>Delivery Customer (Consignee)</FormLabel>
                                     <button type="button"
-                                        onClick={() => setForm((f) => ({ ...f, _quickAddDel: !f._quickAddDel, _quickAddBill: false }))}
+                                        onClick={() => {
+                                            setJourneyCustomerTarget("delivery");
+                                            setJourneyCustomerForm({
+                                                type: "Company",
+                                                name: "",
+                                                contactPerson: "",
+                                                phone: "",
+                                                email: "",
+                                                address: "",
+                                            });
+                                        }}
                                         style={{ border: "none", background: "none", color: "var(--brand-primary)", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
-                                        {form._quickAddDel ? "Cancel" : "+ Add new"}
+                                        + Add new
                                     </button>
                                 </div>
-                                {form._quickAddDel ? (
-                                    <div style={{ background: "var(--bg-main)", padding: 12, borderRadius: "var(--radius-md)", border: "1px solid var(--border-subtle)", marginBottom: 8, display: "grid", gap: 8 }}>
-                                        <input style={S.inp} placeholder="Receiver name or site…" id="qa-del-name" />
-                                        <div style={{ display: "flex", gap: 8 }}>
-                                            <input style={{ ...S.inp, flex: 1 }} placeholder="Phone…" id="qa-del-phone" />
-                                            <button type="button" style={{ padding: "0 14px", borderRadius: 8, background: "var(--brand-primary)", color: "white", border: "none", fontWeight: 700, fontSize: 12, cursor: "pointer" }}
-                                                onClick={() => {
-                                                    const name  = document.getElementById("qa-del-name")?.value;
-                                                    const phone = document.getElementById("qa-del-phone")?.value;
-                                                    if (!name?.trim())  return alert("Consignee name is required");
-                                                    if (!phone?.trim()) return alert("Consignee phone is required");
-                                                    const existing = data.customers.find(c => c.name.trim().toLowerCase() === name.trim().toLowerCase());
-                                                    if (existing) { setForm((f) => ({ ...f, deliveryCustomerId: existing.id, _quickAddDel: false })); }
-                                                    else { const id = uid(); saveItem("customers", { id, name: name.trim(), phone: phone || "", type: "Individual", status: "Active" }); setForm((f) => ({ ...f, deliveryCustomerId: id, _quickAddDel: false })); }
-                                                }}>Save</button>
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <select style={{ ...S.inp, border: errors.deliveryCustomerId ? "1px solid #DC2626" : S.inp.border }}
-                                        value={form.deliveryCustomerId || ""}
-                                        onChange={(e) => setForm((f) => ({ ...f, deliveryCustomerId: e.target.value }))}>
-                                        <option value="">Select delivery customer…</option>
-                                        {data.customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                                    </select>
-                                )}
+                                <select style={{ ...S.inp, border: errors.deliveryCustomerId ? "1px solid #DC2626" : S.inp.border }}
+                                    value={form.deliveryCustomerId || ""}
+                                    onChange={(e) => setForm((f) => ({ ...f, deliveryCustomerId: e.target.value }))}>
+                                    <option value="">Select delivery customer…</option>
+                                    {data.customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                </select>
                                 {errors.deliveryCustomerId && <p style={{ color: "#DC2626", fontSize: 11, marginTop: 4 }}>{errors.deliveryCustomerId}</p>}
                                 <p style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 6, lineHeight: 1.45 }}>Used on the waybill as consignor and consignee.</p>
                             </div>
@@ -1323,6 +1439,10 @@ export function GlobalModals(props) {
                     <SectionDivider title="Financial" />
 
                     <Field label="Revenue (KES)" k="revenue" type="number" form={form} setForm={setForm} S={S} error={errors.revenue} />
+                    <Field label="Deposit Received (KES)" k="depositAmount" type="number" form={form} setForm={setForm} S={S} />
+                    <Field label="Deposit Date" k="depositDate" type="date" form={form} setForm={setForm} S={S} />
+                    <Field label="Final Payment Received (KES)" k="finalPaymentAmount" type="number" form={form} setForm={setForm} S={S} />
+                    <Field label="Final Payment Date" k="finalPaymentDate" type="date" form={form} setForm={setForm} S={S} />
                     <Field label="Status" k="status" options={STATUSES_JOURNEY} form={form} setForm={setForm} S={S} />
 
                     <div style={{ gridColumn: "1/-1" }}>
@@ -1364,6 +1484,80 @@ export function GlobalModals(props) {
                         </div>
                     )}
 
+                    </div>
+                </Modal>
+                {journeyCustomerTarget && (
+                    <Modal
+                        title="Add New Customer"
+                        onSave={saveJourneyCustomer}
+                        S={S}
+                        closeModal={() => setJourneyCustomerTarget(null)}
+                        saveDisabled={hasJourneyCustomerErrors}
+                    >
+                        <div style={modalGrid}>
+                            <Field label="Customer Type" k="type" options={["Company", "Individual"]} form={journeyCustomerForm} setForm={setJourneyCustomerForm} S={S} />
+                            <div style={{ gridColumn: "1/-1" }}>
+                                <Field
+                                    label={journeyCustomerForm.type === "Company" ? "Company Name" : "Full Name"}
+                                    k="name"
+                                    full
+                                    form={journeyCustomerForm}
+                                    setForm={setJourneyCustomerForm}
+                                    S={S}
+                                    error={journeyCustomerErrors.name}
+                                />
+                            </div>
+                            {journeyCustomerForm.type === "Company" && (
+                                <div style={{ gridColumn: "1/-1" }}>
+                                    <Field label="Contact Person" k="contactPerson" full form={journeyCustomerForm} setForm={setJourneyCustomerForm} S={S} />
+                                </div>
+                            )}
+                            <Field label="Phone Number" k="phone" form={journeyCustomerForm} setForm={setJourneyCustomerForm} S={S} error={journeyCustomerErrors.phone} />
+                            <Field label="Email Address" k="email" type="email" form={journeyCustomerForm} setForm={setJourneyCustomerForm} S={S} />
+                            <div style={{ gridColumn: "1/-1" }}>
+                                <Field label="Physical Address" k="address" full form={journeyCustomerForm} setForm={setJourneyCustomerForm} S={S} />
+                            </div>
+                        </div>
+                    </Modal>
+                )}
+            </>
+        );
+    }
+
+    /* ═══════════════════════════════════════════════════════════════
+       INCIDENT
+    ═══════════════════════════════════════════════════════════════ */
+    if (modal === "incident") {
+        const incidentTypes = readSettings()?.incidentTypes || ["Accident", "Breakdown", "Cargo Damage", "Road Delay", "Security", "Other"];
+        const incidentErrors = {
+            date: validators.required(form.date),
+            incidentType: validators.required(form.incidentType),
+            description: validators.required(form.description),
+        };
+        const hasIncidentErrors = Object.values(incidentErrors).some(Boolean);
+        const saveIncident = () => flushModalSave(() => {
+            if (hasIncidentErrors) return;
+            saveItem("incidents", {
+                ...form,
+                id: form.id || uid(),
+                driverId: form.driverId || form.driver || "",
+                _pendingApproval: false,
+                _isRejected: false,
+            });
+        });
+        return (
+            <Modal title={form.id ? "Edit Incident" : "Log Incident"} onSave={saveIncident} S={S} closeModal={closeModal} saveDisabled={hasIncidentErrors}>
+                <div style={modalGrid}>
+                    <Field label="Date" k="date" type="date" form={form} setForm={setForm} S={S} error={incidentErrors.date} />
+                    <Field label="Incident Type" k="incidentType" options={incidentTypes} form={form} setForm={setForm} S={S} error={incidentErrors.incidentType} />
+                    <Field label="Driver" k="driver" options={(data.drivers || []).map((d) => ({ v: d.id, l: d.name }))} form={form} setForm={setForm} S={S} />
+                    <Field label="Vehicle" k="truck" options={(data.trucks || []).map((t) => ({ v: t.id, l: t.reg }))} form={form} setForm={setForm} S={S} />
+                    <div style={{ gridColumn: "1/-1" }}>
+                        <Field label="Location" k="location" full form={form} setForm={setForm} S={S} />
+                    </div>
+                    <div style={{ gridColumn: "1/-1" }}>
+                        <Field label="Description" k="description" full form={form} setForm={setForm} S={S} error={incidentErrors.description} />
+                    </div>
                 </div>
             </Modal>
         );

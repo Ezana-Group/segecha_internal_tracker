@@ -55,7 +55,12 @@ export function JourneyProfile({
     const totalExpenses = relatedExpenses.reduce((s, e) => s + +e.amount, 0);
     const totalFuelCost = relatedFuel.reduce((s, f) => s + (f.litres * f.pricePerL), 0);
     const totalVariableCosts = totalExpenses + totalFuelCost + Number(journey.driverMileage || 0) + Number(journey.turnboyMileage || 0);
-    const netProfit = Number(journey.revenue || 0) - totalVariableCosts;
+    const journeyRevenue = Number(journey.revenue || 0);
+    const depositReceived = Number(journey.depositAmount || 0);
+    const finalPaymentReceived = Number(journey.finalPaymentAmount || 0);
+    const totalCashReceived = depositReceived + finalPaymentReceived;
+    const outstandingBalance = Math.max(0, journeyRevenue - totalCashReceived);
+    const netProfit = journeyRevenue - totalVariableCosts;
 
     // Permissions for editing completed trips
     const isCompleted = journey.status === 'Completed';
@@ -195,7 +200,8 @@ export function JourneyProfile({
                     <div style={{ padding: 32 }}>
                         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4,1fr)', gap: 20, marginBottom: 40 }}>
                             {[
-                                { l: 'Gross Revenue',  v: fmt(journey.revenue),  c: '#10b981', i: TrendingUp },
+                                { l: 'Gross Revenue',  v: fmt(journeyRevenue),  c: '#10b981', i: TrendingUp },
+                                { l: 'Cash Received', v: fmt(totalCashReceived), c: '#3b82f6', i: Wallet },
                                 { l: 'Estimated Profit', v: fmt(netProfit),       c: netProfit >= 0 ? 'var(--brand-primary)' : '#ef4444', i: PieChart },
                                 { l: 'Mission Distance', v: `${journey.distance || 0} km`, c: "var(--text-primary)", i: Navigation },
                                 { l: 'Journey Status',   v: journey._isRejected ? "Rejected" : journey.status,        c: journey._isRejected ? "#dc2626" : '#3b82f6', i: CheckCircle2 },
@@ -335,7 +341,10 @@ export function JourneyProfile({
                                 <div style={{ background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", borderRadius: 20, padding: 24 }}>
                                     <div style={{ display: 'grid', gap: 16 }}>
                                         {[
-                                            { l: 'Gross Revenue', v: journey.revenue, c: '#10b981', i: TrendingUp },
+                                            { l: 'Gross Revenue', v: journeyRevenue, c: '#10b981', i: TrendingUp },
+                                            { l: 'Deposit Received', v: depositReceived, c: '#6366f1', i: Wallet },
+                                            { l: 'Final Payment Received', v: finalPaymentReceived, c: '#0ea5e9', i: Wallet },
+                                            { l: 'Outstanding Balance', v: outstandingBalance, c: outstandingBalance > 0 ? '#f59e0b' : '#10b981', i: Wallet },
                                             { l: 'Variable Trip Costs', v: -(totalFuelCost + totalExpenses), c: '#ef4444', i: Wallet },
                                             { l: 'Personnel Allowances', v: -(Number(journey.driverMileage || 0) + Number(journey.turnboyMileage || 0)), c: '#3b82f6', i: User },
                                         ].map(row => (

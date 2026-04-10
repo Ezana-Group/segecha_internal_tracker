@@ -44,7 +44,12 @@ export function Invoices({ data, setData, dark, isMobile, modal, form, setForm, 
         ...i,
         _client: i.client || customerName(i.customerId),
         _amount: Number(i.amount || 0),
-        _balance: Number(i.amount || 0) - Number(i.paidAmount || 0),
+        _balance: Math.max(0, Number(i.amount || 0) - Number(i.paidAmount || 0)),
+        _computedStatus: Number(i.paidAmount || 0) >= Number(i.amount || 0)
+            ? "Paid"
+            : Number(i.paidAmount || 0) > 0
+                ? "Partial"
+                : (i.status || "Pending"),
         _contact: `${i.phone || ""} ${i.email || ""}`
     }));
 
@@ -70,7 +75,7 @@ export function Invoices({ data, setData, dark, isMobile, modal, form, setForm, 
             if (statusTab === "Overdue") {
                 return i.status !== "Paid" && new Date(i.dueDate) < new Date();
             }
-            return i.status === statusTab;
+            return (i._computedStatus || i.status) === statusTab;
         });
 
     // Summary totals (from all invoices, not just filtered)
@@ -130,7 +135,7 @@ export function Invoices({ data, setData, dark, isMobile, modal, form, setForm, 
 
             {/* ── Status filter tabs ── */}
             <div style={{ display: "flex", gap: 4, borderBottom: "1px solid var(--border-subtle)", marginBottom: 20 }}>
-                {["All", "Pending", "Paid", "Overdue"].map(tab => (
+                {["All", "Pending", "Partial", "Paid", "Overdue"].map(tab => (
                     <button
                         key={tab}
                         onClick={() => setStatusTab(tab)}
@@ -195,7 +200,8 @@ export function Invoices({ data, setData, dark, isMobile, modal, form, setForm, 
                                     </td>
                                 </tr>
                             ) : tabFilteredInvoices.map(inv => {
-                                const isOverdue = inv.status !== "Paid" && new Date(inv.dueDate) < new Date();
+                                const effectiveStatus = inv._computedStatus || inv.status;
+                                const isOverdue = effectiveStatus !== "Paid" && new Date(inv.dueDate) < new Date();
                                 return (
                                     <tr
                                         key={inv.id}
@@ -225,7 +231,7 @@ export function Invoices({ data, setData, dark, isMobile, modal, form, setForm, 
 
                                         {/* Status */}
                                         <td className="status-col">
-                                            <Badge status={inv.status}>{inv.status}</Badge>
+                                            <Badge status={effectiveStatus}>{effectiveStatus}</Badge>
                                         </td>
 
                                         {/* Due date */}
