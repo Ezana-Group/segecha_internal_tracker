@@ -192,15 +192,15 @@ const S = {
     width: '100%',
     maxWidth: 800,
     margin: '0 auto',
-    padding: '0 24px',
+    padding: '0 16px',
   },
   nav: {
-    height: 80,
+    height: 68,
     display: 'flex',
     alignItems: 'center',
     background: '#fff',
     boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-    marginBottom: 40,
+    marginBottom: 20,
   },
   logo: {
     display: 'flex',
@@ -213,15 +213,15 @@ const S = {
   
   hero: {
     textAlign: 'center',
-    padding: '40px 0',
+    padding: '20px 0',
   },
-  heroTitle: { fontSize: 42, fontWeight: 900, marginBottom: 16, color: COLORS.primary, letterSpacing: -1 },
-  heroSub: { fontSize: 18, color: COLORS.textDim, marginBottom: 32, maxWidth: 500, margin: '0 auto 32px' },
+  heroTitle: { fontSize: 36, fontWeight: 900, marginBottom: 10, color: COLORS.primary, letterSpacing: -1 },
+  heroSub: { fontSize: 16, color: COLORS.textDim, marginBottom: 18, maxWidth: 500, margin: '0 auto 18px' },
   
   searchBox: {
     display: 'flex',
     background: '#fff',
-    padding: 8,
+    padding: 6,
     borderRadius: 16,
     boxShadow: '0 10px 25px rgba(27, 58, 107, 0.1)',
     maxWidth: 500,
@@ -254,9 +254,9 @@ const S = {
   },
   error: { color: COLORS.accent, marginTop: 16, fontSize: 14, fontWeight: 600 },
 
-  results: { marginTop: 40, animation: 'slideUp 0.4s ease-out' },
-  card: { background: '#fff', borderRadius: 24, padding: 32, boxShadow: '0 20px 50px rgba(0,0,0,0.05)', border: '1px solid #E2E8F0' },
-  cardHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 40 },
+  results: { marginTop: 20, animation: 'slideUp 0.4s ease-out' },
+  card: { background: '#fff', borderRadius: 20, padding: 20, boxShadow: '0 20px 50px rgba(0,0,0,0.05)', border: '1px solid #E2E8F0' },
+  cardHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 },
   overTitle: { fontSize: 11, fontWeight: 800, color: COLORS.textDim, letterSpacing: 1, marginBottom: 4 },
   waybillNo: { fontSize: 28, fontWeight: 900, color: COLORS.primary },
   statusBadge: (s) => ({
