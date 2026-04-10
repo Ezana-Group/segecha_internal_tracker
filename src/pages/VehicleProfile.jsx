@@ -822,7 +822,7 @@ export function VehicleProfile({ data, setData, dark, isMobile, openModal, maint
                                                                 id: "edit",
                                                                 label: "Edit entry",
                                                                 icon: Pencil,
-                                                                onClick: () => openModal("expenses", e),
+                                                                onClick: () => openModal("expense", e),
                                                             },
                                                             ...(e._pendingApproval ? [{
                                                                 id: "verify",

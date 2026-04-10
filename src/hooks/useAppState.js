@@ -398,6 +398,24 @@ function transformDBTables(tables = {}) {
         status:              row.status              || 'Active',
         notes:               m(row).notes            || '',
     }));
+    const documents = (tables.documents || []).map((row) => {
+        const meta = m(row);
+        return {
+            ...meta,
+            id: row.id,
+            entityType: row.entity_type || meta.entityType || '',
+            entityId: row.entity_id || meta.entityId || '',
+            docType: row.doc_type || meta.docType || '',
+            label: row.label || meta.label || '',
+            url: row.url || meta.url || '',
+            expiryDate: d(row.expiry_date || meta.expiryDate),
+            uploadedAt: d(row.created_at || meta.uploadedAt),
+            // keep snake_case aliases for mixed callers
+            entity_type: row.entity_type || meta.entity_type || row.entity_type,
+            entity_id: row.entity_id || meta.entity_id || row.entity_id,
+            doc_type: row.doc_type || meta.doc_type || row.doc_type,
+        };
+    });
 
     return {
         trucks,
@@ -414,7 +432,7 @@ function transformDBTables(tables = {}) {
         tyreLogs,
         maintenanceLogs,
         assets,
-        documents: tables.documents || [],
+        documents,
     };
 }
 
@@ -915,32 +933,6 @@ export function useAppState() {
                 showToast("Record saved", "success");
             }
         });
-
-        // Fleet auto-link: Vehicle assets automatically create/update a truck entry
-        if (col === 'assets' && finalItem.category === 'Vehicle') {
-            const regFromName = finalItem.name || '';
-            // If no linked truck, create a new fleet entry
-            if (!finalItem.linkedTruckId) {
-                const newTruck = {
-                    id: uid(),
-                    reg: regFromName,
-                    make: regFromName,
-                    status: finalItem.status === 'Active' ? 'Active' : 'Off Road',
-                    odom: 0,
-                };
-                setData(d => ({ ...d, trucks: [...(d.trucks || []), newTruck] }));
-                void _syncItemToServer('trucks', newTruck);
-                // Update the asset with the linked truck id
-                const updatedAsset = { ...finalItem, linkedTruckId: newTruck.id };
-                setData(d => {
-                    const arr = [...(d.assets || [])];
-                    const i = arr.findIndex(x => x.id === updatedAsset.id);
-                    if (i >= 0) arr[i] = updatedAsset;
-                    return { ...d, assets: arr };
-                });
-                void _syncItemToServer('assets', updatedAsset);
-            }
-        }
 
         if (!skipClose) closeModal();
     };

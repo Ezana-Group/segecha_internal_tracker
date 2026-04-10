@@ -453,7 +453,23 @@ export function JourneyProfile({
 
                 {tab === 'fuel' && (
                     <div style={{ padding: 32 }}>
-                        <h3 style={{ fontSize: 18, fontWeight: 800, color: "var(--text-primary)", marginBottom: 20 }}>Fuel Logs</h3>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, gap: 12, flexWrap: "wrap" }}>
+                            <h3 style={{ fontSize: 18, fontWeight: 800, color: "var(--text-primary)", margin: 0 }}>Fuel Logs</h3>
+                            <Button
+                                variant="primary"
+                                icon={Plus}
+                                onClick={() =>
+                                    openModal("fuel", {
+                                        journey: journey.id,
+                                        truck: journey.truck,
+                                        driver: journey.driver,
+                                        date: journey.date,
+                                    })
+                                }
+                            >
+                                Add Fuel
+                            </Button>
+                        </div>
                         {relatedFuel.length === 0 ? (
                             <div style={{ color: "var(--text-dim)", padding: 60, textAlign: 'center', background: "var(--bg-surface)", borderRadius: 20, border: "1px dotted var(--border-subtle)" }}>
                                 No fuel logs recorded for this trip.
@@ -481,7 +497,23 @@ export function JourneyProfile({
 
                 {tab === 'expenses' && (
                     <div style={{ padding: 32 }}>
-                        <h3 style={{ fontSize: 18, fontWeight: 800, color: "var(--text-primary)", marginBottom: 20 }}>Expenses</h3>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, gap: 12, flexWrap: "wrap" }}>
+                            <h3 style={{ fontSize: 18, fontWeight: 800, color: "var(--text-primary)", margin: 0 }}>Expenses</h3>
+                            <Button
+                                variant="primary"
+                                icon={Plus}
+                                onClick={() =>
+                                    openModal("expense", {
+                                        journey: journey.id,
+                                        truck: journey.truck,
+                                        driver: journey.driver,
+                                        date: journey.date,
+                                    })
+                                }
+                            >
+                                Add Expense
+                            </Button>
+                        </div>
                         {relatedExpenses.length === 0 ? (
                             <div style={{ color: "var(--text-dim)", padding: 60, textAlign: 'center', background: "var(--bg-surface)", borderRadius: 20, border: "1px dotted var(--border-subtle)" }}>
                                 No expenses recorded for this trip.
@@ -509,7 +541,23 @@ export function JourneyProfile({
 
                 {tab === 'incidents' && (
                     <div style={{ padding: 32 }}>
-                        <h3 style={{ fontSize: 18, fontWeight: 800, color: "var(--text-primary)", marginBottom: 20 }}>Incident Reports</h3>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, gap: 12, flexWrap: "wrap" }}>
+                            <h3 style={{ fontSize: 18, fontWeight: 800, color: "var(--text-primary)", margin: 0 }}>Incident Reports</h3>
+                            <Button
+                                variant="primary"
+                                icon={Plus}
+                                onClick={() =>
+                                    openModal("incident", {
+                                        journey: journey.id,
+                                        truck: journey.truck,
+                                        driver: journey.driver,
+                                        date: journey.date,
+                                    })
+                                }
+                            >
+                                Add Incident
+                            </Button>
+                        </div>
                         {relatedIncidents.length === 0 ? (
                             <div style={{ color: "var(--text-dim)", padding: 60, textAlign: 'center', background: "var(--bg-surface)", borderRadius: 20, border: "1px dotted var(--border-subtle)" }}>
                                 No incidents reported for this trip.

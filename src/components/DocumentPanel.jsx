@@ -79,7 +79,11 @@ export function DocumentPanel({
         });
     }, [docTypes, entityType]);
 
-    const entityDocs = (documents || []).filter(d => (d.entityType === entityType && d.entityId === entityId) || (entityType === 'staff' && d.driverId === entityId));
+    const entityDocs = (documents || []).filter((d) => {
+        const docEntityType = d.entityType || d.entity_type;
+        const docEntityId = d.entityId || d.entity_id;
+        return (docEntityType === entityType && docEntityId === entityId) || (entityType === 'staff' && d.driverId === entityId);
+    });
 
     const handleUpload = async () => {
         const customDocType = uploadForm.docType === 'other' ? uploadForm.docTypeOther.trim() : '';

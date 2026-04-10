@@ -112,6 +112,7 @@ function buildSchedule(asset) {
 
 const CAT_COLOR = {
     "Vehicle": "#f97316",
+    "Trailer": "#fb7185",
     "Heavy Equipment": "#8b5cf6",
     "Workshop Equipment": "#f59e0b",
     "Fuel Infrastructure": "#ef4444",

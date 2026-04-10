@@ -43,8 +43,26 @@ export function PnL({ data, dark, isMobile, truckStats, truckReg, customerName, 
     const stmtFuelCost = data.fuel.reduce((s, f) => s + f.litres * f.pricePerL, 0);
     // Exclude cat='Fuel' expenses — already counted in stmtFuelCost from fuel_logs
     const stmtOtherExp = data.expenses.filter(e => e.cat !== 'Fuel').reduce((s, e) => s + +e.amount, 0);
-    const stmtTotalExp = stmtFuelCost + stmtOtherExp + totalSalaries;
-    const stmtNetProfit = stmtFreightRevenue - stmtTotalExp;
+    const monthlyDepreciationExpense = (data.assets || []).reduce((sum, asset) => {
+        const cost = Number(asset.cost) || 0;
+        if (cost <= 0) return sum;
+        const status = String(asset.status || "Active").toLowerCase();
+        if (["disposed", "sold", "written off"].includes(status)) return sum;
+        const salvage = Math.max(0, Math.min(Number(asset.salvageValue) || 0, cost));
+        const lifeYears = Math.max(1, Number(asset.usefulLifeYears) || 5);
+        const method = asset.depreciationMethod || "straight-line";
+        if (method === "reducing-balance") {
+            const annualRate = salvage > 0 && cost > 0 ? 1 - Math.pow(salvage / cost, 1 / lifeYears) : 0.20;
+            return sum + (cost * annualRate) / 12;
+        }
+        return sum + (cost - salvage) / (lifeYears * 12);
+    }, 0);
+    const totalAssetPurchases = data.assets.reduce((s, a) => s + (Number(a.cost) || 0), 0);
+    const stmtOperatingExp = stmtFuelCost + stmtOtherExp + totalSalaries + monthlyDepreciationExpense;
+    const stmtTotalExp = stmtOperatingExp;
+    const stmtNetProfit = stmtFreightRevenue - stmtOperatingExp;
+    const breakEvenRevenue = stmtOperatingExp;
+    const assetPayoffMonths = stmtNetProfit > 0 ? (totalAssetPurchases / stmtNetProfit) : null;
 
     // Refine trucks for performance matrix sorting
     const refinedMatrix = data.trucks.map(t => {
@@ -513,6 +531,14 @@ export function PnL({ data, dark, isMobile, truckStats, truckReg, customerName, 
                                         </div>
                                         <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)", fontVariantNumeric: "tabular-nums" }}>{fmt(totalSalaries)}</span>
                                     </div>
+                                    {/* Depreciation */}
+                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "11px 0", borderBottom: "1px solid var(--border-subtle)" }}>
+                                        <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                                            <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#6366f1" }} />
+                                            <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-secondary)" }}>Depreciation (non-cash)</span>
+                                        </div>
+                                        <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)", fontVariantNumeric: "tabular-nums" }}>{fmt(monthlyDepreciationExpense)}</span>
+                                    </div>
                                     {/* Total expenses */}
                                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 0 4px" }}>
                                         <span style={{ fontSize: 13, fontWeight: 900, color: "var(--text-primary)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Total Expenses</span>
@@ -546,6 +572,21 @@ export function PnL({ data, dark, isMobile, truckStats, truckReg, customerName, 
                                 <div style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 700, marginBottom: 4 }}>Operating Margin</div>
                                 <div style={{ fontSize: 24, fontWeight: 900, color: isStmtProfit ? "#10b981" : "#ef4444" }}>{stmtMargin}%</div>
                             </div>
+                        </div>
+                        <div style={{ marginTop: 14, display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 12 }}>
+                            <div style={{ padding: "14px 16px", borderRadius: 12, border: "1px solid var(--border-subtle)", background: "var(--bg-surface)" }}>
+                                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-dim)", textTransform: "uppercase" }}>Break-even Revenue</div>
+                                <div style={{ fontSize: 18, fontWeight: 900, color: "var(--text-primary)" }}>{fmt(breakEvenRevenue)}</div>
+                            </div>
+                            <div style={{ padding: "14px 16px", borderRadius: 12, border: "1px solid var(--border-subtle)", background: "var(--bg-surface)" }}>
+                                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-dim)", textTransform: "uppercase" }}>Capex Recovery Estimate</div>
+                                <div style={{ fontSize: 18, fontWeight: 900, color: "var(--text-primary)" }}>
+                                    {assetPayoffMonths == null ? "No payoff (negative margin)" : `${assetPayoffMonths.toFixed(1)} months`}
+                                </div>
+                            </div>
+                        </div>
+                        <div style={{ marginTop: 10, padding: "12px 14px", borderRadius: 10, background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", fontSize: 12, color: "var(--text-secondary)" }}>
+                            Asset purchases are treated as capital investment (capex) for payoff analysis; P&amp;L uses depreciation expense for accounting realism.
                         </div>
                     </Card>
                 </div>

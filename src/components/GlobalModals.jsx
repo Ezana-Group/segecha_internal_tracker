@@ -96,6 +96,22 @@ function AutoIdDisplay({ value, S }) {
 function UploadZone({ label, hint, value, uploading, onUpload, onRemove, accept = "image/*", previewThumb = true }) {
     const done = !!value;
     const [dragOver, setDragOver] = useState(false);
+    const openFile = (e) => {
+        if (!value) return;
+        // Data URLs can exceed browser navigation limits; render in a blank tab explicitly.
+        if (String(value).startsWith("data:")) {
+            e.preventDefault();
+            const w = window.open("", "_blank", "noopener,noreferrer");
+            if (!w) return;
+            const isImage = /^data:image\//i.test(String(value));
+            w.document.write(
+                isImage
+                    ? `<html><body style="margin:0;background:#111;display:flex;align-items:center;justify-content:center;"><img src="${value}" style="max-width:100vw;max-height:100vh;" /></body></html>`
+                    : `<html><body style="margin:0;"><iframe src="${value}" style="width:100vw;height:100vh;border:0;"></iframe></body></html>`
+            );
+            w.document.close();
+        }
+    };
     const handleDrop = (e) => {
         e.preventDefault();
         setDragOver(false);
@@ -126,13 +142,13 @@ function UploadZone({ label, hint, value, uploading, onUpload, onRemove, accept 
                     <div style={{ display: "flex", alignItems: "center", gap: 10, width: "100%" }}>
                         <span style={{ fontSize: 16 }}>✅</span>
                         {previewThumb && (
-                            <a href={value} target="_blank" rel="noreferrer">
+                            <a href={value} target="_blank" rel="noreferrer" onClick={openFile}>
                                 <div style={{ width: 36, height: 36, borderRadius: 6, background: `url(${value}) center/cover no-repeat`, border: "1px solid var(--border-subtle)", flexShrink: 0 }} />
                             </a>
                         )}
                         <div style={{ flex: 1, textAlign: "left" }}>
                             <div style={{ fontSize: 11, fontWeight: 700, color: "#10b981" }}>Uploaded</div>
-                            <a href={value} target="_blank" rel="noreferrer" style={{ fontSize: 10, color: "var(--brand-primary)" }}>View file</a>
+                            <a href={value} target="_blank" rel="noreferrer" onClick={openFile} style={{ fontSize: 10, color: "var(--brand-primary)" }}>View file</a>
                         </div>
                         <button type="button" onClick={(e) => { e.preventDefault(); onRemove(); }}
                             style={{ border: "none", background: "none", color: "#ef4444", fontSize: 11, fontWeight: 700, cursor: "pointer", flexShrink: 0 }}>
@@ -156,29 +172,6 @@ function UploadZone({ label, hint, value, uploading, onUpload, onRemove, accept 
 /* ─────────────────────────────────────────────────────────────────────
    FuelPhotoField (preserves original upload logic, new shell)
 ───────────────────────────────────────────────────────────────────── */
-/* Compress an image file to a JPEG data-URL at reduced resolution so it
-   stays small enough to store in JSONB metadata (target ~100 KB). */
-async function compressImageToBase64(file, maxW = 1024, maxH = 768, quality = 0.72) {
-    return new Promise((resolve, reject) => {
-        const img = new Image();
-        const objUrl = URL.createObjectURL(file);
-        img.onload = () => {
-            let { width: w, height: h } = img;
-            const ratio = Math.min(maxW / w, maxH / h, 1); // never upscale
-            w = Math.round(w * ratio);
-            h = Math.round(h * ratio);
-            const canvas = document.createElement('canvas');
-            canvas.width  = w;
-            canvas.height = h;
-            canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-            URL.revokeObjectURL(objUrl);
-            resolve(canvas.toDataURL('image/jpeg', quality));
-        };
-        img.onerror = () => { URL.revokeObjectURL(objUrl); reject(new Error('Image load failed')); };
-        img.src = objUrl;
-    });
-}
-
 const FuelPhotoField = ({ label, k, form, setForm }) => {
     const [uploading, setUploading] = useState(false);
     const photoUrl = form[k];
@@ -187,11 +180,18 @@ const FuelPhotoField = ({ label, k, form, setForm }) => {
         const file = e.target.files[0];
         if (!file) return;
         setUploading(true);
+        const fd = new FormData();
+        fd.append("file", file);
         try {
-            const dataUrl = await compressImageToBase64(file);
-            setForm(f => ({ ...f, [k]: dataUrl }));
+            const res = await fetchWithAuth(`${PAYMENT_API}/api/admin/upload`, { method: "POST", body: fd });
+            const d = await res.json();
+            if (d?.success && d?.url) {
+                setForm(f => ({ ...f, [k]: d.url }));
+            } else {
+                alert("Upload failed: " + (d?.error || "Unknown upload error"));
+            }
         } catch (err) {
-            alert("Could not read image: " + err.message);
+            alert("Upload error: " + err.message);
         } finally {
             setUploading(false);
             e.target.value = "";
@@ -404,7 +404,7 @@ export function GlobalModals(props) {
         const errors = {};
         errors.amount = validators.required(form.amount) || validators.positiveNumber(form.amount);
         const hasErrors = Object.values(errors).some(Boolean);
-        const CATS = ["Maintenance", "Toll", "Permit", "Tyre", "Fuel", "Salary", "Allowance", "Other"];
+        const CATS = ["Maintenance", "Toll", "Permit", "Tyre", "Salary", "Allowance", "Other"];
 
         return (
             <Modal title={form.id ? "Edit Expense" : "Add New Expense"} onSave={() => flushModalSave(() => saveItem("expenses", form))} S={S} closeModal={closeModal} saveDisabled={hasErrors}>
@@ -427,7 +427,6 @@ export function GlobalModals(props) {
                             k="subCat"
                             options={
                                 form.cat === "Maintenance" ? ["General Service", "Oil Change", "Brakes", "Tyres", "Engine", "Electrical", "Suspension", "Bodywork", "Other"] :
-                                form.cat === "Fuel"        ? ["Diesel", "Adblue", "Oil/Lubricants"] :
                                 form.cat === "Toll"        ? ["Highways", "Weighbridge", "Local Councils"] :
                                 form.cat === "Permit"      ? ["Insurance", "Speed Governor", "Inspection", "NTSA/TLB"] :
                                 ["General", "Specific Repair", "Mission Expense", "Other"]
@@ -741,6 +740,10 @@ export function GlobalModals(props) {
         if (form.isInternational && form.returningEmpty) {
             errors.journeyType = "International journey and empty return cannot be selected together.";
         }
+        if (form.isInternational) {
+            errors.tr8Url = validators.required(form.tr8Url);
+            errors.bookingRef = validators.required(form.bookingRef);
+        }
         if (!form.returningEmpty) {
             errors.customerId         = validators.required(form.customerId);
             errors.deliveryCustomerId = validators.required(form.deliveryCustomerId);
@@ -812,6 +815,10 @@ export function GlobalModals(props) {
                 showToast?.("Billing customer and delivery customer are required.", "error");
                 return;
             }
+            if (form.isInternational && (!form.tr8Url || !form.bookingRef)) {
+                showToast?.("TR8 form and booking reference are required for international journeys.", "error");
+                return;
+            }
             if (isOverPayload) {
                 const proceed = window.confirm(
                     `Overload warning: cargo is ${enteredCargoKg.toLocaleString()} kg, which exceeds the configured vehicle limit (${effectivePayloadKg.toLocaleString()} kg) by ${overPayloadByKg.toLocaleString()} kg.\n\nSave journey anyway?`
@@ -826,6 +833,28 @@ export function GlobalModals(props) {
             const roadUserAllowance = rates.roadUserAllowance || 0;
             const enrichedForm = { ...form, id: form.id || uid(), driverMileage, turnboyMileage, roadUserAllowance, mileageRateUsed: rates.driver, turnboyMileageRateUsed: rates.turnboy, mileageRouteOverride: rates.isOverride, isFlatRate: rates.isFlatRate };
             saveItem("journeys", enrichedForm, { skipClose: true, silent: true });
+            const ensureJourneyDocument = (url, docType, label) => {
+                if (!url) return;
+                const exists = (data.documents || []).some((doc) => {
+                    const entityType = doc.entityType || doc.entity_type;
+                    const entityId = doc.entityId || doc.entity_id;
+                    const existingDocType = doc.docType || doc.doc_type;
+                    return entityType === "journey" && entityId === enrichedForm.id && existingDocType === docType && doc.url === url;
+                });
+                if (exists) return;
+                saveItem("documents", {
+                    id: uid(),
+                    entityType: "journey",
+                    entityId: enrichedForm.id,
+                    docType,
+                    label,
+                    url,
+                    uploadedBy: "admin",
+                    uploadedAt: new Date().toISOString(),
+                }, { skipClose: true, silent: true });
+            };
+            ensureJourneyDocument(enrichedForm.tr8Url, "tr8_form", "TR8 Transit Form");
+            ensureJourneyDocument(enrichedForm.t1Url, "t1_form", "T1 Transit Form");
 
             if (driverMileage > 0 && !form.id) {
                 const descPrefix = rates.isFlatRate ? "Flat rate allowance" : `Mileage allowance (${dist} km @ KES ${rates.driver}/km)`;
@@ -996,6 +1025,18 @@ export function GlobalModals(props) {
                                 TR8 Transit Document is required for all international journeys. Upload a PDF or image below.
                             </InfoBox>
                             <div style={{ gridColumn: "1/-1" }}>
+                                <Field
+                                    label="Booking Reference Number"
+                                    k="bookingRef"
+                                    full
+                                    form={form}
+                                    setForm={setForm}
+                                    S={S}
+                                    placeholder="Required for international journey"
+                                    error={errors.bookingRef}
+                                />
+                            </div>
+                            <div style={{ gridColumn: "1/-1" }}>
                                 <FormLabel>TR8 Transit Form</FormLabel>
                                 <label style={{
                                     display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8,
@@ -1051,6 +1092,7 @@ export function GlobalModals(props) {
                                             e.target.value = "";
                                         }} />
                                 </label>
+                                {errors.tr8Url && <p style={{ color: "#DC2626", fontSize: 11, marginTop: 6 }}>TR8 transit form is required for international journeys.</p>}
                             </div>
                         </>
                     )}
@@ -1433,7 +1475,7 @@ export function GlobalModals(props) {
                                 if (!file || form.receiptUploading) return;
                                 setForm(f => ({ ...f, receiptUploading: true }));
                                 try {
-                                    const result = await uploadViaDriverApi(file);
+                                    const result = await uploadViaAdminApi(file);
                                     if (result.success) setForm(f => ({ ...f, receiptUrl: result.url, receiptUploading: false }));
                                     else { alert(result.error); setForm(f => ({ ...f, receiptUploading: false })); }
                                 } catch (err) { alert(err.message); setForm(f => ({ ...f, receiptUploading: false })); }
@@ -1464,7 +1506,7 @@ export function GlobalModals(props) {
                                     const file = e.target.files[0]; if (!file) return;
                                     setForm(f => ({ ...f, receiptUploading: true }));
                                     try {
-                                        const result = await uploadViaDriverApi(file);
+                                        const result = await uploadViaAdminApi(file);
                                         if (result.success) setForm(f => ({ ...f, receiptUrl: result.url, receiptUploading: false }));
                                         else { alert(result.error); setForm(f => ({ ...f, receiptUploading: false })); }
                                     } catch (err) { alert(err.message); setForm(f => ({ ...f, receiptUploading: false })); }
@@ -1924,12 +1966,12 @@ export function GlobalModals(props) {
         const hasErrors = Object.values(errors).some(Boolean);
 
         const ASSET_CATS = [
-            "Vehicle", "Heavy Equipment", "Workshop Equipment", "Fuel Infrastructure",
+            "Vehicle", "Trailer", "Heavy Equipment", "Workshop Equipment", "Fuel Infrastructure",
             "Technology", "Office Furniture & Fixtures", "Communication Equipment",
             "Power Equipment", "Land & Buildings", "Other"
         ];
 
-        const isVehicle = form.category === "Vehicle";
+        const isVehicle = form.category === "Vehicle" || form.category === "Trailer";
 
         return (
             <Modal title={form.id ? "Edit Asset" : "Add New Asset"} onSave={() => flushModalSave(() => saveItem("assets", form))} S={S} closeModal={closeModal} saveDisabled={hasErrors}>
@@ -2006,7 +2048,7 @@ export function GlobalModals(props) {
                                     full form={form} setForm={setForm} S={S} />
                             </div>
                             <InfoBox color="#10b981" icon="🚛">
-                                Vehicle assets are automatically added to the Fleet section. If no existing truck is selected, a new fleet entry will be created on save.
+                                Vehicle and trailer assets can be linked to existing fleet records for reporting. Creating an asset will not auto-create fleet entries.
                             </InfoBox>
                         </>
                     )}

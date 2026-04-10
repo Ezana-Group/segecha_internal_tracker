@@ -128,15 +128,29 @@ export function Documents({ data, setData, dark, isMobile }) {
         return FileText;
     };
 
-    // Enrich documents
-    const enriched = documents.map(doc => ({
-        ...doc,
-        status: docStatus(doc),
-        category: docCategory(doc.docType),
-        entityName: doc.entityType === 'truck'
-            ? (data.trucks.find(t => t.id === doc.entityId)?.reg || doc.entityId)
-            : (data.drivers.find(d => d.id === doc.entityId)?.name || doc.entityId),
-    }));
+    // Enrich documents (accept both camelCase and snake_case payloads)
+    const enriched = documents.map((doc) => {
+        const entityType = doc.entityType || doc.entity_type || '';
+        const entityId = doc.entityId || doc.entity_id || '';
+        const docType = doc.docType || doc.doc_type || '';
+        const expiryDate = doc.expiryDate || doc.expiry_date || null;
+        const filename = doc.filename || '';
+        const label = doc.label || filename || 'Document';
+        return {
+            ...doc,
+            entityType,
+            entityId,
+            docType,
+            expiryDate,
+            filename,
+            label,
+            status: docStatus({ expiryDate }),
+            category: docCategory(docType),
+            entityName: entityType === 'truck'
+                ? (data.trucks.find(t => t.id === entityId)?.reg || entityId)
+                : (data.drivers.find(d => d.id === entityId)?.name || entityId),
+        };
+    });
 
     // Filter + sort
     const visible = enriched

@@ -1083,6 +1083,35 @@ app.get('/api/admin/stats', async (req, res) => {
 
 // --- DOCUMENTS MANAGEMENT ---
 
+function normalizeDocumentRow(row) {
+    const metaRaw = row?.metadata;
+    let meta = metaRaw;
+    if (typeof metaRaw === 'string') {
+        try { meta = JSON.parse(metaRaw); } catch { meta = {}; }
+    }
+    if (!meta || typeof meta !== 'object') meta = {};
+    return {
+        ...meta,
+        id: row.id,
+        entityType: row.entity_type || meta.entityType || '',
+        entityId: row.entity_id || meta.entityId || '',
+        docType: meta.docType || meta.doc_type || '',
+        label: row.label || meta.label || '',
+        url: row.url || meta.url || '',
+        expiryDate: row.expiry_date || meta.expiryDate || null,
+        filename: meta.filename || '',
+        mimeType: meta.mimeType || '',
+        fileSize: Number(meta.fileSize || 0),
+        uploadedBy: meta.uploadedBy || '',
+        uploadedAt: meta.uploadedAt || row.created_at || null,
+        entity_type: row.entity_type || '',
+        entity_id: row.entity_id || '',
+        doc_type: meta.docType || meta.doc_type || '',
+        expiry_date: row.expiry_date || null,
+        created_at: row.created_at || null,
+    };
+}
+
 app.get('/api/documents', async (req, res) => {
     try {
         const { entityType, entityId } = req.query;
@@ -1092,7 +1121,7 @@ app.get('/api/documents', async (req, res) => {
         if (entityId) { params.push(entityId); query += ` AND (entity_id = $${params.length} OR metadata->>'driverId' = $${params.length})`; }
 
         const result = await db.query(query, params);
-        res.json({ success: true, documents: result.rows });
+        res.json({ success: true, documents: result.rows.map(normalizeDocumentRow) });
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
@@ -1102,7 +1131,7 @@ app.get('/api/documents/expiring', async (req, res) => {
     try {
         const { days = 30 } = req.query;
         const result = await db.query("SELECT * FROM documents WHERE expiry_date <= CURRENT_DATE + interval '1 day' * $1", [parseInt(days)]);
-        res.json({ success: true, documents: result.rows });
+        res.json({ success: true, documents: result.rows.map(normalizeDocumentRow) });
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
@@ -1125,12 +1154,24 @@ app.post('/api/documents/upload', upload.any(), async (req, res) => {
         const finalUrl = url || uploadedUrl;
         if (!finalUrl) return res.status(400).json({ error: 'Document URL or file is required' });
 
+        const metadata = {
+            ...rest,
+            entityType: entityType || '',
+            entityId: entityId || '',
+            docType: rest.docType || rest.doc_type || '',
+            uploadedBy: rest.uploadedBy || 'admin',
+            uploadedAt: new Date().toISOString(),
+            filename: file?.originalname || rest.filename || '',
+            mimeType: file?.mimetype || rest.mimeType || '',
+            fileSize: Number(file?.size || rest.fileSize || 0),
+        };
+
         await db.query(
             'INSERT INTO documents (id, entity_type, entity_id, label, url, expiry_date, metadata) VALUES ($1, $2, $3, $4, $5, $6, $7)',
-            [id, entityType, entityId, label, finalUrl, expiryDate, JSON.stringify(rest)]
+            [id, entityType, entityId, label, finalUrl, expiryDate, JSON.stringify(metadata)]
         );
-
-        res.json({ success: true, document: { id, ...body, url: finalUrl } });
+        const inserted = await db.query('SELECT * FROM documents WHERE id = $1', [id]);
+        res.json({ success: true, document: normalizeDocumentRow(inserted.rows[0]) });
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
@@ -1329,6 +1370,16 @@ const ADMIN_COLLECTIONS = {
             supplier:             item.supplier             || '',
             linked_truck_id:      item.linkedTruckId || item.linked_truck_id || null,
             status:               item.status               || 'Active',
+        }),
+    },
+    documents: {
+        table: 'documents',
+        extract: (item) => ({
+            entity_type: item.entityType || item.entity_type || '',
+            entity_id: item.entityId || item.entity_id || '',
+            label: item.label || '',
+            url: item.url || '',
+            expiry_date: item.expiryDate || item.expiry_date || null,
         }),
     },
 };
@@ -1966,7 +2017,7 @@ app.get('/api/documents/mine', driverAuth.authMiddleware, async (req, res) => {
             'SELECT * FROM documents WHERE entity_id = $1 OR metadata->>\'driverId\' = $1',
             [req.driver.driverId]
         );
-        res.json({ success: true, documents: result.rows });
+        res.json({ success: true, documents: result.rows.map(normalizeDocumentRow) });
     } catch (e) {
         console.error('DOCUMENTS_MINE_ERROR:', e);
         res.status(500).json({ error: e.message });
@@ -1996,6 +2047,9 @@ app.post('/api/documents/driver-upload', driverAuth.authMiddleware, upload.any()
             entityId: driverId,
             url: (body.url && String(body.url).trim()) || fileUrl,
             uploadedAt: new Date().toISOString(),
+            filename: file?.originalname || '',
+            mimeType: file?.mimetype || '',
+            fileSize: Number(file?.size || 0),
         };
         if (!doc.url) return res.status(400).json({ error: 'Document URL or file is required' });
 
@@ -2004,8 +2058,8 @@ app.post('/api/documents/driver-upload', driverAuth.authMiddleware, upload.any()
             'INSERT INTO documents (id, entity_type, entity_id, label, url, expiry_date, metadata) VALUES ($1, $2, $3, $4, $5, $6, $7)',
             [id, entityType, entityId, label || 'Driver Upload', url, expiryDate || null, JSON.stringify(metadata)]
         );
-
-        res.json({ success: true, document: doc });
+        const inserted = await db.query('SELECT * FROM documents WHERE id = $1', [id]);
+        res.json({ success: true, document: normalizeDocumentRow(inserted.rows[0]) });
     } catch (e) {
         console.error('DRIVER_UPLOAD_ERROR:', e);
         res.status(500).json({ error: e.message });
