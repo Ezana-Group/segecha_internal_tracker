@@ -1887,6 +1887,7 @@ export function Settings({
                                 Select a section above to avoid long scrolling. All values still save the same way.
                             </p>
                             {financePanel === "basics" && (
+                            <>
                             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
                                 <SettingsShellField label="M-Pesa Business Shortcode">
                                     <SettingsShellInput value={localS.mpesaShortcode || ''} onChange={e => saveSettings({ mpesaShortcode: e.target.value })} placeholder="600XXX" />
@@ -1984,9 +1985,11 @@ export function Settings({
                                     </div>
                                 </Card>
                             </div>
+                            </>
                             )}
 
                             {financePanel === "payroll" && (
+                            <>
                             <div style={{ marginTop: 26 }}>
                                 <SettingsShellSectionHeader title="Payroll Settings" desc="Configure statutory rates and allowance defaults with effective-date-aware settings." icon={CreditCard} />
                                 <Card style={{ padding: 16, marginBottom: 14 }}>
@@ -2129,6 +2132,7 @@ export function Settings({
                                     </div>
                                 </Card>
                             </div>
+                            </>
                             )}
 
                             {financePanel === "reporting" && (
@@ -2180,6 +2184,7 @@ export function Settings({
                             )}
 
                             {financePanel === "lists" && (
+                            <>
                             <div style={{ marginTop: 32 }}>
                                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
                                     <div style={{ width: 36, height: 36, borderRadius: 10, background: "var(--brand-primary)12", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--brand-primary)" }}>
@@ -2262,6 +2267,7 @@ export function Settings({
                                     />
                                 </div>
                             </div>
+                            </>
                             )}
                         </fieldset>
                     )}
