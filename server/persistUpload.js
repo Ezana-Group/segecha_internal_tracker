@@ -7,7 +7,7 @@ const IMAGE_MIME = /^image\//i;
 
 /**
  * Persist an uploaded file: images → Cloudinary (preferred), non-images → Cloudflare R2.
- * Falls back to data URLs when credentials are not configured (local dev).
+ * Falls back to data URLs only when explicitly allowed (local dev).
  *
  * @param {Express.Multer.File} file
  * @param {{ entityType?: string, entityId?: string, docType?: string, cloudinaryFolder?: string }} opts
@@ -51,7 +51,11 @@ async function persistUploadedFile(file, opts = {}) {
         }
     }
 
-    return `data:${mime};base64,${buf.toString('base64')}`;
+    const allowDataUrlFallback = String(process.env.ALLOW_DATA_URL_UPLOAD_FALLBACK || 'false').toLowerCase() === 'true';
+    if (allowDataUrlFallback) {
+        return `data:${mime};base64,${buf.toString('base64')}`;
+    }
+    return '';
 }
 
 module.exports = { persistUploadedFile };

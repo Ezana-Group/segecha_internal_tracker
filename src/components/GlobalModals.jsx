@@ -1830,7 +1830,7 @@ export function GlobalModals(props) {
             e.mpesa   = validators.required(form.mpesa)  || validators.mpesa(form.mpesa);
             e.license = validators.required(form.license);
             e.salary  = validators.required(form.salary) || validators.positiveNumber(form.salary);
-            if (form.email) e.email = validators.email(form.email);
+            if (form.personalEmail || form.email) e.personalEmail = validators.email(form.personalEmail || form.email);
             if (form.nationalId) e.nationalId = validators.nationalId8(form.nationalId);
             if (form.kraPin) e.kraPin = validators.kraPin(form.kraPin);
             return e;
@@ -1842,11 +1842,12 @@ export function GlobalModals(props) {
             const isNew       = !form.id;
             const driverId    = form.id || uid();
             const driverName  = form.name;
-            const driverEmail = String(form.email || "").trim();
+            const driverEmail = String(form.personalEmail || form.email || "").trim();
             const otp         = form.otp || Math.floor(100000 + Math.random() * 900000).toString();
             saveItem("drivers", {
                 ...form,
                 id: driverId,
+                personalEmail: driverEmail,
                 email: driverEmail,
                 employeeNumber: form.employeeNumber || nextEmployeeNo(),
                 otp,
@@ -1880,7 +1881,7 @@ export function GlobalModals(props) {
                     <Field label="Date of Birth" k="dateOfBirth" type="date" form={form} setForm={setForm} S={S} T={T} />
                     <Field label="Gender" k="gender" options={["Male", "Female", "Other"]} form={form} setForm={setForm} S={S} T={T} />
                     <Field label="Phone"         k="phone" form={form} setForm={setForm} S={S} T={T} error={errors.phone} />
-                    <Field label="Email Address" k="email" type="email" placeholder="driver@email.com" form={form} setForm={setForm} S={S} T={T} error={errors.email} />
+                    <Field label="Personal Email (Payslip Delivery)" k="personalEmail" type="email" placeholder="driver@email.com" form={form} setForm={setForm} S={S} T={T} error={errors.personalEmail} />
                     <Field label="M-Pesa Number" k="mpesa" placeholder="07XXXXXXXX" form={form} setForm={setForm} S={S} T={T} error={errors.mpesa} />
                     <div style={{ gridColumn: "1/-1" }}>
                         <Field label="Physical / Postal Address" k="physicalAddress" full form={form} setForm={setForm} S={S} T={T} />

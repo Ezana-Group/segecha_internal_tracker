@@ -357,6 +357,13 @@ export function Settings({
     const [sendTestPhone, setSendTestPhone] = useState("");
     const [localS, setLocalS] = useState(readSettings);
     const [payrollSettingsDraft, setPayrollSettingsDraft] = useState(() => getPayrollSettings());
+    const [deductionTemplates, setDeductionTemplates] = useState([]);
+    const [deductionTemplateDraft, setDeductionTemplateDraft] = useState({
+        name: "",
+        defaultAmount: 0,
+        defaultType: "fixed",
+        requiresAuthorization: false,
+    });
     const [mpesaSyncing, setMpesaSyncing] = useState(false);
     const [financeReportingLoading, setFinanceReportingLoading] = useState(false);
     const [financeReportRange, setFinanceReportRange] = useState({
@@ -512,6 +519,36 @@ export function Settings({
     useEffect(() => {
         setPayrollSettingsDraft(getPayrollSettings());
     }, [localS.payrollSettings]);
+
+    useEffect(() => {
+        let alive = true;
+        (async () => {
+            try {
+                const res = await fetchWithAuth(`${PAYMENT_API}/api/admin/payroll/settings`);
+                const json = await res.json();
+                if (!alive || !json?.success) return;
+                setPayrollSettingsDraft(json.payrollSettings || getPayrollSettings());
+            } catch {
+                // Keep local fallback.
+            }
+        })();
+        return () => { alive = false; };
+    }, []);
+
+    useEffect(() => {
+        let alive = true;
+        (async () => {
+            try {
+                const res = await fetchWithAuth(`${PAYMENT_API}/api/admin/deduction-templates`);
+                const json = await res.json();
+                if (!alive || !json?.success) return;
+                setDeductionTemplates(Array.isArray(json.templates) ? json.templates : []);
+            } catch {
+                // Optional section.
+            }
+        })();
+        return () => { alive = false; };
+    }, []);
 
     useEffect(() => {
         const t = searchParams.get("tab");
@@ -1942,6 +1979,62 @@ export function Settings({
                                         >
                                             Save payroll settings
                                         </Button>
+                                    </div>
+                                </Card>
+                            </div>
+
+                            <div style={{ marginTop: 18 }}>
+                                <SettingsShellSectionHeader title="Deduction Templates" desc="Define reusable payroll deduction lines (loan, SACCO, advance, fines)." icon={FileText} />
+                                <Card style={{ padding: 16 }}>
+                                    <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "2fr 1fr 1fr auto", gap: 10 }}>
+                                        <SettingsShellInput placeholder="Template name" value={deductionTemplateDraft.name} onChange={(e) => setDeductionTemplateDraft((s) => ({ ...s, name: e.target.value }))} />
+                                        <SettingsShellInput type="number" placeholder="Amount" value={deductionTemplateDraft.defaultAmount} onChange={(e) => setDeductionTemplateDraft((s) => ({ ...s, defaultAmount: Number(e.target.value || 0) }))} />
+                                        <SettingsShellSelect value={deductionTemplateDraft.defaultType} onChange={(e) => setDeductionTemplateDraft((s) => ({ ...s, defaultType: e.target.value }))}>
+                                            <option value="fixed">Fixed</option>
+                                            <option value="percent">Percent</option>
+                                        </SettingsShellSelect>
+                                        <Button
+                                            icon={Plus}
+                                            onClick={async () => {
+                                                if (!deductionTemplateDraft.name.trim()) return;
+                                                const payload = { ...deductionTemplateDraft, name: deductionTemplateDraft.name.trim() };
+                                                const res = await fetchWithAuth(`${PAYMENT_API}/api/admin/deduction-templates`, {
+                                                    method: "POST",
+                                                    headers: { "Content-Type": "application/json" },
+                                                    body: JSON.stringify(payload),
+                                                });
+                                                const json = await res.json();
+                                                if (!json?.success) throw new Error(json?.error || "Failed");
+                                                const list = await fetchWithAuth(`${PAYMENT_API}/api/admin/deduction-templates`);
+                                                const listJson = await list.json();
+                                                setDeductionTemplates(Array.isArray(listJson.templates) ? listJson.templates : []);
+                                                setDeductionTemplateDraft({ name: "", defaultAmount: 0, defaultType: "fixed", requiresAuthorization: false });
+                                                showToast?.("Deduction template saved", "success");
+                                            }}
+                                        >
+                                            Add
+                                        </Button>
+                                    </div>
+                                    <div style={{ marginTop: 12, display: "grid", gap: 8 }}>
+                                        {deductionTemplates.length === 0 ? (
+                                            <div style={{ fontSize: 12, color: "var(--text-muted)" }}>No deduction templates yet.</div>
+                                        ) : deductionTemplates.map((tpl) => (
+                                            <div key={tpl.id} style={{ display: "flex", justifyContent: "space-between", gap: 12, border: "1px solid var(--border-subtle)", borderRadius: 10, padding: "8px 10px" }}>
+                                                <div style={{ fontSize: 13, fontWeight: 700 }}>{tpl.name}</div>
+                                                <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
+                                                    {Number(tpl.default_amount || 0).toLocaleString("en-KE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({tpl.default_type || "fixed"})
+                                                </div>
+                                                <Button
+                                                    variant="ghost"
+                                                    onClick={async () => {
+                                                        await fetchWithAuth(`${PAYMENT_API}/api/admin/deduction-templates/${tpl.id}`, { method: "DELETE" });
+                                                        setDeductionTemplates((s) => s.filter((x) => x.id !== tpl.id));
+                                                    }}
+                                                >
+                                                    Remove
+                                                </Button>
+                                            </div>
+                                        ))}
                                     </div>
                                 </Card>
                             </div>

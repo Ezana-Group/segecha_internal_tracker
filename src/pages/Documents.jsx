@@ -41,7 +41,7 @@ export function Documents({ data, setData, dark, isMobile }) {
     const [docsLoading, setDocsLoading] = useState(true);
 
     // ── New UI State
-    const [docTab, setDocTab]           = useState('all');      // 'all'|'vehicles'|'drivers'|'insurance'|'legal'
+    const [docTab, setDocTab]           = useState('all');      // 'all'|'vehicles'|'drivers'|'insurance'|'legal'|'payslips'
     const [statusFilter, setStatusFilter] = useState('all');    // 'all'|'expired'|'expiring'|'valid'|'none'
     const [searchQ, setSearchQ]         = useState('');
     const [sortCol, setSortCol]         = useState('expiry');   // 'name'|'entity'|'expiry'|'type'
@@ -106,6 +106,8 @@ export function Documents({ data, setData, dark, isMobile }) {
     };
 
     const docCategory = (docType) => {
+        const normalized = String(docType || "").toLowerCase();
+        if (normalized.includes("payslip")) return 'payslips';
         if (['insurance_lorry', 'insurance_trailer'].includes(docType)) return 'insurance';
         if (['comesa', 'ntsa_inspection', 'overweight_permit', 'customs', 'logbook'].includes(docType)) return 'legal';
         if (['psv_licence', 'medical_certificate', 'id_card'].includes(docType)) return 'drivers';
@@ -117,6 +119,7 @@ export function Documents({ data, setData, dark, isMobile }) {
         legal: { label: 'Compliance', icon: FileCheck, color: '#10b981' },
         drivers: { label: 'Personnel', icon: User, color: '#a78bfa' },
         vehicles: { label: 'Operations', icon: Truck, color: '#f59e0b' },
+        payslips: { label: 'Payslips', icon: FileArchive, color: '#14b8a6' },
     }[cat] || { label: 'Other', icon: FileText, color: 'var(--text-dim)' });
 
     // File-type icon helper
@@ -159,6 +162,7 @@ export function Documents({ data, setData, dark, isMobile }) {
             if (docTab === 'drivers' && doc.entityType !== 'driver') return false;
             if (docTab === 'insurance' && doc.category !== 'insurance') return false;
             if (docTab === 'legal' && doc.category !== 'legal') return false;
+            if (docTab === 'payslips' && doc.category !== 'payslips') return false;
             if (statusFilter !== 'all' && doc.status !== statusFilter) return false;
             if (searchQ) {
                 const q = searchQ.toLowerCase();
@@ -222,6 +226,7 @@ export function Documents({ data, setData, dark, isMobile }) {
         { id: 'drivers',   label: 'Personnel' },
         { id: 'insurance', label: 'Insurance' },
         { id: 'legal',     label: 'Legal' },
+        { id: 'payslips',  label: 'Payslips' },
     ];
 
     const statusFilterConfig = [
@@ -238,13 +243,26 @@ export function Documents({ data, setData, dark, isMobile }) {
                 title="Documents"
                 description="Compliance files, expiry tracking, and secure cloud storage."
                 actions={
-                    <Button
-                        variant={showUpload ? "secondary" : "primary"}
-                        icon={showUpload ? X : Upload}
-                        onClick={() => setShowUpload(!showUpload)}
-                    >
-                        {showUpload ? "Cancel" : "Upload Document"}
-                    </Button>
+                    <div style={{ display: "flex", gap: 8 }}>
+                        <Button
+                            variant="secondary"
+                            icon={Download}
+                            onClick={() => {
+                                const payslips = visible.filter((d) => d.category === "payslips");
+                                payslips.forEach((doc) => window.open(doc.url, "_blank", "noopener,noreferrer"));
+                            }}
+                            disabled={visible.filter((d) => d.category === "payslips").length === 0}
+                        >
+                            Download Payslip Bundle
+                        </Button>
+                        <Button
+                            variant={showUpload ? "secondary" : "primary"}
+                            icon={showUpload ? X : Upload}
+                            onClick={() => setShowUpload(!showUpload)}
+                        >
+                            {showUpload ? "Cancel" : "Upload Document"}
+                        </Button>
+                    </div>
                 }
             />
 

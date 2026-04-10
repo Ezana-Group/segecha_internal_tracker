@@ -212,7 +212,8 @@ function transformDBTables(tables = {}) {
         joined:  d(m(row).joined),
         salary:  m(row).salary  || 0,
         mpesa:   m(row).mpesa   || '',
-        email:   row.email || m(row).email || '',
+        personalEmail: row.personal_email || m(row).personalEmail || row.email || m(row).email || '',
+        email:   row.personal_email || row.email || m(row).personalEmail || m(row).email || '',
     }));
 
     const customers = (tables.customers || []).map(row => ({
@@ -535,6 +536,19 @@ function mergeTemplateList(seedTemplates, savedTemplates) {
     return saved;
 }
 
+function mergeServerRowsKeepingPending(serverRows, localRows) {
+    const server = Array.isArray(serverRows) ? serverRows : [];
+    const local = Array.isArray(localRows) ? localRows : [];
+    const pending = local.filter((r) => r && r._pendingSync === true);
+    if (pending.length === 0) return server;
+    const byId = new Map(server.map((r) => [r.id, r]));
+    for (const row of pending) {
+        if (!row?.id) continue;
+        byId.set(row.id, { ...row });
+    }
+    return Array.from(byId.values());
+}
+
 export function useAppState() {
     // P1.1 — Server-first state: collections always come from the DB.
     // localStorage is used only as a short-lived cache for non-collection settings/templates.
@@ -595,10 +609,16 @@ export function useAppState() {
                 // DB uses snake_case columns + JSONB metadata; frontend expects camelCase/short names.
                 // transformDBTables maps every entity to the shape the UI components expect.
                 if (result.success && result.data?.tables) {
+                    const incoming = transformDBTables(result.data.tables);
                     // Restore entity collections
                     setData(d => ({
                         ...d,
-                        ...transformDBTables(result.data.tables),
+                        ...Object.fromEntries(
+                            Object.entries(incoming).map(([key, rows]) => {
+                                if (!Array.isArray(rows)) return [key, rows];
+                                return [key, mergeServerRowsKeepingPending(rows, d[key] || [])];
+                            })
+                        ),
                     }));
 
                     // Restore settings from system_settings table rows.
@@ -896,10 +916,11 @@ export function useAppState() {
         const quiet = syncOpts.quiet === true;
         if (!PAYMENT_API || !SERVER_COLLECTIONS.has(col)) return true;
         try {
+            const { _pendingSync, ...payload } = item || {};
             const res = await fetchWithAuth(`${PAYMENT_API}/api/admin/collection/${col}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(item),
+                body: JSON.stringify(payload),
             });
             if (!res.ok) {
                 const j = await res.json().catch(() => ({}));
@@ -962,16 +983,22 @@ export function useAppState() {
             }
 
             if (i >= 0) {
-                arr[i] = fi;
+                arr[i] = { ...fi, _pendingSync: true };
             } else {
                 isNew = true;
-                arr.push(fi);
+                arr.push({ ...fi, _pendingSync: true });
             }
-            finalItem = fi;
+            finalItem = { ...fi, _pendingSync: true };
             return { ...d, [col]: arr };
         });
 
         void _syncItemToServer(col, finalItem).then((ok) => {
+            if (ok !== false) {
+                setData((d) => ({
+                    ...d,
+                    [col]: (d[col] || []).map((x) => x.id === finalItem.id ? { ...x, _pendingSync: false } : x),
+                }));
+            }
             try {
                 options?.onSynced?.(ok, finalItem);
             } catch (e) {

@@ -486,6 +486,9 @@ async function autoSeed() {
                 IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='drivers' AND column_name='email') THEN
                     ALTER TABLE drivers ADD COLUMN email TEXT;
                 END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='drivers' AND column_name='personal_email') THEN
+                    ALTER TABLE drivers ADD COLUMN personal_email TEXT;
+                END IF;
                 IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='drivers' AND column_name='national_id') THEN
                     ALTER TABLE drivers ADD COLUMN national_id TEXT;
                 END IF;
@@ -2018,11 +2021,49 @@ const DEFAULT_PAYROLL_SETTINGS = {
     },
 };
 
+const PAYROLL_STATUTORY_TYPE_MAP = {
+    personalRelief: 'personal_relief',
+    payeBands: 'paye_bands',
+    nssfTier1Ceiling: 'nssf_tier1_ceiling',
+    nssfTier2Ceiling: 'nssf_tier2_ceiling',
+    nssfEmployeeRate: 'nssf_employee_rate',
+    nssfEmployerRate: 'nssf_employer_rate',
+    shifEnabled: 'shif_enabled',
+    shifRatePercent: 'shif_rate_percent',
+    housingLevyEmployeeRate: 'housing_levy_employee_rate',
+    housingLevyEmployerRate: 'housing_levy_employer_rate',
+    driverAllowanceDefaults: 'driver_allowance_defaults',
+};
+
+async function getDbBackedPayrollSettings() {
+    const settings = await getSettings();
+    const stored = settings?.payrollSettings || {};
+    const merged = { ...DEFAULT_PAYROLL_SETTINGS, ...(stored || {}) };
+    const rows = await db.query(
+        `SELECT config_type, formula
+         FROM payroll_statutory_configs
+         WHERE is_active = TRUE
+         ORDER BY effective_date DESC, created_at DESC`
+    );
+    const seen = new Set();
+    for (const row of rows.rows || []) {
+        const type = String(row.config_type || '').trim();
+        if (!type || seen.has(type)) continue;
+        seen.add(type);
+        const key = Object.keys(PAYROLL_STATUTORY_TYPE_MAP).find((k) => PAYROLL_STATUTORY_TYPE_MAP[k] === type);
+        if (!key) continue;
+        const formula = parseJsonObj(row.formula);
+        if (Object.prototype.hasOwnProperty.call(formula, 'value')) {
+            merged[key] = formula.value;
+        }
+    }
+    return merged;
+}
+
 app.get('/api/admin/payroll/settings', async (_req, res) => {
     try {
-        const settings = await getSettings();
-        const stored = settings?.payrollSettings || {};
-        res.json({ success: true, payrollSettings: { ...DEFAULT_PAYROLL_SETTINGS, ...(stored || {}) } });
+        const payrollSettings = await getDbBackedPayrollSettings();
+        res.json({ success: true, payrollSettings });
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
@@ -2031,13 +2072,22 @@ app.get('/api/admin/payroll/settings', async (_req, res) => {
 app.put('/api/admin/payroll/settings', async (req, res) => {
     try {
         const actor = req.admin?.email || req.admin?.id || 'system';
-        const current = await getSettings();
-        const previous = current?.payrollSettings || {};
+        const previous = await getDbBackedPayrollSettings();
         const next = req.body?.payrollSettings && typeof req.body.payrollSettings === 'object'
             ? req.body.payrollSettings
             : {};
         const merged = { ...DEFAULT_PAYROLL_SETTINGS, ...previous, ...next };
+        const effectiveDate = req.body?.effectiveDate || new Date().toISOString().slice(0, 10);
         await saveSetting('payrollSettings', merged);
+        for (const key of Object.keys(PAYROLL_STATUTORY_TYPE_MAP)) {
+            const configType = PAYROLL_STATUTORY_TYPE_MAP[key];
+            const value = Object.prototype.hasOwnProperty.call(merged, key) ? merged[key] : DEFAULT_PAYROLL_SETTINGS[key];
+            await db.query(
+                `INSERT INTO payroll_statutory_configs (id, name, config_type, formula, effective_date, is_active, created_by)
+                 VALUES ($1,$2,$3,$4::jsonb,$5,TRUE,$6)`,
+                [randomId('psc'), key, configType, JSON.stringify({ value }), effectiveDate, String(actor)]
+            );
+        }
         await db.query(
             `INSERT INTO payroll_statutory_change_log (config_name, old_value, new_value, changed_by, effective_date)
              VALUES ($1, $2::jsonb, $3::jsonb, $4, $5)`,
@@ -2046,7 +2096,7 @@ app.put('/api/admin/payroll/settings', async (req, res) => {
                 JSON.stringify(previous || {}),
                 JSON.stringify(merged || {}),
                 String(actor),
-                req.body?.effectiveDate || null,
+                effectiveDate,
             ]
         );
         res.json({ success: true, payrollSettings: merged });
@@ -2435,6 +2485,9 @@ app.post('/api/admin/upload', upload.any(), async (req, res) => {
             docType: 'uploads',
             cloudinaryFolder: 'tracker_inline',
         });
+        if (!url) {
+            return res.status(503).json({ error: 'Upload storage unavailable. Configure Cloudinary or Cloudflare R2.' });
+        }
         res.json({ success: true, url });
     } catch (e) {
         console.error('[ADMIN_UPLOAD]', e);
@@ -2520,6 +2573,111 @@ async function postPayrollLedgerEntries({ payrollId, amount = 0, paidDate, actor
             amt,
             'Payroll disbursement posting',
             JSON.stringify(metadata || {}),
+            actor,
+            randomId('led'),
+        ]
+    );
+}
+
+async function postInvoicePaymentLedgerEntries({ invoiceId, deltaPaidAmount = 0, paidDate, actor = 'system', metadata = {} }) {
+    const src = String(invoiceId || '');
+    const amt = round2(deltaPaidAmount);
+    if (!src || amt <= 0) return;
+    const existing = await db.query(
+        `SELECT id FROM ledger_entries
+         WHERE source_type = 'invoice_payment'
+           AND source_id = $1
+           AND metadata->>'paymentAmount' = $2
+         LIMIT 1`,
+        [src, String(amt)]
+    );
+    if ((existing.rows || []).length > 0) return;
+    const entryDate = normalizeDateInput(paidDate) || new Date().toISOString().slice(0, 10);
+    await db.query(
+        `INSERT INTO ledger_entries
+         (id, entry_date, source_type, source_id, account_code, account_name, debit, credit, currency, notes, metadata, created_by)
+         VALUES
+         ($1,$2,'invoice_payment',$3,'1001','Cash / M-Pesa Float',$4,0,'KES',$5,$6::jsonb,$7),
+         ($8,$2,'invoice_payment',$3,'1100','Accounts Receivable',0,$4,'KES',$5,$6::jsonb,$7)`,
+        [
+            randomId('led'),
+            entryDate,
+            src,
+            amt,
+            'Invoice payment posting',
+            JSON.stringify({ ...metadata, paymentAmount: amt }),
+            actor,
+            randomId('led'),
+        ]
+    );
+}
+
+async function postExpenseLedgerEntries({ expenseId, amount = 0, entryDate, actor = 'system', metadata = {} }) {
+    const src = String(expenseId || '');
+    const amt = round2(amount);
+    if (!src || amt <= 0) return;
+    const existing = await db.query('SELECT id FROM ledger_entries WHERE source_type = $1 AND source_id = $2 LIMIT 1', ['expense', src]);
+    if ((existing.rows || []).length > 0) return;
+    const date = normalizeDateInput(entryDate) || new Date().toISOString().slice(0, 10);
+    await db.query(
+        `INSERT INTO ledger_entries
+         (id, entry_date, source_type, source_id, account_code, account_name, debit, credit, currency, notes, metadata, created_by)
+         VALUES
+         ($1,$2,'expense',$3,'5100','Operating Expense',$4,0,'KES',$5,$6::jsonb,$7),
+         ($8,$2,'expense',$3,'1001','Cash / M-Pesa Float',0,$4,'KES',$5,$6::jsonb,$7)`,
+        [
+            randomId('led'),
+            date,
+            src,
+            amt,
+            'Expense posting',
+            JSON.stringify(metadata || {}),
+            actor,
+            randomId('led'),
+        ]
+    );
+}
+
+async function postMonthlyDepreciationLedgerEntries({ actor = 'system' } = {}) {
+    const now = new Date();
+    const month = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}`;
+    const check = await db.query(
+        `SELECT id FROM ledger_entries
+         WHERE source_type = 'depreciation'
+           AND source_id = $1
+         LIMIT 1`,
+        [month]
+    );
+    if ((check.rows || []).length > 0) return;
+    const assetsRes = await db.query(`SELECT id, cost, salvage_value, useful_life_years, depreciation_method FROM assets WHERE status <> 'Disposed'`);
+    let total = 0;
+    for (const a of assetsRes.rows || []) {
+        const cost = Number(a.cost || 0);
+        const salvage = Number(a.salvage_value || 0);
+        const years = Math.max(1, Number(a.useful_life_years || 1));
+        const method = String(a.depreciation_method || 'straight-line').toLowerCase();
+        if (cost <= 0) continue;
+        const monthly = method.includes('reducing')
+            ? ((cost * 0.3) / 12)
+            : Math.max(0, (cost - salvage) / (years * 12));
+        total += monthly;
+    }
+    const amt = round2(total);
+    if (amt <= 0) return;
+    const entryDate = `${month}-01`;
+    await db.query(
+        `INSERT INTO ledger_entries
+         (id, entry_date, source_type, source_id, account_code, account_name, debit, credit, currency, notes, metadata, created_by)
+         VALUES
+         ($1,$2,'depreciation',$3,'5200','Depreciation Expense',$4,0,'KES',$5,$6::jsonb,$7),
+         ($8,$2,'depreciation',$3,'1500','Accumulated Depreciation',0,$4,'KES',$5,$6::jsonb,$7)`,
+        [
+            randomId('led'),
+            entryDate,
+            month,
+            amt,
+            'Monthly depreciation posting',
+            JSON.stringify({ month }),
             actor,
             randomId('led'),
         ]
@@ -2630,6 +2788,7 @@ const ADMIN_COLLECTIONS = {
             name:           item.name    || '',
             phone:          item.phone   || '',
             email:          item.email   || '',
+            personal_email: item.personalEmail || item.personal_email || item.email || '',
             national_id:    item.nationalId || item.national_id || '',
             date_of_birth:  normalizeDateInput(item.dateOfBirth || item.date_of_birth),
             gender:         item.gender || '',
@@ -2859,6 +3018,32 @@ async function upsertCollectionRow(collection, item) {
             `INSERT INTO ${cfg.table} (id, metadata, ${colNames.join(', ')}) VALUES ($1, $2, ${placeholders})`,
             [item.id, metaJson, ...colValues]
         );
+    }
+    const actor = String(item?._updatedBy || item?._createdBy || 'system');
+    if (collection === 'expenses') {
+        const amount = Number(merged.amount ?? cols.amount ?? 0);
+        const date = merged.date || cols.date || null;
+        await postExpenseLedgerEntries({
+            expenseId: item.id,
+            amount,
+            entryDate: date,
+            actor,
+            metadata: { category: merged.cat || cols.category || null },
+        });
+    }
+    if (collection === 'invoices') {
+        const previousPaid = Number(parseJsonObj(existing.rows?.[0]?.metadata).paidAmount || existing.rows?.[0]?.paid_amount || 0);
+        const currentPaid = Number(merged.paidAmount ?? merged.amountPaid ?? 0);
+        const delta = round2(currentPaid - previousPaid);
+        if (delta > 0) {
+            await postInvoicePaymentLedgerEntries({
+                invoiceId: item.id,
+                deltaPaidAmount: delta,
+                paidDate: merged.paidDate || merged.paymentDate || new Date().toISOString().slice(0, 10),
+                actor,
+                metadata: { invoiceNumber: merged.invoiceNo || merged.uId || item.id },
+            });
+        }
     }
 }
 
@@ -3469,6 +3654,9 @@ app.post('/api/driver/upload', driverAuth.authMiddleware, upload.any(), async (r
             docType: 'portal',
             cloudinaryFolder: 'driver_portal',
         });
+        if (!url) {
+            return res.status(503).json({ error: 'Upload storage unavailable. Configure Cloudinary or Cloudflare R2.' });
+        }
         res.json({ success: true, url });
     } catch (e) {
         console.error('[DRIVER_UPLOAD_INLINE]', e);
@@ -3578,8 +3766,61 @@ app.post('/api/admin/payroll/:id/generate-payslip', async (req, res) => {
     try {
         const payrollId = req.params.id;
         const actor = req.admin?.email || req.admin?.id || 'system';
+        const ctx = await getPayrollContext(payrollId);
+        if (!ctx) return res.status(404).json({ error: 'Payroll record not found' });
+        if (String(ctx.row?.status || '').toLowerCase() !== 'paid') {
+            return res.status(400).json({ error: 'Payslip generation is allowed only after payroll is marked as paid' });
+        }
         const out = await generatePayslipDocument({ payrollId, actor });
         res.json({ success: true, ...out });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.get('/api/admin/deduction-templates', async (_req, res) => {
+    try {
+        const rows = await db.query('SELECT * FROM deduction_templates ORDER BY created_at DESC');
+        res.json({ success: true, templates: rows.rows || [] });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.post('/api/admin/deduction-templates', async (req, res) => {
+    try {
+        const actor = req.admin?.email || req.admin?.id || 'system';
+        const id = String(req.body?.id || randomId('ded'));
+        const payload = {
+            name: String(req.body?.name || '').trim(),
+            defaultAmount: Number(req.body?.defaultAmount || 0),
+            defaultType: String(req.body?.defaultType || 'fixed'),
+            requiresAuthorization: Boolean(req.body?.requiresAuthorization),
+            metadata: req.body?.metadata && typeof req.body.metadata === 'object' ? req.body.metadata : {},
+        };
+        if (!payload.name) return res.status(400).json({ error: 'Template name is required' });
+        await db.query(
+            `INSERT INTO deduction_templates (id, name, default_amount, default_type, requires_authorization, metadata, created_by, updated_at)
+             VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,NOW())
+             ON CONFLICT (id) DO UPDATE
+             SET name = EXCLUDED.name,
+                 default_amount = EXCLUDED.default_amount,
+                 default_type = EXCLUDED.default_type,
+                 requires_authorization = EXCLUDED.requires_authorization,
+                 metadata = EXCLUDED.metadata,
+                 updated_at = NOW()`,
+            [id, payload.name, payload.defaultAmount, payload.defaultType, payload.requiresAuthorization, JSON.stringify(payload.metadata), actor]
+        );
+        res.json({ success: true, id });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.delete('/api/admin/deduction-templates/:id', async (req, res) => {
+    try {
+        await db.query('DELETE FROM deduction_templates WHERE id = $1', [req.params.id]);
+        res.json({ success: true });
     } catch (e) {
         res.status(500).json({ error: e.message });
     }
@@ -3594,7 +3835,7 @@ app.post('/api/admin/payroll/:id/queue-dispatch', async (req, res) => {
         if (String(ctx.row.status || '').toLowerCase() !== 'paid') {
             return res.status(400).json({ error: 'Payslip dispatch allowed only after payment confirmation' });
         }
-        const email = String(ctx.employee.email || ctx.meta.email || '').trim();
+        const email = String(ctx.employee.personal_email || ctx.employee.email || ctx.meta.personalEmail || ctx.meta.email || '').trim();
         if (!email) return res.status(400).json({ error: 'No recipient email configured for this employee' });
         let payslipUrl = ctx.meta.payslipUrl || '';
         if (!payslipUrl) {
@@ -3786,6 +4027,7 @@ app.listen(PORT, '0.0.0.0', () => {
         setInterval(async () => {
             try {
                 const { sent, failed, processed } = await processPayslipDispatchQueue(Number(process.env.PAYSLIP_DISPATCH_BATCH_SIZE || 20));
+                await postMonthlyDepreciationLedgerEntries({ actor: 'cron' });
                 if (processed > 0) {
                     console.log(`[PAYSLIP_QUEUE_CRON] processed=${processed} sent=${sent} failed=${failed}`);
                 }

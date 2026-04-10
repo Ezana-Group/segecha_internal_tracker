@@ -60,6 +60,7 @@ CREATE TABLE IF NOT EXISTS drivers (
     name                    TEXT NOT NULL,
     phone                   TEXT,
     email                   TEXT,
+    personal_email          TEXT,
     national_id             TEXT,
     date_of_birth           DATE,
     gender                  TEXT,
@@ -478,6 +479,9 @@ BEGIN
     END IF;
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='drivers' AND column_name='email') THEN
         ALTER TABLE drivers ADD COLUMN email TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='drivers' AND column_name='personal_email') THEN
+        ALTER TABLE drivers ADD COLUMN personal_email TEXT;
     END IF;
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='drivers' AND column_name='national_id') THEN
         ALTER TABLE drivers ADD COLUMN national_id TEXT;
