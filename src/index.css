@@ -609,7 +609,7 @@ button, input, select, textarea {
 
 .table-modern thead th {
   text-align: left;
-  padding: 11px 16px;
+  padding: 9px 12px;
   font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
@@ -624,7 +624,7 @@ button, input, select, textarea {
 }
 
 .table-modern tbody td {
-  padding: 13px 16px;
+  padding: 10px 12px;
   border-bottom: 1px solid var(--border-subtle);
   vertical-align: middle;
   color: var(--text-secondary);
@@ -840,9 +840,9 @@ button.journeys-table-link:hover { text-decoration: underline; }
   font-size: 18px; font-weight: 800;
   color: var(--text-primary);
   letter-spacing: -0.025em;
-  padding-bottom: 16px;
+  padding-bottom: 12px;
   border-bottom: 1px solid var(--border-subtle);
-  margin-bottom: 20px;
+  margin-bottom: 14px;
   flex-shrink: 0;
 }
 
@@ -855,10 +855,10 @@ button.journeys-table-link:hover { text-decoration: underline; }
 
 .modal-actions {
   display: flex; align-items: center; justify-content: flex-end;
-  gap: 10px;
-  padding-top: 16px;
+  gap: 8px;
+  padding-top: 12px;
   border-top: 1px solid var(--border-subtle);
-  margin-top: 20px;
+  margin-top: 14px;
   flex-shrink: 0;
 }
 
@@ -1044,7 +1044,7 @@ button.journeys-table-link:hover { text-decoration: underline; }
   border-top: none; padding-top: 4px;
 }
 .dashboard-finance-status__payroll { margin-top: 4px; padding-right: 4px; }
-.dashboard-card-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 18px; }
+.dashboard-card-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
 .card-premium .dashboard-card-cta { width: 100%; min-height: 44px; box-sizing: border-box; justify-content: center; }
 .dashboard-table-icon-btn {
   display: inline-flex; align-items: center; justify-content: center;

@@ -88,7 +88,7 @@ app.use(helmet({
     contentSecurityPolicy: {
         directives: {
             defaultSrc: ["'self'"],
-            scriptSrc: ["'self'", "'unsafe-inline'", 'https://cdnjs.cloudflare.com'],
+            scriptSrc: ["'self'", 'https://cdnjs.cloudflare.com'],
             styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
             fontSrc: ["'self'", 'https://fonts.gstatic.com'],
             // Allow blob: previews created by the browser for local uploads.
@@ -202,6 +202,7 @@ const clientErrorLimiter = rateLimit({
 const JWT_SECRET = process.env.JWT_SECRET;
 // ADMIN_KEY: only use ADMIN_KEY, never fall back to the frontend VITE_ADMIN_KEY (CRIT-09, LOW-01)
 const ADMIN_KEY = (process.env.ADMIN_KEY || '').trim();
+const ALLOW_ADMIN_KEY_AUTH = String(process.env.ALLOW_ADMIN_KEY_AUTH || 'false').toLowerCase() === 'true';
 if (!ADMIN_KEY) console.error('CRITICAL: ADMIN_KEY not set in environment.');
 
 if (!JWT_SECRET || !ADMIN_KEY) {
@@ -263,8 +264,8 @@ const adminAuth = async (req, res, next) => {
     const adminKey = req.headers['x-admin-key'];
     const authHeader = req.headers.authorization;
 
-    // Check Admin Key (header only)
-    if (adminKey && adminKey.trim() === ADMIN_KEY && ADMIN_KEY !== '') {
+    // Admin key bypass is disabled by default; allow only for controlled break-glass scenarios.
+    if (ALLOW_ADMIN_KEY_AUTH && adminKey && adminKey.trim() === ADMIN_KEY && ADMIN_KEY !== '') {
         return next();
     }
 
@@ -1877,6 +1878,9 @@ app.post('/api/admin/change-password', async (req, res) => {
 // MASTER RESET - Truncates all Neon PostgreSQL tables
 app.post('/api/admin/reset', async (req, res) => {
     try {
+        if (!req.admin || req.admin.role !== 'superadmin') {
+            return res.status(403).json({ error: 'Only superadmins can run a full system reset.' });
+        }
         console.log(`[${new Date().toISOString()}] SYSTEM RESET REQUESTED BY ADMIN`);
         const tables = [
             'invoices', 'payroll', 'fuel_logs', 'expenses', 'incidents', 'maintenance_logs', 'tyre_logs',
