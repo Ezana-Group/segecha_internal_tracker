@@ -357,6 +357,7 @@ export function Settings({
     const [sendTestPhone, setSendTestPhone] = useState("");
     const [localS, setLocalS] = useState(readSettings);
     const [payrollSettingsDraft, setPayrollSettingsDraft] = useState(() => getPayrollSettings());
+    const [financePanel, setFinancePanel] = useState("basics");
     const [deductionTemplates, setDeductionTemplates] = useState([]);
     const [deductionTemplateDraft, setDeductionTemplateDraft] = useState({
         name: "",
@@ -558,6 +559,10 @@ export function Settings({
             }
         }
     }, [searchParams, activeTab]);
+
+    useEffect(() => {
+        if (activeTab === "finance") setFinancePanel("basics");
+    }, [activeTab]);
 
     useEffect(() => {
         if (isMobile) {
@@ -1859,6 +1864,29 @@ export function Settings({
                         <fieldset disabled={!workspaceTabEditable.finance || !canEditSettings} className="settings-workspace-fieldset">
                             <legend className="settings-fieldset-sr-only">Finance settings</legend>
                             <SettingsShellSectionHeader title="Finance & M-Pesa" desc="Configure payment automation and invoice defaults." icon={Wallet} />
+                            <div className="settings-subtabs" role="tablist" aria-label="Finance sections">
+                                {[
+                                    { id: "basics", label: "Basics" },
+                                    { id: "payroll", label: "Payroll" },
+                                    { id: "reporting", label: "Reporting & KRA" },
+                                    { id: "lists", label: "Categories & teams" },
+                                ].map((tab) => (
+                                    <button
+                                        key={tab.id}
+                                        type="button"
+                                        role="tab"
+                                        aria-selected={financePanel === tab.id}
+                                        className={`settings-subtab${financePanel === tab.id ? " is-active" : ""}`}
+                                        onClick={() => setFinancePanel(tab.id)}
+                                    >
+                                        {tab.label}
+                                    </button>
+                                ))}
+                            </div>
+                            <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "0 0 20px", lineHeight: 1.55 }}>
+                                Select a section above to avoid long scrolling. All values still save the same way.
+                            </p>
+                            {financePanel === "basics" && (
                             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
                                 <SettingsShellField label="M-Pesa Business Shortcode">
                                     <SettingsShellInput value={localS.mpesaShortcode || ''} onChange={e => saveSettings({ mpesaShortcode: e.target.value })} placeholder="600XXX" />
@@ -1896,7 +1924,69 @@ export function Settings({
                                     <SettingsShellInput type="number" value={localS.paymentTermsDays || 14} onChange={e => saveSettings({ paymentTermsDays: +e.target.value })} />
                                 </SettingsShellField>
                             </div>
+                            <div style={{ marginTop: 18 }}>
+                                <Card style={{ padding: 16 }}>
+                                    <div style={{ fontSize: 15, fontWeight: 800, color: "var(--text-primary)", marginBottom: 4 }}>Customer payment methods (shown on invoices / PDF / portals)</div>
+                                    <p style={{ fontSize: 12, color: "var(--text-muted)", margin: "0 0 14px", lineHeight: 1.5 }}>
+                                        Fill these once so customers always see where and how to pay, even if STK push fails.
+                                    </p>
+                                    <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 14 }}>
+                                        <SettingsShellField label="M-Pesa Paybill Number">
+                                            <SettingsShellInput value={localS.paybillNumber || ""} onChange={(e) => saveSettings({ paybillNumber: e.target.value })} placeholder="e.g. 123456" />
+                                        </SettingsShellField>
+                                        <SettingsShellField label="M-Pesa Account Reference Format">
+                                            <SettingsShellInput value={localS.paybillAccount || ""} onChange={(e) => saveSettings({ paybillAccount: e.target.value })} placeholder="e.g. Invoice Number" />
+                                        </SettingsShellField>
+                                        <SettingsShellField label="M-Pesa Till Number (if using Till)">
+                                            <SettingsShellInput value={localS.mpesaTillNumber || ""} onChange={(e) => saveSettings({ mpesaTillNumber: e.target.value })} placeholder="e.g. 654321" />
+                                        </SettingsShellField>
+                                        <SettingsShellField label="M-Pesa Fallback Phone">
+                                            <SettingsShellInput value={localS.mpesaPhone || ""} onChange={(e) => saveSettings({ mpesaPhone: e.target.value })} placeholder="e.g. +2547XXXXXXXX" />
+                                        </SettingsShellField>
+                                        <SettingsShellField label="Bank Name">
+                                            <SettingsShellInput value={localS.bankName || ""} onChange={(e) => saveSettings({ bankName: e.target.value })} placeholder="e.g. KCB Bank" />
+                                        </SettingsShellField>
+                                        <SettingsShellField label="Bank Account Number">
+                                            <SettingsShellInput value={localS.bankAccount || ""} onChange={(e) => saveSettings({ bankAccount: e.target.value })} placeholder="e.g. 0123456789" />
+                                        </SettingsShellField>
+                                        <SettingsShellField label="Bank Branch">
+                                            <SettingsShellInput value={localS.bankBranch || ""} onChange={(e) => saveSettings({ bankBranch: e.target.value })} placeholder="e.g. Westlands Branch" />
+                                        </SettingsShellField>
+                                        <SettingsShellField label="SWIFT / BIC (optional)">
+                                            <SettingsShellInput value={localS.bankSwift || ""} onChange={(e) => saveSettings({ bankSwift: e.target.value })} placeholder="e.g. KCBLKENX" />
+                                        </SettingsShellField>
+                                        <SettingsShellField label="IBAN (optional)">
+                                            <SettingsShellInput value={localS.bankIban || ""} onChange={(e) => saveSettings({ bankIban: e.target.value })} placeholder="For international transfers" />
+                                        </SettingsShellField>
+                                        <SettingsShellField label="PayPal Email">
+                                            <SettingsShellInput value={localS.paypalEmail || ""} onChange={(e) => saveSettings({ paypalEmail: e.target.value })} placeholder="payments@company.com" />
+                                        </SettingsShellField>
+                                        <SettingsShellField label="PayPal Link">
+                                            <SettingsShellInput value={localS.paypalLink || ""} onChange={(e) => saveSettings({ paypalLink: e.target.value })} placeholder="https://paypal.me/your-company" />
+                                        </SettingsShellField>
+                                        <SettingsShellField label="Pesapal Checkout Link / Merchant Page">
+                                            <SettingsShellInput value={localS.pesapalLink || ""} onChange={(e) => saveSettings({ pesapalLink: e.target.value })} placeholder="https://..." />
+                                        </SettingsShellField>
+                                        <SettingsShellField label="Pesapal Merchant Reference (optional)">
+                                            <SettingsShellInput value={localS.pesapalMerchantCode || ""} onChange={(e) => saveSettings({ pesapalMerchantCode: e.target.value })} placeholder="Merchant code / profile ID" />
+                                        </SettingsShellField>
+                                        <div style={{ gridColumn: "1 / -1" }}>
+                                            <SettingsShellField label="Extra payment instructions (optional)">
+                                                <textarea
+                                                    className="input-premium"
+                                                    style={{ width: "100%", minHeight: 76, padding: 12 }}
+                                                    value={localS.manualPaymentInstructions || ""}
+                                                    onChange={(e) => saveSettings({ manualPaymentInstructions: e.target.value })}
+                                                    placeholder="Any custom instructions to print on invoice/PDF and show in portals."
+                                                />
+                                            </SettingsShellField>
+                                        </div>
+                                    </div>
+                                </Card>
+                            </div>
+                            )}
 
+                            {financePanel === "payroll" && (
                             <div style={{ marginTop: 26 }}>
                                 <SettingsShellSectionHeader title="Payroll Settings" desc="Configure statutory rates and allowance defaults with effective-date-aware settings." icon={CreditCard} />
                                 <Card style={{ padding: 16, marginBottom: 14 }}>
@@ -1944,11 +2034,12 @@ export function Settings({
                                         </SettingsShellField>
                                     </div>
                                     <div style={{ marginTop: 10 }}>
-                                        <SettingsShellField label="PAYE Tax Bands (JSON array: lowerLimit, upperLimit, ratePercent)">
+                                        <SettingsShellField label="PAYE tax bands" sub="Use this format exactly: lowerLimit, upperLimit, ratePercent. Leave upperLimit as null for the last band.">
                                             <textarea
                                                 className="input-premium"
                                                 style={{ width: "100%", minHeight: 120, padding: 12 }}
                                                 value={JSON.stringify(payrollSettingsDraft.payeBands || [], null, 2)}
+                                                placeholder='[{"lowerLimit":0,"upperLimit":24000,"ratePercent":10}]'
                                                 onChange={(e) => {
                                                     try {
                                                         const parsed = JSON.parse(e.target.value || "[]");
@@ -2038,7 +2129,9 @@ export function Settings({
                                     </div>
                                 </Card>
                             </div>
+                            )}
 
+                            {financePanel === "reporting" && (
                             <div style={{ marginTop: 26 }}>
                                 <SettingsShellSectionHeader title="Financial reporting & KRA exports" desc="Run receivables/payables and tax snapshots, then download P10/P9A/VAT3/WHT CSV outputs." icon={FileText} />
                                 <Card style={{ padding: 16, marginBottom: 14 }}>
@@ -2084,7 +2177,9 @@ export function Settings({
                                     </Card>
                                 </div>
                             </div>
+                            )}
 
+                            {financePanel === "lists" && (
                             <div style={{ marginTop: 32 }}>
                                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
                                     <div style={{ width: 36, height: 36, borderRadius: 10, background: "var(--brand-primary)12", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--brand-primary)" }}>
@@ -2167,6 +2262,7 @@ export function Settings({
                                     />
                                 </div>
                             </div>
+                            )}
                         </fieldset>
                     )}
 

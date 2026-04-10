@@ -1235,6 +1235,32 @@ button.journeys-table-link:hover { text-decoration: underline; }
 
 .settings-workspace-fieldset { border: none; padding: 0; margin: 0; }
 .settings-fieldset-sr-only { position: absolute; clip: rect(0,0,0,0); }
+.settings-subtabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 0 0 12px;
+}
+.settings-subtab {
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-subtle);
+  color: var(--text-secondary);
+  border-radius: 999px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.settings-subtab:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+.settings-subtab.is-active {
+  background: var(--brand-muted);
+  border-color: var(--brand-border);
+  color: var(--brand-primary);
+}
 
 /* ── Info / save banners ─────────────────────────────────────── */
 .settings-save-strip {
@@ -1785,9 +1811,31 @@ button.journeys-table-link:hover { text-decoration: underline; }
 .permissions-ui-surface--locked { opacity: 0.6; pointer-events: none; }
 
 .permissions-ui-tabs {
-  display: flex; gap: 2px;
-  padding: 6px; border-bottom: 1px solid var(--border-subtle);
+  display: flex; gap: 8px;
+  flex-wrap: wrap;
+  padding: 10px 14px; border-bottom: 1px solid var(--border-subtle);
   background: var(--surface-subtle);
+}
+.permissions-ui-tabs button {
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  border-radius: 999px;
+  padding: 7px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.permissions-ui-tabs button:hover {
+  color: var(--text-primary);
+  background: var(--surface-hover);
+}
+.permissions-ui-tabs button.is-active {
+  color: var(--brand-primary);
+  border-color: var(--brand-border);
+  background: var(--brand-muted);
 }
 
 .permissions-ui-header {

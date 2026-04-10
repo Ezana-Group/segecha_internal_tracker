@@ -2105,6 +2105,7 @@ export function useAppState() {
         const supportEmail = settings.operatorWorkEmail || settings.email || "";
         const supportPhone = settings.companyWhatsApp || settings.whatsappNumber || settings.companyPhone || settings.phone || "";
         const companyRegistrationNumber = settings.companyRegistrationNumber || settings.registrationNumber || "";
+        const paymentUrl = settings.pesapalLink || settings.paypalLink || "";
         const finalContext = expandMessageTemplateContext({
             company_name: co,
             businessName: co,
@@ -2113,6 +2114,21 @@ export function useAppState() {
             supportPhone,
             companyRegistrationNumber,
             companyRegNo: companyRegistrationNumber,
+            paybillNumber: settings.paybillNumber || "",
+            paybillAccount: settings.paybillAccount || "",
+            mpesaTillNumber: settings.mpesaTillNumber || "",
+            mpesaPhone: settings.mpesaPhone || "",
+            bankName: settings.bankName || "",
+            bankAccount: settings.bankAccount || "",
+            bankBranch: settings.bankBranch || "",
+            bankSwift: settings.bankSwift || "",
+            bankIban: settings.bankIban || "",
+            paypalEmail: settings.paypalEmail || "",
+            paypalLink: settings.paypalLink || "",
+            pesapalLink: settings.pesapalLink || "",
+            pesapalMerchantCode: settings.pesapalMerchantCode || "",
+            manualPaymentInstructions: settings.manualPaymentInstructions || "",
+            paymentUrl,
             ...context,
         });
 

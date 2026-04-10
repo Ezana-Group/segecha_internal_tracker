@@ -215,9 +215,14 @@ export function InvoiceView({ inv, data, dark, fillTemplate }) {
                     <h4 style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.1em", color: "var(--text-muted)", marginBottom: 12 }}>Payment Instructions</h4>
                     <div style={{ fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.6, whiteSpace: "pre-line" }}>
                         {(() => {
-                            let footer = 'Payment via M-Pesa Paybill';
-                            if (s.paybillNumber) footer += ` (Paybill: ${s.paybillNumber}, Acc: ${s.paybillAccount || 'Invoice No.'})`;
-                            if (s.bankName) footer += `\nBank Transfer: ${s.bankName}, A/C ${s.bankAccount || ''}${s.bankBranch ? ', ' + s.bankBranch : ''}`;
+                            let footer = 'Payment options:';
+                            if (s.paybillNumber) footer += `\nM-Pesa Paybill: ${s.paybillNumber} (Acc: ${s.paybillAccount || 'Invoice No.'})`;
+                            if (s.mpesaTillNumber) footer += `\nM-Pesa Till: ${s.mpesaTillNumber}`;
+                            if (s.mpesaPhone) footer += `\nM-Pesa fallback phone: ${s.mpesaPhone}`;
+                            if (s.bankName) footer += `\nBank Transfer: ${s.bankName}, A/C ${s.bankAccount || ''}${s.bankBranch ? ', ' + s.bankBranch : ''}${s.bankSwift ? `, SWIFT ${s.bankSwift}` : ''}${s.bankIban ? `, IBAN ${s.bankIban}` : ''}`;
+                            if (s.paypalLink || s.paypalEmail) footer += `\nPayPal: ${s.paypalLink || s.paypalEmail}`;
+                            if (s.pesapalLink || s.pesapalMerchantCode) footer += `\nPesapal: ${s.pesapalLink || s.pesapalMerchantCode}`;
+                            if (s.manualPaymentInstructions) footer += `\n${s.manualPaymentInstructions}`;
                             return footer;
                         })()}
                     </div>
