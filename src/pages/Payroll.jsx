@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import {
     Users,
     DollarSign,
+    FileText,
     CheckCircle2,
     Clock,
     Calendar,

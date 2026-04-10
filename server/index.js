@@ -1208,7 +1208,27 @@ app.post('/api/admin/mpesa/transactions', async (req, res) => {
 
 app.get('/api/admin/mpesa/reconciliation', async (req, res) => {
     try {
-        const rows = (await db.query('SELECT * FROM mpesa_transactions ORDER BY txn_date DESC, created_at DESC LIMIT 1000')).rows || [];
+        const hasTxnDate = (await db.query(
+            `SELECT 1
+             FROM information_schema.columns
+             WHERE table_name = 'mpesa_transactions' AND column_name = 'txn_date'
+             LIMIT 1`
+        )).rows.length > 0;
+        const hasLegacyDate = (await db.query(
+            `SELECT 1
+             FROM information_schema.columns
+             WHERE table_name = 'mpesa_transactions' AND column_name = 'date'
+             LIMIT 1`
+        )).rows.length > 0;
+        const dateExpr = hasTxnDate
+            ? (hasLegacyDate ? 'COALESCE(txn_date, date)' : 'txn_date')
+            : (hasLegacyDate ? 'date' : 'NULL');
+        const rows = (await db.query(
+            `SELECT *, ${dateExpr} AS effective_txn_date
+             FROM mpesa_transactions
+             ORDER BY ${dateExpr} DESC NULLS LAST, created_at DESC
+             LIMIT 1000`
+        )).rows || [];
         const invoices = (await db.query('SELECT id, amount, metadata FROM invoices')).rows || [];
         const payroll = (await db.query('SELECT id, amount, metadata FROM payroll')).rows || [];
 
@@ -1234,7 +1254,7 @@ app.get('/api/admin/mpesa/reconciliation', async (req, res) => {
 
             const item = {
                 id: tx.id,
-                txnDate: tx.txn_date,
+                txnDate: tx.effective_txn_date || tx.txn_date || tx.date || null,
                 direction: tx.direction,
                 amount: Number(tx.amount || 0),
                 reference: tx.reference,
