@@ -26,6 +26,7 @@ import { Button } from "../components/Button";
 import { PageHeader } from "../components/PageHeader";
 import { SortableTableHead } from "../components/SortableTableHead";
 import { useTableFilter } from "../hooks/useTableFilter";
+import { calculatePeriodTotals, COUNTABLE_JOURNEY_STATUSES } from "../utils/financeMetrics";
 
 const Sparkline = ({ data, color, width = 60, height = 24 }) => {
     if (!data || data.length < 2) return null;
@@ -89,23 +90,14 @@ export function Dashboard({ data, dark, truckStats, tyreStatus, truckReg, driver
             .catch(() => setExpiringDocs([]));
     }, []);
 
-    const COUNTABLE_STATUSES = ["Accepted", "Loading", "In Transit", "Awaiting Start Verification", "Awaiting Verification", "Completed"];
-    const totalRevenue = data.journeys.filter(j => COUNTABLE_STATUSES.includes(j.status) && j.date?.startsWith(latestMonth)).reduce((s, j) => s + +j.revenue, 0);
-    const totalFuelCost = data.fuel.filter(f => f.date?.startsWith(latestMonth)).reduce((s, f) => s + f.litres * f.pricePerL, 0);
-    // Exclude cat='Fuel' expenses — fuel cost is already counted from data.fuel (fuel_logs).
-    const totalOtherExp = data.expenses.filter(e => e.date?.startsWith(latestMonth) && e.cat !== 'Fuel').reduce((s, e) => s + +e.amount, 0);
-    const totalPayrollCost = payrollRows
-        .filter((p) => p.month === latestMonth)
-        .reduce((s, p) => s + (+p.grossPay || (+p.baseSalary || 0) + (+p.allowance || 0)), 0);
-    const monthlyDepreciation = (data.assets || []).reduce((sum, asset) => {
-        const cost = Number(asset.cost) || 0;
-        if (cost <= 0) return sum;
-        const salvage = Math.max(0, Math.min(Number(asset.salvageValue) || 0, cost));
-        const lifeYears = Math.max(1, Number(asset.usefulLifeYears) || 5);
-        return sum + (cost - salvage) / (lifeYears * 12);
-    }, 0);
-    const totalExpenses = totalFuelCost + totalOtherExp + totalPayrollCost + monthlyDepreciation;
-    const netProfit = totalRevenue - totalExpenses;
+    const {
+        revenue: totalRevenue,
+        fuelCost: totalFuelCost,
+        otherExpenses: totalOtherExp,
+        payrollCost: totalPayrollCost,
+        totalExpenses,
+        netProfit,
+    } = calculatePeriodTotals(data, { month: latestMonth, payrollMode: "gross", payrollStatus: "all" });
     const invList = Array.isArray(data.invoices) ? data.invoices : [];
     const invOutstanding = (i) => Math.max(0, +i.amount - (+i.paidAmount || 0));
     const deriveInvoiceStatus = (i) => {
@@ -157,7 +149,7 @@ export function Dashboard({ data, dark, truckStats, tyreStatus, truckReg, driver
     const fleetActiveWarning = data.trucks.length > 0 && fleetActivePct < FLEET_ACTIVE_WARN_PCT;
 
     const getMonthData = (m) => {
-        const rev = data.journeys.filter(j => COUNTABLE_STATUSES.includes(j.status) && j.date?.startsWith(m)).reduce((s, j) => s + +j.revenue, 0);
+        const rev = data.journeys.filter(j => COUNTABLE_JOURNEY_STATUSES.includes(j.status) && j.date?.startsWith(m)).reduce((s, j) => s + +j.revenue, 0);
         const fuel = data.fuel.filter(f => f.date?.startsWith(m)).reduce((s, f) => s + f.litres * f.pricePerL, 0);
         // Exclude cat='Fuel' expenses to avoid double-counting with fuel_logs
         const exp = data.expenses.filter(e => e.date?.startsWith(m) && e.cat !== 'Fuel').reduce((s, e) => s + +e.amount, 0);

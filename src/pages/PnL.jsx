@@ -33,6 +33,7 @@ import { SortableTableHead } from "../components/SortableTableHead";
 import { useTableFilter } from "../hooks/useTableFilter";
 import { PAYMENT_API } from "../utils/env";
 import { fetchWithAuth } from "../utils/api";
+import { calculatePeriodTotals, COUNTABLE_JOURNEY_STATUSES } from "../utils/financeMetrics";
 
 export function PnL({ data, dark, isMobile, truckStats, truckReg, customerName, driverName, showToast }) {
     const navigate = useNavigate();
@@ -70,42 +71,55 @@ export function PnL({ data, dark, isMobile, truckStats, truckReg, customerName, 
         notes: "",
     });
 
-    const totalSalaries = data.payroll.filter(p => p.status === "Paid").reduce((s, p) => s + +p.baseSalary + +p.allowance - +p.deductions, 0);
+    const payrollRows = Array.isArray(data.payroll) ? data.payroll : [];
+    const latestMonth = payrollRows.length > 0
+        ? [...payrollRows].sort((a, b) => b.month.localeCompare(a.month))[0]?.month
+        : new Date().toISOString().substring(0, 7);
+    const totalSalaries = payrollRows
+        .filter((p) => p.month === latestMonth)
+        .reduce((s, p) => s + (+p.grossPay || (+p.baseSalary || 0) + (+p.allowance || 0)), 0);
     const invoicesPaid = data.invoices.filter(i => i.status === "Paid").reduce((s, i) => s + (+i.paidAmount || 0), 0);
     // Pre-compute statement totals once for reuse in JSX
-    const COUNTABLE_STATUSES = ["Accepted", "Loading", "In Transit", "Awaiting Start Verification", "Awaiting Verification", "Completed"];
-    const stmtFreightRevenue = data.journeys.filter(j => COUNTABLE_STATUSES.includes(j.status)).reduce((s, j) => s + +j.revenue, 0);
-    const stmtJourneyDeposits = data.journeys.filter(j => COUNTABLE_STATUSES.includes(j.status)).reduce((s, j) => s + (Number(j.depositAmount) || 0), 0);
-    const stmtJourneyFinalPayments = data.journeys.filter(j => COUNTABLE_STATUSES.includes(j.status)).reduce((s, j) => s + (Number(j.finalPaymentAmount) || 0), 0);
+    const stmtFreightRevenue = data.journeys
+        .filter(j => COUNTABLE_JOURNEY_STATUSES.includes(j.status) && j.date?.startsWith(latestMonth))
+        .reduce((s, j) => s + +j.revenue, 0);
+    const stmtJourneyDeposits = data.journeys
+        .filter(j => COUNTABLE_JOURNEY_STATUSES.includes(j.status) && j.date?.startsWith(latestMonth))
+        .reduce((s, j) => s + (Number(j.depositAmount) || 0), 0);
+    const stmtJourneyFinalPayments = data.journeys
+        .filter(j => COUNTABLE_JOURNEY_STATUSES.includes(j.status) && j.date?.startsWith(latestMonth))
+        .reduce((s, j) => s + (Number(j.finalPaymentAmount) || 0), 0);
     const stmtJourneyCashCollected = stmtJourneyDeposits + stmtJourneyFinalPayments;
     const stmtJourneyOutstanding = Math.max(0, stmtFreightRevenue - stmtJourneyCashCollected);
-    const stmtFuelCost = data.fuel.reduce((s, f) => s + f.litres * f.pricePerL, 0);
-    // Exclude cat='Fuel' expenses — already counted in stmtFuelCost from fuel_logs
-    const stmtOtherExp = data.expenses.filter(e => e.cat !== 'Fuel').reduce((s, e) => s + +e.amount, 0);
-    const monthlyDepreciationExpense = (data.assets || []).reduce((sum, asset) => {
-        const cost = Number(asset.cost) || 0;
-        if (cost <= 0) return sum;
-        const status = String(asset.status || "Active").toLowerCase();
-        if (["disposed", "sold", "written off"].includes(status)) return sum;
-        const salvage = Math.max(0, Math.min(Number(asset.salvageValue) || 0, cost));
-        const lifeYears = Math.max(1, Number(asset.usefulLifeYears) || 5);
-        const method = asset.depreciationMethod || "straight-line";
-        if (method === "reducing-balance") {
-            const annualRate = salvage > 0 && cost > 0 ? 1 - Math.pow(salvage / cost, 1 / lifeYears) : 0.20;
-            return sum + (cost * annualRate) / 12;
-        }
-        return sum + (cost - salvage) / (lifeYears * 12);
-    }, 0);
+    const {
+        fuelCost: stmtFuelCost,
+        otherExpenses: stmtOtherExp,
+        depreciation: monthlyDepreciationExpense,
+        totalExpenses: stmtOperatingExp,
+        netProfit: stmtNetProfit,
+    } = calculatePeriodTotals(data, { month: latestMonth, payrollMode: "gross", payrollStatus: "all" });
     const totalAssetPurchases = data.assets.reduce((s, a) => s + (Number(a.cost) || 0), 0);
-    const stmtOperatingExp = stmtFuelCost + stmtOtherExp + totalSalaries + monthlyDepreciationExpense;
     const stmtTotalExp = stmtOperatingExp;
-    const stmtNetProfit = stmtFreightRevenue - stmtOperatingExp;
     const breakEvenRevenue = stmtOperatingExp;
     const assetPayoffMonths = stmtNetProfit > 0 ? (totalAssetPurchases / stmtNetProfit) : null;
 
+    const truckStatsForMonth = (truckId) => {
+        const journeys = data.journeys.filter(
+            (j) => j.truck === truckId && COUNTABLE_JOURNEY_STATUSES.includes(j.status) && j.date?.startsWith(latestMonth),
+        );
+        const fuelRows = data.fuel.filter((f) => f.truck === truckId && f.date?.startsWith(latestMonth));
+        const fuelCost = fuelRows.reduce((s, f) => s + Number(f.litres || 0) * Number(f.pricePerL || 0), 0);
+        const otherCost = data.expenses
+            .filter((e) => e.truck === truckId && e.date?.startsWith(latestMonth) && e.cat !== "Fuel")
+            .reduce((s, e) => s + Number(e.amount || 0), 0);
+        const rev = journeys.reduce((s, j) => s + Number(j.revenue || 0), 0);
+        const exp = fuelCost + otherCost;
+        return { rev, fuelCost, exp, profit: rev - exp };
+    };
+
     // Refine trucks for performance matrix sorting
     const refinedMatrix = data.trucks.map(t => {
-        const st = truckStats(t.id);
+        const st = truckStatsForMonth(t.id);
         const m = st.rev > 0 ? ((st.profit / st.rev) * 100).toFixed(1) : "0.0";
         return {
             ...t,

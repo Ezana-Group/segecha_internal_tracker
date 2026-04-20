@@ -58,12 +58,13 @@ export function VehicleProfile({ data, setData, dark, isMobile, openModal, maint
     // Per-truck data
     const truckJourneys  = data.journeys.filter(j => j.truck === truck.id).sort((a, b) => b.date.localeCompare(a.date));
     const truckFuel      = data.fuel.filter(f => f.truck === truck.id).sort((a, b) => b.date.localeCompare(a.date));
-    const truckExpenses  = data.expenses.filter(e => e.truck === truck.id);
-    const truckRevenue   = truckJourneys.reduce((s, j) => s + +j.revenue, 0);
+    const truckExpenses  = data.expenses.filter(e => e.truck === truck.id && e.cat !== "Fuel");
+    const stats = truckStats(truck.id);
+    const truckRevenue   = stats.rev;
     const truckFuelCost  = truckFuel.reduce((s, f) => s + (f.litres * f.pricePerL), 0);
     const truckMaintCost = truckExpenses.filter(e => e.cat === 'Maintenance').reduce((s, e) => s + +e.amount, 0);
-    const truckTotalCost = truckExpenses.reduce((s, e) => s + +e.amount, 0);
-    const truckProfit    = truckRevenue - truckTotalCost;
+    const truckTotalCost = stats.exp;
+    const truckProfit    = stats.profit;
     const totalKm        = truckJourneys.reduce((s, j) => s + +j.distance, 0);
     const totalLitres    = truckFuel.reduce((s, f) => s + +f.litres, 0);
     const avgKmPerL      = totalLitres > 0 ? (totalKm / totalLitres).toFixed(2) : '—';

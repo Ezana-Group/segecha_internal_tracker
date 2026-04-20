@@ -2,11 +2,16 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <!-- Match dark theme before bundled CSS loads (avoids white flash / empty-looking first paint). -->
+    <style>
+      html, body { background-color: #09090b; color: #fafafa; }
+      #root { min-height: 100vh; }
+    </style>
     <link rel="icon" type="image/png" href="/logo.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Segecha Internal Tracker</title>
-    <script type="module" crossorigin src="/assets/index-Cf7AEqL8.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-DmIKSFSq.css">
+    <script type="module" crossorigin src="/assets/index-C7bde4-H.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-DSgOgI2B.css">
   </head>
   <body>
     <div id="root"></div>
