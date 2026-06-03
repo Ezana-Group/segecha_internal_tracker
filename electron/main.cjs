@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, dialog } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { fork } = require('child_process');
@@ -9,6 +9,71 @@ let mainWindow = null;
 let serverProcess = null;
 const userDataPath = app.getPath('userData');
 const envFilePath = path.join(userDataPath, '.env');
+
+// ─── Auto-Updater ────────────────────────────────────────────────────────────
+// electron-updater checks GitHub Releases for a newer version on every launch.
+// Requires: package.json > build > publish > { provider: "github", owner, repo }
+// Requires: GH_TOKEN env var at build time (for publishing); none needed at run-time.
+let autoUpdater = null;
+try {
+  ({ autoUpdater } = require('electron-updater'));
+  autoUpdater.autoDownload = true;         // download silently in background
+  autoUpdater.autoInstallOnAppQuit = true; // install when user quits normally
+} catch (e) {
+  // electron-updater not available in dev / packaged differently — skip gracefully
+  console.warn('[AutoUpdater] electron-updater not loaded:', e.message);
+}
+
+function setupAutoUpdater() {
+  if (!autoUpdater) return;
+  if (!app.isPackaged) {
+    // Skip in dev mode — GitHub release check would always fail
+    console.log('[AutoUpdater] Skipping update check in dev mode.');
+    return;
+  }
+
+  autoUpdater.checkForUpdatesAndNotify().catch((err) => {
+    console.warn('[AutoUpdater] Update check failed:', err.message);
+  });
+
+  autoUpdater.on('update-available', (info) => {
+    console.log(`[AutoUpdater] Update available: v${info.version}`);
+    if (mainWindow) {
+      dialog.showMessageBox(mainWindow, {
+        type: 'info',
+        title: 'Update Available',
+        message: `Version ${info.version} is available`,
+        detail: 'Downloading the update in the background. You will be prompted to restart when it is ready.',
+        buttons: ['OK'],
+        defaultId: 0,
+      }).catch(() => {});
+    }
+  });
+
+  autoUpdater.on('update-downloaded', (info) => {
+    console.log(`[AutoUpdater] Update downloaded: v${info.version}`);
+    if (mainWindow) {
+      dialog.showMessageBox(mainWindow, {
+        type: 'question',
+        title: 'Update Ready to Install',
+        message: `Version ${info.version} has been downloaded`,
+        detail: 'Restart the app now to apply the update, or wait until your next session.',
+        buttons: ['Restart Now', 'Later'],
+        defaultId: 0,
+        cancelId: 1,
+      }).then((result) => {
+        if (result.response === 0) {
+          autoUpdater.quitAndInstall(false, true);
+        }
+      }).catch(() => {});
+    }
+  });
+
+  autoUpdater.on('error', (err) => {
+    console.error('[AutoUpdater] Error:', err.message);
+  });
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 // Clean up child process on exit
 app.on('will-quit', () => {
@@ -145,6 +210,22 @@ function checkServerHealth(url, retries = 30, delay = 1000) {
   });
 }
 
+// Fetch full health JSON from the running server (includes schema_ok + app_version)
+function fetchHealthStatus() {
+  return new Promise((resolve) => {
+    http.get('http://localhost:3001/health', (res) => {
+      let data = '';
+      res.on('data', (chunk) => { data += chunk; });
+      res.on('end', () => {
+        try { resolve(JSON.parse(data)); }
+        catch { resolve({ status: 'ok', schema_ok: true }); }
+      });
+    }).on('error', () => {
+      resolve({ status: 'unavailable', schema_ok: false });
+    });
+  });
+}
+
 // Start backend Express server as child process
 async function startServerAndLaunch() {
   const config = loadConfig();
@@ -253,6 +334,11 @@ function launchMainWindow() {
     mainWindow = null;
     app.quit();
   });
+
+  // Start auto-updater after the main window is ready
+  mainWindow.webContents.once('did-finish-load', () => {
+    setupAutoUpdater();
+  });
 }
 
 // IPC Channel Handlers
@@ -283,6 +369,28 @@ ipcMain.handle('save-config', async (event, config) => {
     return { success: true };
   } catch (err) {
     return { success: false, error: err.message };
+  }
+});
+
+// Returns full health JSON from the running server: { status, db, schema_ok, app_version, timestamp }
+ipcMain.handle('get-health-status', async () => {
+  return await fetchHealthStatus();
+});
+
+// Manually trigger an update check (e.g., from Settings → System Status → Check for Updates)
+ipcMain.handle('trigger-update-check', async () => {
+  if (!autoUpdater || !app.isPackaged) {
+    return { checked: false, reason: 'Auto-updater not available in dev mode' };
+  }
+  try {
+    const result = await autoUpdater.checkForUpdates();
+    return {
+      checked: true,
+      updateAvailable: !!result?.updateInfo?.version,
+      version: result?.updateInfo?.version || null,
+    };
+  } catch (err) {
+    return { checked: false, reason: err.message };
   }
 });
 

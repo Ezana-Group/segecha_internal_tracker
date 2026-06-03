@@ -23,6 +23,7 @@
     "cors": "^2.8.5",
     "dompurify": "^3.3.3",
     "dotenv": "^16.3.1",
+    "electron-updater": "^6.8.3",
     "express": "^4.18.2",
     "framer-motion": "^12.38.0",
     "jsonwebtoken": "^9.0.0",
@@ -60,6 +61,13 @@
     "directories": {
       "output": "dist-electron"
     },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Ezana-Group",
+        "repo": "segecha_internal_tracker"
+      }
+    ],
     "files": [
       "dist/**/*",
       "driver-portal/dist/**/*",

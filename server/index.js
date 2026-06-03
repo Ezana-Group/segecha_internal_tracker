@@ -144,18 +144,63 @@ app.use('/api', cors(corsOptions));
 
 
 
+// Core tables that must exist for the app to function correctly
+const REQUIRED_TABLES = [
+    'admins', 'drivers', 'trucks', 'trailers', 'journeys',
+    'payroll', 'ledger_entries', 'payslip_dispatch_queue',
+    'staff', 'customers', 'expenses', 'fuel_logs', 'invoices',
+    'maintenance_logs', 'tyre_logs', 'incidents', 'assets',
+    'error_logs', 'mpesa_transactions', 'system_settings', 'documents'
+];
+let _appVersion = null;
+function getAppVersion() {
+    if (_appVersion) return _appVersion;
+    try {
+        const pkgPath = path.join(__dirname, '..', 'package.json');
+        _appVersion = JSON.parse(require('fs').readFileSync(pkgPath, 'utf8')).version || '0.0.0';
+    } catch { _appVersion = '0.0.0'; }
+    return _appVersion;
+}
+
 app.get('/health', async (req, res) => {
     try {
         // Verify DB connectivity on every health check (LOW-03)
         await db.query('SELECT 1');
-        res.status(200).json({ status: 'ok', db: 'connected', timestamp: new Date().toISOString() });
+
+        // Schema integrity check: confirm all required tables exist
+        const schemaRes = await db.query(
+            `SELECT table_name FROM information_schema.tables
+             WHERE table_schema = 'public' AND table_name = ANY($1::text[])`,
+            [REQUIRED_TABLES]
+        );
+        const foundTables = new Set(schemaRes.rows.map(r => r.table_name));
+        const missingTables = REQUIRED_TABLES.filter(t => !foundTables.has(t));
+        const schemaOk = missingTables.length === 0;
+
+        res.status(200).json({
+            status: 'ok',
+            db: 'connected',
+            schema_ok: schemaOk,
+            tables_found: foundTables.size,
+            tables_required: REQUIRED_TABLES.length,
+            missing_tables: schemaOk ? [] : missingTables,
+            app_version: getAppVersion(),
+            timestamp: new Date().toISOString()
+        });
     } catch (e) {
         console.error('[HEALTH] DB check failed:', e.message);
         // Return 200 so Railway doesn't mark the deployment unhealthy on a brief DB cold-start.
         // DB errors surface on individual API calls — static file serving must keep working.
-        res.status(200).json({ status: 'degraded', db: 'unavailable', timestamp: new Date().toISOString() });
+        res.status(200).json({
+            status: 'degraded',
+            db: 'unavailable',
+            schema_ok: false,
+            app_version: getAppVersion(),
+            timestamp: new Date().toISOString()
+        });
     }
 });
+
 
 // Crash logging
 process.on('uncaughtException', (err) => {

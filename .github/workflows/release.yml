@@ -1,0 +1,67 @@
+name: Release Desktop App
+
+# Triggers when you push a tag like v1.0.0, v1.2.3, etc.
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write  # needed to create a GitHub Release and upload assets
+
+jobs:
+  release:
+    strategy:
+      matrix:
+        # Build on macOS (for .dmg/.zip) and Windows (for .exe/.portable)
+        os: [macos-latest, windows-latest]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      # ── 1. Checkout ───────────────────────────────────────────────────────
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      # ── 2. Node setup ─────────────────────────────────────────────────────
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      # ── 3. Install root dependencies ──────────────────────────────────────
+      - name: Install root dependencies
+        run: npm ci
+
+      # ── 4. Install sub-portal dependencies ────────────────────────────────
+      - name: Install server dependencies
+        run: npm ci
+        working-directory: server
+
+      - name: Install driver-portal dependencies
+        run: npm ci
+        working-directory: driver-portal
+
+      - name: Install track-portal dependencies
+        run: npm ci
+        working-directory: track-portal
+
+      - name: Install payment-portal dependencies
+        run: npm ci
+        working-directory: payment-portal
+
+      # ── 5. Build all frontends ────────────────────────────────────────────
+      - name: Build all frontends
+        run: npm run build:all
+
+      # ── 6. Package Electron app and publish to GitHub Releases ───────────
+      # GH_TOKEN is automatically available as secrets.GITHUB_TOKEN.
+      # electron-builder reads it to upload release assets.
+      - name: Build & publish Electron app
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: >
+          npx electron-builder
+          ${{ matrix.os == 'macos-latest' && '--mac' || '--win' }}
+          --publish always

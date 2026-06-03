@@ -51,7 +51,9 @@ import {
     Send,
     UserRoundCog,
     Pencil,
+    Activity,
 } from "lucide-react";
+
 
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { ImportUploadButton } from "./ImportReview";
@@ -220,6 +222,195 @@ function SettingsShellSectionHeader({ title, desc, icon: Icon }) {
         </div>
     );
 }
+
+// ── System Status Panel ──────────────────────────────────────────────────────
+// Shown in Settings → Backup & Import at the top.
+// Works both in the Electron desktop app (via window.electronAPI.getHealthStatus)
+// and in the web app (fetches /health directly).
+function SystemStatusPanel({ showToast }) {
+    const [health, setHealth]       = useState(null);
+    const [loading, setLoading]     = useState(false);
+    const [updateStatus, setUpdateStatus] = useState(null);
+    const [checkingUpdate, setCheckingUpdate] = useState(false);
+    const isElectron = typeof window !== 'undefined' && !!window.electronAPI;
+
+    const fetchHealth = useCallback(async () => {
+        setLoading(true);
+        try {
+            let h;
+            if (isElectron && window.electronAPI.getHealthStatus) {
+                h = await window.electronAPI.getHealthStatus();
+            } else {
+                const res = await fetch('/health');
+                h = await res.json();
+            }
+            setHealth(h);
+        } catch (e) {
+            setHealth({ status: 'unavailable', db: 'unavailable', schema_ok: false });
+        } finally {
+            setLoading(false);
+        }
+    }, [isElectron]);
+
+    // Auto-fetch on mount
+    useEffect(() => { fetchHealth(); }, [fetchHealth]);
+
+    const handleCheckUpdate = async () => {
+        if (!isElectron || !window.electronAPI.triggerUpdateCheck) {
+            showToast?.("Update checks are only available in the desktop app.", "info");
+            return;
+        }
+        setCheckingUpdate(true);
+        setUpdateStatus(null);
+        try {
+            const result = await window.electronAPI.triggerUpdateCheck();
+            if (!result.checked) {
+                setUpdateStatus({ ok: true, msg: result.reason || 'Already on the latest version.' });
+            } else if (result.updateAvailable) {
+                setUpdateStatus({ ok: false, msg: `Update available: v${result.version} — downloading in background…` });
+            } else {
+                setUpdateStatus({ ok: true, msg: 'You are on the latest version ✓' });
+            }
+        } catch (e) {
+            setUpdateStatus({ ok: false, msg: 'Update check failed: ' + e.message });
+        } finally {
+            setCheckingUpdate(false);
+        }
+    };
+
+    const dbOk     = health?.db === 'connected';
+    const schemaOk = health?.schema_ok;
+    const tablesFound    = health?.tables_found ?? '—';
+    const tablesRequired = health?.tables_required ?? '—';
+    const missing        = health?.missing_tables || [];
+    const appVersion     = health?.app_version || '—';
+    const ts             = health?.timestamp ? new Date(health.timestamp).toLocaleString() : null;
+
+    const pill = (ok, label, warn = false) => (
+        <span style={{
+            display: 'inline-flex', alignItems: 'center', gap: 5,
+            background: ok ? 'rgba(16,185,129,0.08)' : warn ? 'rgba(245,158,11,0.08)' : 'rgba(239,68,68,0.08)',
+            border: `1px solid ${ok ? 'rgba(16,185,129,0.3)' : warn ? 'rgba(245,158,11,0.3)' : 'rgba(239,68,68,0.3)'}`,
+            color: ok ? '#34d399' : warn ? '#fbbf24' : '#f87171',
+            borderRadius: 999, padding: '3px 10px', fontSize: 12, fontWeight: 700,
+        }}>
+            <span style={{
+                width: 6, height: 6, borderRadius: '50%',
+                background: ok ? '#10b981' : warn ? '#f59e0b' : '#ef4444',
+                display: 'inline-block',
+            }} />
+            {label}
+        </span>
+    );
+
+    return (
+        <div style={{
+            background: 'var(--surface-subtle)', borderRadius: 16, padding: 24,
+            border: '1px solid var(--border-subtle)', marginBottom: 24,
+        }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18, flexWrap: 'wrap', gap: 10 }}>
+                <h4 style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8, margin: 0 }}>
+                    <Activity size={16} style={{ color: 'var(--brand-primary)' }} />
+                    System Status
+                </h4>
+                <button
+                    type="button"
+                    onClick={fetchHealth}
+                    disabled={loading}
+                    style={{
+                        background: 'none', border: '1px solid var(--border-subtle)',
+                        borderRadius: 8, padding: '5px 12px', cursor: 'pointer',
+                        fontSize: 12, fontWeight: 600, color: 'var(--text-muted)',
+                        display: 'flex', alignItems: 'center', gap: 6,
+                        opacity: loading ? 0.5 : 1,
+                    }}
+                    id="settings-refresh-health-btn"
+                >
+                    <RefreshCw size={12} style={{ animation: loading ? 'spin 1s linear infinite' : 'none' }} />
+                    {loading ? 'Checking…' : 'Refresh'}
+                </button>
+            </div>
+
+            {/* Status pills row */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+                {loading && !health
+                    ? <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Checking system status…</span>
+                    : health
+                        ? (
+                            <>
+                                {pill(dbOk, dbOk ? 'DB Connected' : 'DB Unavailable')}
+                                {pill(schemaOk, schemaOk ? `Schema OK (${tablesFound}/${tablesRequired})` : `Schema Issues`, !schemaOk && dbOk)}
+                                <span style={{
+                                    display: 'inline-flex', alignItems: 'center', gap: 5,
+                                    background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.3)',
+                                    color: '#a5b4fc', borderRadius: 999, padding: '3px 10px', fontSize: 12, fontWeight: 700,
+                                }}>
+                                    App v{appVersion}
+                                </span>
+                            </>
+                        )
+                        : null
+                }
+            </div>
+
+            {/* Missing tables warning */}
+            {!schemaOk && missing.length > 0 && (
+                <div style={{
+                    background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)',
+                    borderRadius: 10, padding: '10px 14px', marginBottom: 14, fontSize: 12,
+                    color: '#fbbf24', lineHeight: 1.6,
+                }}>
+                    <strong>⚠ Missing tables:</strong> {missing.join(', ')}<br />
+                    <span style={{ opacity: 0.8 }}>These will be created automatically on the next server restart (autoSeed runs on every launch).</span>
+                </div>
+            )}
+
+            {/* Last checked */}
+            {ts && (
+                <p style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 14 }}>
+                    Last checked: {ts}
+                </p>
+            )}
+
+            {/* Update check row */}
+            <div style={{ borderTop: '1px solid var(--border-subtle)', paddingTop: 14, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                <button
+                    type="button"
+                    onClick={handleCheckUpdate}
+                    disabled={checkingUpdate}
+                    id="settings-check-update-btn"
+                    style={{
+                        background: 'var(--brand-primary)', color: '#fff',
+                        border: 'none', borderRadius: 8, padding: '7px 16px',
+                        fontSize: 12, fontWeight: 700, cursor: checkingUpdate ? 'not-allowed' : 'pointer',
+                        opacity: checkingUpdate ? 0.7 : 1, display: 'flex', alignItems: 'center', gap: 6,
+                    }}
+                >
+                    <RefreshCw size={12} style={{ animation: checkingUpdate ? 'spin 1s linear infinite' : 'none' }} />
+                    {checkingUpdate ? 'Checking for updates…' : 'Check for Updates'}
+                </button>
+                {isElectron
+                    ? <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>Checks GitHub Releases for a newer version of the desktop app.</span>
+                    : <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>Update checks are available in the desktop app only.</span>
+                }
+            </div>
+
+            {/* Update result message */}
+            {updateStatus && (
+                <div style={{
+                    marginTop: 10,
+                    background: updateStatus.ok ? 'rgba(16,185,129,0.08)' : 'rgba(99,102,241,0.08)',
+                    border: `1px solid ${updateStatus.ok ? 'rgba(16,185,129,0.25)' : 'rgba(99,102,241,0.25)'}`,
+                    borderRadius: 8, padding: '8px 14px',
+                    fontSize: 12, color: updateStatus.ok ? '#34d399' : '#a5b4fc', fontWeight: 600,
+                }}>
+                    {updateStatus.msg}
+                </div>
+            )}
+        </div>
+    );
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 export function Settings({ 
     dark, setDark, data, setData, setSettings, importSession, setImportSession, runExcelImport, isMobile, showToast, fillTemplate, syncToServer, hardResetSystem,
@@ -3160,6 +3351,10 @@ export function Settings({
                     {activeTab === 'data' && (
                         <div>
                             <SettingsShellSectionHeader title="System Maintenance" desc="Local-first workspace: your browser is the source of truth. Push snapshots to the API for the driver portal and server-side jobs." icon={Database} />
+
+                            {/* ── SYSTEM STATUS PANEL ── */}
+                            <SystemStatusPanel showToast={showToast} />
+
                             <div style={{ background: "var(--surface-subtle)", borderRadius: 16, padding: 24, border: "1px solid var(--border-subtle)", marginBottom: 24 }}>
                                 <h4 style={{ fontSize: 14, fontWeight: 800, color: "var(--text-primary)", marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
                                     <ShieldCheck size={16} style={{ color: "var(--brand-primary)" }} /> Portal Authentication

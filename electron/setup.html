@@ -38,7 +38,23 @@
             <span id="btn-test-text">Test Database Connection</span>
             <div id="test-spinner" class="spinner hidden"></div>
           </button>
-        </div>
+
+          <!-- DB health status banner: shown after a successful connection test -->
+          <div id="db-status-banner" class="db-status-banner hidden">
+            <div class="db-status-pill db-status-pill--db">
+              <span class="db-status-dot"></span>
+              <span id="db-status-db-label">DB</span>
+            </div>
+            <div class="db-status-pill db-status-pill--schema">
+              <span id="db-status-schema-icon">✓</span>
+              <span id="db-status-schema-label">Schema</span>
+            </div>
+            <div class="db-status-pill db-status-pill--version">
+              <span>App</span>
+              <span id="db-status-version">v0.0.0</span>
+            </div>
+          </div>
+
 
         <!-- Section 2: Security & Branding -->
         <div class="form-section">
@@ -124,8 +140,46 @@
         const result = await window.electronAPI.testDb(dbUrl);
         if (result.success) {
           showAlert('Database connection verified successfully!', 'success');
+
+          // ── Schema health banner ──────────────────────────────────────────
+          // The server isn't running yet at this point, so we do a direct pg
+          // check via the main-process IPC; show version from the config only.
+          // When the app is fully launched, the banner will reflect live data.
+          const banner   = document.getElementById('db-status-banner');
+          const dbLabel  = document.getElementById('db-status-db-label');
+          const schIcon  = document.getElementById('db-status-schema-icon');
+          const schLabel = document.getElementById('db-status-schema-label');
+          const verEl    = document.getElementById('db-status-version');
+
+          banner.classList.remove('hidden');
+          dbLabel.textContent = 'Connected ✓';
+
+          // Try to get health from the server if it's already running (reconfigure flow)
+          if (window.electronAPI.getHealthStatus) {
+            try {
+              const health = await window.electronAPI.getHealthStatus();
+              if (health && health.db === 'connected') {
+                const ok = health.schema_ok;
+                schIcon.textContent  = ok ? '✓' : '⚠';
+                schLabel.textContent = ok
+                  ? `Schema OK (${health.tables_found}/${health.tables_required} tables)`
+                  : `Schema warn — missing: ${(health.missing_tables || []).join(', ')}`;
+                banner.querySelector('.db-status-pill--schema').classList.toggle('db-status-pill--warn', !ok);
+                if (health.app_version) verEl.textContent = `v${health.app_version}`;
+              } else {
+                // Server not up yet; show basic info
+                schIcon.textContent  = '…';
+                schLabel.textContent = 'Schema (will verify on launch)';
+              }
+            } catch {
+              schIcon.textContent  = '…';
+              schLabel.textContent = 'Schema (will verify on launch)';
+            }
+          }
+          // ─────────────────────────────────────────────────────────────────
         } else {
           showAlert(`Failed to connect: ${result.error}`, 'error');
+          document.getElementById('db-status-banner').classList.add('hidden');
         }
       } catch (err) {
         showAlert(`Error: ${err.message}`, 'error');
