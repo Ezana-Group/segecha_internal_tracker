@@ -37,6 +37,7 @@ const EMPTY_FORM = {
     incidentType: "Accident",
     driverId: "",
     truck: "",
+    trailer_id: "",
     location: "",
     description: "",
 };
@@ -49,8 +50,9 @@ export function Incidents({ data, dark, isMobile, driverName, truckReg, setVerif
     const [logSubmitting, setLogSubmitting] = useState(false);
     const [localIncidents, setLocalIncidents] = useState([]);
 
-    const drivers = data.drivers || [];
-    const fleet   = data.trucks  || [];
+    const drivers  = data.drivers  || [];
+    const fleet    = data.trucks   || [];
+    const trailers = data.trailers || [];
 
     // Merge server incidents with any locally-added ones (show immediately after submit)
     const allIncidents = [...localIncidents, ...(data.incidents || [])];
@@ -86,6 +88,7 @@ export function Incidents({ data, dark, isMobile, driverName, truckReg, setVerif
                     id,
                     driverId:     logForm.driverId,
                     truck:        logForm.truck,
+                    trailer_id:   logForm.trailer_id,
                     incidentType: logForm.incidentType,
                     location:     logForm.location,
                     description:  logForm.description,
@@ -220,6 +223,7 @@ export function Incidents({ data, dark, isMobile, driverName, truckReg, setVerif
                                     <th>Type</th>
                                     <th>Driver</th>
                                     <th>Vehicle</th>
+                                    <th>Trailer</th>
                                     <th>Location</th>
                                     <th>Status</th>
                                     <th style={{ textAlign: "right" }}>Action</th>
@@ -269,6 +273,11 @@ export function Incidents({ data, dark, isMobile, driverName, truckReg, setVerif
                                                 </div>
                                                 <span style={{ fontWeight: 700, fontSize: 13 }}>{truckReg(i.truck)}</span>
                                             </div>
+                                        </td>
+
+                                        {/* Trailer */}
+                                        <td style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 600 }}>
+                                            {(() => { const t = trailers.find(t => t.id === (i.trailer_id || i.trailer)); return t ? `${t.reg} (${t.type})` : <span style={{ color: "var(--text-dim)" }}>—</span>; })()}
                                         </td>
 
                                         {/* Location */}
@@ -436,6 +445,21 @@ export function Incidents({ data, dark, isMobile, driverName, truckReg, setVerif
                                         style={{ width: "100%", height: 40, background: "var(--surface-subtle)", border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-md)", padding: "0 12px", fontSize: 13, color: "var(--text-primary)", fontWeight: 600, outline: "none", boxSizing: "border-box" }}
                                     />
                                 )}
+                            </div>
+
+                            {/* Trailer */}
+                            <div>
+                                <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "var(--text-primary)", marginBottom: 6 }}>Trailer <span style={{ fontWeight: 500, color: "var(--text-dim)" }}>(optional)</span></label>
+                                <select
+                                    value={logForm.trailer_id || ""}
+                                    onChange={e => setLogForm(f => ({ ...f, trailer_id: e.target.value }))}
+                                    style={{ width: "100%", height: 40, background: "var(--surface-subtle)", border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-md)", padding: "0 12px", fontSize: 13, color: "var(--text-primary)", fontWeight: 600, outline: "none", boxSizing: "border-box" }}
+                                >
+                                    <option value="">— None —</option>
+                                    {trailers.map(t => (
+                                        <option key={t.id} value={t.id}>{t.reg} ({t.type})</option>
+                                    ))}
+                                </select>
                             </div>
 
                             {/* Location */}

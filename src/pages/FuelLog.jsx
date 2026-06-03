@@ -34,6 +34,7 @@ export function FuelLog({ data, isMobile, modal, form, setForm, openModal, close
     const refinedFuel = filtered.map(f => ({
         ...f,
         _vehicle: truckReg(f.truck),
+        _trailer: (() => { const t = (data.trailers || []).find(t => t.id === (f.trailer_id || f.trailer)); return t ? `${t.reg} (${t.type})` : ''; })(),
         _total: f.litres * f.pricePerL
     }));
 
@@ -257,6 +258,7 @@ export function FuelLog({ data, isMobile, modal, form, setForm, openModal, close
                                 columns={[
                                     { key: "date", label: "Date", sortable: true },
                                     { key: "_vehicle", label: "Truck", sortable: true },
+                                    { key: "_trailer", label: "Trailer", sortable: true },
                                     { key: "station", label: "Station", sortable: true },
                                     { key: "litres", label: "Litres", sortable: true, align: "right" },
                                     { key: "pricePerL", label: "Price/L", sortable: true, align: "right" },
@@ -271,7 +273,7 @@ export function FuelLog({ data, isMobile, modal, form, setForm, openModal, close
                                 {activeTab === 'awaiting' ? (
                                     pendingVerifications?.filter(v => v._itemType === 'fuel').length === 0 ? (
                                         <tr>
-                                            <td colSpan="10" style={{ textAlign: "center", padding: 64, color: "var(--text-dim)" }}>
+                                            <td colSpan="11" style={{ textAlign: "center", padding: 64, color: "var(--text-dim)" }}>
                                                 <div style={{ marginBottom: 12 }}><CheckCircle2 size={40} opacity={0.2} color="#10b981" /></div>
                                                 <div style={{ fontWeight: 600 }}>No fuel logs awaiting verification.</div>
                                             </td>
@@ -281,6 +283,9 @@ export function FuelLog({ data, isMobile, modal, form, setForm, openModal, close
                                             <tr key={v.id} onClick={() => setVerifyModal(v)} style={{ cursor: "pointer" }} className="hover-scale">
                                                 <td className="sticky-col">{fmtDate(v.date)}</td>
                                                 <td style={{ fontWeight: 800, color: "var(--brand-primary)" }}>{truckReg(v.truck)}</td>
+                                                <td style={{ fontSize: 12, color: "var(--text-secondary)" }}>
+                                                    {(() => { const t = (data.trailers || []).find(t => t.id === (v.trailer_id || v.trailer)); return t ? `${t.reg} (${t.type})` : '—'; })()}
+                                                </td>
                                                 <td style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}><MapPin size={12} color="var(--brand-primary)" />{v.station}</td>
                                                 <td style={{ textAlign: "right", fontWeight: 800 }}>{v.litres?.toLocaleString()} L</td>
                                                 <td style={{ textAlign: "right", color: "var(--text-dim)" }}>—</td>
@@ -302,7 +307,7 @@ export function FuelLog({ data, isMobile, modal, form, setForm, openModal, close
                                     )
                                 ) : sortedFuel.length === 0 ? (
                                     <tr>
-                                        <td colSpan="10" style={{ textAlign: "center", padding: "40px 20px", color: "var(--text-dim)" }}>No results match your filters</td>
+                                        <td colSpan="11" style={{ textAlign: "center", padding: "40px 20px", color: "var(--text-dim)" }}>No results match your filters</td>
                                     </tr>
                                 ) : (
                                     sortedFuel.map(f => (
@@ -313,6 +318,9 @@ export function FuelLog({ data, isMobile, modal, form, setForm, openModal, close
                                                 <div style={{ fontSize: 10, color: "var(--text-dim)", marginTop: 1 }}>
                                                     {f.odom > 0 ? `${f.odom.toLocaleString()} km` : 'No odom'}
                                                 </div>
+                                            </td>
+                                            <td style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 600 }}>
+                                                {f._trailer || <span style={{ color: "var(--text-dim)" }}>—</span>}
                                             </td>
                                             <td>
                                                 <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: "var(--text-primary)", fontWeight: 600 }}>

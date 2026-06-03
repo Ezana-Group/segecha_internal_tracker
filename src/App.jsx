@@ -36,6 +36,7 @@ import { WaybillModal } from "./components/WaybillModal";
 import { VerificationModal } from "./components/VerificationModal";
 import { getTheme, getStyles } from "./constants/theme";
 import { adminAuth } from "./utils/adminAuth";
+import { AppLoadingScreen } from "./components/AppLoadingScreen";
 import { Login } from "./pages/Login";
 
 export default function App() {
@@ -45,6 +46,8 @@ export default function App() {
     const winW = useWindowWidth();
     const isMobile = winW < 640;
     const isTablet = winW >= 640 && winW < 1024;
+
+    const [appReady, setAppReady] = useState(false);
 
     const isLogin = location.pathname === "/login";
     const authed = adminAuth.isAuthenticated();
@@ -156,6 +159,16 @@ export default function App() {
         S,
         T
     };
+
+    /* ── App Loading Screen ─────────────────────────────── */
+    if (!appReady) {
+        return (
+            <AppLoadingScreen
+                onReady={() => setAppReady(true)}
+                onWarn={(msg) => state.showToast(msg, "warning")}
+            />
+        );
+    }
 
     if (isLogin && !authed) {
         return (

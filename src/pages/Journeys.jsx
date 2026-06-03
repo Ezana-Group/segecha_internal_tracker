@@ -52,6 +52,7 @@ export function Journeys({ data, isMobile, modal, form, setForm, openModal, clos
         ...j,
         _customer: customerName(j.customerId),
         _vehicle: truckReg(j.truck),
+        _trailer: (() => { const t = (data.trailers || []).find(t => t.id === j.trailer); return t ? `${t.reg}` : ''; })(),
         _distance: Number(j.distance || 0),
         _revenue: Number(j.revenue || 0)
     })).filter(j => {
@@ -363,6 +364,7 @@ export function Journeys({ data, isMobile, modal, form, setForm, openModal, clos
                                     { key: "origin",    label: "Origin",      sortable: !isDriverPreview || jpv("colRoute") },
                                     { key: "dest",      label: "Destination", sortable: !isDriverPreview || jpv("colRoute") },
                                     { key: "_vehicle",  label: "Truck",       sortable: !isDriverPreview || jpv("colVehicle"),  className: "col-hide-md" },
+                                    { key: "_trailer",  label: "Trailer",     sortable: !isDriverPreview || jpv("colVehicle"),  className: "col-hide-md" },
                                     { key: "driver",    label: "Driver",      sortable: !isDriverPreview || jpv("colCrew"),     className: "col-hide-xl" },
                                     { key: "status",    label: "Status",      sortable: !isDriverPreview || jpv("colStatus") },
                                     { key: "cargoType", label: "Cargo",       sortable: !isDriverPreview || jpv("colCargo"),    className: "col-hide-3xl" },
@@ -431,7 +433,7 @@ export function Journeys({ data, isMobile, modal, form, setForm, openModal, clos
                                                 </td>
                                             )}
 
-                                            {/* Vehicle */}
+                                            {/* Vehicle + Trailer */}
                                             {(!isDriverPreview || jpv("colVehicle")) && (
                                                 <td className="col-hide-md" title={truckReg(j.truck)}>
                                                     <button
@@ -442,6 +444,11 @@ export function Journeys({ data, isMobile, modal, form, setForm, openModal, clos
                                                         <Truck size={12} strokeWidth={2} aria-hidden />
                                                         {truckReg(j.truck)}
                                                     </button>
+                                                </td>
+                                            )}
+                                            {(!isDriverPreview || jpv("colVehicle")) && (
+                                                <td className="col-hide-md" style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 600 }}>
+                                                    {j._trailer || <span style={{ color: "var(--text-dim)" }}>—</span>}
                                                 </td>
                                             )}
 
@@ -587,11 +594,16 @@ export function Journeys({ data, isMobile, modal, form, setForm, openModal, clos
                                     <ArrowRight size={12} color="var(--text-dim)" />
                                     {j.dest}
                                 </div>
-                                {/* Meta row: truck + date */}
-                                <div style={{ display: "flex", alignItems: "center", gap: 12, fontSize: 12, color: "var(--text-muted)", fontWeight: 600 }}>
+                                {/* Meta row: truck + trailer + date */}
+                                <div style={{ display: "flex", alignItems: "center", gap: 12, fontSize: 12, color: "var(--text-muted)", fontWeight: 600, flexWrap: "wrap" }}>
                                     <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
                                         <Truck size={11} /> {truckReg(j.truck)}
                                     </span>
+                                    {j._trailer && (
+                                        <span style={{ display: "flex", alignItems: "center", gap: 4, color: "var(--text-dim)" }}>
+                                            + {j._trailer}
+                                        </span>
+                                    )}
                                     <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
                                         <Calendar size={11} /> {fmtDate(j.date)}
                                     </span>

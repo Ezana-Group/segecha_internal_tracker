@@ -189,6 +189,15 @@ export function GlobalModals(props) {
             <Modal title={form.id ? "Edit Fuel Entry" : "Log Fuel Fill-up"} onSave={() => saveItem("fuel", form)} S={S} closeModal={closeModal} saveDisabled={hasErrors}>
                 <div style={modalGrid}>
                     <Field label="Truck" k="truck" options={data.trucks.map(t => ({ v: t.id, l: t.reg }))} form={form} setForm={setForm} S={S} />
+
+                    <div>
+                        <FormLabel>Trailer (optional)</FormLabel>
+                        <select style={S.inp} value={form.trailer_id || ""} onChange={e => setForm(f => ({ ...f, trailer_id: e.target.value }))}>
+                            <option value="">— None —</option>
+                            {(data.trailers || []).map(t => <option key={t.id} value={t.id}>{t.reg} ({t.type})</option>)}
+                        </select>
+                    </div>
+
                     <Field label="Date" k="date" type="date" form={form} setForm={setForm} S={S} />
                     <Field label="Litres" k="litres" type="number" form={form} setForm={setForm} S={S} error={errors.litres} />
                     <Field label="Price per Litre (KES)" k="pricePerL" type="number" form={form} setForm={setForm} S={S} error={errors.pricePerL} />
