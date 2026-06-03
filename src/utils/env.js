@@ -7,7 +7,14 @@ const getApiUrl = () => {
         return envUrl.replace(/\/+$/, '');
     }
 
-    // Default to empty string for relative paths (supports Vite proxy in dev & same-origin in prod)
+    // Fall back to the current origin so PAYMENT_API is always truthy.
+    // This ensures same-origin API calls work in the Electron desktop app and
+    // any deployment where VITE_API_URL is not explicitly set at build time.
+    // (window.location.origin is safe here — this file is browser-only)
+    if (typeof window !== 'undefined' && window.location && window.location.origin) {
+        return window.location.origin;
+    }
+
     return '';
 };
 

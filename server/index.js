@@ -654,10 +654,32 @@ async function autoSeed() {
                     SET txn_date = COALESCE(txn_date, date)
                     WHERE txn_date IS NULL;
                 END IF;
+                -- Add new reconciliation columns if missing
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='mpesa_transactions' AND column_name='direction') THEN
+                    ALTER TABLE mpesa_transactions ADD COLUMN direction TEXT NOT NULL DEFAULT 'Incoming';
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='mpesa_transactions' AND column_name='reference') THEN
+                    ALTER TABLE mpesa_transactions ADD COLUMN reference TEXT;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='mpesa_transactions' AND column_name='linked_type') THEN
+                    ALTER TABLE mpesa_transactions ADD COLUMN linked_type TEXT;
+                END IF;
+                IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='mpesa_transactions' AND column_name='linked_id') THEN
+                    ALTER TABLE mpesa_transactions ADD COLUMN linked_id TEXT;
+                END IF;
             END $$;
         `);
         await db.query(`CREATE INDEX IF NOT EXISTS idx_mpesa_txn_date ON mpesa_transactions (txn_date DESC);`);
-        await db.query(`CREATE INDEX IF NOT EXISTS idx_mpesa_reference ON mpesa_transactions (reference);`);
+        await db.query(`
+            DO $$
+            BEGIN
+                IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='mpesa_transactions' AND column_name='reference') THEN
+                    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE tablename='mpesa_transactions' AND indexname='idx_mpesa_reference') THEN
+                        CREATE INDEX idx_mpesa_reference ON mpesa_transactions (reference);
+                    END IF;
+                END IF;
+            END $$;
+        `);
         await db.query(`
             CREATE TABLE IF NOT EXISTS payroll_statutory_configs (
                 id TEXT PRIMARY KEY,
