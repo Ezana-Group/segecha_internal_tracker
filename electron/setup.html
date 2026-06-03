@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Segecha Setup Wizard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="setup.css">
+</head>
+<body>
+  <div class="background-radial"></div>
+  
+  <div class="setup-container">
+    <div class="glass-card">
+      <div class="header">
+        <div class="logo-container" style="background: transparent; border: none;">
+          <img src="icon.png" alt="Segecha Logo" style="width: 100%; height: 100%; object-fit: contain; border-radius: 50%;">
+        </div>
+        <h1>Segecha Tracker</h1>
+        <p class="subtitle">Initial Application Setup</p>
+      </div>
+
+      <div id="alert-box" class="alert-box hidden"></div>
+
+      <form id="setup-form" onsubmit="handleSave(event)">
+        <!-- Section 1: Database Settings -->
+        <div class="form-section">
+          <h3>1. Database Connectivity</h3>
+          <div class="input-group">
+            <label for="DATABASE_URL">PostgreSQL Database Connection URL <span class="required">*</span></label>
+            <input type="text" id="DATABASE_URL" required placeholder="postgresql://user:password@host:port/dbname" value="">
+            <span class="helper-text">Connection URL for your cloud-hosted PostgreSQL database (e.g. Neon, AWS RDS).</span>
+          </div>
+          
+          <button type="button" id="btn-test" class="btn-secondary" onclick="handleTestConnection()">
+            <span id="btn-test-text">Test Database Connection</span>
+            <div id="test-spinner" class="spinner hidden"></div>
+          </button>
+        </div>
+
+        <!-- Section 2: Security & Branding -->
+        <div class="form-section">
+          <h3>2. Administration & Brand Settings</h3>
+          
+          <div class="row">
+            <div class="input-group col">
+              <label for="ADMIN_KEY">Admin Key / System Password <span class="required">*</span></label>
+              <input type="password" id="ADMIN_KEY" required placeholder="Enter admin key" value="">
+              <span class="helper-text">Master password to access administrative configurations.</span>
+            </div>
+          </div>
+
+          <div class="row">
+            <div class="input-group col">
+              <label for="COMPANY_NAME">Company Name</label>
+              <input type="text" id="COMPANY_NAME" placeholder="Segecha Group Ltd" value="Segecha Group Ltd">
+            </div>
+            
+            <div class="input-group col">
+              <label for="JWT_SECRET">JWT Secret (Optional)</label>
+              <input type="password" id="JWT_SECRET" placeholder="Leave blank to auto-generate" value="">
+              <span class="helper-text">Secret key for signing auth tokens.</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button type="submit" id="btn-submit" class="btn-primary">
+            <span>Save Configuration & Launch</span>
+            <div id="submit-spinner" class="spinner hidden"></div>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    // Load existing config on startup
+    window.addEventListener('DOMContentLoaded', async () => {
+      try {
+        const config = await window.electronAPI.getConfig();
+        if (config) {
+          if (config.DATABASE_URL) document.getElementById('DATABASE_URL').value = config.DATABASE_URL;
+          if (config.ADMIN_KEY) document.getElementById('ADMIN_KEY').value = config.ADMIN_KEY;
+          if (config.COMPANY_NAME) document.getElementById('COMPANY_NAME').value = config.COMPANY_NAME;
+          if (config.JWT_SECRET) document.getElementById('JWT_SECRET').value = config.JWT_SECRET;
+        }
+      } catch (err) {
+        console.error('Failed to load config:', err);
+      }
+    });
+
+    const alertBox = document.getElementById('alert-box');
+
+    function showAlert(message, type = 'error') {
+      alertBox.textContent = message;
+      alertBox.className = `alert-box ${type}`;
+      alertBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function hideAlert() {
+      alertBox.className = 'alert-box hidden';
+    }
+
+    async function handleTestConnection() {
+      const dbUrl = document.getElementById('DATABASE_URL').value.trim();
+      if (!dbUrl) {
+        showAlert('Please enter a Database URL first.');
+        return;
+      }
+
+      hideAlert();
+      const btn = document.getElementById('btn-test');
+      const text = document.getElementById('btn-test-text');
+      const spinner = document.getElementById('test-spinner');
+
+      btn.disabled = true;
+      text.style.opacity = '0.5';
+      spinner.classList.remove('hidden');
+
+      try {
+        const result = await window.electronAPI.testDb(dbUrl);
+        if (result.success) {
+          showAlert('Database connection verified successfully!', 'success');
+        } else {
+          showAlert(`Failed to connect: ${result.error}`, 'error');
+        }
+      } catch (err) {
+        showAlert(`Error: ${err.message}`, 'error');
+      } finally {
+        btn.disabled = false;
+        text.style.opacity = '1';
+        spinner.classList.add('hidden');
+      }
+    }
+
+    async function handleSave(event) {
+      event.preventDefault();
+      hideAlert();
+
+      const dbUrl = document.getElementById('DATABASE_URL').value.trim();
+      const adminKey = document.getElementById('ADMIN_KEY').value.trim();
+      const companyName = document.getElementById('COMPANY_NAME').value.trim();
+      const jwtSecret = document.getElementById('JWT_SECRET').value.trim();
+
+      if (!dbUrl || !adminKey) {
+        showAlert('Please fill in all required fields.');
+        return;
+      }
+
+      const btnSubmit = document.getElementById('btn-submit');
+      const submitSpinner = document.getElementById('submit-spinner');
+      
+      btnSubmit.disabled = true;
+      submitSpinner.classList.remove('hidden');
+
+      try {
+        const config = {
+          DATABASE_URL: dbUrl,
+          ADMIN_KEY: adminKey,
+          COMPANY_NAME: companyName,
+          JWT_SECRET: jwtSecret
+        };
+
+        const result = await window.electronAPI.saveConfig(config);
+        
+        if (result.success) {
+          showAlert('Configuration saved! Spawning backend database instance and launching tracker...', 'success');
+        } else {
+          showAlert(result.error || 'Failed to save configuration.', 'error');
+          btnSubmit.disabled = false;
+          submitSpinner.classList.add('hidden');
+        }
+      } catch (err) {
+        showAlert(`Error: ${err.message}`, 'error');
+        btnSubmit.disabled = false;
+        submitSpinner.classList.add('hidden');
+      }
+    }
+  </script>
+</body>
+</html>

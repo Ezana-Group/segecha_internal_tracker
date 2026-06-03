@@ -1,0 +1,35 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "Admin Tracker (Frontend)",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 5173
+    },
+    {
+      "name": "API Server (Express)",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["server/index.js"],
+      "port": 3001
+    },
+    {
+      "name": "Driver Portal",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--prefix", "driver-portal"],
+      "port": 5174
+    },
+    {
+      "name": "Payment Portal",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--prefix", "payment-portal"],
+      "port": 5175
+    },
+    {
+      "name": "Track Portal",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--prefix", "track-portal"],
+      "port": 5176
+    }
+  ]
+}

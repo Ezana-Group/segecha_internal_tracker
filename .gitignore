@@ -13,6 +13,7 @@ server/.env
 # env_backup/
 env_backup/
 archive/
+segecha_internal_tracker/
 
 # Server data files — managed at runtime, never in git (CRIT-08)
 server/drivers-auth.json
@@ -26,5 +27,6 @@ archive/server/*.json
 
 # Build outputs
 dist/
+dist-electron/
 .vercel/
 node_modules/
