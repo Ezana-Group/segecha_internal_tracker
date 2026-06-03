@@ -49,7 +49,7 @@ function loadConfig() {
     });
   } else {
     // If user's local .env doesn't exist, initialize with defaults
-    config.DATABASE_URL = 'postgresql://authenticator:npg_r4EXyhOWGpx2@ep-wandering-hall-abj6izc4-pooler.eu-west-2.aws.neon.tech/segecha-db?sslmode=require&channel_binding=require';
+    config.DATABASE_URL = 'postgresql://neondb_owner:npg_TYEaMSw7I1Gm@ep-wandering-hall-abj6izc4-pooler.eu-west-2.aws.neon.tech/segecha-db?sslmode=require&channel_binding=require';
     config.ADMIN_KEY = 'SierraGolf26';
     config.INITIAL_ADMIN_EMAIL = 'admin@segecha.com';
     config.INITIAL_ADMIN_PHONE = '+254700000000';
