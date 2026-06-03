@@ -229,6 +229,14 @@ export function GlobalModals(props) {
                     <Field label="Truck / Vehicle" k="truck" options={data.trucks.map(t => ({ v: t.id, l: t.reg }))} form={form} setForm={setForm} S={S} />
 
                     <div>
+                        <FormLabel>Trailer (optional)</FormLabel>
+                        <select style={S.inp} value={form.trailer_id || ""} onChange={e => setForm(f => ({ ...f, trailer_id: e.target.value }))}>
+                            <option value="">— None —</option>
+                            {(data.trailers || []).map(t => <option key={t.id} value={t.id}>{t.reg} ({t.type})</option>)}
+                        </select>
+                    </div>
+
+                    <div>
                         <FormLabel>Category</FormLabel>
                         <select style={S.inp} value={form.cat || ""} onChange={e => setForm(f => ({ ...f, cat: e.target.value, subCat: "" }))}>
                             <option value="">Select...</option>
@@ -791,7 +799,7 @@ export function GlobalModals(props) {
         const submitLog = () => {
             if (!form.date || !form.odom) { alert("Date and odometer reading are required"); return; }
             const taskName = form.task === "Custom" ? form.customTask : form.task;
-            const entry = { truck: form.truck, date: form.date, cat: "Maintenance", amount: +(form.cost || 0), odom: +form.odom, desc: `${taskName}${form.notes ? " — " + form.notes : ""}`, _maintenanceTask: taskName, _maintenanceDetails: { task: taskName, workshop: form.workshop || "", cost: +(form.cost || 0), odomReading: +form.odom, receiptUrl: form.receiptUrl || "", notes: form.notes || "" } };
+            const entry = { truck: form.truck, trailer_id: form.trailer_id || "", date: form.date, cat: "Maintenance", amount: +(form.cost || 0), odom: +form.odom, desc: `${taskName}${form.notes ? " — " + form.notes : ""}`, _maintenanceTask: taskName, _maintenanceDetails: { task: taskName, workshop: form.workshop || "", cost: +(form.cost || 0), odomReading: +form.odom, receiptUrl: form.receiptUrl || "", notes: form.notes || "" } };
             saveItem("expenses", entry);
             const truckObj = data.trucks.find(t => t.id === form.truck);
             if (+form.odom > +(truckObj?.odom || 0)) {
@@ -815,6 +823,14 @@ export function GlobalModals(props) {
                         <FormLabel>Truck</FormLabel>
                         <select style={S.inp} value={form.truck} onChange={e => setForm(f => ({ ...f, truck: e.target.value }))}>
                             {data.trucks.map(t => <option key={t.id} value={t.id}>{t.reg} — {Number(t.odom || 0).toLocaleString("en-KE")} km</option>)}
+                        </select>
+                    </div>
+
+                    <div style={{ gridColumn: "1/-1" }}>
+                        <FormLabel>Trailer (optional)</FormLabel>
+                        <select style={S.inp} value={form.trailer_id || ""} onChange={e => setForm(f => ({ ...f, trailer_id: e.target.value }))}>
+                            <option value="">— None —</option>
+                            {(data.trailers || []).map(t => <option key={t.id} value={t.id}>{t.reg} ({t.type})</option>)}
                         </select>
                     </div>
 

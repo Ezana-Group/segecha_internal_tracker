@@ -117,6 +117,7 @@ export function Maintenance({ data, setData, dark, isMobile, saveItem, truckReg,
         .map(e => ({
             ...e,
             _vehicle: truckReg(e.truck),
+            _trailer: (() => { const t = (data.trailers || []).find(t => t.id === (e.trailer_id || e.trailer)); return t ? `${t.reg} (${t.type})` : ''; })(),
             _cost: Number(e.amount || 0),
             _odom: Number(e.odom || 0),
             _workshop: e._maintenanceDetails?.workshop || '—'
@@ -425,6 +426,7 @@ export function Maintenance({ data, setData, dark, isMobile, saveItem, truckReg,
                                 columns={[
                                     { key: "date",      label: "Date",            sortable: true },
                                     { key: "_vehicle",  label: "Vehicle",         sortable: true },
+                                    { key: "_trailer",  label: "Trailer",         sortable: true },
                                     { key: "desc",      label: "Task / Desc",     sortable: true },
                                     { key: "_odom",     label: "Odometer",        sortable: true, align: "right" },
                                     { key: "_workshop", label: "Workshop",        sortable: true },
@@ -435,7 +437,7 @@ export function Maintenance({ data, setData, dark, isMobile, saveItem, truckReg,
                             <tbody>
                                 {sortedHistory.length === 0 ? (
                                     <tr>
-                                        <td colSpan={7} style={{ textAlign: "center", padding: "64px 20px", color: "var(--text-dim)" }}>
+                                        <td colSpan={8} style={{ textAlign: "center", padding: "64px 20px", color: "var(--text-dim)" }}>
                                             <Wrench size={40} style={{ opacity: 0.1, display: "block", margin: "0 auto 12px" }} />
                                             <div style={{ fontSize: 15, fontWeight: 600 }}>No service records found</div>
                                             <p style={{ marginTop: 4, fontSize: 13 }}>Log a new service to get started.</p>
@@ -451,6 +453,9 @@ export function Maintenance({ data, setData, dark, isMobile, saveItem, truckReg,
                                         >
                                             <td className="sticky-col" style={{ fontWeight: 600 }}>{fmtDate(e.date)}</td>
                                             <td><Badge status="Pending">{e._vehicle}</Badge></td>
+                                            <td style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 600 }}>
+                                                {e._trailer || <span style={{ color: "var(--text-dim)" }}>—</span>}
+                                            </td>
                                             <td>
                                                 <div style={{ fontWeight: 700, color: "var(--text-primary)" }}>{e._maintenanceTask || e.desc}</div>
                                                 {e._maintenanceDetails?.notes && (
@@ -472,7 +477,7 @@ export function Maintenance({ data, setData, dark, isMobile, saveItem, truckReg,
                             {sortedHistory.length > 0 && (
                                 <tfoot>
                                     <tr style={{ background: "var(--surface-subtle)", fontWeight: 800 }}>
-                                        <td colSpan={5} style={{ textAlign: "right", color: "var(--text-dim)", padding: "12px 16px" }}>
+                                        <td colSpan={6} style={{ textAlign: "right", color: "var(--text-dim)", padding: "12px 16px" }}>
                                             Total lifecycle investment (filtered)
                                         </td>
                                         <td style={{ color: "var(--brand-primary)", fontSize: 15, textAlign: "right", padding: "12px 16px" }}>

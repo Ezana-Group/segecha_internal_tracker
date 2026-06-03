@@ -39,6 +39,7 @@ export function Expenses({
     const refinedExpenses = data.expenses.map(e => ({
         ...e,
         _vehicle: truckReg(e.truck),
+        _trailer: (() => { const t = (data.trailers || []).find(t => t.id === (e.trailer_id || e.trailer)); return t ? `${t.reg} (${t.type})` : ''; })(),
         _amount: Number(e.amount || 0)
     }));
 
@@ -239,6 +240,7 @@ export function Expenses({
                                 { key: "cat", label: "Category", sortable: true },
                                 { key: "desc", label: "Description", sortable: true },
                                 { key: "_vehicle", label: "Truck", sortable: true },
+                                { key: "_trailer", label: "Trailer", sortable: true },
                                 { key: "_amount", label: "Amount", sortable: true, align: "right" },
                                 { key: "status", label: "Status", sortable: true },
                                 { key: "actions", label: "", sortable: false, align: "right" }
@@ -274,6 +276,9 @@ export function Expenses({
                                                         <Truck size={13} color="var(--brand-primary)" />
                                                         {truckReg(v.truck)}
                                                     </div>
+                                                </td>
+                                                <td style={{ fontSize: 12, color: "var(--text-secondary)" }}>
+                                                    {(() => { const t = (data.trailers || []).find(t => t.id === (v.trailer_id || v.trailer)); return t ? `${t.reg} (${t.type})` : '—'; })()}
                                                 </td>
                                                 <td style={{ fontWeight: 900, textAlign: "right" }}>{fmt(v.amount)}</td>
                                                 <td><Badge status="Warning" text="Pending Review" /></td>
@@ -318,6 +323,9 @@ export function Expenses({
                                                 <Truck size={13} color="var(--brand-primary)" />
                                                 {e._vehicle}
                                             </div>
+                                        </td>
+                                        <td style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 600 }}>
+                                            {e._trailer || <span style={{ color: "var(--text-dim)" }}>—</span>}
                                         </td>
                                         <td style={{ fontWeight: 900, textAlign: "right" }}>{fmt(e.amount)}</td>
                                         <td className="status-col"><Badge status="Active" text="Processed" /></td>
