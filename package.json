@@ -1,7 +1,7 @@
 {
   "name": "truck-erp-app",
   "private": true,
-  "version": "1.2.0",
+  "version": "1.2.1",
   "type": "module",
   "main": "electron/main.cjs",
   "scripts": {
@@ -61,6 +61,7 @@
     "directories": {
       "output": "dist-electron"
     },
+    "copyright": "Copyright © 2026 Segecha Group Ltd",
     "publish": [
       {
         "provider": "github",
