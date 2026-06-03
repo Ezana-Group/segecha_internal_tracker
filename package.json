@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "main": "electron/main.cjs",
   "scripts": {
     "dev": "vite",
     "build": "npm run build:all",
@@ -11,10 +12,13 @@
     "preview": "vite preview",
     "test": "vitest",
     "test:ui": "vitest --ui",
-    "start": "node server/index.js"
+    "start": "node server/index.js",
+    "db:reset": "node server/reset-db.js",
+    "electron:start": "electron .",
+    "electron:build": "npm run build:all && electron-builder --mac --win"
   },
   "dependencies": {
-    "axios": "^1.13.6",
+    "axios": "^1.15.0",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
     "dompurify": "^3.3.3",
@@ -24,6 +28,7 @@
     "jsonwebtoken": "^9.0.0",
     "lucide-react": "^0.577.0",
     "multer": "^1.4.5-lts.1",
+    "pdfkit": "^0.18.0",
     "pg": "^8.20.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
@@ -36,6 +41,8 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^4.3.4",
     "@vitest/ui": "^4.1.1",
+    "electron": "^42.3.2",
+    "electron-builder": "^26.8.1",
     "eslint": "^9.39.1",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
@@ -46,5 +53,55 @@
   },
   "engines": {
     "node": ">=20.19.0"
+  },
+  "build": {
+    "appId": "com.segecha.tracker",
+    "productName": "SegechaTracker",
+    "directories": {
+      "output": "dist-electron"
+    },
+    "files": [
+      "dist/**/*",
+      "driver-portal/dist/**/*",
+      "track-portal/dist/**/*",
+      "payment-portal/dist/**/*",
+      "server/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "mac": {
+      "icon": "build/icon.png",
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "category": "public.app-category.business"
+    },
+    "win": {
+      "icon": "build/icon.png",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
   }
 }
