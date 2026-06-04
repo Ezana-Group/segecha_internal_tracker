@@ -7,6 +7,7 @@ const http = require('http');
 
 let mainWindow = null;
 let serverProcess = null;
+let isUpdating = false;
 const userDataPath = app.getPath('userData');
 const envFilePath = path.join(userDataPath, '.env');
 
@@ -63,6 +64,8 @@ function setupAutoUpdater() {
         cancelId: 1,
       }).then((result) => {
         if (result.response === 0) {
+          isUpdating = true;
+          stopServer();
           autoUpdater.quitAndInstall(false, true);
         }
       }).catch(() => {});
@@ -406,7 +409,7 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
+  if (process.platform !== 'darwin' || isUpdating) {
     app.quit();
   }
 });
