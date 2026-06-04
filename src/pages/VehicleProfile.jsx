@@ -785,16 +785,21 @@ export function VehicleProfile({ data, setData, dark, isMobile, openModal, maint
                                 <table className="table-modern">
                                     <thead>
                                         <tr>
-                                            {['Date', 'Classification', 'Description', 'Amount', 'Status', 'Actions'].map(h => (
+                                            {['Date', 'Classification', 'Trailer', 'Description', 'Amount', 'Status', 'Actions'].map(h => (
                                                 <th key={h}>{h}</th>
                                             ))}
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {truckExpenses.sort((a, b) => b.date.localeCompare(a.date)).map(e => (
+                                        {truckExpenses.sort((a, b) => b.date.localeCompare(a.date)).map(e => {
+                                            const expTrailer = (data.trailers || []).find(t => t.id === (e.trailer_id || e.trailer));
+                                            return (
                                             <tr key={e.id}>
                                                 <td>{fmtDate(e.date)}</td>
                                                 <td><Badge status={e.cat} /></td>
+                                                <td style={{ fontSize: 12, color: "var(--text-dim)", fontWeight: 600 }}>
+                                                    {expTrailer ? expTrailer.reg : <span style={{ color: 'var(--text-dim)' }}>—</span>}
+                                                </td>
                                                 <td style={{ fontSize: 13, color: "var(--text-secondary)" }}>{e.desc}</td>
                                                 <td style={{ color: "#ef4444", fontWeight: 800 }}>{fmt(e.amount)}</td>
                                                 <td>{e._pendingApproval ? <Badge status="Pending" /> : <Badge status="Approved" />}</td>
@@ -818,7 +823,8 @@ export function VehicleProfile({ data, setData, dark, isMobile, openModal, maint
                                                     />
                                                 </td>
                                             </tr>
-                                        ))}
+                                            );
+                                        })}
                                     </tbody>
                                 </table>
                             </div>

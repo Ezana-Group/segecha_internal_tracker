@@ -29,6 +29,9 @@ export async function fetchWithAuth(url, options = {}) {
   // Auto-clear stale session on 401 so the login screen re-appears
   if (res.status === 401) {
     adminAuth.clearSession();
+    // Dispatch a named event so the Login page can show "Session expired" message
+    // instead of an unexplained silent reload.
+    window.dispatchEvent(new CustomEvent('segecha:session-expired'));
     window.location.reload();
   }
 

@@ -2347,7 +2347,7 @@ app.post('/api/admin/login', authLimiter, async (req, res) => {
                 version: admin.session_version || 1
             }, 
             JWT_SECRET, 
-            { expiresIn: '12h' }
+            { expiresIn: '7d' }
         );
 
         // Set HttpOnly cookie for XSS protection (MED-06)

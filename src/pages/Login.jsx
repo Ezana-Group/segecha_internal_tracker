@@ -14,7 +14,14 @@ export function Login({ showToast }) {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [sessionExpired, setSessionExpired] = useState(false);
   const navigate = useNavigate();
+
+  React.useEffect(() => {
+    const handleExpiry = () => setSessionExpired(true);
+    window.addEventListener('segecha:session-expired', handleExpiry);
+    return () => window.removeEventListener('segecha:session-expired', handleExpiry);
+  }, []);
 
   React.useEffect(() => {
     if (adminAuth.isAuthenticated()) {
@@ -182,6 +189,13 @@ export function Login({ showToast }) {
               ? 'Enter your email and we will send a reset link.'
               : 'Sign in to Fleet Operations Command.'}
           </p>
+
+          {sessionExpired && !error && (
+            <div style={sessionExpiredBoxStyle}>
+              <AlertCircle size={14} style={{ flexShrink: 0 }} />
+              Your session expired. Please sign in again.
+            </div>
+          )}
 
           {error && (
             <div style={errorBoxStyle}>
@@ -563,6 +577,20 @@ const errorBoxStyle = {
   background: 'rgba(239,68,68,0.07)',
   color: '#DC2626',
   border: '1px solid rgba(239,68,68,0.2)',
+  borderRadius: 10,
+  padding: '11px 14px',
+  fontSize: 13,
+  fontWeight: 500,
+  marginBottom: 20,
+};
+
+const sessionExpiredBoxStyle = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  background: 'rgba(245,158,11,0.08)',
+  color: '#B45309',
+  border: '1px solid rgba(245,158,11,0.25)',
   borderRadius: 10,
   padding: '11px 14px',
   fontSize: 13,
