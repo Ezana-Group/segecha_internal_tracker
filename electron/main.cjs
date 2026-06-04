@@ -316,6 +316,7 @@ function launchMainWindow() {
     minHeight: 768,
     title: 'Segecha Internal Tracker',
     webPreferences: {
+      preload: path.join(__dirname, 'preload.cjs'),
       nodeIntegration: false,
       contextIsolation: true
     }
