@@ -2,7 +2,7 @@ name: Release Desktop App
 
 # ── Trigger ──────────────────────────────────────────────────────────────────
 # Fires when you push a tag like v1.2.0, v1.2.3, etc.
-# To release: git tag v1.2.0 && git push origin v1.2.0
+# To release: git tag v1.2.3 && git push origin v1.2.3
 on:
   push:
     tags:
@@ -41,9 +41,17 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-      # ── 3. Write .env so the packaged app has DB credentials ─────────────────
-      # DATABASE_URL is stored as a GitHub Actions secret.
-      # ADMIN_KEY is the passphrase for the admin account (also a secret).
+      # ── 3. Sync package.json version with the git tag ─────────────────────────
+      # Ensures DMG/EXE files are named correctly (e.g. 1.2.3 not 1.2.1)
+      # even if package.json was not manually bumped before tagging.
+      - name: Sync version from git tag
+        shell: bash
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          echo "Setting package.json version to $TAG"
+          npm version "$TAG" --no-git-tag-version --allow-same-version
+
+      # ── 4. Write .env so the packaged app has DB credentials ─────────────────
       - name: Write .env file
         shell: bash
         run: |
@@ -54,7 +62,7 @@ jobs:
           EOF
           echo ".env written"
 
-      # ── 4. Install root + sub-portal dependencies ─────────────────────────────
+      # ── 5. Install dependencies ───────────────────────────────────────────────
       - name: Install root dependencies
         run: npm ci
 
@@ -74,26 +82,37 @@ jobs:
         run: npm ci
         working-directory: payment-portal
 
-      # ── 5. Build all frontends ────────────────────────────────────────────────
+      # ── 6. Build all frontends ────────────────────────────────────────────────
       - name: Build all frontends
         run: npm run build:all
 
-      # ── 6. Package Electron + publish to GitHub Releases ─────────────────────
-      # GH_TOKEN tells electron-builder which repo to attach the release assets to.
-      # CSC_IDENTITY_AUTO_DISCOVERY=false skips macOS code-signing (no cert needed
-      # for internal distribution — users just right-click → Open on first launch).
+      # ── 7. Package Electron + publish to GitHub Releases ─────────────────────
       - name: Build & publish Electron app (${{ matrix.artifact_label }})
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CSC_IDENTITY_AUTO_DISCOVERY: false        # skip macOS code-signing
-          WIN_CSC_LINK: ''                           # skip Windows code-signing
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+          WIN_CSC_LINK: ''
           WIN_CSC_KEY_PASSWORD: ''
         run: >
           npx electron-builder
           ${{ matrix.platform_flag }}
           --publish always
 
-      # ── 7. Summary ────────────────────────────────────────────────────────────
+      # ── 8. Publish the GitHub Release (convert draft → published) ─────────────
+      # Only runs once (on macOS runner) after both jobs have had time to upload.
+      - name: Publish GitHub Release as non-draft
+        if: matrix.os == 'macos-latest'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          echo "Publishing release $TAG..."
+          sleep 15
+          gh release edit "$TAG" --draft=false --latest || true
+          echo "Done."
+
+      # ── 9. Summary ────────────────────────────────────────────────────────────
       - name: Print release summary
         shell: bash
         run: |
