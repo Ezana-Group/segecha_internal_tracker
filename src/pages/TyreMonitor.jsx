@@ -29,6 +29,28 @@ const TYRE_POSITIONS = [
     "Spare", "All Axles"
 ];
 
+const getTrailerPositions = (trailer) => {
+    if (!trailer) return ["Spare", "All Axles"];
+    const tyres = Number(trailer.tyreCount) || 12;
+    const axles = Number(trailer.axleCount) || (tyres <= 8 ? 2 : 3);
+    const positions = [];
+    const isDual = tyres >= axles * 4;
+    for (let a = 1; a <= axles; a++) {
+        if (isDual) {
+            positions.push(`Axle ${a} Left Outer`);
+            positions.push(`Axle ${a} Left Inner`);
+            positions.push(`Axle ${a} Right Inner`);
+            positions.push(`Axle ${a} Right Outer`);
+        } else {
+            positions.push(`Axle ${a} Left`);
+            positions.push(`Axle ${a} Right`);
+        }
+    }
+    positions.push("Spare");
+    positions.push("All Axles");
+    return positions;
+};
+
 const EMPTY_LOG_FORM = {
     truck: "",
     action: "Replacement",
@@ -73,14 +95,14 @@ export function TyreMonitor({ data, dark, openModal, tyreStatus, truckReg, logTy
         .filter((e) => e.cat === "Tyre")
         .map(e => ({
             ...e,
-            vehicle: truckReg(e.truck) || "Unknown",
+            vehicle: e.trailer_id ? ((data.trailers || []).find(t => t.id === e.trailer_id)?.reg || e.trailer_id) : (truckReg(e.truck) || "Unknown"),
             amountVal: Number(e.amount || 0)
         }));
 
     // ── Log tab data ───────────────────────────────────────────────────────
     const logData = (data.tyreLogs || []).map(l => ({
         ...l,
-        vehicle: truckReg(l.truck) || "Unknown",
+        vehicle: l.trailer_id ? ((data.trailers || []).find(t => t.id === l.trailer_id)?.reg || l.trailer_id) : (truckReg(l.truck) || "Unknown"),
         costVal: Number(l.cost || 0),
     }));
 
@@ -134,14 +156,22 @@ export function TyreMonitor({ data, dark, openModal, tyreStatus, truckReg, logTy
 
     // ── Log form handlers ──────────────────────────────────────────────────
     const openLogModal = (truck = null) => {
-        setLogForm({ ...EMPTY_LOG_FORM, truck: truck?.id || "", odom: truck ? String(truck.odom || "") : "" });
+        setLogForm({ 
+            ...EMPTY_LOG_FORM, 
+            vehicleCategory: "truck",
+            truck: truck?.id || "", 
+            trailer_id: "",
+            odom: truck ? String(truck.odom || "") : "" 
+        });
         setLogModal(true);
     };
 
     const patch = (field, val) => setLogForm(f => ({ ...f, [field]: val }));
 
     const submitLog = () => {
-        if (!logForm.truck) { alert("Please select a vehicle."); return; }
+        const category = logForm.vehicleCategory || "truck";
+        if (category === "truck" && !logForm.truck) { alert("Please select a truck."); return; }
+        if (category === "trailer" && !logForm.trailer_id) { alert("Please select a trailer."); return; }
         if (!logForm.action) { alert("Please select an action type."); return; }
         setLogSubmitting(true);
         try {
@@ -515,71 +545,127 @@ export function TyreMonitor({ data, dark, openModal, tyreStatus, truckReg, logTy
             )}
 
             {/* ── LOG ENTRY MODAL ── */}
-            {logModal && S && (
-                <Modal
-                    title="Log Tyre Entry"
-                    onSave={submitLog}
-                    saveLabel={logSubmitting ? "Saving…" : "Save Entry"}
-                    saveDisabled={logSubmitting || !logForm.truck}
-                    closeModal={() => setLogModal(false)}
-                    S={S}
-                    wide
-                >
-                    <div style={S.fgg(2)}>
-                        <Field
-                            label="Vehicle *"
-                            k="truck"
-                            full
-                            options={[{ v: "", l: "Select vehicle…" }, ...(data.trucks || []).map(t => ({ v: t.id, l: t.reg + (t.make ? ` — ${t.make}` : "") }))]}
-                            form={logForm}
-                            setForm={setLogFormField}
-                            S={S}
-                            T={T}
-                        />
-                        <Field
-                            label="Action *"
-                            k="action"
-                            options={TYRE_ACTIONS.map(a => ({ v: a, l: a }))}
-                            form={logForm}
-                            setForm={setLogFormField}
-                            S={S}
-                            T={T}
-                        />
-                        <Field
-                            label="Position"
-                            k="position"
-                            options={TYRE_POSITIONS.map(p => ({ v: p, l: p }))}
-                            form={logForm}
-                            setForm={setLogFormField}
-                            S={S}
-                            T={T}
-                        />
-                        <Field label="Date" k="date" type="date" form={logForm} setForm={setLogFormField} S={S} T={T} />
-                        <Field label="Odometer (KM)" k="odom" type="number" placeholder="e.g. 142300" form={logForm} setForm={setLogFormField} S={S} T={T} />
-                        <Field label="Brand" k="brand" placeholder="e.g. Michelin" form={logForm} setForm={setLogFormField} S={S} T={T} />
-                        <Field label="Tyre Size" k="size" placeholder="e.g. 11R22.5" form={logForm} setForm={setLogFormField} S={S} T={T} />
-                        <Field label="Serial Number" k="serialNumber" placeholder="Optional" form={logForm} setForm={setLogFormField} S={S} T={T} />
-                        <Field label="Cost (KES)" k="cost" type="number" placeholder="0" form={logForm} setForm={setLogFormField} S={S} T={T} />
-                        <div style={{ ...S.fg, gridColumn: "1 / -1" }}>
-                            <label style={S.lbl}>Notes</label>
-                            <textarea
-                                rows={2}
-                                placeholder="Additional notes…"
-                                value={logForm.notes}
-                                onChange={e => patch("notes", e.target.value)}
-                                style={{ ...S.inp, resize: "vertical", height: "auto" }}
-                            />
-                        </div>
-                    </div>
+            {logModal && S && (() => {
+                const category = logForm.vehicleCategory || "truck";
+                const selectedTrailer = category === "trailer" ? (data.trailers || []).find(t => t.id === logForm.trailer_id) : null;
+                const positions = category === "trailer" ? getTrailerPositions(selectedTrailer) : TYRE_POSITIONS;
 
-                    {logForm.action === "Replacement" && (
-                        <div style={{ marginTop: 16, padding: "10px 14px", borderRadius: 10, background: "rgba(var(--brand-primary-rgb, 249 115 22) / 0.08)", border: "1px solid rgba(var(--brand-primary-rgb, 249 115 22) / 0.25)", fontSize: 12, color: "var(--text-secondary)" }}>
-                            Logging a replacement will reset the tyre odometer on this truck to the odometer value entered above.
-                            {Number(logForm.cost) > 0 && " A Tyre expense will also be created automatically."}
+                return (
+                    <Modal
+                        title="Log Tyre Entry"
+                        onSave={submitLog}
+                        saveLabel={logSubmitting ? "Saving…" : "Save Entry"}
+                        saveDisabled={logSubmitting || (category === "trailer" ? !logForm.trailer_id : !logForm.truck)}
+                        closeModal={() => setLogModal(false)}
+                        S={S}
+                        wide
+                    >
+                        <div style={S.fgg(2)}>
+                            <div style={{ gridColumn: "1 / -1", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                                <div>
+                                    <label style={S.lbl}>Vehicle Category</label>
+                                    <select 
+                                        style={S.inp} 
+                                        value={category} 
+                                        onChange={e => {
+                                            const val = e.target.value;
+                                            const firstTrailer = data.trailers?.[0];
+                                            setLogFormField(f => ({
+                                                ...f,
+                                                vehicleCategory: val,
+                                                truck: val === "truck" ? (data.trucks?.[0]?.id || "") : "",
+                                                trailer_id: val === "trailer" ? (firstTrailer?.id || "") : "",
+                                                position: val === "trailer" ? (getTrailerPositions(firstTrailer)[0] || "Spare") : "Front Left"
+                                            }));
+                                        }}
+                                    >
+                                        <option value="truck">Truck</option>
+                                        <option value="trailer">Trailer</option>
+                                    </select>
+                                </div>
+                                {category === "truck" ? (
+                                    <Field
+                                        label="Truck *"
+                                        k="truck"
+                                        options={[{ v: "", l: "Select truck…" }, ...(data.trucks || []).map(t => ({ v: t.id, l: t.reg + (t.make ? ` — ${t.make}` : "") }))]}
+                                        form={logForm}
+                                        setForm={setLogFormField}
+                                        S={S}
+                                        T={T}
+                                    />
+                                ) : (
+                                    <Field
+                                        label="Trailer *"
+                                        k="trailer_id"
+                                        options={[{ v: "", l: "Select trailer…" }, ...(data.trailers || []).map(t => ({ v: t.id, l: `${t.reg} (${t.type})` }))]}
+                                        form={logForm}
+                                        setForm={setLogFormField}
+                                        S={S}
+                                        T={T}
+                                        onChange={val => {
+                                            const tr = data.trailers?.find(t => t.id === val);
+                                            const trPos = getTrailerPositions(tr);
+                                            setLogFormField(f => ({
+                                                ...f,
+                                                position: trPos[0] || "Spare",
+                                                truck: tr?.truck || ""
+                                            }));
+                                        }}
+                                    />
+                                )}
+                            </div>
+
+                            {category === "trailer" && selectedTrailer && (
+                                <div style={{ gridColumn: "1 / -1", background: "rgba(249, 115, 22, 0.08)", padding: "10px 14px", borderRadius: 10, border: "1px solid rgba(249, 115, 22, 0.25)", fontSize: 12, color: "var(--text-secondary)" }}>
+                                    <strong>Trailer Specification:</strong> {selectedTrailer.type || "Flatbed"} trailer with {selectedTrailer.tyreCount || 12} tyres across {selectedTrailer.axleCount || 3} axles.
+                                </div>
+                            )}
+
+                            <Field
+                                label="Action *"
+                                k="action"
+                                options={TYRE_ACTIONS.map(a => ({ v: a, l: a }))}
+                                form={logForm}
+                                setForm={setLogFormField}
+                                S={S}
+                                T={T}
+                            />
+                            <Field
+                                label="Position"
+                                k="position"
+                                options={positions.map(p => ({ v: p, l: p }))}
+                                form={logForm}
+                                setForm={setLogFormField}
+                                S={S}
+                                T={T}
+                            />
+                            <Field label="Date" k="date" type="date" form={logForm} setForm={setLogFormField} S={S} T={T} />
+                            <Field label="Odometer (KM)" k="odom" type="number" placeholder="e.g. 142300" form={logForm} setForm={setLogFormField} S={S} T={T} />
+                            <Field label="Brand" k="brand" placeholder="e.g. Michelin" form={logForm} setForm={setLogFormField} S={S} T={T} />
+                            <Field label="Tyre Size" k="size" placeholder="e.g. 11R22.5" form={logForm} setForm={setLogFormField} S={S} T={T} />
+                            <Field label="Serial Number" k="serialNumber" placeholder="Optional" form={logForm} setForm={setLogFormField} S={S} T={T} />
+                            <Field label="Cost (KES)" k="cost" type="number" placeholder="0" form={logForm} setForm={setLogFormField} S={S} T={T} />
+                            <div style={{ ...S.fg, gridColumn: "1 / -1" }}>
+                                <label style={S.lbl}>Notes</label>
+                                <textarea
+                                    rows={2}
+                                    placeholder="Additional notes…"
+                                    value={logForm.notes}
+                                    onChange={e => patch("notes", e.target.value)}
+                                    style={{ ...S.inp, resize: "vertical", height: "auto" }}
+                                />
+                            </div>
                         </div>
-                    )}
-                </Modal>
-            )}
+
+                        {category === "truck" && logForm.action === "Replacement" && (
+                            <div style={{ marginTop: 16, padding: "10px 14px", borderRadius: 10, background: "rgba(var(--brand-primary-rgb, 249 115 22) / 0.08)", border: "1px solid rgba(var(--brand-primary-rgb, 249 115 22) / 0.25)", fontSize: 12, color: "var(--text-secondary)" }}>
+                                Logging a replacement will reset the tyre odometer on this truck to the odometer value entered above.
+                                {Number(logForm.cost) > 0 && " A Tyre expense will also be created automatically."}
+                            </div>
+                        )}
+                    </Modal>
+                );
+            })()}
         </div>
     );
 }

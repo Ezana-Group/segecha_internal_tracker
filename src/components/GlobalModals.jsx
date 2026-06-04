@@ -803,16 +803,50 @@ export function GlobalModals(props) {
         );
     }
 
-    /* ── MAINTENANCE ──────────────────────────────────────────────── */
     if (modal === "maintenance") {
+        const category = form.vehicleCategory || (form.trailer_id && !form.truck ? "trailer" : "truck");
+        
         const submitLog = () => {
             if (!form.date || !form.odom) { alert("Date and odometer reading are required"); return; }
             const taskName = form.task === "Custom" ? form.customTask : form.task;
-            const entry = { truck: form.truck, trailer_id: form.trailer_id || "", date: form.date, cat: "Maintenance", amount: +(form.cost || 0), odom: +form.odom, desc: `${taskName}${form.notes ? " — " + form.notes : ""}`, _maintenanceTask: taskName, _maintenanceDetails: { task: taskName, workshop: form.workshop || "", cost: +(form.cost || 0), odomReading: +form.odom, receiptUrl: form.receiptUrl || "", notes: form.notes || "" } };
+            
+            const isTrailer = category === "trailer";
+            const trailerObj = isTrailer ? data.trailers?.find(t => t.id === form.trailer_id) : null;
+            
+            let descSuffix = "";
+            if (isTrailer && trailerObj) {
+                descSuffix = ` (${trailerObj.type || "Trailer"}, ${trailerObj.tyreCount || 12} tyres)`;
+            }
+            
+            const entry = { 
+                truck: isTrailer ? (trailerObj?.truck || "") : form.truck, 
+                trailer_id: isTrailer ? form.trailer_id : "", 
+                date: form.date, 
+                cat: "Maintenance", 
+                amount: +(form.cost || 0), 
+                odom: +form.odom, 
+                desc: `${taskName}${descSuffix}${form.notes ? " — " + form.notes : ""}`, 
+                _maintenanceTask: taskName, 
+                _maintenanceDetails: { 
+                    task: taskName, 
+                    workshop: form.workshop || "", 
+                    cost: +(form.cost || 0), 
+                    odomReading: +form.odom, 
+                    receiptUrl: form.receiptUrl || "", 
+                    notes: form.notes || "",
+                    ...(isTrailer && trailerObj ? {
+                        trailerType: trailerObj.type,
+                        trailerTyreCount: trailerObj.tyreCount
+                    } : {})
+                } 
+            };
             saveItem("expenses", entry);
-            const truckObj = data.trucks.find(t => t.id === form.truck);
-            if (+form.odom > +(truckObj?.odom || 0)) {
-                setData(d => ({ ...d, trucks: d.trucks.map(t => t.id === form.truck ? { ...t, odom: +form.odom } : t) }));
+            const truckIdToUpdate = isTrailer ? trailerObj?.truck : form.truck;
+            if (truckIdToUpdate) {
+                const truckObj = data.trucks.find(t => t.id === truckIdToUpdate);
+                if (+form.odom > +(truckObj?.odom || 0)) {
+                    setData(d => ({ ...d, trucks: d.trucks.map(t => t.id === truckIdToUpdate ? { ...t, odom: +form.odom } : t) }));
+                }
             }
         };
 
@@ -823,25 +857,55 @@ export function GlobalModals(props) {
             { task: "Power Steering Fluid Top-up", intervalKm: 20000 }, { task: "Engine Belt Inspection", intervalKm: 30000 },
             { task: "Differential Oil Change", intervalKm: 40000 }, { task: "Transmission Fluid Change", intervalKm: 40000 },
         ];
-        const selectedTruck = data.trucks.find(t => t.id === form.truck) || data.trucks[0];
+        const selectedTrailer = category === "trailer" ? (data.trailers.find(t => t.id === form.trailer_id) || data.trailers[0]) : null;
+        const selectedTruck = category === "truck" 
+            ? (data.trucks.find(t => t.id === form.truck) || data.trucks[0])
+            : (data.trucks.find(t => t.id === selectedTrailer?.truck) || data.trucks[0]);
 
         return (
             <Modal title={form.id ? "Edit Service Record" : `Log Service — ${form.task}`} onSave={submitLog} S={S} closeModal={closeModal}>
                 <div style={modalGrid}>
                     <div style={{ gridColumn: "1/-1" }}>
-                        <FormLabel>Truck</FormLabel>
-                        <select style={S.inp} value={form.truck} onChange={e => setForm(f => ({ ...f, truck: e.target.value }))}>
-                            {data.trucks.map(t => <option key={t.id} value={t.id}>{t.reg} — {Number(t.odom || 0).toLocaleString("en-KE")} km</option>)}
+                        <FormLabel>Vehicle Category</FormLabel>
+                        <select 
+                            style={S.inp} 
+                            value={category} 
+                            onChange={e => {
+                                const val = e.target.value;
+                                setForm(f => ({
+                                    ...f,
+                                    vehicleCategory: val,
+                                    truck: val === "truck" ? (data.trucks[0]?.id || "") : "",
+                                    trailer_id: val === "trailer" ? (data.trailers[0]?.id || "") : ""
+                                }));
+                            }}
+                        >
+                            <option value="truck">Truck</option>
+                            <option value="trailer">Trailer</option>
                         </select>
                     </div>
 
-                    <div style={{ gridColumn: "1/-1" }}>
-                        <FormLabel>Trailer (optional)</FormLabel>
-                        <select style={S.inp} value={form.trailer_id || ""} onChange={e => setForm(f => ({ ...f, trailer_id: e.target.value }))}>
-                            <option value="">— None —</option>
-                            {(data.trailers || []).map(t => <option key={t.id} value={t.id}>{t.reg} ({t.type})</option>)}
-                        </select>
-                    </div>
+                    {category === "truck" ? (
+                        <div style={{ gridColumn: "1/-1" }}>
+                            <FormLabel>Truck</FormLabel>
+                            <select style={S.inp} value={form.truck || ""} onChange={e => setForm(f => ({ ...f, truck: e.target.value }))}>
+                                {data.trucks.map(t => <option key={t.id} value={t.id}>{t.reg} — {Number(t.odom || 0).toLocaleString("en-KE")} km</option>)}
+                            </select>
+                        </div>
+                    ) : (
+                        <div style={{ gridColumn: "1/-1" }}>
+                            <FormLabel>Trailer</FormLabel>
+                            <select style={S.inp} value={form.trailer_id || ""} onChange={e => setForm(f => ({ ...f, trailer_id: e.target.value }))}>
+                                {data.trailers.map(t => <option key={t.id} value={t.id}>{t.reg} ({t.type})</option>)}
+                            </select>
+                        </div>
+                    )}
+
+                    {category === "trailer" && selectedTrailer && (
+                        <div style={{ gridColumn: "1/-1", background: "rgba(249, 115, 22, 0.08)", padding: "10px 14px", borderRadius: 10, border: "1px solid rgba(249, 115, 22, 0.25)", fontSize: 12, color: "var(--text-secondary)" }}>
+                            <strong>Trailer Specification:</strong> {selectedTrailer.type || "Flatbed"} trailer with {selectedTrailer.tyreCount || 12} tyres across {selectedTrailer.axleCount || 3} axles.
+                        </div>
+                    )}
 
                     <div style={{ gridColumn: "1/-1" }}>
                         <FormLabel>Maintenance Task</FormLabel>
@@ -1077,6 +1141,8 @@ export function GlobalModals(props) {
                     <Field label="Trailer Type" k="type" options={["Flatbed", "Skeleton", "Tanker", "Lowloader", "Box Body", "Refrigerated"]} form={form} setForm={setForm} S={S} T={T} />
                     <Field label="Manufacturer / Model" k="make" form={form} setForm={setForm} S={S} T={T} />
                     <Field label="Year" k="year" type="number" form={form} setForm={setForm} S={S} T={T} />
+                    <Field label="Axles" k="axleCount" type="number" form={form} setForm={setForm} S={S} T={T} />
+                    <Field label="Number of Tyres" k="tyreCount" type="number" form={form} setForm={setForm} S={S} T={T} />
                     <Field label="Status" k="status" options={["Active", "Maintenance", "Inactive"]} form={form} setForm={setForm} S={S} T={T} />
                     <Field label="Current Assigned Truck" k="truck" options={data.trucks.map(t => ({ v: t.id, l: t.reg }))} form={form} setForm={setForm} S={S} T={T} />
                 </div>

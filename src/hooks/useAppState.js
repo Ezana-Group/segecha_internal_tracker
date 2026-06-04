@@ -1657,9 +1657,11 @@ export function useAppState() {
      */
     const logTyreChange = (entry) => {
         const logId = 'tyr' + uid().slice(0, 7);
+        const isTrailer = !!entry.trailer_id;
         const log = {
             id: logId,
-            truck:        entry.truck,
+            truck:        isTrailer ? "" : (entry.truck || ''),
+            trailer_id:   isTrailer ? entry.trailer_id : '',
             position:     entry.position     || '',
             serialNumber: entry.serialNumber || '',
             brand:        entry.brand        || '',
@@ -1678,8 +1680,8 @@ export function useAppState() {
                 tyreLogs: [log, ...(d.tyreLogs || [])],
             };
 
-            // Reset tyreOdom on the truck when it's a replacement
-            if (entry.action === 'Replacement' || !entry.action) {
+            // Reset tyreOdom on the truck when it's a truck replacement
+            if (!isTrailer && (entry.action === 'Replacement' || !entry.action) && entry.truck) {
                 newState.trucks = d.trucks.map(t =>
                     t.id === entry.truck ? { ...t, tyreOdom: Number(entry.odom) || t.odom } : t
                 );
@@ -1694,7 +1696,8 @@ export function useAppState() {
             if (Number(entry.cost) > 0) {
                 const expense = {
                     id: 'e' + uid().slice(0, 6),
-                    truck: entry.truck,
+                    truck: isTrailer ? "" : entry.truck,
+                    trailer_id: isTrailer ? entry.trailer_id : "",
                     cat: 'Tyre',
                     amount: Number(entry.cost),
                     date: entry.date || today(),
