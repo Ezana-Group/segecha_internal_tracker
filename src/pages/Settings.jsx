@@ -1215,12 +1215,12 @@ export function Settings({
                                                 <input 
                                                     type="checkbox" 
                                                     id="autoLogoutEnabled"
-                                                    checked={localS.autoLogoutEnabled !== false} 
+                                                    checked={localS.autoLogoutEnabled === true} 
                                                     onChange={e => saveSettings({ autoLogoutEnabled: e.target.checked })}
                                                     style={{ width: 18, height: 18, cursor: "pointer" }}
                                                 />
                                                 <label htmlFor="autoLogoutEnabled" style={{ fontSize: 13, cursor: "pointer", color: "var(--text-primary)" }}>
-                                                    {localS.autoLogoutEnabled !== false ? "Enabled (Recommended)" : "Disabled"}
+                                                    {localS.autoLogoutEnabled === true ? "Enabled" : "Disabled (Recommended for Desktop)"}
                                                 </label>
                                             </div>
                                         </SettingsShellField>

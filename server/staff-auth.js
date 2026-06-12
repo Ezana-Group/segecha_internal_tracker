@@ -95,7 +95,7 @@ async function resetStaffPasswordWithToken(token, newPassword) {
         WHERE staff_id = $2
     `, [await bcrypt.hash(newPassword, 10), record.staff_id]);
 
-    const tokenOut = jwt.sign({ staffId: record.staff_id, email: record.email, role: 'staff' }, JWT_SECRET, { expiresIn: '12h' });
+    const tokenOut = jwt.sign({ staffId: record.staff_id, email: record.email, role: 'staff' }, JWT_SECRET, { expiresIn: '30d' });
     return { success: true, token: tokenOut, staffId: record.staff_id };
 }
 
@@ -155,7 +155,7 @@ async function loginStaff(identifier, secret, method) {
 
     // Success: reset lockout counters
     await db.query('UPDATE staff_auth SET failed_attempts = 0, locked_until = NULL WHERE staff_id = $1', [record.staff_id]);
-    const token = jwt.sign({ staffId: record.staff_id, email: record.email, role: 'staff' }, JWT_SECRET, { expiresIn: '12h' });
+    const token = jwt.sign({ staffId: record.staff_id, email: record.email, role: 'staff' }, JWT_SECRET, { expiresIn: '30d' });
     return { success: true, token, staffId: record.staff_id };
 }
 

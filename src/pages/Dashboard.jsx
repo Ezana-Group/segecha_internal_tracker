@@ -15,6 +15,7 @@ import {
     CreditCard,
     TrendingDown,
     Activity,
+    Receipt,
 } from "lucide-react";
 import { fmt, fmtN, monthLabel } from "../utils/formatters";
 import { STALE_TRANSIT_DAYS, FLEET_ACTIVE_WARN_PCT } from "../constants/nav";
@@ -179,6 +180,15 @@ export function Dashboard({ data, dark, truckStats, tyreStatus, truckReg, driver
             accent: "var(--brand-primary)",
             spark: [5, 12, 18, 14, 20, 25, 30],
             sparkColor: "var(--brand-primary)",
+        },
+        {
+            label: "Total Expenses",
+            value: fmt(totalExpenses),
+            sub: `Incl. ${fmt(totalFuelCost)} fuel`,
+            icon: Receipt,
+            accent: "#ef4444",
+            spark: [8, 10, 15, 12, 18, 20, 22],
+            sparkColor: "#ef4444",
         },
         {
             label: "Fuel Cost",

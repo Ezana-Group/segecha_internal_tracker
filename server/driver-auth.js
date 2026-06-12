@@ -115,7 +115,7 @@ async function resetPasswordWithToken(token, newPassword) {
     const loginToken = jwt.sign(
         { driverId: record.driver_id, email: record.email },
         JWT_SECRET,
-        { expiresIn: '12h' }
+        { expiresIn: '30d' }
     );
     return { success: true, token: loginToken, driverId: record.driver_id };
 }
@@ -213,7 +213,7 @@ async function loginDriver(identifier, secret, method) {
 
     // Success: reset lockout counters
     await db.query('UPDATE driver_auth SET failed_attempts = 0, locked_until = NULL WHERE driver_id = $1', [record.driver_id]);
-    const token = jwt.sign({ driverId: record.driver_id, email: record.email }, JWT_SECRET, { expiresIn: '12h' });
+    const token = jwt.sign({ driverId: record.driver_id, email: record.email }, JWT_SECRET, { expiresIn: '30d' });
     return { success: true, token, driverId: record.driver_id };
 }
 

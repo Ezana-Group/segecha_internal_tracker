@@ -114,7 +114,7 @@ export default function App() {
         if (!authed) return;
 
         const settings = JSON.parse(localStorage.getItem("segecha_settings") || "{}");
-        const autoLogoutEnabled = settings.autoLogoutEnabled !== false; // Default ON
+        const autoLogoutEnabled = settings.autoLogoutEnabled === true; // Default OFF
         const idleLimit = (settings.autoLogoutMinutes || 30) * 60 * 1000;
 
         if (!autoLogoutEnabled) return;
