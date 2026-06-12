@@ -98,24 +98,29 @@ jobs:
           ${{ matrix.platform_flag }}
           --publish always
 
-      # ── 8. Publish the GitHub Release (convert draft → published) ─────────────
-      # Only runs once (on macOS runner) after both jobs have had time to upload.
-      - name: Publish GitHub Release as non-draft
-        if: matrix.os == 'macos-latest'
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          TAG="${GITHUB_REF_NAME}"
-          echo "Publishing release $TAG..."
-          sleep 15
-          gh release edit "$TAG" --draft=false --latest || true
-          echo "Done."
-
-      # ── 9. Summary ────────────────────────────────────────────────────────────
+      # ── 8. Print release summary ──────────────────────────────────────────────
       - name: Print release summary
         shell: bash
         run: |
           echo "### ✅ ${{ matrix.artifact_label }} build complete" >> $GITHUB_STEP_SUMMARY
           echo "Tag: \`${GITHUB_REF_NAME}\`" >> $GITHUB_STEP_SUMMARY
           echo "Assets uploaded to the GitHub Release for this tag." >> $GITHUB_STEP_SUMMARY
+
+  publish:
+    name: Publish Release
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Publish GitHub Release as non-draft
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          echo "Publishing release $TAG..."
+          gh release edit "$TAG" --draft=false --latest || true
+          echo "Done."
+
